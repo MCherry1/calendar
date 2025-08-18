@@ -1,6 +1,6 @@
 // Enhanced Calendar Script for Roll20
 // Full calendar with header, month-specific colors, event highlights, and details
-// Version: 0.1
+// Version: 0.22 (no moons/weather + help + retreatDay)
 var Calendar = (function(){
     'use strict';
     var script_name = 'Calendar';
@@ -38,18 +38,7 @@ var Calendar = (function(){
             { name: "Wildnight",               month: 9,  day: "18-19" },
             { name: "Thronehold",              month: 10, day: 11 },
             { name: "Long Shadows",            month: 11, day: "26-28" }
-        ],
-        environment: {
-            location:       "Unknown",
-            climate:        "continental",
-            baseWeather:    "clear",
-            currentWeather: "clear",
-            timeOfDay:      "Morning"
-        },
-        climates: {
-            tropical:    ["stuffy","rainy","muggy"],
-            continental: ["clear","cool","breezy"]
-        }
+        ]
     };
 
     function gmod(a,b){ return ((a%b)+b)%b; }
@@ -58,13 +47,15 @@ var Calendar = (function(){
     function checkInstall(){
         if(!state[state_name]) state[state_name]={};
         var cal = state[state_name].calendar;
-        if(!cal || !Array.isArray(cal.weekdays) || !cal.environment){
+
+        // Initialize or repair the calendar object
+        if(!cal || !Array.isArray(cal.weekdays) || !Array.isArray(cal.months)){
             state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
         } else {
-            cal.events       = cal.events       || defaults.events;
-            cal.weekdays     = cal.weekdays     || defaults.weekdays;
-            cal.months       = cal.months       || defaults.months;
-            cal.environment  = Object.assign({}, defaults.environment, cal.environment);
+            cal.current  = cal.current  || JSON.parse(JSON.stringify(defaults.current));
+            cal.weekdays = cal.weekdays || JSON.parse(JSON.stringify(defaults.weekdays));
+            cal.months   = cal.months   || JSON.parse(JSON.stringify(defaults.months));
+            cal.events   = cal.events   || JSON.parse(JSON.stringify(defaults.events));
         }
     }
 
@@ -90,12 +81,12 @@ var Calendar = (function(){
 
         // Header: month left, year right
         html.push(
-            '<tr><th colspan="7" '+
-            'style="border:1px solid #444;padding:6px;background-color:'+monthColor+';">'+
+            '<tr><th colspan="7" style="border:1px solid #444;padding:6px;background-color:'+monthColor+';">'+
             cal.months[cur.month].name+
             '<span style="float:right;">'+cur.year+' YK</span>'+
             '</th></tr>'
         );
+
         // Weekday header
         html.push(
             '<tr>' + wd.map(function(d){
@@ -131,66 +122,130 @@ var Calendar = (function(){
     function announceDay(){
         var cal=getCal(), c=cal.current;
         var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
-        var publicMsg = [ buildMiniCal(),
+
+        var publicMsg = [
+            buildMiniCal(),
             '<div style="font-weight:bold;margin:2px 0;">'+wd+', '+m.name+' '+c.day_of_the_month+', '+c.year+'</div>'
         ];
-        cal.events.filter(function(e){ return e.month-1===c.month; })
+
+        cal.events
+            .filter(function(e){ return e.month-1===c.month; })
             .forEach(function(e){ publicMsg.push('<div>'+m.name+' '+e.day+': '+e.name+'</div>'); });
+
         publicMsg.push('<div style="margin-top:8px;"></div>');
         publicMsg.push('<div>Season: '+m.season+'</div>');
-        publicMsg.push('<div>Location: '+cal.environment.location+'</div>');
-        publicMsg.push('<div>Climate: '+cal.environment.climate+'</div>');
-        publicMsg.push('<div>Daily Weather: '+cal.environment.baseWeather+'</div>');
-        publicMsg.push('<div>Time of Day: '+cal.environment.timeOfDay+'</div>');
-        publicMsg.push('<div>Current Weather: '+cal.environment.currentWeather+'</div>');
+
         sendChat(script_name, '/direct ' + publicMsg.join(''));
 
         // GM-only buttons
         var gmButtons =
-            '<div style="margin-top:6px;">'+
-            '<a href="!cal advance day">⏭ Advance Day</a> '+
-            '<a href="!cal set 1 1 998">📅 Set Date</a>'+  // example usage
-            '</div>';
+            '[⏭ Advance Day](!cal advanceDay) '+
+            '[⏮ Retreat Day](!cal retreatDay) '+
+            '[📅 Set 01 01 998](!cal setDate 01 01 998) '+
+            '[❓ Help](!cal help)';
         sendChat(script_name, '/w gm ' + gmButtons);
+    }
+
+    function recomputeWeekday(){
+        var cal=getCal(), cur=cal.current;
+        cur.day_of_the_week = (cur.day_of_the_month - 1) % cal.weekdays.length; // 1→Sul(0)
     }
 
     function advanceDay(){
         var cal=getCal(), cur=cal.current;
-        cur.day_of_the_week = gmod(cur.day_of_the_week+1, cal.weekdays.length);
         cur.day_of_the_month++;
         if(cur.day_of_the_month > cal.months[cur.month].days){
             cur.day_of_the_month = 1;
-            cur.month = gmod(cur.month+1, cal.months.length);
+            cur.month = (cur.month + 1) % cal.months.length;
             if(cur.month===0) cur.year++;
         }
-        var pool = cal.climates[cal.environment.climate] || [];
-        cal.environment.baseWeather    = pool.length ? pool[randomInteger(pool.length)-1] : cal.environment.baseWeather;
-        cal.environment.currentWeather = cal.environment.baseWeather;
-        cal.environment.timeOfDay      = 'Morning';
+        recomputeWeekday();
         announceDay();
     }
 
-    function setDate(m,d,y){
+    function retreatDay(){
         var cal=getCal(), cur=cal.current;
-        cur.month            = parseInt(m,10)-1;
-        cur.day_of_the_month = parseInt(d,10);
-        cur.year             = parseInt(y,10) || cur.year;
+        cur.day_of_the_month--;
+        if(cur.day_of_the_month < 1){
+            // move to previous month
+            cur.month = (cur.month + cal.months.length - 1) % cal.months.length;
+            if(cur.month === cal.months.length - 1){ // wrapped past Zarantyr → Vult
+                cur.year = Math.max(0, cur.year - 1);
+            }
+            cur.day_of_the_month = cal.months[cur.month].days; // 28
+        }
+        recomputeWeekday();
         announceDay();
+    }
+
+    // dd mm yyyy (year optional)
+    function setDate(d,m,y){
+        var cal=getCal(), cur=cal.current;
+        var mi = Math.max(0, Math.min((parseInt(m,10) || 1) - 1, cal.months.length-1)); // 0–11
+        var di = Math.max(1, Math.min(parseInt(d,10) || 1, cal.months[mi].days));       // 1–28
+        var yi = parseInt(y,10);
+
+        cur.month            = mi;
+        cur.day_of_the_month = di;
+        if(Number.isFinite(yi)) cur.year = yi;
+
+        recomputeWeekday();
+        announceDay();
+    }
+
+    function showHelp(to){
+        var help = [
+            '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
+            '<div>• <code>!cal</code> — show the calendar</div>',
+            '<div>• <code>!cal advanceDay</code> — advance one day</div>',
+            '<div>• <code>!cal retreatDay</code> — go back one day</div>',
+            '<div>• <code>!cal setDate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date (day-first; leading zeros optional)</div>',
+            '<div>• <code>!cal help</code> — show this help</div>'
+        ].join('');
+        sendChat(script_name, (to ? '/w '+to+' ' : '') + help);
     }
 
     function handleInput(msg){
-        if(msg.type!=='api' || !msg.content.startsWith('!cal')) return;
-        var args = msg.content.split(' ');
-        if(args[1]==='advance' && args[2]==='day') advanceDay();
-        else if(args[1]==='set') setDate(args[2],args[3],args[4]);
-        else announceDay();
+        if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
+        var args = msg.content.trim().split(/\s+/);
+        var sub = (args[1]||'').toLowerCase();
+
+        if(sub === '' || sub === 'show'){
+            announceDay();
+        } else if(sub === 'advanceday'){
+            advanceDay();
+        } else if(sub === 'retreatday'){
+            retreatDay();
+        } else if(sub === 'setdate'){
+            // !cal setDate <dd> <mm> [yyyy]
+            setDate(args[2], args[3], args[4]);
+        } else if(sub === 'help'){
+            // whisper help to the caller if we can detect who; otherwise to gm
+            var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
+            showHelp(who || 'gm');
+        } else {
+            announceDay();
+        }
     }
 
     function register(){ on('chat:message', handleInput); }
     return { checkInstall: checkInstall, register: register };
 })();
 
-on('ready', function(){
+on("ready", () => {
     Calendar.checkInstall();
     Calendar.register();
+
+    // Build readable date string
+    const cal = state.CALENDAR.calendar;
+    const cur = cal.current;
+    const months = cal.months.map(m => m.name);
+    const weekdays = cal.weekdays;
+    const currentDate = `${weekdays[cur.day_of_the_week]}, ${cur.day_of_the_month} ${months[cur.month]}, ${cur.year} YK`;
+
+    // API console
+    log(`Eberron Calendar Running, current date: ${currentDate}`);
+
+    // Whisper to GM
+    sendChat("Calendar", `/w gm <div style="font-weight:bold;">Eberron Calendar Initialized</div><div>Current date: ${currentDate}</div>`);
 });
