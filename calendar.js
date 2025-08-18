@@ -93,12 +93,13 @@ function headerTextColor(bg){
 
         // Header: month left, year right; full-width colored bar with auto-contrast text
         html.push(
-        '<tr><th colspan="7" style="border:1px solid #444;padding:0;">' +
-            '<div style="padding:6px;background:'+monthColor+';background-color:'+monthColor+';color:'+textColor+';">' +
+            '<tr><th colspan="7" style="border:1px solid #444;padding:0;">' +
+            '<div style="display:block;width:100%;padding:6px;'+
+            'background:'+monthColor+';background-color:'+monthColor+';color:'+textColor+';">' +
             cal.months[cur.month].name +
             '<span style="float:right;">'+cur.year+' YK</span>' +
             '</div>' +
-        '</th></tr>'
+            '</th></tr>'
         );
 
 
