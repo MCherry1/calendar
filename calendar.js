@@ -1,6 +1,4 @@
-// Enhanced Calendar Script for Roll20
-// Full calendar with header, month-specific colors, event highlights, and details
-// Version: 0.22 (no moons/weather + help + retreatDay)
+// Version: 1.0 
 var Calendar = (function(){
     'use strict';
     var script_name = 'Calendar';
@@ -72,6 +70,18 @@ var Calendar = (function(){
         });
     }
 
+    // Choose white or black text based on background color brightness
+function headerTextColor(bg){
+    var hex = String(bg||'').trim();
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if(!m) return '#000';
+    var n = parseInt(m[1],16);
+    var r = (n>>16)&255, g = (n>>8)&255, b = n&255;
+    // YIQ luma; tweak threshold to taste (128–160 is common)
+    var yiq = (r*299 + g*587 + b*114)/1000;
+    return yiq >= 145 ? '#000' : '#fff';
+}
+
     function buildMiniCal(){
         var cal = getCal(), cur = cal.current;
         var wd = cal.weekdays, md = cal.months[cur.month].days;
@@ -79,9 +89,12 @@ var Calendar = (function(){
         var monthColor = cal.months[cur.month].color;
         var html = ['<table style="border-collapse:collapse;margin-bottom:0px;">'];
 
-        // Header: month left, year right
+        var textColor = headerTextColor(monthColor);
+
+        // Header: month left, year right; full-width colored bar with auto-contrast text
         html.push(
-            '<tr><th colspan="7" style="border:1px solid #444;padding:6px;background-color:'+monthColor+';">'+
+            '<tr><th colspan="7" style="border:1px solid #444;padding:6px;'+
+            'background-color:'+monthColor+';color:'+textColor+';">'+
             cal.months[cur.month].name+
             '<span style="float:right;">'+cur.year+' YK</span>'+
             '</th></tr>'
@@ -119,7 +132,7 @@ var Calendar = (function(){
         return html.join('');
     }
 
-    function announceDay(to){
+    function announceDay(to, gmOnly){
         var cal=getCal(), c=cal.current;
         var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
 
@@ -129,86 +142,87 @@ var Calendar = (function(){
         ];
 
         cal.events
-            .filter(e => e.month-1===c.month)
-            .forEach(e => publicMsg.push('<div>'+m.name+' '+e.day+': '+e.name+'</div>'));
+          .filter(function(e){ return e.month-1===c.month; })
+          .forEach(function(e){ publicMsg.push('<div>'+m.name+' '+e.day+': '+e.name+'</div>'); });
 
         publicMsg.push('<div style="margin-top:8px;"></div>');
         publicMsg.push('<div>Season: '+m.season+'</div>');
 
-        // whisper if "to" is defined, otherwise send to all
-        if(to){
-            sendChat(script_name, `/w ${to} ${publicMsg.join('')}`);
+        if(gmOnly){
+            sendChat(script_name, '/w gm ' + publicMsg.join(''));
+        } else if(to){
+            var target = String(to).replace(/\s+\(GM\)$/,'');
+            sendChat(script_name, '/w "'+target+'" ' + publicMsg.join(''));
         } else {
             sendChat(script_name, '/direct ' + publicMsg.join(''));
         }
 
-        // GM-only buttons (still only whispered to GM)
         var gmButtons =
             '[⏭ Advance Day](!cal advanceDay) '+
             '[⏮ Retreat Day](!cal retreatDay) '+
             '[📅 Set 01 01 998](!cal setDate 01 01 998) '+
-            '[❓ Help](!cal help)';
+            '[❓ Help](!cal help) '+
+            '[📤 Send Date](!cal sendDate)';
         sendChat(script_name, '/w gm ' + gmButtons);
-    }
+}
 
     function recomputeWeekday(){
         var cal=getCal(), cur=cal.current;
         cur.day_of_the_week = (cur.day_of_the_month - 1) % cal.weekdays.length; // 1→Sul(0)
     }
 
-    function advanceDay(){
-        var cal=getCal(), cur=cal.current;
-        cur.day_of_the_month++;
-        if(cur.day_of_the_month > cal.months[cur.month].days){
-            cur.day_of_the_month = 1;
-            cur.month = (cur.month + 1) % cal.months.length;
-            if(cur.month===0) cur.year++;
+function advanceDay(){
+    var cal=getCal(), cur=cal.current;
+    cur.day_of_the_month++;
+    if(cur.day_of_the_month > cal.months[cur.month].days){
+        cur.day_of_the_month = 1;
+        cur.month = (cur.month + 1) % cal.months.length;
+        if(cur.month===0) cur.year++;
+    }
+    recomputeWeekday();
+    announceDay(null,true); // GM only
+}
+
+function retreatDay(){
+    var cal=getCal(), cur=cal.current;
+    cur.day_of_the_month--;
+    if(cur.day_of_the_month < 1){
+        cur.month = (cur.month + cal.months.length - 1) % cal.months.length;
+        if(cur.month === cal.months.length - 1){
+            cur.year = Math.max(0, cur.year - 1);
         }
-        recomputeWeekday();
-        announceDay();
+        cur.day_of_the_month = cal.months[cur.month].days;
     }
+    recomputeWeekday();
+    announceDay(null,true); // GM only
+}
 
-    function retreatDay(){
-        var cal=getCal(), cur=cal.current;
-        cur.day_of_the_month--;
-        if(cur.day_of_the_month < 1){
-            // move to previous month
-            cur.month = (cur.month + cal.months.length - 1) % cal.months.length;
-            if(cur.month === cal.months.length - 1){ // wrapped past Zarantyr → Vult
-                cur.year = Math.max(0, cur.year - 1);
-            }
-            cur.day_of_the_month = cal.months[cur.month].days; // 28
-        }
-        recomputeWeekday();
-        announceDay();
-    }
+function setDate(d,m,y){
+    var cal=getCal(), cur=cal.current;
+    var mi = Math.max(0, Math.min((parseInt(m,10) || 1) - 1, cal.months.length-1));
+    var di = Math.max(1, Math.min(parseInt(d,10) || 1, cal.months[mi].days));
+    var yi = parseInt(y,10);
 
-    // dd mm yyyy (year optional)
-    function setDate(d,m,y){
-        var cal=getCal(), cur=cal.current;
-        var mi = Math.max(0, Math.min((parseInt(m,10) || 1) - 1, cal.months.length-1)); // 0–11
-        var di = Math.max(1, Math.min(parseInt(d,10) || 1, cal.months[mi].days));       // 1–28
-        var yi = parseInt(y,10);
+    cur.month            = mi;
+    cur.day_of_the_month = di;
+    if(Number.isFinite(yi)) cur.year = yi;
 
-        cur.month            = mi;
-        cur.day_of_the_month = di;
-        if(Number.isFinite(yi)) cur.year = yi;
-
-        recomputeWeekday();
-        announceDay();
-    }
+    recomputeWeekday();
+    announceDay(null,true); // GM only
+}
 
     function showHelp(to){
-        var help = [
-            '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
-            '<div>• <code>!cal</code> — show the calendar</div>',
-            '<div>• <code>!cal advanceDay</code> — advance one day</div>',
-            '<div>• <code>!cal retreatDay</code> — go back one day</div>',
-            '<div>• <code>!cal setDate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date (day-first; leading zeros optional)</div>',
-            '<div>• <code>!cal help</code> — show this help</div>'
-        ].join('');
-        sendChat(script_name, (to ? '/w '+to+' ' : '') + help);
-    }
+    var help = [
+        '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
+        '<div>• <code>!cal</code> — show the calendar (whispered to you)</div>',
+        '<div>• <code>!cal advanceDay</code> — advance one day <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal retreatDay</code> — go back one day <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal setDate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date, day‑first; leading zeros optional <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal sendDate</code> — broadcast the calendar to everyone <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal help</code> — show this help</div>'
+    ].join('');
+    sendChat(script_name, (to ? '/w '+to+' ' : '') + help);
+}
 
 function handleInput(msg){
     if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
@@ -221,7 +235,6 @@ function handleInput(msg){
         return;
     }
 
-
     // GM-only from here
     if(!playerIsGM(msg.playerid)){
         var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
@@ -230,19 +243,21 @@ function handleInput(msg){
     }
 
     if(sub === 'advanceday'){
-        advanceDay();
+        advanceDay();                    // whispers to GM (via announceDay(null,true))
     } else if(sub === 'retreatday'){
-        retreatDay();
+        retreatDay();                    // whispers to GM
     } else if(sub === 'setdate'){
-        setDate(args[2], args[3], args[4]);
+        setDate(args[2], args[3], args[4]); // whispers to GM
+    } else if(sub === 'senddate'){
+        announceDay();                   // broadcast to all
     } else if(sub === 'help'){
-        showHelp(msg.who);
+        showHelp(msg.who);               // whisper help to the GM who asked
     } else {
-        announceDay();
+        announceDay(msg.who);            // fallback: whisper to caller
     }
 }
 
-    function register(){ on('chat:message', handleInput); }
+function register(){ on('chat:message', handleInput); }
     return { checkInstall: checkInstall, register: register };
 })();
 
