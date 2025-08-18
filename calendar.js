@@ -1,18 +1,6 @@
 // Enhanced Calendar Script for Roll20
 // Full calendar with header, month-specific colors, event highlights, and details
-// Month color comments use the classic Eberron moon palette:
-// Zarantyr: pearly white (#F8F8FF)
-// Olarune: pale orange (#FFDAB9)
-// Therendor: pale green (#90EE90)
-// Eyre: pale gold (#F0E68C)
-// Dravago: pale plum (#DDA0DD)
-// Nymm: pale turquoise (#AFEEEE)
-// Lharvion: pale thistle (#D8BFD8)
-// Barrakas: pale salmon (#FFA07A)
-// Rhaan: pale gold-yellow (#FAFAD2)
-// Sypheros: medium purple (#9370DB)
-// Aryth: indigo (#4B0082)
-// Vult: light slate gray (#778899)
+// Version: 0.1
 var Calendar = (function(){
     'use strict';
     var script_name = 'Calendar';
@@ -23,18 +11,18 @@ var Calendar = (function(){
         current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 },
         weekdays: ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
         months: [
-            { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F8F8FF" },
-            { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFDAB9" },
-            { name: "Therendor", days: 28, season: "Early spring",  color: "#90EE90" },
-            { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#F0E68C" },
-            { name: "Dravago",   days: 28, season: "Late spring",   color: "#DDA0DD" },
-            { name: "Nymm",      days: 28, season: "Early summer",  color: "#AFEEEE" },
-            { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#D8BFD8" },
-            { name: "Barrakas",  days: 28, season: "Late summer",   color: "#FFA07A" },
-            { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#FAFAD2" },
-            { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#9370DB" },
-            { name: "Aryth",     days: 28, season: "Late autumn",   color: "#4B0082" },
-            { name: "Vult",      days: 28, season: "Early winter",  color: "#778899" }
+            { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" },
+            { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" },
+            { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" },
+            { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" },
+            { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" },
+            { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" },
+            { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" },
+            { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" },
+            { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" },
+            { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" },
+            { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" },
+            { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }
         ],
         events: [
             { name: "Crystalfall",             month: 1,  day: 9 },
