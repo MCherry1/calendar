@@ -119,7 +119,7 @@ var Calendar = (function(){
         return html.join('');
     }
 
-    function announceDay(){
+    function announceDay(to){
         var cal=getCal(), c=cal.current;
         var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
 
@@ -129,15 +129,20 @@ var Calendar = (function(){
         ];
 
         cal.events
-            .filter(function(e){ return e.month-1===c.month; })
-            .forEach(function(e){ publicMsg.push('<div>'+m.name+' '+e.day+': '+e.name+'</div>'); });
+            .filter(e => e.month-1===c.month)
+            .forEach(e => publicMsg.push('<div>'+m.name+' '+e.day+': '+e.name+'</div>'));
 
         publicMsg.push('<div style="margin-top:8px;"></div>');
         publicMsg.push('<div>Season: '+m.season+'</div>');
 
-        sendChat(script_name, '/direct ' + publicMsg.join(''));
+        // whisper if "to" is defined, otherwise send to all
+        if(to){
+            sendChat(script_name, `/w ${to} ${publicMsg.join('')}`);
+        } else {
+            sendChat(script_name, '/direct ' + publicMsg.join(''));
+        }
 
-        // GM-only buttons
+        // GM-only buttons (still only whispered to GM)
         var gmButtons =
             '[⏭ Advance Day](!cal advanceDay) '+
             '[⏮ Retreat Day](!cal retreatDay) '+
@@ -205,28 +210,37 @@ var Calendar = (function(){
         sendChat(script_name, (to ? '/w '+to+' ' : '') + help);
     }
 
-    function handleInput(msg){
-        if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
-        var args = msg.content.trim().split(/\s+/);
-        var sub = (args[1]||'').toLowerCase();
+function handleInput(msg){
+    if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
+    var args = msg.content.trim().split(/\s+/);
+    var sub = (args[1]||'').toLowerCase();
 
-        if(sub === '' || sub === 'show'){
-            announceDay();
-        } else if(sub === 'advanceday'){
-            advanceDay();
-        } else if(sub === 'retreatday'){
-            retreatDay();
-        } else if(sub === 'setdate'){
-            // !cal setDate <dd> <mm> [yyyy]
-            setDate(args[2], args[3], args[4]);
-        } else if(sub === 'help'){
-            // whisper help to the caller if we can detect who; otherwise to gm
-            var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
-            showHelp(who || 'gm');
-        } else {
-            announceDay();
-        }
+    // Commands open to everyone
+    if(sub === '' || sub === 'show'){
+        announceDay(msg.who); // whisper to whoever called !cal
+        return;
     }
+
+
+    // GM-only from here
+    if(!playerIsGM(msg.playerid)){
+        var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
+        sendChat(script_name, '/w "'+who+'" Only the GM can use that calendar command.');
+        return;
+    }
+
+    if(sub === 'advanceday'){
+        advanceDay();
+    } else if(sub === 'retreatday'){
+        retreatDay();
+    } else if(sub === 'setdate'){
+        setDate(args[2], args[3], args[4]);
+    } else if(sub === 'help'){
+        showHelp(msg.who);
+    } else {
+        announceDay();
+    }
+}
 
     function register(){ on('chat:message', handleInput); }
     return { checkInstall: checkInstall, register: register };
