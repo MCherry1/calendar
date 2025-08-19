@@ -49,7 +49,6 @@ function checkInstall(){
     if(!state[state_name]) state[state_name]={};
     var cal = state[state_name].calendar;
 
-    // Initialize or repair the calendar object
     if(!cal || !Array.isArray(cal.weekdays) || !Array.isArray(cal.months)){
         state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
     } else {
@@ -58,7 +57,11 @@ function checkInstall(){
         cal.months   = cal.months   || JSON.parse(JSON.stringify(defaults.months));
         cal.events   = cal.events   || JSON.parse(JSON.stringify(defaults.events));
     }
-    // --- migrate months to ensure .color exists --- 
+
+    // 👇 Rebind cal AFTER possible initialization above
+    cal = state[state_name].calendar;
+
+    // --- migrate months to ensure .color exists ---
     for (var i = 0; i < defaults.months.length; i++){
         cal.months[i] = cal.months[i] || {};
         if (!cal.months[i].name)   cal.months[i].name   = defaults.months[i].name;
@@ -67,6 +70,7 @@ function checkInstall(){
         if (!cal.months[i].color)  cal.months[i].color  = defaults.months[i].color;
     }
 }
+
 
 function isEvent(m,d){
     return getCal().events.some(function(e){
@@ -99,29 +103,30 @@ function esc(s){
 
 function buildMiniCal(){
     var cal = getCal(), cur = cal.current;
-    var wd = cal.weekdays, md = cal.months[cur.month].days;
+    var wd = cal.weekdays;
     var first = gmod(cur.day_of_the_week - (cur.day_of_the_month - 1), wd.length);
-    var monthColor = cal.months[cur.month].color || defaults.months[cur.month].color || '#eee';
-    var html = ['<table style="border-collapse:collapse;margin-bottom:0px;">'];
+    var mObj = cal.months[cur.month] || defaults.months[cur.month] || defaults.months[0];
+    var md = mObj.days;
+    var monthColor = mObj.color || '#eee';
 
     var textColor = headerTextColor(monthColor);
 
-    // Header: month left, year right; full-width colored bar with auto-contrast text
+    var html = ['<table style="border-collapse:collapse;margin-bottom:0px;">'];
+
+    // Month & Year Header: month left, year right; full-width colored bar with auto-contrast text
     html.push(
         '<tr><th colspan="7" style="border:1px solid #444;padding:0;">' +
-            '<div style="padding:6px;background-color:'+monthColor+';color:'+textColor+';">' +
-            cal.months[cur.month].name +
-            '<span style="float:right;">'+cur.year+' YK</span>' +
+            '<div style="padding:6px;background-color:'+monthColor+';color:'+textColor+';text-align:left;">' +
+                esc(mObj.name) +
+                '<span style="float:right;">'+cur.year+' YK</span>' +
             '</div>' +
         '</th></tr>'
     );
 
-
-
     // Weekday header
     html.push(
         '<tr>' + wd.map(function(d){
-        return '<th style="border:1px solid #444;padding:2px;width:2em;text-align:center;">'+d+'</th>';
+            return '<th style="border:1px solid #444;padding:2px;width:2em;text-align:center;">'+esc(d)+'</th>';
         }).join('') + '</tr>'
     );
 
@@ -129,23 +134,24 @@ function buildMiniCal(){
     for(var r=0;r<6;r++){
         html.push('<tr>');
         for(var c=0;c<7;c++){
-        if((r===0 && c<first) || day>md){
-        html.push('<td style="border:1px solid #444;width:2em;height:2em;"></td>');
-        } else {
-        var today = day === cur.day_of_the_month;
-        var ev    = isEvent(cur.month, day);
-        var style = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
-        if(ev && today)        style += 'background:#DAA520;color:#fff;';
-        else if(today)         style += 'background:#2ECD71;color:#fff;';
-        else if(ev)            style += 'background:#FFD700;';
+            if((r===0 && c<first) || day>md){
+                html.push('<td style="border:1px solid #444;width:2em;height:2em;"></td>');
+            } else {
+                var today = day === cur.day_of_the_month;
+                var ev    = isEvent(cur.month, day);
+                var style = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
+                if(ev && today)        style += 'background:#DAA520;color:#fff;';
+                else if(today)         style += 'background:#2ECD71;color:#fff;';
+                else if(ev)            style += 'background:#FFD700;';
 
-        html.push('<td style="'+style+'">'+day+'</td>');
-        day++;
-        }
+                html.push('<td style="'+style+'">'+day+'</td>');
+                day++;
+            }
         }
         html.push('</tr>');
         if(day>md) break;
     }
+
     html.push('</table>');
     return html.join('');
 }
@@ -156,10 +162,12 @@ function announceDay(to, gmOnly){
     var mName = esc(m.name);
     var mSeason = esc(m.season);
 
+    var wdName = esc(wd);
     var publicMsg = [
         buildMiniCal(),
-        '<div style="font-weight:bold;margin:2px 0;">'+wd+', '+mName+' '+c.day_of_the_month+', '+c.year+'</div>'
+        '<div style="font-weight:bold;margin:2px 0;">'+wdName+', '+mName+' '+c.day_of_the_month+', '+c.year+'</div>'
     ];
+
 
     cal.events
         .filter(function(e){ return e.month-1===c.month; })
@@ -182,7 +190,7 @@ function announceDay(to, gmOnly){
         '[⏭ Advance Day](!cal advanceDay)',
         '[⏮ Retreat Day](!cal retreatDay)',
         '[❓ Help](!cal help)'
-        ].map(b => '<div style="margin:2px 0;">'+b+'</div>').join('');
+        ].map(function(b){ return '<div style="margin:2px 0;">'+b+'</div>'; }).join('');
 
         sendChat(script_name, '/w gm ' + gmButtons);
 }
@@ -293,18 +301,25 @@ on("ready", () => {
     Calendar.register();
 
     // Build readable date string
-    const cal = state.CALENDAR.calendar;
-    const cur = cal.current;
-    const months = cal.months.map(m => m.name);
-    const weekdays = cal.weekdays;
-    const currentDate = `${weekdays[cur.day_of_the_week]}, ${cur.day_of_the_month} ${months[cur.month]}, ${cur.year} YK`;
+    var cal = state.CALENDAR.calendar;
+    var cur = cal.current;
+    var months = cal.months.map(function(m){ return m.name; });
+    var weekdays = cal.weekdays;
+    var currentDate = weekdays[cur.day_of_the_week] + ", " + cur.day_of_the_month + " " + months[cur.month] + ", " + cur.year + " YK";
 
     // API console
     log(`Eberron Calendar Running, current date: ${currentDate}`);
 
     // Whisper to GM
-    sendChat("Calendar", `/w gm <div style="font-weight:bold;">Eberron Calendar Initialized</div><div>Current date: ${currentDate}</div>`);
+    sendChat("Calendar",
+        '/w gm ' +
+        '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
+        '<div>Current date: ' + currentDate + '</div>'
+    );
 
     // Provide player instruction
-    sendChat("Calendar", `<div>Use <code>!cal</code> to view the calendar.</div><div>Use <code>!cal help</code> for command details.</div>`);
+    sendChat("Calendar",
+        '<div>Use <code>!cal</code> to view the calendar.</div>' +
+        '<div>Use <code>!cal help</code> for command details.</div>'
+    );
 });
