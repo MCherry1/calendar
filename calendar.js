@@ -26,19 +26,19 @@ var defaults = {
         { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }
     ],
     events: [
-        { name: "Crystalfall",             month: 1,  day: 9 },
-        { name: "The Day of Mourning",     month: 1,  day: 20 },
-        { name: "Sun's Blessing",          month: 2,  day: 15 },
-        { name: "Aureon's Crown",          month: 4,  day: 26 },
-        { name: "Brightblade",             month: 5,  day: 12 },
-        { name: "The Race of Eight Winds", month: 6,  day: 23 },
-        { name: "The Hunt",                month: 7,  day: 4 },
-        { name: "Fathen's Fall",           month: 7,  day: 25 },
-        { name: "Boldrei's Feast",         month: 8,  day: 9 },
-        { name: "The Ascension",           month: 9,  day: 1 },
-        { name: "Wildnight",               month: 9,  day: "18-19" },
-        { name: "Thronehold",              month: 10, day: 11 },
-        { name: "Long Shadows",            month: 11, day: "26-28" }
+        { name: "Crystalfall",             month: 2,  day: 9 },
+        { name: "The Day of Mourning",     month: 2,  day: 20 },
+        { name: "Sun's Blessing",          month: 3,  day: 15 },
+        { name: "Aureon's Crown",          month: 5,  day: 26 },
+        { name: "Brightblade",             month: 6,  day: 12 },
+        { name: "The Race of Eight Winds", month: 7,  day: 23 },
+        { name: "The Hunt",                month: 8,  day: 4 },
+        { name: "Fathen's Fall",           month: 8,  day: 25 },
+        { name: "Boldrei's Feast",         month: 9,  day: 9 },
+        { name: "The Ascension",           month: 10,  day: 1 },
+        { name: "Wildnight",               month: 10,  day: "18-19" },
+        { name: "Thronehold",              month: 11, day: 11 },
+        { name: "Long Shadows",            month: 12, day: "26-28" }
     ]
 };
 
@@ -74,31 +74,38 @@ function checkInstall(){
 
 function isEvent(m,d){
     return getCal().events.some(function(e){
-        var em = e.month - 1;
-        if(em !== m) return false;
-        if(typeof e.day === 'number') return d === e.day;
-        if(typeof e.day === 'string' && e.day.includes('-')){
-        var parts = e.day.split('-').map(Number);
-        return d >= parts[0] && d <= parts[1];
+        var em = (parseInt(e.month,10)||1) - 1;
+        if (em !== m) return false;
+        if (typeof e.day === 'number') return d === e.day;
+        if (typeof e.day === 'string'){
+            if (e.day.indexOf('-') !== -1){
+                var parts = e.day.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
+                return Number.isFinite(parts[0]) && Number.isFinite(parts[1]) && d >= parts[0] && d <= parts[1];
+            }
+            var n = parseInt(e.day,10);
+            return Number.isFinite(n) && d === n;
         }
         return false;
-    });
+  });
 }
 
 // Choose white or black text based on background color brightness
 function headerTextColor(bg){
-  var hex = String(bg||'').trim().replace(/^#/, '');
+  var hex = (bg||'').toString().trim().replace(/^#/, '');
   if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g, '$1$1');
   if (!/^[0-9a-f]{6}$/i.test(hex)) return '#000';
   var n = parseInt(hex,16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
-  var yiq = (r*299 + g*587 + b*114)/1000;
-  return yiq >= 145 ? '#000' : '#fff';
+  return ((r*299 + g*587 + b*114)/1000) >= 145 ? '#000' : '#fff';
 }
 
 function esc(s){
-    return String(s).replace(/[&<>"]/g, function(m){
-        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
-    });
+    if (s == null) return '';
+    return String(s)
+        .replace(/&(?!#?\w+;)/g, '&amp;') // don't re-escape existing entities
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function buildMiniCal(){
@@ -110,15 +117,18 @@ function buildMiniCal(){
     var monthColor = mObj.color || '#eee';
 
     var textColor = headerTextColor(monthColor);
+    var outline = (textColor === '#fff')
+        ? 'text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'
+        : '';
 
     var html = ['<table style="border-collapse:collapse;margin-bottom:0px;">'];
 
     // Month & Year Header: month left, year right; full-width colored bar with auto-contrast text
     html.push(
         '<tr><th colspan="7" style="border:1px solid #444;padding:0;">' +
-            '<div style="padding:6px;background-color:'+monthColor+';color:'+textColor+';text-align:left;">' +
+            '<div style="padding:6px;background-color:'+monthColor+';color:'+textColor+';text-align:left;'+outline+'">' +
                 esc(mObj.name) +
-                '<span style="float:right;">'+cur.year+' YK</span>' +
+                '<span style="float:right;">'+esc(String(cur.year))+' YK</span>' +
             '</div>' +
         '</th></tr>'
     );
@@ -165,13 +175,24 @@ function announceDay(to, gmOnly){
     var wdName = esc(wd);
     var publicMsg = [
         buildMiniCal(),
-        '<div style="font-weight:bold;margin:2px 0;">'+wdName+', '+mName+' '+c.day_of_the_month+', '+c.year+'</div>'
+        '<div style="font-weight:bold;margin:2px 0;">'+wdName+', '+mName+' '+c.day_of_the_month+', '+esc(String(c.year))+'</div>'
     ];
 
 
     cal.events
-        .filter(function(e){ return e.month-1===c.month; })
-        .forEach(function(e){ publicMsg.push('<div>'+mName+' '+e.day+': '+esc(e.name)+'</div>'); });
+        .filter(function(e){ return e.month-1 === c.month; })
+        .forEach(function(e){
+            var dayLabel = esc(String(e.day));
+            var isToday =
+            (typeof e.day === 'number' && e.day === c.day_of_the_month) ||
+            (typeof e.day === 'string' && e.day.indexOf('-') !== -1 && (function(){
+                var p = e.day.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
+                return Number.isFinite(p[0]) && Number.isFinite(p[1]) &&
+                    c.day_of_the_month >= p[0] && c.day_of_the_month <= p[1];
+            })());
+
+            publicMsg.push('<div'+(isToday?' style="font-weight:bold;"':'')+'>'+mName+' '+dayLabel+': '+esc(e.name)+'</div>');
+    });
 
     publicMsg.push('<div style="margin-top:8px;"></div>');
     publicMsg.push('<div>Season: '+mSeason+'</div>');
@@ -210,7 +231,8 @@ function advanceDay(){
     }
     recomputeWeekday();
     announceDay(null,true); // GM only
-    }
+}
+
 
 function retreatDay(){
     var cal=getCal(), cur=cal.current;
@@ -264,13 +286,13 @@ function handleInput(msg){
     var args = msg.content.trim().split(/\s+/);
     var sub = (args[1]||'').toLowerCase();
 
-    // Commands open to everyone
+    // Player & GM
     if(sub === '' || sub === 'show'){
         announceDay(msg.who); // whisper to whoever called !cal
         return;
     }
 
-    // GM-only from here
+    // GM only
     if(!playerIsGM(msg.playerid)){
         var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
         sendChat(script_name, '/w "'+who+'" Only the GM can use that calendar command.');
@@ -310,14 +332,14 @@ on("ready", () => {
     // API console
     log(`Eberron Calendar Running, current date: ${currentDate}`);
 
-    // Whisper to GM
+    // Initialized
     sendChat("Calendar",
         '/w gm ' +
         '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
         '<div>Current date: ' + currentDate + '</div>'
     );
 
-    // Provide player instruction
+    // General instructions
     sendChat("Calendar",
         '<div>Use <code>!cal</code> to view the calendar.</div>' +
         '<div>Use <code>!cal help</code> for command details.</div>'
