@@ -51,13 +51,13 @@ function checkInstall(){
 
     // Initialize or repair the calendar object
     if(!cal || !Array.isArray(cal.weekdays) || !Array.isArray(cal.months)){
-    state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
+        state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
     } else {
         cal.current  = cal.current  || JSON.parse(JSON.stringify(defaults.current));
         cal.weekdays = cal.weekdays || JSON.parse(JSON.stringify(defaults.weekdays));
         cal.months   = cal.months   || JSON.parse(JSON.stringify(defaults.months));
         cal.events   = cal.events   || JSON.parse(JSON.stringify(defaults.events));
-        }
+    }
     // --- migrate months to ensure .color exists --- 
     for (var i = 0; i < defaults.months.length; i++){
         cal.months[i] = cal.months[i] || {};
@@ -83,22 +83,25 @@ function isEvent(m,d){
 
 // Choose white or black text based on background color brightness
 function headerTextColor(bg){
-    var hex = String(bg||'').trim();
-    var m = /^#?([0-9a-f]{6})$/i.exec(hex);
-    if(!m) return '#000';
-    var n = parseInt(m[1],16);
-    var r = (n>>16)&255, g = (n>>8)&255, b = n&255;
-    // YIQ luma; tweak threshold to taste (128–160 is common)
-    var yiq = (r*299 + g*587 + b*114)/1000;
-    return yiq >= 145 ? '#000' : '#fff';
+  var hex = String(bg||'').trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g, '$1$1');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return '#000';
+  var n = parseInt(hex,16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  var yiq = (r*299 + g*587 + b*114)/1000;
+  return yiq >= 145 ? '#000' : '#fff';
+}
+
+function esc(s){
+    return String(s).replace(/[&<>"]/g, function(m){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
+    });
 }
 
 function buildMiniCal(){
     var cal = getCal(), cur = cal.current;
     var wd = cal.weekdays, md = cal.months[cur.month].days;
     var first = gmod(cur.day_of_the_week - (cur.day_of_the_month - 1), wd.length);
-    var monthColor = cal.months[cur.month].color;
-    var monthColor = cal.months[cur.month].color || defaults.months[cur.month].color || '#eee'; // fallback
+    var monthColor = cal.months[cur.month].color || defaults.months[cur.month].color || '#eee';
     var html = ['<table style="border-collapse:collapse;margin-bottom:0px;">'];
 
     var textColor = headerTextColor(monthColor);
@@ -118,7 +121,7 @@ function buildMiniCal(){
     // Weekday header
     html.push(
         '<tr>' + wd.map(function(d){
-        return '<th style="border:1px solid #444;padding:2px;width:2em;">'+d+'</th>';
+        return '<th style="border:1px solid #444;padding:2px;width:2em;text-align:center;">'+d+'</th>';
         }).join('') + '</tr>'
     );
 
@@ -148,148 +151,160 @@ function buildMiniCal(){
 }
 
 function announceDay(to, gmOnly){
-var cal=getCal(), c=cal.current;
-var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
+    var cal=getCal(), c=cal.current;
+    var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
+    var mName = esc(m.name);
+    var mSeason = esc(m.season);
 
-var publicMsg = [
-buildMiniCal(),
-'<div style="font-weight:bold;margin:2px 0;">'+wd+', '+m.name+' '+c.day_of_the_month+', '+c.year+'</div>'
-];
+    var publicMsg = [
+        buildMiniCal(),
+        '<div style="font-weight:bold;margin:2px 0;">'+wd+', '+mName+' '+c.day_of_the_month+', '+c.year+'</div>'
+    ];
 
-cal.events
-.filter(function(e){ return e.month-1===c.month; })
-.forEach(function(e){ publicMsg.push('<div>'+m.name+' '+e.day+': '+e.name+'</div>'); });
+    cal.events
+        .filter(function(e){ return e.month-1===c.month; })
+        .forEach(function(e){ publicMsg.push('<div>'+mName+' '+e.day+': '+esc(e.name)+'</div>'); });
 
-publicMsg.push('<div style="margin-top:8px;"></div>');
-publicMsg.push('<div>Season: '+m.season+'</div>');
+    publicMsg.push('<div style="margin-top:8px;"></div>');
+    publicMsg.push('<div>Season: '+mSeason+'</div>');
 
-if(gmOnly){
-sendChat(script_name, '/w gm ' + publicMsg.join(''));
-} else if(to){
-var target = String(to).replace(/\s+\(GM\)$/,'');
-sendChat(script_name, '/w "'+target+'" ' + publicMsg.join(''));
-} else {
-sendChat(script_name, '/direct ' + publicMsg.join(''));
-}
+    if(gmOnly){
+    sendChat(script_name, '/w gm ' + publicMsg.join(''));
+    } else if(to){
+        var target = String(to).replace(/\s+\(GM\)$/,'').trim();
+        sendChat(script_name, '/w "'+target+'" ' + publicMsg.join(''));
+    } else {
+        sendChat(script_name, '/direct ' + publicMsg.join(''));
+    }
 
-var gmButtons =
-'[⏭ Advance Day](!cal advanceDay) '+
-'[⏮ Retreat Day](!cal retreatDay) '+
-'[📅 Set 01 01 998](!cal setDate 01 01 998) '+
-'[❓ Help](!cal help) '+
-'[📤 Send Date](!cal sendDate)';
-sendChat(script_name, '/w gm ' + gmButtons);
+    var gmButtons = [
+        '[📤 Send Date](!cal sendDate)',
+        '[⏭ Advance Day](!cal advanceDay)',
+        '[⏮ Retreat Day](!cal retreatDay)',
+        '[❓ Help](!cal help)'
+        ].map(b => '<div style="margin:2px 0;">'+b+'</div>').join('');
+
+        sendChat(script_name, '/w gm ' + gmButtons);
 }
 
 function recomputeWeekday(){
-var cal=getCal(), cur=cal.current;
-cur.day_of_the_week = (cur.day_of_the_month - 1) % cal.weekdays.length; // 1→Sul(0)
+    var cal=getCal(), cur=cal.current;
+    cur.day_of_the_week = (cur.day_of_the_month - 1) % cal.weekdays.length; // 1→Sul(0)
 }
 
 function advanceDay(){
-var cal=getCal(), cur=cal.current;
-cur.day_of_the_month++;
-if(cur.day_of_the_month > cal.months[cur.month].days){
-cur.day_of_the_month = 1;
-cur.month = (cur.month + 1) % cal.months.length;
-if(cur.month===0) cur.year++;
-}
-recomputeWeekday();
-announceDay(null,true); // GM only
-}
+    var cal=getCal(), cur=cal.current;
+    cur.day_of_the_month++;
+    if(cur.day_of_the_month > cal.months[cur.month].days){
+        cur.day_of_the_month = 1;
+        cur.month = (cur.month + 1) % cal.months.length;
+        if(cur.month===0) cur.year++;
+    }
+    recomputeWeekday();
+    announceDay(null,true); // GM only
+    }
 
 function retreatDay(){
-var cal=getCal(), cur=cal.current;
-cur.day_of_the_month--;
-if(cur.day_of_the_month < 1){
-cur.month = (cur.month + cal.months.length - 1) % cal.months.length;
-if(cur.month === cal.months.length - 1){
-cur.year = Math.max(0, cur.year - 1);
-}
-cur.day_of_the_month = cal.months[cur.month].days;
-}
-recomputeWeekday();
-announceDay(null,true); // GM only
+    var cal=getCal(), cur=cal.current;
+    cur.day_of_the_month--;
+    if(cur.day_of_the_month < 1){
+        cur.month = (cur.month + cal.months.length - 1) % cal.months.length;
+        if(cur.month === cal.months.length - 1){
+        cur.year = Math.max(0, cur.year - 1);
+        }
+        cur.day_of_the_month = cal.months[cur.month].days;
+    }
+    recomputeWeekday();
+    announceDay(null,true); // GM only
 }
 
 function setDate(d,m,y){
-var cal=getCal(), cur=cal.current;
-var mi = Math.max(0, Math.min((parseInt(m,10) || 1) - 1, cal.months.length-1));
-var di = Math.max(1, Math.min(parseInt(d,10) || 1, cal.months[mi].days));
-var yi = parseInt(y,10);
+    var cal=getCal(), cur=cal.current;
+    var mi = Math.max(0, Math.min((parseInt(m,10) || 1) - 1, cal.months.length-1));
+    var di = Math.max(1, Math.min(parseInt(d,10) || 1, cal.months[mi].days));
+    var yi = parseInt(y,10);
 
-cur.month            = mi;
-cur.day_of_the_month = di;
-if(Number.isFinite(yi)) cur.year = yi;
+    cur.month            = mi;
+    cur.day_of_the_month = di;
+    if(Number.isFinite(yi)) cur.year = yi;
 
-recomputeWeekday();
-announceDay(null,true); // GM only
+    recomputeWeekday();
+    announceDay(null,true); // GM only
 }
 
 function showHelp(to){
-var help = [
-'<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
-'<div>• <code>!cal</code> — show the calendar (whispered to you)</div>',
-'<div>• <code>!cal advanceDay</code> — advance one day <i>(GM‑only)</i></div>',
-'<div>• <code>!cal retreatDay</code> — go back one day <i>(GM‑only)</i></div>',
-'<div>• <code>!cal setDate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date, day‑first; leading zeros optional <i>(GM‑only)</i></div>',
-'<div>• <code>!cal sendDate</code> — broadcast the calendar to everyone <i>(GM‑only)</i></div>',
-'<div>• <code>!cal help</code> — show this help</div>'
-].join('');
-sendChat(script_name, (to ? '/w '+to+' ' : '') + help);
+    var help = [
+        '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
+        '<div>• <code>!cal</code> or <code>!cal show</code> — show the calendar (whispered to you)</div>',
+        '<div>• <code>!cal sendDate</code> — broadcast the calendar to everyone <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal advanceDay</code> — advance one day <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal retreatDay</code> — go back one day <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal setDate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date, day‑first; year optional; leading zeros optional <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal help</code> — show this help</div>'
+    ].join('');
+    
+    if(to){
+        var target = String(to).replace(/\s+\(GM\)$/,'').trim();
+        sendChat(script_name, '/w "'+target+'" ' + help);
+    } else {
+        sendChat(script_name, help);
+    }
 }
 
 function handleInput(msg){
-if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
-var args = msg.content.trim().split(/\s+/);
-var sub = (args[1]||'').toLowerCase();
+    if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
+    var args = msg.content.trim().split(/\s+/);
+    var sub = (args[1]||'').toLowerCase();
 
-// Commands open to everyone
-if(sub === '' || sub === 'show'){
-announceDay(msg.who); // whisper to whoever called !cal
-return;
-}
+    // Commands open to everyone
+    if(sub === '' || sub === 'show'){
+        announceDay(msg.who); // whisper to whoever called !cal
+        return;
+    }
 
-// GM-only from here
-if(!playerIsGM(msg.playerid)){
-var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
-sendChat(script_name, '/w "'+who+'" Only the GM can use that calendar command.');
-return;
-}
+    // GM-only from here
+    if(!playerIsGM(msg.playerid)){
+        var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
+        sendChat(script_name, '/w "'+who+'" Only the GM can use that calendar command.');
+        return;
+    }
 
-if(sub === 'advanceday'){
-advanceDay();                    // whispers to GM (via announceDay(null,true))
-} else if(sub === 'retreatday'){
-retreatDay();                    // whispers to GM
-} else if(sub === 'setdate'){
-setDate(args[2], args[3], args[4]); // whispers to GM
-} else if(sub === 'senddate'){
-announceDay();                   // broadcast to all
-} else if(sub === 'help'){
-showHelp(msg.who);               // whisper help to the GM who asked
-} else {
-announceDay(msg.who);            // fallback: whisper to caller
-}
+    if(sub === 'advanceday'){
+        advanceDay();                    // whispers to GM (via announceDay(null,true))
+    } else if(sub === 'retreatday'){
+        retreatDay();                    // whispers to GM
+    } else if(sub === 'setdate'){
+        setDate(args[2], args[3], args[4]); // whispers to GM
+    } else if(sub === 'senddate'){
+        announceDay();                   // broadcast to all
+    } else if(sub === 'help'){
+        showHelp(msg.who);               // whisper help to the GM who asked
+    } else {
+        announceDay(msg.who);            // fallback: whisper to caller
+    }
 }
 
 function register(){ on('chat:message', handleInput); }
-return { checkInstall: checkInstall, register: register };
+    return { checkInstall: checkInstall, register: register };
 })();
 
 on("ready", () => {
-Calendar.checkInstall();
-Calendar.register();
+    Calendar.checkInstall();
+    Calendar.register();
 
-// Build readable date string
-const cal = state.CALENDAR.calendar;
-const cur = cal.current;
-const months = cal.months.map(m => m.name);
-const weekdays = cal.weekdays;
-const currentDate = `${weekdays[cur.day_of_the_week]}, ${cur.day_of_the_month} ${months[cur.month]}, ${cur.year} YK`;
+    // Build readable date string
+    const cal = state.CALENDAR.calendar;
+    const cur = cal.current;
+    const months = cal.months.map(m => m.name);
+    const weekdays = cal.weekdays;
+    const currentDate = `${weekdays[cur.day_of_the_week]}, ${cur.day_of_the_month} ${months[cur.month]}, ${cur.year} YK`;
 
-// API console
-log(`Eberron Calendar Running, current date: ${currentDate}`);
+    // API console
+    log(`Eberron Calendar Running, current date: ${currentDate}`);
 
-// Whisper to GM
-sendChat("Calendar", `/w gm <div style="font-weight:bold;">Eberron Calendar Initialized</div><div>Current date: ${currentDate}</div>`);
+    // Whisper to GM
+    sendChat("Calendar", `/w gm <div style="font-weight:bold;">Eberron Calendar Initialized</div><div>Current date: ${currentDate}</div>`);
+
+    // Provide player instruction
+    sendChat("Calendar", `<div>Use <code>!cal</code> to view the calendar.</div><div>Use <code>!cal help</code> for command details.</div>`);
 });
