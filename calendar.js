@@ -42,26 +42,43 @@ var defaults = {
     ]
 };
 
+function resetEventsToDefaults(){
+    if(!state[state_name] || !state[state_name].calendar){
+        state[state_name] = { calendar: JSON.parse(JSON.stringify(defaults)) };
+    } else {
+        state[state_name].calendar.events = JSON.parse(JSON.stringify(defaults.events));
+    }
+}
+
 function gmod(a,b){ return ((a%b)+b)%b; }
 function getCal(){ return state[state_name].calendar; }
 
 function checkInstall(){
-    if(!state[state_name]) state[state_name]={};
-    var cal = state[state_name].calendar;
+    if(!state[state_name]) state[state_name] = {};
 
-    if(!cal || !Array.isArray(cal.weekdays) || !Array.isArray(cal.months)){
-        state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
+    // 1) Ensure calendar exists
+    if(!state[state_name].calendar ||
+        !Array.isArray(state[state_name].calendar.weekdays) ||
+        !Array.isArray(state[state_name].calendar.months)){
+            state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
+        }
+
+    // 2) Work on the real object
+    var cal = state[state_name].calendar;
+    cal.current = cal.current || JSON.parse(JSON.stringify(defaults.current));
+
+
+    // 3) Ensure events exists & normalize months (1..12)
+    if(!Array.isArray(cal.events)){
+        cal.events = JSON.parse(JSON.stringify(defaults.events));
     } else {
-        cal.current  = cal.current  || JSON.parse(JSON.stringify(defaults.current));
-        cal.weekdays = cal.weekdays || JSON.parse(JSON.stringify(defaults.weekdays));
-        cal.months   = cal.months   || JSON.parse(JSON.stringify(defaults.months));
-        cal.events   = cal.events   || JSON.parse(JSON.stringify(defaults.events));
+        cal.events = cal.events.map(function(e){
+        var m = Math.max(1, Math.min(parseInt(e.month,10)||1, defaults.months.length));
+        return { name: String(e.name||''), month: m, day: e.day };
+        });
     }
 
-    // 👇 Rebind cal AFTER possible initialization above
-    cal = state[state_name].calendar;
-
-    // --- migrate months to ensure .color exists ---
+  // 4) Migrate months to ensure all fields exist
     for (var i = 0; i < defaults.months.length; i++){
         cal.months[i] = cal.months[i] || {};
         if (!cal.months[i].name)   cal.months[i].name   = defaults.months[i].name;
@@ -70,7 +87,6 @@ function checkInstall(){
         if (!cal.months[i].color)  cal.months[i].color  = defaults.months[i].color;
     }
 }
-
 
 function isEvent(m,d){
     return getCal().events.some(function(e){
@@ -270,6 +286,7 @@ function showHelp(to){
         '<div>• <code>!cal advanceDay</code> — advance one day <i>(GM‑only)</i></div>',
         '<div>• <code>!cal retreatDay</code> — go back one day <i>(GM‑only)</i></div>',
         '<div>• <code>!cal setDate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date, day‑first; year optional; leading zeros optional <i>(GM‑only)</i></div>',
+        '<div>• <code>!cal resetEvents</code> — restore the holiday list to defaults <i>(GM‑only)</i></div>',
         '<div>• <code>!cal help</code> — show this help</div>'
     ].join('');
     
@@ -309,6 +326,10 @@ function handleInput(msg){
         announceDay();                   // broadcast to all
     } else if(sub === 'help'){
         showHelp(msg.who);               // whisper help to the GM who asked
+    } else if (sub === 'resetevents') {
+        resetEventsToDefaults();
+        sendChat(script_name, '/w gm Events restored to defaults.');
+        announceDay(null,true);
     } else {
         announceDay(msg.who);            // fallback: whisper to caller
     }
