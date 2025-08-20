@@ -270,11 +270,11 @@ var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
 
 function applyTodayStyle(style){
   style += 'position:relative;z-index:3;';
-  style += 'top:-2px;left:-2px;';
+//  style += 'top:-2px;left:-2px;'; // shifts up-left for a "raised key" look
   style += 'border-radius:2px;';
   style += 'box-shadow:'
-            + '= 3px 8px rgba(0,0,0,0.65);';
-            + '0 12px 24px rgba(0,0,0,.35), '
+            + '0 3px 8px rgba(0,0,0,0.65);' // thick shadow
+            + '0 12px 24px rgba(0,0,0,.35), ' // soft shadow
             + 'inset 0 1px 0 rgba(255,255,255,.18)'; 
   style += 'outline:2px solid rgba(0,0,0,0.35);';
   style += 'outline-offset:1px;';
@@ -772,11 +772,16 @@ function handleInput(msg){
 
     // Player & GM
     if(sub === '' || sub === 'show'){
-        announceDay(msg.who); // whisper to whoever called !cal
+        // whisper current month's calendar to the caller
+        announceDay(msg.who);
         return;
     } else if (sub === 'year' || sub === 'fullyear' || sub === 'showyear'){
-        // Anyone can call these; whisper result back to the caller
+        // whisper annual calendar to the caller
         whisper(msg.who, buildAllMiniCals());
+        return;
+    } else if (sub === 'events' || sub === 'listevents'){
+        // whisper full chronological event list to the caller
+        whisper(msg.who, buildAllEventsList());
         return;
     }
 
@@ -797,9 +802,6 @@ function handleInput(msg){
         setDate(args[2], args[3], args[4]); // whispers to GM
     } else if(sub === 'senddate'){
         announceDay();                      // broadcast to all
-    } else if (sub === 'events' || sub === 'listevents'){
-        // whisper full chronological event list to the caller (GM)
-        whisper(msg.who, buildAllEventsList());
     } else if (sub === 'addevent'){
         // Syntax: !cal addevent <month#> <day|start-end> <name...> [color]
         // Examples:
