@@ -269,16 +269,18 @@ function firstNumFromDaySpec(daySpec){
 var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
 
 function applyTodayStyle(style){
-  style += 'position:relative;z-index:3;';
+  style += 'position:relative;z-index:10;';
 //  style += 'top:-2px;left:-2px;'; // shifts up-left for a "raised key" look
   style += 'border-radius:2px;';
   style += 'box-shadow:'
-            + '0 3px 8px rgba(0,0,0,0.65);' // thick shadow
-            + '0 12px 24px rgba(0,0,0,.35), ' // soft shadow
-            + 'inset 0 1px 0 rgba(255,255,255,.18)'; 
+            + '0 3px 8px rgba(0,0,0,0.65)' // heavy near shadow
+            + '0 12px 24px rgba(0,0,0,.35), ' // fainter wide shadow
+            + 'inset 0 2px 0 rgba(255,255,255,.18);'; // inside highlight
   style += 'outline:2px solid rgba(0,0,0,0.35);';
   style += 'outline-offset:1px;';
   style += 'box-sizing:border-box;overflow:visible;';
+  style += 'font-weight:bold;';
+  style += 'font-size:1.2em;';
   return style;
 }
 
@@ -546,7 +548,11 @@ function buildMiniCalFor(monthIndex){
 
   var textColor = headerTextColor(monthColor);
   var outline = (textColor === '#fff')
-      ? 'text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'
+      ? 'text-shadow:'
+      + '-0.5px -0.5px 0 #000,'
+      + '0.5px -0.5px 0 #000,'
+      + '-0.5px 0.5px 0 #000,'
+      + '0.5px 0.5px 0 #000;'
       : '';
 
   // Weekday for the 1st of this month
