@@ -269,18 +269,16 @@ function firstNumFromDaySpec(daySpec){
 var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
 
 function applyTodayStyle(style){
-  style += 'position:relative;z-index:10;';
+  style += 'position:relative;z-index:3;';
 //  style += 'top:-2px;left:-2px;'; // shifts up-left for a "raised key" look
-  style += 'border-radius:4px;'; // rounded corners
-  style += 'transform:scale(1.10);transform-origin:center;';
-  style += 'box-shadow: '
-            + '0 3px 8px rgba(0,0,0,0.55), ' // near hard shadow
-            + '0 12px 24px rgba(0,0,0,.35), ' // fading to soft shadow
-            + 'inset 0 1px 0 rgba(255,255,255,.18);'; // inside edge highlight
-  style += 'outline: 2px solid rgba(0,0,0,0.25);'; // pre-existing outline part of grid, not cell
+  style += 'border-radius:2px;';
+  style += 'box-shadow:'
+            + '0 3px 8px rgba(0,0,0,0.65);' // thick shadow
+            + '0 12px 24px rgba(0,0,0,.35), ' // soft shadow
+            + 'inset 0 1px 0 rgba(255,255,255,.18)'; 
+  style += 'outline:2px solid rgba(0,0,0,0.35);';
   style += 'outline-offset:1px;';
-  style += 'box-sizing:border-box;overflow:visible;'; // ensure no clipping errors, overflow neighboring cells
-  style += 'font-weight:bold;';
+  style += 'box-sizing:border-box;overflow:visible;';
   return style;
 }
 
@@ -502,29 +500,33 @@ function buildMiniCal(){
                 var today = day === cur.day_of_the_month;
                 var todays = getEventsFor(cur.month, day);
                 var evObj = todays[0] || null; // still use first event as a fallback
-                var tdStyle = TD_BASE + (today ? 'position:relative;overflow:visible;padding:0;' : 'padding:0;');
-                var inner   = 'display:block;width:100%;height:100%;box-sizing:border-box;text-align:center;';
+                var style = TD_BASE;
+                var cellTextColor, cellBg;
                 var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
 
                 if (todays.length >= 2){ // striped background for 2-3 events
                     var cols = todays.slice(0,3).map(eventColor);
                     var avg  = avgHexColor(cols);
-                      inner += 'background:'+gradientFor(cols)+';color:'+headerTextColor(avg)+';';
+                    style += 'background:'+gradientFor(cols)+';';
+                    cellTextColor = headerTextColor(avg);
+                    style += 'color:'+cellTextColor+';';
+                    if (today){ style = applyTodayStyle(style); }
                 } else if (evObj){
-                  var bg = eventColor(evObj), txt = headerTextColor(bg);
-                  inner += 'background:'+bg+';color:'+txt+';';
+                    cellBg = eventColor(evObj);
+                    cellTextColor = headerTextColor(cellBg);
+                    style += 'background:'+cellBg+';color:'+cellTextColor+';';
+                    if (today){ style = applyTodayStyle(style); }
                 } else if (today){
                     // "today" with no events uses month header color
-                  var bg = monthColor, txt = headerTextColor(bg);
-                  inner += 'background:'+bg+';color:'+txt+';';
+                    cellBg = monthColor;
+                    cellTextColor = headerTextColor(cellBg);
+                    style += 'background:'+cellBg+';color:'+cellTextColor+';';
+                    style = applyTodayStyle(style);
                 }
-            
-                if (today){ inner = applyTodayStyle(inner); }
 
                 var dotsHtml = buildEventDots(todays); // Add dots for >3 events
-                
-                html.push('<td'+titleAttr+' style="'+tdStyle+'"><div style="'+inner+'"><div>'+day+'</div>'+dotsHtml+'</div></td>');
 
+                html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div>'+dotsHtml+'</td>');
                 day++;
             }
         }
@@ -547,7 +549,9 @@ function buildMiniCalFor(monthIndex){
       ? 'text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'
       : '';
 
+  // Weekday for the 1st of this month
   var first = weekdayFor(monthIndex, 1);
+
   var html = ['<table style="border-collapse:collapse;margin:4px;">'];
 
   // Header
@@ -568,63 +572,45 @@ function buildMiniCalFor(monthIndex){
   );
 
   var day=1;
-  for (var r=0; r<6; r++){
+  for(var r=0;r<6;r++){
     html.push('<tr>');
-    for (var c=0; c<7; c++){
-      if ((r===0 && c<first) || day>md){
+    for(var c=0;c<7;c++){
+      if((r===0 && c<first) || day>md){
         html.push('<td style="border:1px solid #444;"></td>');
       } else {
         var isToday = (monthIndex === cur.month) && (day === cur.day_of_the_month);
-        var todays  = getEventsFor(monthIndex, day);
-        var evObj   = todays[0] || null;
-
-        // TD = container; inner = the colored block we style/scale/shadow
-        var tdStyle = TD_BASE + 'position:relative;overflow:visible;padding:0;';
-        var inner   = 'position:relative;display:flex;align-items:center;justify-content:center;' +
-                      'width:100%;height:100%;box-sizing:border-box;text-align:center;';
-
+        var todays = getEventsFor(monthIndex, day);
+        var evObj = todays[0] || null;
+        var style = TD_BASE;
+        var cellTextColor, cellBg;
         var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
 
-        // Background + text color on the inner block
         if (todays.length >= 2){
           var cols = todays.slice(0,3).map(eventColor);
           var avg  = avgHexColor(cols);
-          inner += 'background:'+gradientFor(cols)+';color:'+headerTextColor(avg)+';';
+          style += 'background:'+gradientFor(cols)+';';
+          cellTextColor = headerTextColor(avg);
+          style += 'color:'+cellTextColor+';';
+          if (isToday){ style = applyTodayStyle(style); }
         } else if (evObj){
-          var bg = eventColor(evObj), txt = headerTextColor(bg);
-          inner += 'background:'+bg+';color:'+txt+';';
+          cellBg = eventColor(evObj);
+          cellTextColor = headerTextColor(cellBg);
+          style += 'background:'+cellBg+';color:'+cellTextColor+';';
+          if (isToday){ style = applyTodayStyle(style); }
         } else if (isToday){
-          var bg2 = monthColor, txt2 = headerTextColor(bg2);
-          inner += 'background:'+bg2+';color:'+txt2+';';
+          cellBg = monthColor;
+          cellTextColor = headerTextColor(cellBg);
+          style += 'background:'+cellBg+';color:'+cellTextColor+';';
+          style = applyTodayStyle(style);
         }
 
-        if (isToday){ inner = applyTodayStyle(inner); }
-
-        // The number stays centered by flex
-        var numHtml = '<div>'+day+'</div>';
-
-        // Dots: only show when >3 events, pinned to the bottom so they don’t shift the number
-        var dotsHtml = '';
-        if (todays && todays.length > 3){
-          var max=4, shown=Math.min(max, todays.length);
-          var dots = [];
-          for (var i=0;i<shown;i++){
-            var col = eventColor(todays[i]);
-            dots.push('<span style="display:inline-block;width:6px;height:6px;margin:0 1px;border:1px solid #000;background:'+esc(col)+';"></span>');
-          }
-          if (todays.length>max){
-            dots.push('<span style="display:inline-block;font-size:10px;vertical-align:top;">+'+(todays.length-max)+'</span>');
-          }
-          dotsHtml = '<div style="position:absolute;bottom:1px;left:0;right:0;text-align:center;line-height:0;">'
-                   + dots.join('') + '</div>';
-        }
-
-        html.push('<td'+titleAttr+' style="'+tdStyle+'"><div style="'+inner+'">'+numHtml+dotsHtml+'</div></td>');
+        var dotsHtml = buildEventDots(todays);
+        html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div>'+dotsHtml+'</td>');
         day++;
       }
     }
     html.push('</tr>');
-    if (day>md) break;
+    if(day>md) break;
   }
   html.push('</table>');
   return html.join('');
@@ -632,7 +618,8 @@ function buildMiniCalFor(monthIndex){
 
 function buildAllMiniCals(){
   var cal = getCal(), months = cal.months;
-  var cols = 1; // will display in however many rows are required. this parameter is here for future adjustment.
+  // Lay out in a 3xN grid (typically 3x4)
+  var cols = 3;
   var html = ['<table style="border-collapse:collapse;"><tbody>'];
   for (var i=0;i<months.length;i++){
     if (i % cols === 0) html.push('<tr>');
