@@ -2,7 +2,8 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // This is written for Roll20's API system.
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
-// Version: 1.0
+// Version: 1.1
+// Future versions will add event colors, fuller event list, and clean some code.
 
 var Calendar = (function(){
 
@@ -217,34 +218,6 @@ function monthPrefixDays(mi){
   return sum;
 }
 
-// ---- Color name support (plain text -> hex) ----
-var COLOR_NAME_TO_HEX = (function(){
-  var m = {
-    black:'#000000', white:'#FFFFFF', gray:'#808080', grey:'#808080',
-    silver:'#C0C0C0', red:'#FF0000', maroon:'#800000', orange:'#FFA500',
-    yellow:'#FFFF00', olive:'#808000', lime:'#00FF00', green:'#008000',
-    teal:'#008080', cyan:'#00FFFF', aqua:'#00FFFF', blue:'#0000FF',
-    navy:'#000080', purple:'#800080', fuchsia:'#FF00FF', magenta:'#FF00FF',
-    pink:'#FFC0CB', brown:'#A52A2A', tan:'#D2B48C', coral:'#FF7F50',
-    gold:'#FFD700', indigo:'#4B0082', violet:'#EE82EE', turquoise:'#40E0D0',
-    salmon:'#FA8072', chocolate:'#D2691E', crimson:'#DC143C', lavender:'#E6E6FA',
-    khaki:'#F0E68C', sienna:'#A0522D', slategray:'#708090', dimgray:'#696969',
-    darkgreen:'#006400', darkred:'#8B0000', darkblue:'#00008B', darkorange:'#FF8C00',
-    forestgreen:'#228B22', royalblue:'#4169E1', dodgerblue:'#1E90FF'
-  };
-  return Object.keys(m).reduce(function(out,k){ out[k.toLowerCase()] = sanitizeHexColor(m[k]); return out; },{});
-})();
-
-function normalizeColor(spec){
-  if(!spec) return null;
-  var s = String(spec).trim();
-  var hex = sanitizeHexColor(s);
-  if (hex) return hex;
-  var key = s.toLowerCase();
-  if (COLOR_NAME_TO_HEX.hasOwnProperty(key)) return COLOR_NAME_TO_HEX[key];
-  return null; // unknown names fall back to default coloring at render time
-}
-
 function toSerial(y, mi, d){ // Serial day index from epoch (year 0, month 0, day 1 => 0). Works with negative years too.
   return (y * daysPerYear()) + monthPrefixDays(mi) + ((parseInt(d,10)||1) - 1);
 }
@@ -266,14 +239,16 @@ function firstNumFromDaySpec(daySpec){
 
 // Style builders
 
-var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
+//var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;';
+var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;';
+
 
 function applyTodayStyle(style){
   style += 'position:relative;z-index:10;';
 //  style += 'top:-2px;left:-2px;'; // shifts up-left for a "raised key" look
   style += 'border-radius:2px;';
   style += 'box-shadow:'
-            + '0 3px 8px rgba(0,0,0,0.65)' // heavy near shadow
+            + '0 3px 8px rgba(0,0,0,0.65),' // heavy near shadow
             + '0 12px 24px rgba(0,0,0,.35), ' // fainter wide shadow
             + 'inset 0 2px 0 rgba(255,255,255,.18);'; // inside highlight
   style += 'outline:2px solid rgba(0,0,0,0.35);';
@@ -398,15 +373,39 @@ function addEvent(monthToken, dayToken, nameTokens, colorToken){
   }
 
   // --- Parse name & color ---
-  var name = String((nameTokens||[]).join(' ')).trim() || 'Untitled Event';
-  var color = normalizeColor(colorToken);
+  var name = String((nameTokens||[]).join(' ')).trim();
+  // Strip surrounding quotes if provided
+  name = name.replace(/^"(.*)"$/,'$1').replace(/^'(.*)'$/,'$1').trim();
+  if (!name) name = 'Untitled Event';
+  var color = sanitizeHexColor(colorToken);
+  if (colorToken && !color){
+    sendChat(script_name, '/w gm Invalid color "'+esc(colorToken)+'". Use hex (#RRGGBB or #RGB). Using default.');
+  }
 
   // --- Push into state & confirm ---
+  // Duplicate guard: same month + daySpec + name (case-insensitive)
+  var exists = cal.events.some(function(e){
+    return (parseInt(e.month,10)||1) === m &&
+           String(e.day) === daySpec &&
+           String(e.name||'').trim().toLowerCase() === name.toLowerCase();
+  });
+  if (exists){
+    sendChat(script_name, '/w gm An event with the same month, day, and name already exists. Skipped.');
+    return;
+  }
+
   cal.events.push({
     name: name,
     month: m,
     day: daySpec,
     color: color // may be null; renderer will use EVENT_DEFAULT_COLOR
+  });
+
+  // Keep events sorted (month, then first numeric day)
+  cal.events.sort(function(a,b){
+    var am = (parseInt(a.month,10)||1), bm = (parseInt(b.month,10)||1);
+    if (am !== bm) return am - bm;
+    return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
   });
 
   var colPreview = color || EVENT_DEFAULT_COLOR;
@@ -460,6 +459,89 @@ function removeEvent(query){
 
 // Rendering and output functions
 
+function renderMiniCal(mi){
+  var cal = getCal(), cur = cal.current;
+  var wd = cal.weekdays, mObj = cal.months[mi], md = mObj.days;
+  var monthColor = mObj.color || '#eee';
+
+  var textColor = headerTextColor(monthColor);
+  var outline = (textColor === '#fff')
+      ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
+      : '';
+
+  // Weekday index of the 1st for this month
+  var first = weekdayFor(mi, 1);
+
+  var html = ['<table style="border-collapse:collapse;margin:4px;">'];
+
+  // Header
+  html.push(
+    '<tr><th colspan="7" style="border:1px solid #444;padding:0;">' +
+      '<div style="padding:6px;background-color:'+monthColor+';color:'+textColor+';text-align:left;'+outline+'">' +
+        esc(mObj.name) +
+        '<span style="float:right;">'+esc(String(cur.year))+' YK</span>' +
+      '</div>' +
+    '</th></tr>'
+  );
+
+  // Weekday header
+  html.push(
+    '<tr>' + wd.map(function(d){
+      return '<th style="border:1px solid #444;padding:2px;width:2em;text-align:center;">'+esc(d)+'</th>';
+    }).join('') + '</tr>'
+  );
+
+  var day=1;
+  for (var r=0;r<6;r++){
+    html.push('<tr>');
+    for (var c=0;c<7;c++){
+      if ((r===0 && c<first) || day>md){
+        html.push('<td style="border:1px solid #444;"></td>');
+      } else {
+        var isToday = (mi === cur.month) && (day === cur.day_of_the_month);
+        var todays = getEventsFor(mi, day);
+        var evObj = todays[0] || null;
+        var style = TD_BASE;
+        var cellTextColor, cellBg;
+        var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
+
+        if (todays.length >= 2){
+          var cols = todays.slice(0,3).map(eventColor);
+          var avg  = avgHexColor(cols);
+          style += 'background:'+gradientFor(cols)+';';
+          cellTextColor = headerTextColor(avg);
+          style += 'color:'+cellTextColor+';';
+          if (isToday){ style = applyTodayStyle(style); }
+        } else if (evObj){
+          cellBg = eventColor(evObj);
+          cellTextColor = headerTextColor(cellBg);
+          style += 'background:'+cellBg+';color:'+cellTextColor+';';
+          if (isToday){ style = applyTodayStyle(style); }
+        } else if (isToday){
+          cellBg = monthColor;
+          cellTextColor = headerTextColor(cellBg);
+          style += 'background:'+cellBg+';color:'+cellTextColor+';';
+          style = applyTodayStyle(style);
+        }
+
+        var dotsHtml = buildEventDots(todays);
+        html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div>'+dotsHtml+'</td>');
+        day++;
+      }
+    }
+    html.push('</tr>');
+    if (day>md) break;
+  }
+  html.push('</table>');
+  return html.join('');
+}
+
+// Keep existing names as thin wrappers
+function buildMiniCal(){ return renderMiniCal(getCal().current.month); }
+function buildMiniCalFor(monthIndex){ return renderMiniCal(monthIndex); }
+
+/*
+
 function buildMiniCal(){
     var cal = getCal(), cur = cal.current;
     var wd = cal.weekdays;
@@ -470,7 +552,11 @@ function buildMiniCal(){
 
     var textColor = headerTextColor(monthColor);
     var outline = (textColor === '#fff')
-        ? 'text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'
+        ? 'text-shadow:'
+        + '-0.5px -0.5px 0 #000,'
+        + '0.5px -0.5px 0 #000,'
+        + '-0.5px 0.5px 0 #000,'
+        + '0.5px 0.5px 0 #000;'
         : '';
 
     var html = ['<table style="border-collapse:collapse;margin-bottom:0px;">'];
@@ -621,19 +707,19 @@ function buildMiniCalFor(monthIndex){
   html.push('</table>');
   return html.join('');
 }
+*/
 
 function buildAllMiniCals(){
-  var cal = getCal(), months = cal.months;
-  // Lay out in a 3xN grid (typically 3x4)
-  var cols = 3;
-  var html = ['<table style="border-collapse:collapse;"><tbody>'];
-  for (var i=0;i<months.length;i++){
-    if (i % cols === 0) html.push('<tr>');
-    html.push('<td style="vertical-align:top;">'+buildMiniCalFor(i)+'</td>');
-    if (i % cols === cols-1) html.push('</tr>');
+  var months = getCal().months;
+  var html = ['<div style="text-align:left;">'];
+  for (var i=0; i<months.length; i++){
+    html.push(
+      '<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+        buildMiniCalFor(i) +
+      '</div>'
+    );
   }
-  if (months.length % cols !== 0) html.push('</tr>');
-  html.push('</tbody></table>');
+  html.push('</div>');
   return html.join('');
 }
 
@@ -746,7 +832,7 @@ function showHelp(to){
         '<div>• <code>!cal advanceday</code> — advance one day <i>(GM-only)</i></div>',
         '<div>• <code>!cal retreatday</code> — go back one day <i>(GM-only)</i></div>',
         '<div>• <code>!cal setdate &lt;dd&gt; &lt;mm&gt; [yyyy]</code> — set date, day-first; year optional; leading zeros optional <i>(GM-only)</i></div>',
-        '<div>• <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [color]</code> — add a custom event (color as hex or name)</div>',
+        '<div>• <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [#hex]</code> — add a custom event (color as #RRGGBB or #RGB)</div>',
         '<div>• <code>!cal events</code> — list all events in chronological order (whispered to you)</div>',
         '<div>• <code>!cal removeevent &lt;index|name&gt;</code> — remove an event by list index or name fragment</div>',
         '<div>• <code>!cal resetcalendar</code> — nuke the script back to hard-coded defaults (yes, really) <i>(GM-only)</i></div>',
@@ -762,12 +848,11 @@ function showHelp(to){
 
 // Roll20-specific bits
 
-function whisper(to, html){ // Avoid html problems with quotes/brackets in character names
-    var name = String(to || '').replace(/\s+\(GM\)$/,'').trim();
-    name = name.replace(/"/g, '');                                  // strip quotes
-    name = name.replace(/\[/g, '(').replace(/\]/g, ')');            // avoid brackets
-    name = name.replace(/[|\\]/g,'-');                              // avoid pipes and backslashes
-    sendChat(script_name, '/w "'+ name +'" ' + html);
+function whisper(to, html){ // Avoid html problems with special characters in character names
+  var name = String(to || '').replace(/\s+\(GM\)$/,'').trim();
+  name = name.replace(/"/g,'').replace(/\[/g,'(').replace(/\]/g,')')
+             .replace(/[|\\]/g,'-').replace(/[<>]/g,'-');
+  sendChat(script_name, '/w "'+ name +'" ' + html);
 }
 
 function handleInput(msg){
@@ -809,21 +894,20 @@ function handleInput(msg){
     } else if(sub === 'senddate'){
         announceDay();                      // broadcast to all
     } else if (sub === 'addevent'){
-        // Syntax: !cal addevent <month#> <day|start-end> <name...> [color]
+        // Syntax: !cal addevent <month#> <day|start-end> <name...> [#hex]
         // Examples:
-        //   !cal addevent 11 18-19 Wildnight black
+        //   !cal addevent 11 18-19 Wildnight #000000
         //   !cal addevent 8 4 "The Hunt" #355E3B
-        //   !cal addevent 7 23 The Race of Eight Winds royalblue
         if (args.length < 5){
-        whisper(msg.who, 'Usage: <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [color]</code>');
+        whisper(msg.who, 'Usage: <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [#hex]</code>');
         return;
         }
         var monthTok = args[2];
         var dayTok   = args[3];
 
-        // detect optional color at the end if it looks like a hex or known color name
+        // detect optional color at the end if it looks like a hex
         var maybeColor = args[args.length-1];
-        var hasColor = !!normalizeColor(maybeColor);
+        var hasColor = !!sanitizeHexColor(maybeColor);
         var nameTokens = hasColor ? args.slice(4, args.length-1) : args.slice(4);
 
         addEvent(monthTok, dayTok, nameTokens, hasColor ? maybeColor : null);
