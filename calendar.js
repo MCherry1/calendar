@@ -154,14 +154,6 @@ function sanitizeHexColor(s){ // Returns sanitized hex color string (#RRGGBB) or
 
 function getEventColor(e){ return sanitizeHexColor(e.color) || EVENT_DEFAULT_COLOR; } // Get event color or default if not defined.
 
-function headerTextColor(bg){ // Given a background color, return either black or white for best contrast.
-    var hex = (bg||'').toString().trim().replace(/^#/, '');
-    if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g, '$1$1');
-    if (!/^[0-9a-f]{6}$/i.test(hex)) return '#000';
-    var n = parseInt(hex,16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
-    return ((r*299 + g*587 + b*114)/1000) >= 165 ? '#000' : '#fff';
-}
-
 function esc(s){ // Basic escaping for characters that will break HTML.
     if (s == null) return '';
     return String(s)
@@ -181,11 +173,6 @@ function clamp(n, min, max){ // Clamps a number to the given [min, max] range. N
 function int(v, fallback){ // Parses an integer, returning fallback if invalid.
   var n = parseInt(v,10);
   return isFinite(n) ? n : fallback;
-}
-
-function styleForBg(style, bgHex){
-  var t = headerTextColor(bgHex);
-  return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
 }
 
 function makeDayMatcher(spec){ // Returns a function that tests if a given day matches a spec (number or "a-b" range).
@@ -209,8 +196,10 @@ function makeDayMatcher(spec){ // Returns a function that tests if a given day m
   return function(){ return false; };
 }
 
+var GRADIENT_ANGLE = '45deg';
+
 function _gradientFor(cols){ // Generates a crisp color gradient for multi-event days.
-  var ang = '45deg';
+  var ang = GRADIENT_ANGLE;
   if (cols.length === 2){
     var a = cols[0], b = cols[1];
     return 'linear-gradient(' + ang + ','+
@@ -220,8 +209,27 @@ function _gradientFor(cols){ // Generates a crisp color gradient for multi-event
   var a = cols[0], b = cols[1], c = cols[2] || cols[1];
   return 'linear-gradient(' + ang + ','+
          a+' 0%,'+a+' 33.333%,'+
-         b+' 33.333%,'+b+' 66.666%,'+
-         c+' 66.666%,'+c+' 100%)';
+         b+' 33.333%,'+b+' 66.667%,'+
+         c+' 66.667%,'+c+' 100%)';
+}
+
+function styleForGradient(style, cols){
+  var avg = _avgHexColor(cols);
+  var t   = textColorForBg(avg);
+  // solid bg as a fallback under the gradient
+  style += 'background-color:'+cols[0]+';';
+  style += 'background-image:'+_gradientFor(cols)+';';
+  style += 'background-repeat:no-repeat;background-size:100% 100%;';
+  style += 'color:'+t+';'+outlineIfNeeded(t, avg);
+  return style;
+}
+
+function styleForBg(style, bgHex){
+  var tBlack = _contrast(bgHex, '#000');
+  var tWhite = _contrast(bgHex, '#fff');
+  var t = (tBlack >= tWhite) ? '#000' : '#fff';
+  if (_contrast(bgHex, t) < CONTRAST_MIN){ t = '#fff'; }
+  return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
 }
 
 function _avgHexColor(cols){ // Average multiple hex colors together for contrast text calculation.
@@ -235,6 +243,13 @@ function _avgHexColor(cols){ // Average multiple hex colors together for contras
   function h(x){ var s=x.toString(16).toUpperCase(); return s.length===1?'0'+s:s; }
   return '#'+h(r)+h(g)+h(b);
 }
+
+function textColorForBg(bgHex){
+  return _contrast(bgHex, '#000') >= _contrast(bgHex, '#fff') ? '#000' : '#fff';
+}
+
+function headerTextColor(bg){ return textColorForBg(bg); }
+
 
 function daysPerYear(){ // Total days per year from defined months
   var months = getCal().months, sum = 0;
@@ -581,27 +596,18 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
         var todays = getEventsFor(mi, day);
         var evObj = todays[0] || null;
         var style = STYLES.td;
-        var cellTextColor, cellBg;
         var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
 
         if (todays.length >= 2){ // Multiple events: gradient background
             var cols = todays.slice(0,3).map(getEventColor);
-            var avg  = _avgHexColor(cols);
-            style += 'background-color:'+cols[0]+';';
-            style += 'background-image:'+_gradientFor(cols)+';';
-            style += 'background-repeat:no-repeat;background-size:100% 100%;';
-            cellTextColor = headerTextColor(avg);
-            style += 'color:'+cellTextColor+';'+outlineIfNeeded(cellTextColor, avg);
-          if (isToday){ style = _applyTodayStyle(style); } // If also today, apply emphasis
+            style = styleForGradient(style, cols);
+            if (isToday){ style = _applyTodayStyle(style); } // If also today, apply emphasis
         } else if (evObj){ // Single event: solid background
-            cellBg = getEventColor(evObj);
-            style = styleForBg(style, cellBg);
+            style = styleForBg(style, getEventColor(evObj));
             if (isToday){ style = _applyTodayStyle(style); } // If also today, apply emphasis
         } else if (isToday){ // No events, but is today: use month color background
-            cellBg = monthColor;
-            style = styleForBg(style, cellBg);
+            style = styleForBg(style, monthColor);
             style = _applyTodayStyle(style);
-
         }
 
         html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div></td>');
@@ -637,8 +643,7 @@ function eventsListHTML(){ // Full event list, sorted chronologically
   var cal = getCal(), cur = cal.current;
   var items = cal.events.slice().map(function(e){
     var mi = clamp(e.month, 1, cal.months.length) - 1;
-    var d0 = firstNumFromDaySpec(e.day);
-    return { e: e, mi: mi, d0: d0 };
+    return { e: e, mi: mi};
   });
 
   items.sort(function(a,b){ return compareEvents(a.e, b.e); });
