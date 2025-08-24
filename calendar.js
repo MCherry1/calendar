@@ -10,6 +10,8 @@ var Calendar = (function(){
 var script_name = 'Calendar';
 var state_name  = 'CALENDAR';
 var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink for events without a defined color.
+var GRADIENT_ANGLE = '45deg'; // Angle for multi-event day gradients.
+var CONTRAST_MIN = 4.5; // Minimum contrast ratio
 
 // Default data
 var defaults = {
@@ -30,20 +32,20 @@ var defaults = {
         { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
     ],
     events: [ // Eberron-specific events. Change for other settings. Colors are not canon, but chosen to match event themes.
-        { name: "Crystalfall",             month: 2,  day: 9,   color: "#87CEEB" },
-        { name: "The Day of Mourning",     month: 2,  day: 20,  color: "#808080" },
-        { name: "Sun's Blessing",          month: 3,  day: 15,  color: "#FFD700" },
-        { name: "Aureon's Crown",          month: 5,  day: 26,  color: "#6A5ACD" },
-        { name: "Brightblade",             month: 6,  day: 12,  color: "#B22222" },
-        { name: "The Race of Eight Winds", month: 7,  day: 23,  color: "#20B2AA" },
-        { name: "The Hunt",                month: 8,  day: 4,   color: "#228B22" },
-        { name: "Fathen's Fall",           month: 8,  day: 25,  color: "#8B0000" },
-        { name: "Boldrei's Feast",         month: 9,  day: 9,   color: "#FFB347" },
-        { name: "The Ascension",           month: 10,  day: 1,  color: "#F8F8FF" },
-        { name: "Wildnight",               month: 10,  day: "18-19", color: "#8B0000" },
-        { name: "Thronehold",              month: 11, day: 11,  color: "#4169E1" },
-        { name: "Remembrance Day",         month: 11, day: 11,  color: "#DC143C" },
-        { name: "Long Shadows",            month: 12, day: "26-28", color: "#0D0D0D" }
+        { name: "Crystalfall",             month: 2,  day: 9,   color: "#87CEEB" }, // Sky blue
+        { name: "The Day of Mourning",     month: 2,  day: 20,  color: "#808080" }, // Dead gray mists
+        { name: "Sun's Blessing",          month: 3,  day: 15,  color: "#FFD700" }, // Sun gold
+        { name: "Aureon's Crown",          month: 5,  day: 26,  color: "#6A5ACD" }, // Royal purple
+        { name: "Brightblade",             month: 6,  day: 12,  color: "#B22222" }, // Firebrick red
+        { name: "The Race of Eight Winds", month: 7,  day: 23,  color: "#20B2AA" }, // Sky blue-green
+        { name: "The Hunt",                month: 8,  day: 4,   color: "#228B22" }, // Forest green
+        { name: "Fathen's Fall",           month: 8,  day: 25,  color: "#F8F8FF" }, // Silver flame
+        { name: "Boldrei's Feast",         month: 9,  day: 9,   color: "#FFB347" }, // Hearth orange
+        { name: "The Ascension",           month: 10,  day: 1,  color: "#F8F8FF" }, // Silver flame
+        { name: "Wildnight",               month: 10,  day: "18-19", color: "#8B0000" }, // Dark red of the Fury
+        { name: "Thronehold",              month: 11, day: 11,  color: "#4169E1" }, // Royal blue
+        { name: "Remembrance Day",         month: 11, day: 11,  color: "#DC143C" }, // Poppy red
+        { name: "Long Shadows",            month: 12, day: "26-28", color: "#0D0D0D" } // Midnight black
     ]
 };
 
@@ -106,13 +108,13 @@ function checkInstall(){ // Ensure state is initialized and migrated properly.
     for (var i = 0; i < cal.months.length; i++){
         var d = defaults.months[i] || {};
         cal.months[i] = cal.months[i] || {};
-        if (!cal.months[i].name)   cal.months[i].name   = d.name   || ('Month '+(i+1));
-        if (!cal.months[i].days)   cal.months[i].days   = d.days   || 28;
-        if (!cal.months[i].season) cal.months[i].season = d.season || '';
-        if (!cal.months[i].color)  cal.months[i].color  = d.color  || '#EEE';
+        if (!cal.months[i].name)   cal.months[i].name   = d.name   || ('Month '+(i+1)); // Default "Month N"
+        if (!cal.months[i].days)   cal.months[i].days   = d.days   || 28; // Default 28 days
+        if (!cal.months[i].season) cal.months[i].season = d.season || ''; // Default empty season
+        if (!cal.months[i].color)  cal.months[i].color  = d.color  || '#EEE'; // Default pale gray
     }
 
-    if (cal.current.month >= cal.months.length){
+    if (cal.current.month >= cal.months.length){ // 
         cal.current.month = Math.max(0, cal.months.length - 1);
     }
     var mdays = cal.months[cal.current.month].days;
@@ -143,6 +145,15 @@ function refreshCalendarState(silent){ // Re-validate and clean up calendar stat
 }
 
 // Helper functions
+
+function gmButtonsHtml(){ // GM buttons for quick actions. Currently only called when single-month calendar is shown.
+  return [
+    '[📤 Send Date](!cal senddate)',
+    '[⏭ Advance Day](!cal advanceday)',
+    '[⏮ Retreat Day](!cal retreatday)',
+    '[❓ Help](!cal help)'
+  ].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join('');
+}
 
 function sanitizeHexColor(s){ // Returns sanitized hex color string (#RRGGBB) or null if invalid.
     if(!s) return null;
@@ -175,7 +186,7 @@ function int(v, fallback){ // Parses an integer, returning fallback if invalid.
   return isFinite(n) ? n : fallback;
 }
 
-function makeDayMatcher(spec){ // Returns a function that tests if a given day matches a spec (number or "a-b" range).
+function makeDayMatcher(spec){ // Tests if a given day matches a spec (number or "a-b" range).
   if (typeof spec === 'number') {
     var n = spec|0;
     return function(d){ return d === n; };
@@ -196,7 +207,23 @@ function makeDayMatcher(spec){ // Returns a function that tests if a given day m
   return function(){ return false; };
 }
 
-var GRADIENT_ANGLE = '45deg';
+function styleForBg(style, bgHex){ // Generates a background style for single-event days, with best-contrasting text color.
+  var tBlack = _contrast(bgHex, '#000');
+  var tWhite = _contrast(bgHex, '#fff');
+  var t = (tBlack >= tWhite) ? '#000' : '#fff';
+  if (_contrast(bgHex, t) < CONTRAST_MIN){ t = '#fff'; }
+  return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
+}
+
+function styleForGradient(style, cols){ // Generates a background style for multi-event days, with best-contrasting text color.
+  var avg = _avgHexColor(cols);
+  var t   = textColorForBg(avg);
+  style += 'background-color:'+cols[0]+';';
+  style += 'background-image:'+_gradientFor(cols)+';';
+  style += 'background-repeat:no-repeat;background-size:100% 100%;';
+  style += 'color:'+t+';'+outlineIfNeeded(t, avg);
+  return style;
+}
 
 function _gradientFor(cols){ // Generates a crisp color gradient for multi-event days.
   var ang = GRADIENT_ANGLE;
@@ -211,25 +238,6 @@ function _gradientFor(cols){ // Generates a crisp color gradient for multi-event
          a+' 0%,'+a+' 33.333%,'+
          b+' 33.333%,'+b+' 66.667%,'+
          c+' 66.667%,'+c+' 100%)';
-}
-
-function styleForGradient(style, cols){
-  var avg = _avgHexColor(cols);
-  var t   = textColorForBg(avg);
-  // solid bg as a fallback under the gradient
-  style += 'background-color:'+cols[0]+';';
-  style += 'background-image:'+_gradientFor(cols)+';';
-  style += 'background-repeat:no-repeat;background-size:100% 100%;';
-  style += 'color:'+t+';'+outlineIfNeeded(t, avg);
-  return style;
-}
-
-function styleForBg(style, bgHex){
-  var tBlack = _contrast(bgHex, '#000');
-  var tWhite = _contrast(bgHex, '#fff');
-  var t = (tBlack >= tWhite) ? '#000' : '#fff';
-  if (_contrast(bgHex, t) < CONTRAST_MIN){ t = '#fff'; }
-  return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
 }
 
 function _avgHexColor(cols){ // Average multiple hex colors together for contrast text calculation.
@@ -247,9 +255,6 @@ function _avgHexColor(cols){ // Average multiple hex colors together for contras
 function textColorForBg(bgHex){
   return _contrast(bgHex, '#000') >= _contrast(bgHex, '#fff') ? '#000' : '#fff';
 }
-
-function headerTextColor(bg){ return textColorForBg(bg); }
-
 
 function daysPerYear(){ // Total days per year from defined months
   var months = getCal().months, sum = 0;
@@ -353,22 +358,13 @@ function swatchHtml(hex){
 function sendToAll(html){ sendChat(script_name, '/direct ' + html); }
 function sendToGM(html){  sendChat(script_name, '/w gm ' + html); }
 
-function gmButtonsHtml(){ // GM buttons for quick actions. Currently only called when single-month calendar is shown.
-  return [
-    '[📤 Send Date](!cal senddate)',
-    '[⏭ Advance Day](!cal advanceday)',
-    '[⏮ Retreat Day](!cal retreatday)',
-    '[❓ Help](!cal help)'
-  ].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join('');
-}
-
-function compareEvents(a, b){ // Sort events by month then earliest day in their day spec (e.g., "18-19" → 18).
+function compareEvents(a, b){ // Sort events by month then earliest day in their day spec (e.g., "18-19" becomes 18).
   var am = (+a.month||1), bm = (+b.month||1);
   if (am !== bm) return am - bm;
   return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
 }
 
-function _relLum(hex){ // Relative luminance of a hex color, per WCAG 2.0
+function _relLum(hex){ // Relative luminance of a hex color
   hex = (hex||'').toString().replace(/^#/, '');
   if (hex.length===3) hex = hex.replace(/(.)/g,'$1$1');
   if (!/^[0-9a-f]{6}$/i.test(hex)) return 0; // default black
@@ -377,21 +373,18 @@ function _relLum(hex){ // Relative luminance of a hex color, per WCAG 2.0
   return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b);
 }
 
-function _contrast(bgHex, textHex){ // Contrast ratio of two hex colors, per WCAG 2.0
+function _contrast(bgHex, textHex){ // Contrast ratio of two hex colors
   var L1=_relLum(bgHex), L2=_relLum(textHex);
   var hi=Math.max(L1,L2), lo=Math.min(L1,L2);
   return (hi+0.05)/(lo+0.05);
 }
 
-var CONTRAST_MIN = 4.5;
-
-function outlineIfNeeded(textColor, bgHex){
+function outlineIfNeeded(textColor, bgHex){ // If contrast is too low and text is white, adds a thin black outline for readability.
   var ratio = _contrast(bgHex, textColor);
   return (ratio < CONTRAST_MIN && textColor === '#fff')
     ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
     : '';
 }
-
 
 // State accessor
 function getCal(){ return state[state_name].calendar; }
@@ -424,7 +417,7 @@ function retreatDay(){ // Go back one day
     sendCurrentDate(null,true);
 }
 
-function setDate(m, d, y){
+function setDate(m, d, y){ // Set date to specific month/day[/year]
   var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
 
@@ -534,9 +527,9 @@ function getEventsFor(monthIndex, day){ // Returns all events that occur on a sp
 function buildHelpHtml(isGM){
   var common = [
     '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
-    '<div>• <code>!cal</code> or <code>!cal show</code> — show the calendar (whispered to you)</div>',
-    '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show mini-calendars for all months</div>',
-    '<div>• <code>!cal events</code> — list all events in chronological order</div>',
+    '<div>• <code>!cal</code> or <code>!cal show</code> — show current month (whispered to you)</div>',
+    '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show full year</div>',
+    '<div>• <code>!cal events</code> — list all events</div>',
     '<div>• <code>!cal help</code> — show this help</div>'
   ];
 
@@ -544,13 +537,13 @@ function buildHelpHtml(isGM){
 
   var gm = [
     '<div style="margin-top:6px;"><b>GM Commands</b></div>',
-    '<div>• <code>!cal senddate</code> — broadcast current month</div>',
-    '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
     '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set date</div>',
     '<div>• <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [#hex]</code> — add a custom event</div>',
-    '<div>• <code>!cal removeevent &lt;index|name&gt;</code> — remove an event</div>',
+    '<div>• <code>!cal removeevent &lt;index|name&gt;</code> — remove an event. (this can also remove hard-coded events)</div>',
+    '<div>• <code>!cal senddate</code> — broadcast current month</div>',
+    '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
     '<div>• <code>!cal refresh</code> — refresh calendar state</div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>'
   ];
@@ -563,7 +556,7 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
   var wd = cal.weekdays, mObj = cal.months[mi], md = mObj.days;
   var monthColor = mObj.color || '#eee';
 
-  var textColor = headerTextColor(monthColor);
+  var textColor = textColorForBg(monthColor);
   var outline = outlineIfNeeded(textColor, monthColor);
 
   var first = weekdayIndexFor(mi, 1);
@@ -585,7 +578,7 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
     }).join('') + '</tr>'
   );
 
-  var day=1; // Builds the day cells
+  var day=1; // Builds the individual day cells
   for (var r=0;r<6;r++){
     html.push('<tr>');
     for (var c=0;c<7;c++){
@@ -623,7 +616,7 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
 
 function currentMonthHTML(){ return renderMiniCal(getCal().current.month); } // Current month view
 
-function renderMonthHTML(monthIndex){ return renderMiniCal(monthIndex); } // Generic month view
+function renderMonthHTML(monthIndex){ return renderMiniCal(monthIndex); } // Call to render a specific month
 
 function yearHTML(){ // Full year view
   var months = getCal().months;
@@ -669,7 +662,7 @@ function eventsListHTML(){ // Full event list, sorted chronologically
   return out.join('');
 }
 
-function sendCurrentDate(to, gmOnly){ // Send current date to caller. Also allows GM-only broadcast.
+function sendCurrentDate(to, gmOnly){ // Send current date to caller. Also allows for GM-only broadcast.
     var cal=getCal(), c=cal.current;
     var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
     var mName = esc(m.name);
@@ -715,17 +708,17 @@ function whisper(to, html){ // Whisper function that sanitizes player name in ca
 }
 
 var commands = { // API command list
-  // This block available to all players
+  // This block is available to all players
   '':          function(m){ sendCurrentDate(m.who); },
-  show:        function(m){ sendCurrentDate(m.who); },
+  show:        function(m){ sendCurrentDate(m.who); }, // alias
   year:        function(m){ whisper(m.who, yearHTML()); },
-  fullyear:    function(m){ whisper(m.who, yearHTML()); },
-  showyear:    function(m){ whisper(m.who, yearHTML()); },
+  fullyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
+  showyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
   events:      function(m){ whisper(m.who, eventsListHTML()); },
-  listevents:  function(m){ whisper(m.who, eventsListHTML()); },
+  listevents:  function(m){ whisper(m.who, eventsListHTML()); }, // alias
   help:        function(m){ showHelp(m.who, playerIsGM(m.playerid)); },
 
-  // This block GM-only
+  // This block is GM-only
   advanceday:  { gm:true, run:function(){ advanceDay(); } },
   retreatday:  { gm:true, run:function(){ retreatDay(); } },
   setdate:     { gm:true, run:function(m,a){ setDate(a[2], a[3], a[4]); } }, // MM DD [YYYY]
