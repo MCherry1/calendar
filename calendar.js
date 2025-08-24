@@ -3,34 +3,33 @@
 // This is written for Roll20's API system.
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
 // Version: 1.2
-// Future versions will add event colors, fuller event list, and clean some code.
 
 var Calendar = (function(){
 
 'use strict';
 var script_name = 'Calendar';
 var state_name  = 'CALENDAR';
-var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2');
+var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink for events without a defined color.
 
 // Default data
 var defaults = {
-    current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 },
-    weekdays: ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
-    months: [
-        { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" },
-        { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" },
-        { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" },
-        { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" },
-        { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" },
-        { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" },
-        { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" },
-        { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" },
-        { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" },
-        { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" },
-        { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" },
-        { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }
+    current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 }, // Default starting date 1/1/998.
+    weekdays: ["Sul","Mol","Zol","Wir","Zor","Far","Sar"], // Eberron-specific weekday names. Change for other settings.
+    months: [ // Eberron-specific month names and seasons. Colors defined by associated moon. Change for other settings.
+        { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" }, // Pearly white
+        { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" }, // Pale orange
+        { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" }, // Pale gray
+        { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" }, // Silver-gray
+        { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" }, // Pale lavender
+        { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" }, // Pale yellow
+        { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" }, // Dull white with black slit
+        { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" }, // Pale gray
+        { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" }, // Pale blue
+        { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" }, // Smoky gray
+        { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" }, // Orange-red
+        { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
     ],
-    events: [
+    events: [ // Eberron-specific events. Change for other settings. Colors are not canon, but chosen to match event themes.
         { name: "Crystalfall",             month: 2,  day: 9,   color: "#87CEEB" },
         { name: "The Day of Mourning",     month: 2,  day: 20,  color: "#808080" },
         { name: "Sun's Blessing",          month: 3,  day: 15,  color: "#FFD700" },
@@ -50,7 +49,7 @@ var defaults = {
 
 // Core state and migration functions
 
-function resetToDefaults(){
+function resetToDefaults(){ // Nuke state and reset to defaults. Hard-coded details above are not affected.
     delete state[state_name];
     state[state_name] = { calendar: JSON.parse(JSON.stringify(defaults)) };
     checkInstall();
@@ -58,7 +57,7 @@ function resetToDefaults(){
     sendCurrentDate(null, true);
 }
 
-function checkInstall(){
+function checkInstall(){ // Ensure state is initialized and migrated properly.
     if(!state[state_name]) state[state_name] = {};
 
     if(!state[state_name].calendar ||
@@ -122,9 +121,30 @@ function checkInstall(){
     }
 }
 
+function refreshCalendarState(silent){ // Re-validate and clean up calendar state. Ensures events added manually are correctly added when a previously existing same-day event was present.
+    checkInstall();
+    var cal = getCal();
+
+  cal.events = (cal.events || []).map(function(e){
+    var m = clamp(e.month, 1, cal.months.length);
+    var daySpec = normalizeDaySpec(e.day, cal.months[m-1].days) || String(firstNumFromDaySpec(e.day));
+    return { name: String(e.name||''), month: m, day: daySpec, color: sanitizeHexColor(e.color) || null };
+  });
+
+  var seen = {};
+  cal.events = cal.events.filter(function(e){
+    var k = e.month+'|'+e.day+'|'+e.name.toLowerCase();
+    if (seen[k]) return false; seen[k]=true; return true;
+  });
+
+  cal.events.sort(compareEvents);
+
+  if (!silent) sendChat(script_name, '/w gm Calendar state refreshed ('+cal.events.length+' events).');
+}
+
 // Helper functions
 
-function sanitizeHexColor(s){
+function sanitizeHexColor(s){ // Returns sanitized hex color string (#RRGGBB) or null if invalid.
     if(!s) return null;
     var hex = String(s).trim().replace(/^#/, '');
     if(/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g,'$1$1');
@@ -132,9 +152,9 @@ function sanitizeHexColor(s){
     return null;
 }
 
-function getEventColor(e){ return sanitizeHexColor(e.color) || EVENT_DEFAULT_COLOR; }
+function getEventColor(e){ return sanitizeHexColor(e.color) || EVENT_DEFAULT_COLOR; } // Get event color or default if not defined.
 
-function headerTextColor(bg){
+function headerTextColor(bg){ // Given a background color, return either black or white for best contrast.
     var hex = (bg||'').toString().trim().replace(/^#/, '');
     if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g, '$1$1');
     if (!/^[0-9a-f]{6}$/i.test(hex)) return '#000';
@@ -142,7 +162,7 @@ function headerTextColor(bg){
     return ((r*299 + g*587 + b*114)/1000) >= 165 ? '#000' : '#fff';
 }
 
-function esc(s){
+function esc(s){ // Basic escaping for characters that will break HTML.
     if (s == null) return '';
     return String(s)
         .replace(/&(?!#?\w+;)/g, '&amp;')
@@ -152,17 +172,23 @@ function esc(s){
         .replace(/'/g, '&#39;');
 }
 
-function clamp(n, min, max){
+function clamp(n, min, max){ // Clamps a number to the given [min, max] range. Non-numbers become min.
   n = parseInt(n,10);
   if (!isFinite(n)) n = min;
   return n < min ? min : (n > max ? max : n);
 }
-function int(v, fallback){
+
+function int(v, fallback){ // Parses an integer, returning fallback if invalid.
   var n = parseInt(v,10);
   return isFinite(n) ? n : fallback;
 }
 
-function makeDayMatcher(spec){
+function styleForBg(style, bgHex){
+  var t = headerTextColor(bgHex);
+  return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
+}
+
+function makeDayMatcher(spec){ // Returns a function that tests if a given day matches a spec (number or "a-b" range).
   if (typeof spec === 'number') {
     var n = spec|0;
     return function(d){ return d === n; };
@@ -183,7 +209,22 @@ function makeDayMatcher(spec){
   return function(){ return false; };
 }
 
-function _avgHexColor(cols){
+function _gradientFor(cols){ // Generates a crisp color gradient for multi-event days.
+  var ang = '45deg';
+  if (cols.length === 2){
+    var a = cols[0], b = cols[1];
+    return 'linear-gradient(' + ang + ','+
+           a+' 0%,'+a+' 50%,'+
+           b+' 50%,'+b+' 100%)';
+  }
+  var a = cols[0], b = cols[1], c = cols[2] || cols[1];
+  return 'linear-gradient(' + ang + ','+
+         a+' 0%,'+a+' 33.333%,'+
+         b+' 33.333%,'+b+' 66.666%,'+
+         c+' 66.666%,'+c+' 100%)';
+}
+
+function _avgHexColor(cols){ // Average multiple hex colors together for contrast text calculation.
   var r=0,g=0,b=0,n=cols.length;
   for (var i=0;i<n;i++){
     var hex = cols[i].replace(/^#/,'');
@@ -195,44 +236,36 @@ function _avgHexColor(cols){
   return '#'+h(r)+h(g)+h(b);
 }
 
-function _gradientFor(cols){
-  if (cols.length === 2){
-    return 'linear-gradient(90deg,'+cols[0]+' 0 50%,'+cols[1]+' 50% 100%)';
-  }
-  var a=cols[0], b=cols[1], c=cols[2] || cols[1];
-  return 'linear-gradient(90deg,'+a+' 0 33.333%,'+b+' 33.333% 66.666%,'+c+' 66.666% 100%)';
-}
-
-function daysPerYear(){
+function daysPerYear(){ // Total days per year from defined months
   var months = getCal().months, sum = 0;
   for (var i=0;i<months.length;i++) sum += (parseInt(months[i].days,10)||0);
   return sum;
 }
 
-function monthPrefixDays(mi){
+function monthPrefixDays(mi){ // Total days in months before index month
   var months = getCal().months, sum = 0;
   for (var i=0;i<mi;i++) sum += (parseInt(months[i].days,10)||0);
   return sum;
 }
 
-function toSerial(y, mi, d){
+function toSerial(y, mi, d){  // Serializes a date to an absolute day count (used to compute weekday deltas reliably).
   return (y * daysPerYear()) + monthPrefixDays(mi) + ((parseInt(d,10)||1) - 1);
 }
 
-function weekdayIndexFor(mi, d){
+function weekdayIndexFor(mi, d){ // Given a month index and day, returns the weekday index relative to current date/dow.
   var cal = getCal(), cur = cal.current, wdlen = cal.weekdays.length;
   var delta = toSerial(cur.year, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month);
   return ( (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen );
 }
 
-function firstNumFromDaySpec(daySpec){
+function firstNumFromDaySpec(daySpec){ // Extracts the first integer from a day spec ("18-19" → 18) for sorting/comparisons.
   if (typeof daySpec === 'number') return daySpec|0;
   var s = String(daySpec||'').trim();
   var m = s.match(/^\s*(\d+)/);
   return m ? Math.max(1, parseInt(m[1],10)) : 1;
 }
 
-function normalizeDaySpec(spec, maxDays){
+function normalizeDaySpec(spec, maxDays){ // Normalizes a day spec into "D" or "A-B" within [1, maxDays]; returns null if invalid.
   var s = String(spec||'').trim();
   if (/^\d+$/.test(s)){
     return String(clamp(s, 1, maxDays));
@@ -246,9 +279,43 @@ function normalizeDaySpec(spec, maxDays){
   return null;
 }
 
-var TD_BASE = 'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;';
+function currentDateLabel(){
+  var cal = getCal(), cur = cal.current;
+  return cal.weekdays[cur.day_of_the_week] + ", " +
+         cur.day_of_the_month + " " +
+         cal.months[cur.month].name + ", " +
+         cur.year + " " + LABELS.era;
+}
 
-function _applyTodayStyle(style){
+function monthEventsHtml(mi, today){
+  var cal = getCal(), mName = esc(cal.months[mi].name);
+  var rows = [];
+  cal.events
+    .filter(function(e){ return ((+e.month||1)-1) === mi; })
+    .forEach(function(e){
+      var dayLabel = esc(String(e.day));
+      var isToday  = makeDayMatcher(e.day)(today);
+      var swatch   = swatchHtml(e.color);
+      rows.push('<div' + (isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"') +
+                '>' + swatch + mName + ' ' + dayLabel + ': ' + esc(e.name) + '</div>');
+    });
+  return rows.join('');
+}
+
+var LABELS = {
+  era: 'YK', // Eberron-specific abbreviation for "Year of the Kingdom". Change for other settings.
+  gmOnlyNotice: 'Only the GM can use that calendar command.'
+};
+var STYLES = {
+  table: 'border-collapse:collapse;margin:4px;',
+  th:    'border:1px solid #444;padding:2px;width:2em;text-align:center;',
+  head:  'border:1px solid #444;padding:0;',
+  gmBtnWrap: 'margin:2px 0;',
+  td:    'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
+  monthHeaderBase: 'padding:6px;text-align:left;'
+};
+
+function _applyTodayStyle(style){ // This is the style to emphasize the current day cell.
   style += 'position:relative;z-index:10;';
   style += 'border-radius:2px;';
   style += 'box-shadow:'
@@ -263,32 +330,60 @@ function _applyTodayStyle(style){
   return style;
 }
 
-function buildEventDots(events){
-  if(!events || events.length<=3) return '';
-  var max=4, shown=Math.min(max, events.length);
-  var html=['<div style="margin-top:1px;text-align:center;line-height:0;">'];
-  for (var i=0;i<shown;i++){
-    var col = getEventColor(events[i]);
-    html.push('<span style="display:inline-block;width:6px;height:6px;margin:0 1px;border:1px solid #000;background:'+esc(col)+';"></span>');
-  }
-  if (events.length>max){
-    html.push('<span style="display:inline-block;font-size:10px;vertical-align:top;">+'+(events.length-max)+'</span>');
-  }
-  html.push('</div>');
-  return html.join('');
-}
-
 function swatchHtml(hex){
   var col = sanitizeHexColor(hex) || EVENT_DEFAULT_COLOR;
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 }
+
+function sendToAll(html){ sendChat(script_name, '/direct ' + html); }
+function sendToGM(html){  sendChat(script_name, '/w gm ' + html); }
+
+function gmButtonsHtml(){ // GM buttons for quick actions. Currently only called when single-month calendar is shown.
+  return [
+    '[📤 Send Date](!cal senddate)',
+    '[⏭ Advance Day](!cal advanceday)',
+    '[⏮ Retreat Day](!cal retreatday)',
+    '[❓ Help](!cal help)'
+  ].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join('');
+}
+
+function compareEvents(a, b){ // Sort events by month then earliest day in their day spec (e.g., "18-19" → 18).
+  var am = (+a.month||1), bm = (+b.month||1);
+  if (am !== bm) return am - bm;
+  return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
+}
+
+function _relLum(hex){ // Relative luminance of a hex color, per WCAG 2.0
+  hex = (hex||'').toString().replace(/^#/, '');
+  if (hex.length===3) hex = hex.replace(/(.)/g,'$1$1');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return 0; // default black
+  var n = parseInt(hex,16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  function lin(c){ c/=255; return c<=0.04045? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
+  return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b);
+}
+
+function _contrast(bgHex, textHex){ // Contrast ratio of two hex colors, per WCAG 2.0
+  var L1=_relLum(bgHex), L2=_relLum(textHex);
+  var hi=Math.max(L1,L2), lo=Math.min(L1,L2);
+  return (hi+0.05)/(lo+0.05);
+}
+
+var CONTRAST_MIN = 4.5;
+
+function outlineIfNeeded(textColor, bgHex){
+  var ratio = _contrast(bgHex, textColor);
+  return (ratio < CONTRAST_MIN && textColor === '#fff')
+    ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
+    : '';
+}
+
 
 // State accessor
 function getCal(){ return state[state_name].calendar; }
 
 // Core calendar functions
 
-function advanceDay(){
+function advanceDay(){ // Advance one day
     var cal=getCal(), cur=cal.current;
     cur.day_of_the_month++;
     if(cur.day_of_the_month > cal.months[cur.month].days){
@@ -300,7 +395,7 @@ function advanceDay(){
     sendCurrentDate(null,true);
 }
 
-function retreatDay(){
+function retreatDay(){ // Go back one day
     var cal=getCal(), cur=cal.current;
     cur.day_of_the_month--;
     if(cur.day_of_the_month < 1){
@@ -315,23 +410,20 @@ function retreatDay(){
 }
 
 function setDate(m, d, y){
-  var cal=getCal(), cur=cal.current;
-  var oldDOW = cur.day_of_the_week, oldY = cur.year, oldM = cur.month, oldD = cur.day_of_the_month;
+  var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
+  var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
 
   var mi = clamp(m, 1, cal.months.length) - 1;
   var di = clamp(d, 1, cal.months[mi].days);
   var yi = int(y, cur.year);
 
   var delta = toSerial(yi, mi, di) - toSerial(oldY, oldM, oldD);
-
-  cur.month = mi;
-  cur.day_of_the_month = di;
-  cur.year = yi;
+  cur.month = mi; cur.day_of_the_month = di; cur.year = yi;
 
   var wdlen = cal.weekdays.length;
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
 
-  sendCurrentDate(null,true);
+  sendCurrentDate(null, true);
 }
 
 // Event functions
@@ -363,18 +455,15 @@ function addEvent(monthToken, dayToken, nameTokens, colorToken){
 
   cal.events.push({ name: name, month: m, day: daySpec, color: color });
 
-  cal.events.sort(function(a,b){
-    var am = (parseInt(a.month,10)||1), bm = (parseInt(b.month,10)||1);
-    if (am !== bm) return am - bm;
-    return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
-  });
+  cal.events.sort(compareEvents);
 
   var swatch = swatchHtml(color);
   sendChat(script_name, '/w gm Added event: '+swatch+esc(name)+' on '+esc(cal.months[m-1].name)+' '+esc(daySpec)+ (color ? ' ('+esc(color)+')' : ''));
+  refreshCalendarState(true);
   sendCurrentDate(null, true);
 }
 
-function removeEvent(query){
+function removeEvent(query){ // Remove event by name match or index. If multiple matches, list them with indices and request repeated command.
   var cal = getCal();
   var events = cal.events;
 
@@ -408,13 +497,15 @@ function removeEvent(query){
   var e = matches[0];
   var pos = events.indexOf(e);
   events.splice(pos,1);
+  refreshCalendarState(true);
   sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+esc(getCal().months[e.month-1].name)+' '+esc(e.day)+')');
   sendCurrentDate(null,true);
 }
 
-function getEventsFor(monthIndex, day){
+function getEventsFor(monthIndex, day){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges.
   var m = monthIndex|0, out=[];
   var events = getCal().events;
+  if (!events || !events.length) return [];
   for (var i=0;i<events.length;i++){
     var e=events[i];
     if (((parseInt(e.month,10)||1)-1) !== m) continue;
@@ -438,13 +529,14 @@ function buildHelpHtml(isGM){
 
   var gm = [
     '<div style="margin-top:6px;"><b>GM Commands</b></div>',
-    '<div>• <code>!cal senddate</code> — broadcast current month & date to everyone</div>',
-    '<div>• <code>!cal sendyear</code> — broadcast full year of mini-calendars to everyone</div>',
+    '<div>• <code>!cal senddate</code> — broadcast current month</div>',
+    '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
-    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set date (m d y)</div>',
+    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set date</div>',
     '<div>• <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [#hex]</code> — add a custom event</div>',
     '<div>• <code>!cal removeevent &lt;index|name&gt;</code> — remove an event</div>',
+    '<div>• <code>!cal refresh</code> — refresh calendar state</div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>'
   ];
 
@@ -457,64 +549,62 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
   var monthColor = mObj.color || '#eee';
 
   var textColor = headerTextColor(monthColor);
-  var outline = (textColor === '#fff')
-      ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
-      : '';
+  var outline = outlineIfNeeded(textColor, monthColor);
 
   var first = weekdayIndexFor(mi, 1);
 
-  var html = ['<table style="border-collapse:collapse;margin:4px;">'];
+  var html = ['<table style="'+STYLES.table+'">'];
 
-  html.push(
-    '<tr><th colspan="7" style="border:1px solid #444;padding:0;">' +
-      '<div style="padding:6px;background-color:'+monthColor+';color:'+textColor+';text-align:left;'+outline+'">' +
+  html.push( // Month header
+    '<tr><th colspan="7" style="'+STYLES.head+'">' +
+      '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">' +
         esc(mObj.name) +
-        '<span style="float:right;">'+esc(String(cur.year))+' YK</span>' +
+        '<span style="float:right;">'+esc(String(cur.year))+' '+LABELS.era+'</span>' +
       '</div>' +
     '</th></tr>'
   );
 
-  html.push(
+  html.push( // Weekdays header
     '<tr>' + wd.map(function(d){
-      return '<th style="border:1px solid #444;padding:2px;width:2em;text-align:center;">'+esc(d)+'</th>';
+      return '<th style="'+STYLES.th+'">'+esc(d)+'</th>';
     }).join('') + '</tr>'
   );
 
-  var day=1;
+  var day=1; // Builds the day cells
   for (var r=0;r<6;r++){
     html.push('<tr>');
     for (var c=0;c<7;c++){
       if ((r===0 && c<first) || day>md){
-        html.push('<td style="border:1px solid #444;"></td>');
+        html.push('<td style="'+STYLES.td+'"></td>');
       } else {
         var isToday = (mi === cur.month) && (day === cur.day_of_the_month);
         var todays = getEventsFor(mi, day);
         var evObj = todays[0] || null;
-        var style = TD_BASE;
+        var style = STYLES.td;
         var cellTextColor, cellBg;
         var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
 
-        if (todays.length >= 2){
-          var cols = todays.slice(0,3).map(getEventColor);
-          var avg  = _avgHexColor(cols);
-          style += 'background:'+_gradientFor(cols)+';';
-          cellTextColor = headerTextColor(avg);
-          style += 'color:'+cellTextColor+';';
-          if (isToday){ style = _applyTodayStyle(style); }
-        } else if (evObj){
-          cellBg = getEventColor(evObj);
-          cellTextColor = headerTextColor(cellBg);
-          style += 'background:'+cellBg+';color:'+cellTextColor+';';
-          if (isToday){ style = _applyTodayStyle(style); }
-        } else if (isToday){
-          cellBg = monthColor;
-          cellTextColor = headerTextColor(cellBg);
-          style += 'background:'+cellBg+';color:'+cellTextColor+';';
-          style = _applyTodayStyle(style);
+        if (todays.length >= 2){ // Multiple events: gradient background
+            var cols = todays.slice(0,3).map(getEventColor);
+            var avg  = _avgHexColor(cols);
+            style += 'background-color:'+cols[0]+';';
+            style += 'background-image:'+_gradientFor(cols)+';';
+            style += 'background-repeat:no-repeat;background-size:100% 100%;';
+            cellTextColor = headerTextColor(avg);
+            style += 'color:'+cellTextColor+';'+outlineIfNeeded(cellTextColor, avg);
+          if (isToday){ style = _applyTodayStyle(style); } // If also today, apply emphasis
+        } else if (evObj){ // Single event: solid background
+            cellBg = getEventColor(evObj);
+            style = styleForBg(style, cellBg);
+            if (isToday){ style = _applyTodayStyle(style); } // If also today, apply emphasis
+        } else if (isToday){ // No events, but is today: use month color background
+            cellBg = monthColor;
+            style = styleForBg(style, cellBg);
+            style = _applyTodayStyle(style);
+
         }
 
-        var dotsHtml = buildEventDots(todays);
-        html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div>'+dotsHtml+'</td>');
+        html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div></td>');
         day++;
       }
     }
@@ -525,8 +615,9 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
   return html.join('');
 }
 
-function currentMonthHTML(){ return renderMiniCal(getCal().current.month); }
-function renderMonthHTML(monthIndex){ return renderMiniCal(monthIndex); }
+function currentMonthHTML(){ return renderMiniCal(getCal().current.month); } // Current month view
+
+function renderMonthHTML(monthIndex){ return renderMiniCal(monthIndex); } // Generic month view
 
 function yearHTML(){ // Full year view
   var months = getCal().months;
@@ -550,12 +641,9 @@ function eventsListHTML(){ // Full event list, sorted chronologically
     return { e: e, mi: mi, d0: d0 };
   });
 
-  items.sort(function(a,b){
-    if (a.mi !== b.mi) return a.mi - b.mi;
-    return a.d0 - b.d0;
-  });
+  items.sort(function(a,b){ return compareEvents(a.e, b.e); });
 
-  var out = ['<div style="margin:4px 0;"><b>All Events (Year '+esc(String(cur.year))+' YK)</b></div>'];
+  var out = ['<div style="margin:4px 0;"><b>All Events (Year '+esc(String(cur.year))+' '+LABELS.era+')</b></div>'];
 
   items.forEach(function(it){
     var e = it.e;
@@ -576,7 +664,7 @@ function eventsListHTML(){ // Full event list, sorted chronologically
   return out.join('');
 }
 
-function sendCurrentDate(to, gmOnly){ // Send current date to player who calls or to all (GM only)
+function sendCurrentDate(to, gmOnly){ // Send current date to caller. Also allows GM-only broadcast.
     var cal=getCal(), c=cal.current;
     var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
     var mName = esc(m.name);
@@ -585,45 +673,25 @@ function sendCurrentDate(to, gmOnly){ // Send current date to player who calls o
     var wdName = esc(wd);
     var publicMsg = [
         currentMonthHTML(),
-        '<div style="font-weight:bold;margin:2px 0;">'+wdName+', '+mName+' '+c.day_of_the_month+', '+esc(String(c.year))+'</div>'
+        '<div style="font-weight:bold;margin:2px 0;">' + wdName + ', ' + mName+' ' + c.day_of_the_month + ', ' + esc(String(c.year)) + ' ' + LABELS.era +'</div>'
     ];
 
-    cal.events
-        .filter(function(e){ return (parseInt(e.month,10)||1) - 1 === c.month; })
-        .forEach(function(e){
-            var dayLabel = esc(String(e.day));
-            var todayMatch = ((parseInt(e.month,10)||1)-1) === c.month
-                             && makeDayMatcher(e.day)(c.day_of_the_month);
-            var swatch = swatchHtml(e.color);
-            publicMsg.push(
-              '<div' + (todayMatch ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"') + '>' +
-              swatch + mName + ' ' + dayLabel + ': ' + esc(e.name) +
-              '</div>'
-            );
-        });
-
+    publicMsg.push(monthEventsHtml(c.month, c.day_of_the_month));
     publicMsg.push('<div style="margin-top:8px;"></div>');
     publicMsg.push('<div>Season: '+mSeason+'</div>');
 
-    if (gmOnly){
-        sendChat(script_name, '/w gm ' + publicMsg.join(''));
-    } else if (to){
-        whisper(to, publicMsg.join(''));
-    } else {
-        sendChat(script_name, '/direct ' + publicMsg.join(''));
-    }
+  if (gmOnly){
+    sendToGM(publicMsg.join(''));
+  } else if (to){
+    whisper(to, publicMsg.join(''));
+  } else {
+    sendToAll(publicMsg.join(''));
+  }
 
-    var gmButtons = [
-        '[📤 Send Date](!cal senddate)',
-        '[⏭ Advance Day](!cal advanceday)',
-        '[⏮ Retreat Day](!cal retreatday)',
-        '[❓ Help](!cal help)'
-    ].map(function(b){ return '<div style="margin:2px 0;">'+b+'</div>'; }).join('');
-
-    sendChat(script_name, '/w gm ' + gmButtons);
+  if (gmOnly || !to) { sendToGM(gmButtonsHtml()); }
 }
 
-function showHelp(to, isGM){ // Show help. Truncated list if not GM
+function showHelp(to, isGM){ // Show help. Truncated list if not GM.
   var help = buildHelpHtml(!!isGM);
   if (to){
     whisper(to, help);
@@ -634,98 +702,74 @@ function showHelp(to, isGM){ // Show help. Truncated list if not GM
 
 // Roll20-specific bits
 
-function whisper(to, html){
+function whisper(to, html){ // Whisper function that sanitizes player name in case of HTML characters (like quotes or brackets)
   var name = String(to || '').replace(/\s+\(GM\)$/,'').trim();
   name = name.replace(/"/g,'').replace(/\[/g,'(').replace(/\]/g,')')
              .replace(/[|\\]/g,'-').replace(/[<>]/g,'-');
   sendChat(script_name, '/w "'+ name +'" ' + html);
 }
 
-function handleInput(msg){
-  if(msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
+var commands = { // API command list
+  // This block available to all players
+  '':          function(m){ sendCurrentDate(m.who); },
+  show:        function(m){ sendCurrentDate(m.who); },
+  year:        function(m){ whisper(m.who, yearHTML()); },
+  fullyear:    function(m){ whisper(m.who, yearHTML()); },
+  showyear:    function(m){ whisper(m.who, yearHTML()); },
+  events:      function(m){ whisper(m.who, eventsListHTML()); },
+  listevents:  function(m){ whisper(m.who, eventsListHTML()); },
+  help:        function(m){ showHelp(m.who, playerIsGM(m.playerid)); },
+
+  // This block GM-only
+  advanceday:  { gm:true, run:function(){ advanceDay(); } },
+  retreatday:  { gm:true, run:function(){ retreatDay(); } },
+  setdate:     { gm:true, run:function(m,a){ setDate(a[2], a[3], a[4]); } }, // MM DD [YYYY]
+  senddate:    { gm:true, run:function(){ sendCurrentDate(); } },
+  sendyear:    { gm:true, run:function(){ sendToAll(yearHTML()); } },
+  addevent:    { gm:true, run:function(m,a){
+                  if (a.length < 5) { whisper(m.who, 'Usage: <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [hex]</code>'); return; }
+                  var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
+                  addEvent(a[2], a[3], hasColor?a.slice(4,a.length-1):a.slice(4), hasColor?maybeColor:null);
+                }},
+  removeevent: { gm:true, run:function(m,a){
+                  if (a.length < 3){ whisper(m.who, 'Usage: <code>!cal removeevent &lt;index|name&gt;</code>'); return; }
+                  removeEvent(a.slice(2).join(' '));
+                }},
+  refresh: { gm:true, run:function(){ refreshCalendarState(false); } },
+  resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } }
+};
+
+function handleInput(msg){ // API command handler
+  if (msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
   checkInstall();
-  var args = msg.content.trim().split(/\s+/);
-  var sub  = (args[1]||'').toLowerCase();
-  var isGM = playerIsGM(msg.playerid);
+  var args = msg.content.trim().split(/\s+/), sub=(args[1]||'').toLowerCase();
+  var cmd = commands[sub];
+  if (!cmd){ sendCurrentDate(msg.who); return; }
 
-  // Everyone
-  if (sub === '' || sub === 'show'){
-    sendCurrentDate(msg.who); return;
-  }
-  if (sub === 'year' || sub === 'fullyear' || sub === 'showyear'){
-    whisper(msg.who, yearHTML()); return;
-  }
-  if (sub === 'events' || sub === 'listevents'){
-    whisper(msg.who, eventsListHTML()); return;
-  }
-  if (sub === 'help'){
-    showHelp(msg.who, isGM); return;
-  }
+  if (typeof cmd === 'function'){ cmd(msg, args); return; }
 
-  // GM-only
-  if (!isGM){
-    var who = (msg.who || '').replace(/\s+\(GM\)$/,'');
-    whisper(who, 'Only the GM can use that calendar command.');
+  if (cmd.gm && !playerIsGM(msg.playerid)){
+    whisper((msg.who||'').replace(/\s+\(GM\)$/,''), LABELS.gmOnlyNotice);
     return;
   }
-
-  if (sub === 'sendyear'){
-    sendChat(script_name, '/direct ' + yearHTML());
-  } else if (sub === 'advanceday'){
-    advanceDay();
-  } else if (sub === 'retreatday'){
-    retreatDay();
-  } else if (sub === 'setdate'){
-    setDate(args[2], args[3], args[4]); // MM DD [YYYY]
-  } else if (sub === 'senddate'){
-    sendCurrentDate();
-  } else if (sub === 'addevent'){
-    if (args.length < 5){
-      whisper(msg.who, 'Usage: <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [hex]</code>');
-      return;
-    }
-    var monthTok = args[2], dayTok = args[3];
-    var maybeColor = args[args.length-1];
-    var hasColor   = !!sanitizeHexColor(maybeColor);
-    var nameTokens = hasColor ? args.slice(4, args.length-1) : args.slice(4);
-    addEvent(monthTok, dayTok, nameTokens, hasColor ? maybeColor : null);
-  } else if (sub === 'removeevent'){
-    if (args.length < 3){
-      whisper(msg.who, 'Usage: <code>!cal removeevent &lt;index|name&gt;</code>');
-      return;
-    }
-    removeEvent(args.slice(2).join(' '));
-  } else if (sub === 'resetcalendar'){
-    resetToDefaults();
-  } else {
-    sendCurrentDate(msg.who);
-  }
+  cmd.run(msg, args);
 }
 
 function register(){ on('chat:message', handleInput); }
 
-on("ready", function(){
+on("ready", function(){ // Initialization function
     Calendar.checkInstall();
+    refreshCalendarState(true);
     Calendar.register();
 
-    var cal = state[state_name].calendar;
-    var cur = cal.current;
-    var currentDate =
-        cal.weekdays[cur.day_of_the_week] + ", " +
-        cur.day_of_the_month + " " +
-        cal.months[cur.month].name + ", " +
-        cur.year + " YK";
+    var currentDate = currentDateLabel();
 
     log('Eberron Calendar Running, current date: ' + currentDate);
 
     sendChat(script_name,
-        '/w gm ' +
-        '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
-        '<div>Current date: ' + esc(currentDate) + '</div>'
-    );
-
-    sendChat(script_name,
         '/direct ' +
+        '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
+        '<div>Current date: ' + esc(currentDate) + '</div>' +
         '<div>Use <code>!cal</code> to view the calendar.</div>' +
         '<div>Use <code>!cal help</code> for command details.</div>'
     );
