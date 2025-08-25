@@ -499,6 +499,44 @@ function eventKey(e){
   return (e.month|0)+'|'+String(e.day)+'|'+y+'|'+String(e.name||'').trim().toLowerCase();
 }
 
+function monthIndexByName(tok){
+  var cal = getCal();
+  if (!tok) return -1;
+  var s = String(tok).toLowerCase();
+  for (var i=0;i<cal.months.length;i++){
+    var nm = String(cal.months[i].name||'').toLowerCase();
+    if (nm===s || nm.indexOf(s)===0) return i;
+  }
+  return -1;
+}
+
+function expandDaySpec(spec, maxDays){
+  var s = String(spec||'').trim();
+  var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (m){
+    var a = clamp(m[1],1,maxDays), b = clamp(m[2],1,maxDays);
+    if (a>b){ var t=a;a=b;b=t; }
+    var out=[]; for (var d=a; d<=b; d++) out.push(d);
+    return out;
+  }
+  var n = parseInt(s,10);
+  if (isFinite(n)) return [clamp(n,1,maxDays)];
+  // if we somehow reach here (e.g., "all"), fall back to the whole month
+  var out=[]; for (var d2=1; d2<=maxDays; d2++) out.push(d2);
+  return out;
+}
+
+function todaySerial(){
+  var c = getCal().current;
+  return toSerial(c.year, c.month, c.day_of_the_month);
+}
+
+function weekdayIndexForYear(year, mi, d){
+  var cal=getCal(), cur=cal.current, wdlen=cal.weekdays.length;
+  var delta = toSerial(year, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month);
+  return ( (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen );
+}
+
 // State accessor
 function getCal(){ return state[state_name].calendar; }
 
@@ -704,7 +742,7 @@ function addEvent(monthToken, dayToken, nameTokens, colorToken){
     return;
   }
 
-  var added = 0, skipped = 0, monthSeen = {};
+  var added = 0;
   for (var mi0=0; mi0<monthsSpec.length; mi0++){
     var mHuman = monthsSpec[mi0]|0; // 1..N
     var mIdx = mHuman-1;
@@ -850,18 +888,138 @@ function removeEvent(query){ // Remove event by name match or index. If multiple
   sendCurrentDate(null,true);
 }
 
-function getEventsFor(monthIndex, day){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges.
+function getEventsFor(monthIndex, day, year){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges. Year is optional
   var m = monthIndex|0, out=[];
-  var events = getCal().events, curYear = getCal().current.year;
+  var events = getCal().events;
+  var y = (typeof year === 'number') ? (year|0) : getCal().current.year;
   if (!events || !events.length) return [];
   for (var i=0;i<events.length;i++){
-    var e=events[i];
+    var e = events[i];
     if (((parseInt(e.month,10)||1)-1) !== m) continue;
-    // Only events for this year OR events that repeat every year (year==null)
-    if (e.year != null && (e.year|0) !== (curYear|0)) continue;
+    // Show events that repeat every year (year==null) OR match the requested year
+    if (e.year != null && (e.year|0) !== y) continue;
     if (makeDayMatcher(e.day)(day)) out.push(e);
   }
   return out;
+}
+
+function occurrencesInRange(startSerial, endSerial){
+  var cal = getCal(), dpy = daysPerYear(), occ=[];
+  var yStart = Math.floor(startSerial/dpy);
+  var yEnd   = Math.floor(endSerial/dpy);
+
+  for (var i=0;i<cal.events.length;i++){
+    var e = cal.events[i];
+    var mi = clamp(e.month,1,cal.months.length)-1;
+    var maxD = cal.months[mi].days|0;
+    var days = expandDaySpec(e.day, maxD);
+
+    var ys = (e.year==null) ? yStart : (e.year|0);
+    var ye = (e.year==null) ? yEnd   : (e.year|0);
+    for (var y=ys; y<=ye; y++){
+      for (var k=0;k<days.length;k++){
+        var d = clamp(days[k],1,maxD);
+        var ser = toSerial(y, mi, d);
+        if (ser>=startSerial && ser<=endSerial){
+          occ.push({serial:ser, y:y, m:mi, d:d, e:e});
+        }
+      }
+    }
+  }
+
+  occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
+  return occ;
+}
+
+function formatDateLabel(y, mi, d, includeYear){
+  var cal=getCal();
+  var lbl = esc(cal.months[mi].name)+' '+d;
+  if (includeYear) lbl += ', '+esc(String(y))+' '+LABELS.era;
+  return lbl;
+}
+
+function eventsListHTMLForRange(title, startSerial, endSerial){
+  var cal = getCal(), cur = cal.current, today = todaySerial();
+  var occ = occurrencesInRange(startSerial, endSerial);
+  var includeYear = (Math.floor(startSerial/daysPerYear()) !== Math.floor(endSerial/daysPerYear()));
+  var out = ['<div style="margin:4px 0;"><b>'+esc(title)+'</b></div>'];
+
+  if (!occ.length){
+    out.push('<div style="opacity:.7;">No events in this range.</div>');
+    return out.join('');
+  }
+
+  for (var i=0;i<occ.length;i++){
+    var o = occ[i], sw = swatchHtml(o.e.color);
+    var isToday = (o.serial === today);
+    var dateLbl = formatDateLabel(o.y, o.m, o.d, includeYear);
+    out.push('<div'+(isToday?' style="font-weight:bold;margin:2px 0;"':' style="margin:2px 0;"')+'>'
+      + sw + dateLbl + ': ' + esc(o.e.name) + '</div>');
+  }
+  return out.join('');
+}
+
+function eventsListHTMLArg(argTokens){
+  var cal = getCal(), cur=cal.current;
+  var months = cal.months, dpy=daysPerYear();
+  var mdaysCur = months[cur.month].days|0;
+
+  var arg = (argTokens||[]).join(' ').trim();
+  var lower = arg.toLowerCase();
+
+  if (!arg || lower === 'month'){ // current month
+    var s = toSerial(cur.year, cur.month, 1);
+    var e = toSerial(cur.year, cur.month, mdaysCur);
+    return eventsListHTMLForRange('Events — This Month', s, e);
+  }
+
+  if (lower === 'next'){ // next 28 days (inclusive)
+    var s2 = toSerial(cur.year, cur.month, cur.day_of_the_month);
+    var e2 = s2 + 27;
+    return eventsListHTMLForRange('Events — Next 28 Days', s2, e2);
+  }
+
+  if (lower === 'next month' || lower === 'nextmonth'){
+    var nextMi = (cur.month + 1) % months.length;
+    var yN = cur.year + (nextMi === 0 ? 1 : 0);
+    var mdN = months[nextMi].days|0;
+    var sN = toSerial(yN, nextMi, 1);
+    var eN = toSerial(yN, nextMi, mdN);
+    return eventsListHTMLForRange('Events — Next Month ('+months[nextMi].name+')', sN, eN);
+  }
+
+  if (lower === 'year'){ // current year
+    var s3 = toSerial(cur.year, 0, 1);
+    var e3 = s3 + dpy - 1;
+    return eventsListHTMLForRange('Events — Year '+cur.year+' '+LABELS.era, s3, e3);
+  }
+
+  if (lower === 'next year'){ // rolling 12 months from start of current month
+    var s4 = toSerial(cur.year, cur.month, 1);
+    var e4 = s4 + dpy - 1;
+    return eventsListHTMLForRange('Events — Next Year (rolling from this month)', s4, e4);
+  }
+
+  // numeric year?
+  var yNum = parseInt(arg,10);
+  if (String(yNum) === arg && isFinite(yNum)){
+    var s5 = toSerial(yNum, 0, 1);
+    var e5 = s5 + dpy - 1;
+    return eventsListHTMLForRange('Events — Year '+yNum+' '+LABELS.era, s5, e5);
+  }
+
+  // month name → "next <Month>"
+  var mi = monthIndexByName(arg);
+  if (mi !== -1){
+    var targetYear = (mi >= cur.month) ? cur.year : (cur.year+1);
+    var mdays = months[mi].days|0;
+    var s6 = toSerial(targetYear, mi, 1);
+    var e6 = toSerial(targetYear, mi, mdays);
+    return eventsListHTMLForRange('Events — '+months[mi].name+' (next occurrence)', s6, e6);
+  }
+
+  // fallback
+  return '<div style="opacity:.8;">Didn’t understand <code>'+esc(arg)+'</code>. Try: <code>month</code>, <code>next</code>, <code>next month</code>, <code>year</code>, <code>next year</code>, a year number, or a month name.</div>';
 }
 
 
@@ -871,8 +1029,9 @@ function buildHelpHtml(isGM){
   var common = [
     '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
     '<div>• <code>!cal</code> or <code>!cal show</code> — show current month (whispered to you)</div>',
+    '<div>• <code>!cal show month|next month|year|next year|999|Aryth</code> — show calendar views</div>',
     '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show full year</div>',
-    '<div>• <code>!cal events</code> — list all events</div>',
+    '<div>• <code>!cal events month|next|next month|year|next year|999|Aryth</code> — filter event lists</div>',
     '<div>• <code>!cal help</code> — show this help</div>'
   ];
 
@@ -887,18 +1046,33 @@ function buildHelpHtml(isGM){
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
     '<div>• <code>!cal refresh</code> — refresh calendar state</div>',
-    '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>'
-'<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — smart add (CSV/range/“all” ok)</div>',
-  '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
-  '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
-  '<div>• <code>!cal addnext &lt;day|month day [year]&gt; &lt;name...&gt; [#hex]</code> — next occurrence (warns if explicit MDY is past)</div>',
+    '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>',
+    '<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — smart add (CSV/range/“all” ok)</div>',
+    '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
+    '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
+    '<div>• <code>!cal addnext &lt;day|month day [year]&gt; &lt;name...&gt; [#hex]</code> — next occurrence (warns if explicit MDY is past)</div>', // alias to addevent, maybe preferable for clarity
+    '<div>• <code>!cal events</code> — list events for the current month</div>',
+    '<div>• <code>!cal events month</code> — current month</div>',
+    '<div>• <code>!cal events next</code> — next 28 days</div>',
+    '<div>• <code>!cal events next month</code> — next calendar month</div>',
+    '<div>• <code>!cal events year</code> — current year</div>',
+    '<div>• <code>!cal events next year</code> — current month + next 11 months</div>',
+    '<div>• <code>!cal events <year></code> — specific year</div>',
+    '<div>• <code>!cal events <monthname></code> — next occurrence of that month</div>',
+    '<div>• <code>!cal show</code> — current month</div>',
+    '<div>• <code>!cal show month</code> — current month</div>',
+    '<div>• <code>!cal show next month</code> — next calendar month</div>',
+    '<div>• <code>!cal show year</code> — full current year</div>',
+    '<div>• <code>!cal show next year</code> — rolling 12 months from this month</div>',
+    '<div>• <code>!cal show 999</code> — show year 999</div>',
+    '<div>• <code>!cal show Aryth</code> — show that month (next occurrence)</div>'
 
   ];
 
   return common.concat(gm).join('');
 }
 
-function renderMiniCal(mi){ // Builds mini-calendar for a single month, highlighting current day and events
+function renderMiniCal(mi, yearLabel){ // Builds mini-calendar for a single month, highlighting current day and events
   var cal = getCal(), cur = cal.current;
   var wd = cal.weekdays, mObj = cal.months[mi], md = mObj.days;
   var monthColor = mObj.color || '#eee';
@@ -906,15 +1080,17 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
   var textColor = textColorForBg(monthColor);
   var outline = outlineIfNeeded(textColor, monthColor);
 
-  var first = weekdayIndexFor(mi, 1);
+  var first = (typeof yearLabel === 'number')
+    ? weekdayIndexForYear(yearLabel, mi, 1)
+    : weekdayIndexFor(mi, 1);
 
-  var html = ['<table style="'+STYLES.table+'">'];
+   var html = ['<table style="'+STYLES.table+'">'];
 
   html.push( // Month header
     '<tr><th colspan="7" style="'+STYLES.head+'">' +
       '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">' +
         esc(mObj.name) +
-        '<span style="float:right;">'+esc(String(cur.year))+' '+LABELS.era+'</span>' +
+        '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>' +
       '</div>' +
     '</th></tr>'
   );
@@ -933,7 +1109,8 @@ function renderMiniCal(mi){ // Builds mini-calendar for a single month, highligh
         html.push('<td style="'+STYLES.td+'"></td>');
       } else {
         var isToday = (mi === cur.month) && (day === cur.day_of_the_month);
-        var todays = getEventsFor(mi, day);
+var targetYear = (typeof yearLabel === 'number') ? yearLabel : cur.year;
+var todays = getEventsFor(mi, day, targetYear);
         var evObj = todays[0] || null;
         var style = STYLES.td;
         var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
@@ -979,34 +1156,34 @@ function yearHTML(){ // Full year view
   return html.join('');
 }
 
-function eventsListHTML(){ // Full event list, sorted chronologically
-  var cal = getCal(), cur = cal.current;
-  var items = cal.events.slice().map(function(e){
-    var mi = clamp(e.month, 1, cal.months.length) - 1;
-    return { e: e, mi: mi};
-  });
-
-  items.sort(function(a,b){ return compareEvents(a.e, b.e); });
-
-  var out = ['<div style="margin:4px 0;"><b>All Events (Year '+esc(String(cur.year))+' '+LABELS.era+')</b></div>'];
-
-  items.forEach(function(it){
-    var e = it.e;
-    var mName = esc(cal.months[it.mi].name);
-    var dayLabel = esc(String(e.day));
-    var isToday = (it.mi === cur.month) && makeDayMatcher(e.day)(cur.day_of_the_month);
-    var swatch = swatchHtml(e.color);
-
-    out.push('<div'+(isToday?' style="font-weight:bold;margin:2px 0;"':' style="margin:2px 0;"')+'>'
-      + swatch + mName + ' ' + dayLabel + ': ' + esc(e.name)
-      + '</div>');
-  });
-
-  if (items.length === 0){
-    out.push('<div style="opacity:.7;">No events defined.</div>');
+function yearHTMLFor(targetYear){
+  var months = getCal().months;
+  var html = ['<div style="text-align:left;">'];
+  for (var i=0; i<months.length; i++){
+    html.push(
+      '<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+        renderMiniCal(i, targetYear) +
+      '</div>'
+    );
   }
+  html.push('</div>');
+  return html.join('');
+}
 
-  return out.join('');
+function rollingYearHTML(){ // current month + next 11, across year boundary
+  var cal=getCal(), cur=cal.current, months=getCal().months;
+  var html=['<div style="text-align:left;">'];
+  for (var off=0; off<12; off++){
+    var mi = (cur.month + off) % months.length;
+    var y  = cur.year + Math.floor((cur.month + off) / months.length);
+    html.push(
+      '<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+        renderMiniCal(mi, y) +
+      '</div>'
+    );
+  }
+  html.push('</div>');
+  return html.join('');
 }
 
 function sendCurrentDate(to, gmOnly){ // Send current date to caller. Also allows for GM-only broadcast.
@@ -1057,12 +1234,52 @@ function whisper(to, html){ // Whisper function that sanitizes player name in ca
 var commands = { // API command list
   // This block is available to all players
   '':          function(m){ sendCurrentDate(m.who); },
-  show:        function(m){ sendCurrentDate(m.who); }, // alias
-  year:        function(m){ whisper(m.who, yearHTML()); },
+show: function(m,a){
+  // !cal show [arg...]
+  var args = a.slice(2);
+  if (!args.length || /^month$/i.test(args[0])){
+    sendCurrentDate(m.who); // current month summary (existing rich output)
+    return;
+  }
+  var q = args.join(' ').trim().toLowerCase();
+  if (q === 'year'){
+    whisper(m.who, yearHTML());
+    return;
+  }
+  if (q === 'next month' || q === 'nextmonth'){
+    var calN = getCal(), curN = calN.current;
+    var nextMi = (curN.month + 1) % calN.months.length;
+    var yN = curN.year + (nextMi === 0 ? 1 : 0);
+    whisper(m.who, renderMiniCal(nextMi, yN));
+    return;
+  }
+  if (q === 'next year'){
+    whisper(m.who, rollingYearHTML());
+    return;
+  }
+  var yNum = parseInt(q,10);
+  if (String(yNum)===q && isFinite(yNum)){
+    whisper(m.who, yearHTMLFor(yNum));
+    return;
+  }
+  var mi = monthIndexByName(q);
+  if (mi !== -1){
+    // show that month in the next occurrence year (header labeled correctly)
+    var cur=getCal().current;
+    var y = (mi >= cur.month) ? cur.year : (cur.year+1);
+    whisper(m.who, renderMiniCal(mi, y));
+    return;
+  }
+  // fallback to current month
+  sendCurrentDate(m.who);
+},  year:        function(m){ whisper(m.who, yearHTML()); },
   fullyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
   showyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
-  events:      function(m){ whisper(m.who, eventsListHTML()); },
-  listevents:  function(m){ whisper(m.who, eventsListHTML()); }, // alias
+events: function(m,a){
+  // !cal events [arg...]
+  var html = eventsListHTMLArg(a.slice(2));
+  whisper(m.who, html);
+},  listevents:  function(m){ whisper(m.who, eventsListHTMLArg(['year'])); }, // alias
   help:        function(m){ showHelp(m.who, playerIsGM(m.playerid)); },
 
   // This block is GM-only
