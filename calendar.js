@@ -71,26 +71,31 @@ function checkInstall(){ // Ensure state is initialized and migrated properly.
     var cal = state[state_name].calendar;
     if (!cal.current) cal.current = { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 };
 
-    if(!Array.isArray(cal.events)){
-        cal.events = JSON.parse(JSON.stringify(defaults.events)).map(function(e){
-            var lim = Math.max(1, cal.months.length);
-            var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
-            e.name  = String(e.name||'');
-            e.month = m;
-            e.color = sanitizeHexColor(e.color) || null;
-            return e;
-        });
-    } else {
-        cal.events = cal.events.map(function(e){
-            var lim = Math.max(1, cal.months.length);
-            var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
-            return {
-                name: String(e.name||''),
-                month: m,
-                day: e.day,
-                color: sanitizeHexColor(e.color) || null
-            };
-        });
+if(!Array.isArray(cal.events)){
+  cal.events = JSON.parse(JSON.stringify(defaults.events)).map(function(e){
+    var lim = Math.max(1, cal.months.length);
+    var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
+    return {
+      name: String(e.name||''),
+      month: m,
+      day: e.day,
+      year: null, // repeats every year
+      color: sanitizeHexColor(e.color) || null
+    };
+  });
+} else {
+  cal.events = cal.events.map(function(e){
+    var lim = Math.max(1, cal.months.length);
+    var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
+    var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
+    return {
+      name: String(e.name||''),
+      month: m,
+      day: e.day,
+      year: yr,
+      color: sanitizeHexColor(e.color) || null
+    };
+  });
         var defColorByKey = {};
         defaults.events.forEach(function(de){
             var key = (parseInt(de.month,10)||1) + '|' + String(de.day);
@@ -123,19 +128,27 @@ function checkInstall(){ // Ensure state is initialized and migrated properly.
     }
 }
 
-function refreshCalendarState(silent){ // Re-validate and clean up calendar state. Ensures events added manually are correctly added when a previously existing same-day event was present.
-    checkInstall();
-    var cal = getCal();
+function refreshCalendarState(silent){
+  checkInstall();
+  var cal = getCal();
 
   cal.events = (cal.events || []).map(function(e){
     var m = clamp(e.month, 1, cal.months.length);
     var daySpec = normalizeDaySpec(e.day, cal.months[m-1].days) || String(firstNumFromDaySpec(e.day));
-    return { name: String(e.name||''), month: m, day: daySpec, color: sanitizeHexColor(e.color) || null };
+    var yr = (e.year==null) ? null : (parseInt(e.year,10)|0);
+    return {
+      name: String(e.name||''),
+      month: m,
+      day: daySpec,
+      year: yr,
+      color: sanitizeHexColor(e.color) || null
+    };
   });
 
   var seen = {};
   cal.events = cal.events.filter(function(e){
-    var k = e.month+'|'+e.day+'|'+e.name.toLowerCase();
+    var y = (e.year==null) ? 'ALL' : (e.year|0);
+    var k = e.month+'|'+e.day+'|'+y+'|'+String(e.name||'').trim().toLowerCase();
     if (seen[k]) return false; seen[k]=true; return true;
   });
 
@@ -145,15 +158,6 @@ function refreshCalendarState(silent){ // Re-validate and clean up calendar stat
 }
 
 // Helper functions
-
-function gmButtonsHtml(){ // GM buttons for quick actions. Currently only called when single-month calendar is shown.
-  return [
-    '[📤 Send Date](!cal senddate)',
-    '[⏭ Advance Day](!cal advanceday)',
-    '[⏮ Retreat Day](!cal retreatday)',
-    '[❓ Help](!cal help)'
-  ].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join('');
-}
 
 function sanitizeHexColor(s){ // Returns sanitized hex color string (#RRGGBB) or null if invalid.
     if(!s) return null;
@@ -309,9 +313,13 @@ function currentDateLabel(){
 
 function monthEventsHtml(mi, today){
   var cal = getCal(), mName = esc(cal.months[mi].name);
+  var curYear = cal.current.year;
   var rows = [];
   cal.events
-    .filter(function(e){ return ((+e.month||1)-1) === mi; })
+    .filter(function(e){
+      return ((+e.month||1)-1) === mi &&
+             (e.year == null || (e.year|0) === (curYear|0));
+    })
     .forEach(function(e){
       var dayLabel = esc(String(e.day));
       var isToday  = makeDayMatcher(e.day)(today);
@@ -358,12 +366,6 @@ function swatchHtml(hex){
 function sendToAll(html){ sendChat(script_name, '/direct ' + html); }
 function sendToGM(html){  sendChat(script_name, '/w gm ' + html); }
 
-function compareEvents(a, b){ // Sort events by month then earliest day in their day spec (e.g., "18-19" becomes 18).
-  var am = (+a.month||1), bm = (+b.month||1);
-  if (am !== bm) return am - bm;
-  return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
-}
-
 function _relLum(hex){ // Relative luminance of a hex color
   hex = (hex||'').toString().replace(/^#/, '');
   if (hex.length===3) hex = hex.replace(/(.)/g,'$1$1');
@@ -384,6 +386,117 @@ function outlineIfNeeded(textColor, bgHex){ // If contrast is too low and text i
   return (ratio < CONTRAST_MIN && textColor === '#fff')
     ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
     : '';
+}
+
+function gmButtonsHtml(){ // GM buttons for quick actions. Currently only called when single-month calendar is shown.
+  return [
+    '[📤 Send Date](!cal senddate)',
+    '[⏭ Advance Day](!cal advanceday)',
+    '[⏮ Retreat Day](!cal retreatday)',
+    '[❓ Help](!cal help)'
+  ].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join('');
+}
+
+function isHexColorToken(tok){
+  return !!sanitizeHexColor(tok);
+}
+
+function isListToken(tok){
+  // tokens we consider "date-like": numbers, ranges, csv of those, or "all"
+  return /^all$/i.test(tok) || /^[0-9,\-\s]+$/.test(tok);
+}
+
+function parseIntSafe(x){ var n=parseInt(x,10); return isFinite(n)?n:null; }
+
+function parseIntList(token, minV, maxV){
+  // token can be "all", "n", "a-b", or "csv" like "1,3,5-7"
+  // returns sorted unique int array within [minV,maxV]
+  if (!token) return [];
+  token = String(token).trim().toLowerCase();
+  if (token === 'all'){
+    var out=[]; for (var i=minV;i<=maxV;i++) out.push(i); return out;
+  }
+  var set = {};
+  String(token).split(',').forEach(function(part){
+    part = part.trim();
+    if (!part) return;
+    var m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m){
+      var a=parseInt(m[1],10), b=parseInt(m[2],10);
+      if (isFinite(a) && isFinite(b)){
+        if (a>b){ var t=a;a=b;b=t; }
+        for (var i=a;i<=b;i++){
+          if (i>=minV && i<=maxV) set[i]=1;
+        }
+      }
+    } else {
+      var n=parseInt(part,10);
+      if (isFinite(n) && n>=minV && n<=maxV) set[n]=1;
+    }
+  });
+  var arr = Object.keys(set).map(function(k){ return parseInt(k,10); });
+  arr.sort(function(a,b){ return a-b; });
+  return arr;
+}
+
+function parseDaySpecList(token, maxDays){
+  // supports "all", "n", "a-b", or CSV like "1,3,5-7"
+  token = String(token||'').trim().toLowerCase();
+  if (token === 'all'){
+    return ['1-'+maxDays];
+  }
+  // split CSV, keep each as "n" or "a-b"
+  var parts = token.split(',');
+  var out = [];
+  var seen = {};
+  for (var i=0;i<parts.length;i++){
+    var p = parts[i].trim();
+    if (!p) continue;
+    // normalize single or range with clamp
+    var norm = normalizeDaySpec(p, maxDays);
+    if (!norm){
+      // try single int, then clamp
+      var n = parseInt(p,10);
+      if (isFinite(n)) norm = String(clamp(n,1,maxDays));
+    }
+    if (norm && !seen[norm]){ seen[norm]=1; out.push(norm); }
+  }
+  // if token had no commas and produced nothing, try as plain normalize
+  if (!out.length){
+    var n1 = normalizeDaySpec(token, maxDays);
+    if (n1) out.push(n1);
+  }
+  return out;
+}
+
+function nextForDayOnly(cur, day, monthsLen){
+  // returns {month, year} for the NEXT occurrence of "day" using current month/year
+  var mdays = getCal().months[cur.month].days;
+  var d = clamp(day, 1, mdays);
+  if (cur.day_of_the_month <= d){
+    return { month: cur.month, year: cur.year };
+  }
+  var nm = (cur.month + 1) % monthsLen;
+  var ny = cur.year + ((nm===0)?1:0);
+  return { month: nm, year: ny };
+}
+
+function nextForMonthDay(cur, mIndex, d){
+  // returns {year} for the NEXT occurrence of month/day in or after current year
+  var mdays = getCal().months[mIndex].days;
+  var day = clamp(d, 1, mdays);
+  var serialNow = toSerial(cur.year, cur.month, cur.day_of_the_month);
+  var serialCand = toSerial(cur.year, mIndex, day);
+  if (serialCand >= serialNow) return { year: cur.year };
+  return { year: cur.year + 1 };
+}
+
+function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
+
+function eventKey(e){
+  // uniqueness key with year awareness (null year → 'ALL')
+  var y = (e.year==null)?'ALL':String(e.year|0);
+  return (e.month|0)+'|'+String(e.day)+'|'+y+'|'+String(e.name||'').trim().toLowerCase();
 }
 
 // State accessor
@@ -471,6 +584,233 @@ function addEvent(monthToken, dayToken, nameTokens, colorToken){
   sendCurrentDate(null, true);
 }
 
+  function addEventSmart(tokens){
+  // tokens: array of args AFTER the subcommand, BEFORE optional color
+  // Grammar we accept at the front: [month?] [day] [year?]
+  // Each of month/day/year may be: single int, range "a-b" (day), CSV, or "all"
+  // If only day -> "next" semantics
+  // If month+day -> "next" semantics for year
+  // If month+day+year -> explicit (warn if in past)
+  // Any use of "all" or CSV/range implies bulk (no "next" resolution for that dimension)
+  var cal = getCal(), cur = cal.current, monthsLen = cal.months.length;
+  if (!tokens || !tokens.length){ warnGM('Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>'); return; }
+
+  // Detect trailing color
+  var lastTok = tokens[tokens.length-1];
+  var color = isHexColorToken(lastTok) ? sanitizeHexColor(lastTok) : null;
+  if (color){ tokens = tokens.slice(0, tokens.length-1); }
+
+  // Pull up to 3 date-like tokens from the front
+  var dateToks = [];
+  while (dateToks.length<3 && tokens.length && isListToken(tokens[0])){
+    dateToks.push(tokens.shift());
+  }
+
+  if (dateToks.length===0){
+    warnGM('Could not parse a date from your input. Expected <code>day</code>, <code>month day</code>, or <code>month day year</code>.');
+    return;
+  }
+
+  // The rest is the name (quoted or not)
+  var rawName = String(tokens.join(' ')).trim();
+  rawName = rawName.replace(/^"(.*)"$/,'$1').replace(/^'(.*)'$/,'$1').trim();
+  if (!rawName){ rawName = 'Untitled Event'; }
+
+  // Determine (monthsSpec, daysSpecList, yearsSpec) based on dateToks length
+  var monthsSpec = null; // array of month indexes 1..N or null (to be resolved by "next")
+  var daysSpecList = null; // array of "D" or "A-B" strings
+  var yearsSpec = null; // null => repeats every year; [] => to be resolved by "next"; [y1,y2,...] explicit years
+
+  var monthCount = cal.months.length;
+  var maxDaysInCalendar = 0; // not used, days are clamped per-month
+
+  if (dateToks.length === 1){
+    // [day]
+    var dayTok = dateToks[0];
+    // Day can be list/range/"all"
+    // "next" semantics only when it's a single integer; lists/ranges imply bulk
+    var singleDay = parseIntSafe(dayTok);
+    if (singleDay != null && /^[0-9]+$/.test(dayTok)){
+      // NEXT semantics (single target)
+      var nextMY = nextForDayOnly(cur, singleDay, monthCount);
+      var di = clamp(singleDay, 1, cal.months[nextMY.month].days);
+      _addConcreteEvent(nextMY.month+1, String(di), nextMY.year, rawName, color);
+      return;
+    } else {
+      // BULK monthly repeating, every year
+      monthsSpec = parseIntList('all', 1, monthCount);
+      // we need a daySpec list; for each month we clamp later
+      // parseDaySpecList needs maxDays, but we’ll re-normalize per month anyway
+      daysSpecList = [String(dayTok)];
+      yearsSpec = null; // every year
+    }
+  } else if (dateToks.length === 2){
+    // [month] [day]
+    var mTok = dateToks[0], dTok = dateToks[1];
+    var monthsBulk = parseIntList(mTok, 1, monthCount); // supports all/csv/range/single
+    var looksBulk = (mTok.toLowerCase() === 'all' || mTok.indexOf(',')!==-1 || mTok.indexOf('-')!==-1);
+
+    // If month is a plain integer AND day is a plain integer → NEXT semantics
+    var singleM = parseIntSafe(mTok);
+    var singleD = parseIntSafe(dTok);
+    if (!looksBulk && singleM != null && /^[0-9]+$/.test(dTok)){
+      var mi = clamp(singleM, 1, monthCount) - 1;
+      var nextY = nextForMonthDay(cur, mi, singleD).year;
+      var di2 = clamp(singleD, 1, cal.months[mi].days);
+      _addConcreteEvent(mi+1, String(di2), nextY, rawName, color);
+      return;
+    }
+
+    // otherwise: BULK across those months, repeating every year
+    monthsSpec = monthsBulk;
+    daysSpecList = [String(dTok)];
+    yearsSpec = null; // every year
+  } else {
+    // [month] [day] [year]
+    var mTok3 = dateToks[0], dTok3 = dateToks[1], yTok3 = dateToks[2];
+
+    var mList = parseIntList(mTok3, 1, monthCount); // can be 1..N or many
+    var yList;
+    var yIsAll = /^all$/i.test(yTok3);
+    if (yIsAll){
+      yList = null; // null => every year
+    } else {
+      yList = parseIntList(yTok3, -2147483648, 2147483647); // let user pick any int years
+      if (!yList.length){
+        // if a single int-like but outside parse, try direct
+        var yy = parseIntSafe(yTok3);
+        if (yy != null) yList = [yy];
+      }
+    }
+
+    monthsSpec   = mList;
+    daysSpecList = [String(dTok3)];
+    yearsSpec    = yList; // null => every year; array => explicit list
+
+    // Warn if it’s a single explicit MDY in the past (vs serial now)
+    if (mList.length===1 && /^\d+$/.test(String(dTok3)) && yList && yList.length===1){
+      var mi3 = mList[0]-1, di3=parseInt(dTok3,10)|0, yi3=yList[0]|0;
+      var serialNow = toSerial(cur.year, cur.month, cur.day_of_the_month);
+      var serialEvt = toSerial(yi3, mi3, clamp(di3,1,cal.months[mi3].days));
+      if (serialEvt < serialNow){
+        warnGM('Note: that explicit date appears to be in the past. Adding anyway for historical record.');
+      }
+    }
+  }
+
+  // Expand BULK
+  if (!monthsSpec || !daysSpecList){
+    warnGM('Could not resolve your date specification.');
+    return;
+  }
+
+  var added = 0, skipped = 0, monthSeen = {};
+  for (var mi0=0; mi0<monthsSpec.length; mi0++){
+    var mHuman = monthsSpec[mi0]|0; // 1..N
+    var mIdx = mHuman-1;
+    var maxD = cal.months[mIdx].days|0;
+
+    // Build actual day specs for this month (clamped)
+    var daySpecsForMonth = [];
+    for (var ds=0; ds<daysSpecList.length; ds++){
+      var dsRaw = String(daysSpecList[ds]);
+      // if it's CSV-ish, let parseDaySpecList split it
+      var list = parseDaySpecList(dsRaw, maxD);
+      if (!list.length){
+        // try normalizer directly once more
+        var one = normalizeDaySpec(dsRaw, maxD);
+        if (one) list = [one];
+      }
+      for (var k=0;k<list.length;k++){
+        if (daySpecsForMonth.indexOf(list[k])===-1) daySpecsForMonth.push(list[k]);
+      }
+    }
+
+    // Determine years: repeating (null) or explicit list
+    if (yearsSpec === null){
+      // repeating every year: one entry per daySpec (year=null)
+      for (var j=0;j<daySpecsForMonth.length;j++){
+        added += _addConcreteEvent(mHuman, daySpecsForMonth[j], null, rawName, color) ? 1 : 0;
+      }
+    } else if (Array.isArray(yearsSpec) && yearsSpec.length){
+      for (var yy=0; yy<yearsSpec.length; yy++){
+        var yVal = yearsSpec[yy]|0;
+        for (var j2=0;j2<daySpecsForMonth.length;j2++){
+          added += _addConcreteEvent(mHuman, daySpecsForMonth[j2], yVal, rawName, color) ? 1 : 0;
+        }
+      }
+    } else {
+      warnGM('No valid year(s) parsed; nothing added for month '+mHuman+'.');
+    }
+  }
+
+  if (added){
+    refreshCalendarState(true);
+    sendCurrentDate(null, true);
+    warnGM('Added '+added+' event'+(added===1?'':'s')+'.');
+  } else {
+    warnGM('No events were added (possible duplicates or invalid specs).');
+  }
+}
+
+function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
+  var cal = getCal();
+  var m = clamp(monthHuman, 1, cal.months.length);
+  var maxD = cal.months[m-1].days|0;
+  var normDay = normalizeDaySpec(daySpec, maxD);
+  if (!normDay) return false;
+  var col = sanitizeHexColor(color) || null;
+
+  var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
+
+  // dedup
+  var key = eventKey(e);
+  var exists = cal.events.some(function(ev){ return eventKey(ev)===key; });
+  if (exists) return false;
+
+  cal.events.push(e);
+  cal.events.sort(compareEvents);
+  return true;
+}
+
+function addMonthly(dayTok, nameTokens, colorTok){
+  var tokens = [];
+  tokens.push('all');         // month = all
+  tokens.push(String(dayTok)); // day
+  tokens.push('all');         // year = all
+  if (nameTokens && nameTokens.length) tokens = tokens.concat(nameTokens);
+  if (colorTok) tokens.push(colorTok);
+  addEventSmart(tokens);
+}
+
+function addAnnual(monthTok, dayTok, nameTokens, colorTok){
+  var tokens = [];
+  tokens.push(String(monthTok)); // month
+  tokens.push(String(dayTok));   // day
+  tokens.push('all');            // year = all
+  if (nameTokens && nameTokens.length) tokens = tokens.concat(nameTokens);
+  if (colorTok) tokens.push(colorTok);
+  addEventSmart(tokens);
+}
+
+function addNext(tokens){
+  // accept [day name color], [month day name color], or [month day year name color]
+  // just pass through to addEventSmart; it already does "next" where applicable,
+  // and warns on explicit past MDY.
+  addEventSmart(tokens.slice());
+}
+
+function compareEvents(a, b){
+  // Year: null (every year) sorts before explicit years,
+  // then by month, then by earliest day in the daySpec
+  var ya = (a.year==null)? -Infinity : (a.year|0);
+  var yb = (b.year==null)? -Infinity : (b.year|0);
+  if (ya !== yb) return ya - yb;
+  var am = (+a.month||1), bm = (+b.month||1);
+  if (am !== bm) return am - bm;
+  return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
+}
+
 function removeEvent(query){ // Remove event by name match or index. If multiple matches, list them with indices and request repeated command.
   var cal = getCal();
   var events = cal.events;
@@ -512,15 +852,18 @@ function removeEvent(query){ // Remove event by name match or index. If multiple
 
 function getEventsFor(monthIndex, day){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges.
   var m = monthIndex|0, out=[];
-  var events = getCal().events;
+  var events = getCal().events, curYear = getCal().current.year;
   if (!events || !events.length) return [];
   for (var i=0;i<events.length;i++){
     var e=events[i];
     if (((parseInt(e.month,10)||1)-1) !== m) continue;
+    // Only events for this year OR events that repeat every year (year==null)
+    if (e.year != null && (e.year|0) !== (curYear|0)) continue;
     if (makeDayMatcher(e.day)(day)) out.push(e);
   }
   return out;
 }
+
 
 // Rendering and output functions
 
@@ -540,12 +883,16 @@ function buildHelpHtml(isGM){
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
     '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set date</div>',
-    '<div>• <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [#hex]</code> — add a custom event</div>',
     '<div>• <code>!cal removeevent &lt;index|name&gt;</code> — remove an event. (this can also remove hard-coded events)</div>',
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
     '<div>• <code>!cal refresh</code> — refresh calendar state</div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>'
+'<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — smart add (CSV/range/“all” ok)</div>',
+  '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
+  '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
+  '<div>• <code>!cal addnext &lt;day|month day [year]&gt; &lt;name...&gt; [#hex]</code> — next occurrence (warns if explicit MDY is past)</div>',
+
   ];
 
   return common.concat(gm).join('');
@@ -724,11 +1071,41 @@ var commands = { // API command list
   setdate:     { gm:true, run:function(m,a){ setDate(a[2], a[3], a[4]); } }, // MM DD [YYYY]
   senddate:    { gm:true, run:function(){ sendCurrentDate(); } },
   sendyear:    { gm:true, run:function(){ sendToAll(yearHTML()); } },
-  addevent:    { gm:true, run:function(m,a){
-                  if (a.length < 5) { whisper(m.who, 'Usage: <code>!cal addevent &lt;month#&gt; &lt;day|start-end&gt; &lt;name...&gt; [hex]</code>'); return; }
-                  var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
-                  addEvent(a[2], a[3], hasColor?a.slice(4,a.length-1):a.slice(4), hasColor?maybeColor:null);
-                }},
+  addevent: { gm:true, run:function(m,a){
+  if (a.length < 3) {
+    whisper(m.who, 'Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>');
+    return;
+  }
+  addEventSmart(a.slice(2));
+}},
+
+addmonthly: { gm:true, run:function(m,a){
+  if (a.length < 4){
+    whisper(m.who, 'Usage: <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
+    return;
+  }
+  var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
+  var nameTokens = hasColor ? a.slice(3,a.length-1) : a.slice(3);
+  addMonthly(a[2], nameTokens, hasColor?maybeColor:null);
+}},
+
+addannual: { gm:true, run:function(m,a){
+  if (a.length < 5){
+    whisper(m.who, 'Usage: <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
+    return;
+  }
+  var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
+  var nameTokens = hasColor ? a.slice(4,a.length-1) : a.slice(4);
+  addAnnual(a[2], a[3], nameTokens, hasColor?maybeColor:null);
+}},
+
+addnext: { gm:true, run:function(m,a){
+  if (a.length < 4){
+    whisper(m.who, 'Usage: <code>!cal addnext &lt;day&gt; &lt;name...&gt; [#hex]</code> or <code>!cal addnext &lt;month&gt; &lt;day&gt; &lt;name...&gt; [#hex]</code>');
+    return;
+  }
+  addNext(a.slice(2));
+}},
   removeevent: { gm:true, run:function(m,a){
                   if (a.length < 3){ whisper(m.who, 'Usage: <code>!cal removeevent &lt;index|name&gt;</code>'); return; }
                   removeEvent(a.slice(2).join(' '));
