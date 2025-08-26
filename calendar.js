@@ -1108,8 +1108,9 @@ function renderMiniCal(mi, yearLabel){ // Builds mini-calendar for a single mont
       if ((r===0 && c<first) || day>md){
         html.push('<td style="'+STYLES.td+'"></td>');
       } else {
-        var isToday = (mi === cur.month) && (day === cur.day_of_the_month);
-var targetYear = (typeof yearLabel === 'number') ? yearLabel : cur.year;
+ var isToday = (mi === cur.month) &&
+               (day === cur.day_of_the_month) &&
+               ((typeof yearLabel !== 'number') || (yearLabel === cur.year));var targetYear = (typeof yearLabel === 'number') ? yearLabel : cur.year;
 var todays = getEventsFor(mi, day, targetYear);
         var evObj = todays[0] || null;
         var style = STYLES.td;
