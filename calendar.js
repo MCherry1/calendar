@@ -2,7 +2,7 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // This is written for Roll20's API system.
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
-// Version: 1.2
+// Version: 1.9
 
 var Calendar = (function(){
 
@@ -32,21 +32,21 @@ var defaults = {
         { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
     ],
     events: [ // Eberron-specific events. Colors are not canon, but chosen to match event themes.
-        { name: "Tain Gala",               month: all, day: 5,  color: "#F7E7CE" }, // Champagne Gold
-        { name: "Crystalfall",             month: 2,  day: 9,   color: "#87CEEB" }, // Sky blue
-        { name: "The Day of Mourning",     month: 2,  day: 20,  color: "#808080" }, // Dead gray mists
-        { name: "Sun's Blessing",          month: 3,  day: 15,  color: "#FFD700" }, // Sun gold
-        { name: "Aureon's Crown",          month: 5,  day: 26,  color: "#6A5ACD" }, // Royal purple
-        { name: "Brightblade",             month: 6,  day: 12,  color: "#B22222" }, // Firebrick red
-        { name: "The Race of Eight Winds", month: 7,  day: 23,  color: "#20B2AA" }, // Sky blue-green
-        { name: "The Hunt",                month: 8,  day: 4,   color: "#228B22" }, // Forest green
-        { name: "Fathen's Fall",           month: 8,  day: 25,  color: "#F8F8FF" }, // Silver flame
-        { name: "Boldrei's Feast",         month: 9,  day: 9,   color: "#FFB347" }, // Hearth orange
-        { name: "The Ascension",           month: 10, day: 1,  color: "#F8F8FF" }, // Silver flame
-        { name: "Wildnight",               month: 10, day: "18-19", color: "#8B0000" }, // Dark red of the Fury
-        { name: "Thronehold",              month: 11, day: 11,  color: "#4169E1" }, // Royal blue
-        { name: "Remembrance Day",         month: 11, day: 11,  color: "#DC143C" }, // Poppy red
-        { name: "Long Shadows",            month: 12, day: "26-28", color: "#0D0D0D" } // Midnight black
+        { name: "Tain Gala",               month: "all",  day: 5,       color: "#F7E7CE" }, // Champagne Gold
+        { name: "Crystalfall",             month: 2,      day: 9,       color: "#87CEEB" }, // Sky blue
+        { name: "The Day of Mourning",     month: 2,      day: 20,      color: "#808080" }, // Dead gray mists
+        { name: "Sun's Blessing",          month: 3,      day: 15,      color: "#FFD700" }, // Sun gold
+        { name: "Aureon's Crown",          month: 5,      day: 26,      color: "#6A5ACD" }, // Royal purple
+        { name: "Brightblade",             month: 6,      day: 12,      color: "#B22222" }, // Firebrick red
+        { name: "The Race of Eight Winds", month: 7,      day: 23,      color: "#20B2AA" }, // Sky blue-green
+        { name: "The Hunt",                month: 8,      day: 4,       color: "#228B22" }, // Forest green
+        { name: "Fathen's Fall",           month: 8,      day: 25,      color: "#F8F8FF" }, // Silver flame
+        { name: "Boldrei's Feast",         month: 9,      day: 9,       color: "#FFB347" }, // Hearth orange
+        { name: "The Ascension",           month: 10,     day: 1,       color: "#F8F8FF" }, // Silver flame
+        { name: "Wildnight",               month: 10,     day: "18-19", color: "#8B0000" }, // Dark red of the Fury
+        { name: "Thronehold",              month: 11,     day: 11,      color: "#4169E1" }, // Royal blue
+        { name: "Remembrance Day",         month: 11,     day: 11,      color: "#DC143C" }, // Poppy red
+        { name: "Long Shadows",            month: 12,     day: "26-28", color: "#0D0D0D" }  // Midnight black
     ]
 };
 
