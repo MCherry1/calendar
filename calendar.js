@@ -13,7 +13,7 @@ var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink for events
 var GRADIENT_ANGLE = '45deg'; // Angle for multi-event day gradients.
 var CONTRAST_MIN = 4.5; // Minimum contrast ratio
 
-// Default data
+// Default data set.
 var defaults = {
     current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 }, // Default starting date 1/1/998.
     weekdays: ["Sul","Mol","Zol","Wir","Zor","Far","Sar"], // Eberron-specific weekday names. Change for other settings.
@@ -31,7 +31,8 @@ var defaults = {
         { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" }, // Orange-red
         { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
     ],
-    events: [ // Eberron-specific events. Change for other settings. Colors are not canon, but chosen to match event themes.
+    events: [ // Eberron-specific events. Colors are not canon, but chosen to match event themes.
+        { name: "Tain Gala",               month: all, day: 5,  color: "#F7E7CE" }, // Champagne Gold
         { name: "Crystalfall",             month: 2,  day: 9,   color: "#87CEEB" }, // Sky blue
         { name: "The Day of Mourning",     month: 2,  day: 20,  color: "#808080" }, // Dead gray mists
         { name: "Sun's Blessing",          month: 3,  day: 15,  color: "#FFD700" }, // Sun gold
@@ -41,8 +42,8 @@ var defaults = {
         { name: "The Hunt",                month: 8,  day: 4,   color: "#228B22" }, // Forest green
         { name: "Fathen's Fall",           month: 8,  day: 25,  color: "#F8F8FF" }, // Silver flame
         { name: "Boldrei's Feast",         month: 9,  day: 9,   color: "#FFB347" }, // Hearth orange
-        { name: "The Ascension",           month: 10,  day: 1,  color: "#F8F8FF" }, // Silver flame
-        { name: "Wildnight",               month: 10,  day: "18-19", color: "#8B0000" }, // Dark red of the Fury
+        { name: "The Ascension",           month: 10, day: 1,  color: "#F8F8FF" }, // Silver flame
+        { name: "Wildnight",               month: 10, day: "18-19", color: "#8B0000" }, // Dark red of the Fury
         { name: "Thronehold",              month: 11, day: 11,  color: "#4169E1" }, // Royal blue
         { name: "Remembrance Day",         month: 11, day: 11,  color: "#DC143C" }, // Poppy red
         { name: "Long Shadows",            month: 12, day: "26-28", color: "#0D0D0D" } // Midnight black
@@ -51,7 +52,7 @@ var defaults = {
 
 // Core state and migration functions
 
-function resetToDefaults(){ // Nuke state and reset to defaults. Hard-coded details above are not affected.
+function resetToDefaults(){ // Nuke state and reset to defaults.
     delete state[state_name];
     state[state_name] = { calendar: JSON.parse(JSON.stringify(defaults)) };
     checkInstall();
@@ -72,17 +73,27 @@ function checkInstall(){ // Ensure state is initialized and migrated properly.
     if (!cal.current) cal.current = { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 };
 
 if(!Array.isArray(cal.events)){
-  cal.events = JSON.parse(JSON.stringify(defaults.events)).map(function(e){
-    var lim = Math.max(1, cal.months.length);
-    var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
-    return {
-      name: String(e.name||''),
-      month: m,
-      day: e.day,
-      year: null, // repeats every year
-      color: sanitizeHexColor(e.color) || null
-    };
+  var lim = Math.max(1, state[state_name].calendar.months.length);
+  var out = [];
+  JSON.parse(JSON.stringify(defaults.events)).forEach(function(e){
+    var monthsList;
+    if (String(e.month).toLowerCase() === 'all') {
+      monthsList = []; for (var i=1;i<=lim;i++) monthsList.push(i);
+    } else {
+      var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
+      monthsList = [m];
+    }
+    monthsList.forEach(function(m){
+      out.push({
+        name: String(e.name||''),
+        month: m,
+        day: e.day,
+        year: null, // repeats every year
+        color: sanitizeHexColor(e.color) || null
+      });
+    });
   });
+  cal.events = out;
 } else {
   cal.events = cal.events.map(function(e){
     var lim = Math.max(1, cal.months.length);
@@ -212,10 +223,9 @@ function makeDayMatcher(spec){ // Tests if a given day matches a spec (number or
 }
 
 function styleForBg(style, bgHex){ // Generates a background style for single-event days, with best-contrasting text color.
-  var tBlack = _contrast(bgHex, '#000');
-  var tWhite = _contrast(bgHex, '#fff');
-  var t = (tBlack >= tWhite) ? '#000' : '#fff';
-  if (_contrast(bgHex, t) < CONTRAST_MIN){ t = '#fff'; }
+  var cBlack = _contrast(bgHex, '#000');
+  var cWhite = _contrast(bgHex, '#fff');
+  var t = (cBlack >= cWhite) ? '#000' : '#fff';
   return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
 }
 
@@ -381,11 +391,13 @@ function _contrast(bgHex, textHex){ // Contrast ratio of two hex colors
   return (hi+0.05)/(lo+0.05);
 }
 
-function outlineIfNeeded(textColor, bgHex){ // If contrast is too low and text is white, adds a thin black outline for readability.
+function outlineIfNeeded(textColor, bgHex){ // Outlines text if there is low contrast between text and background.
   var ratio = _contrast(bgHex, textColor);
-  return (ratio < CONTRAST_MIN && textColor === '#fff')
+  if (ratio >= CONTRAST_MIN) return '';
+  // Add a subtle outline using the opposite color
+  return (textColor === '#fff')
     ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
-    : '';
+    : 'text-shadow:-0.5px -0.5px 0 #fff,0.5px -0.5px 0 #fff,-0.5px 0.5px 0 #fff,0.5px 0.5px 0 #fff;';
 }
 
 function gmButtonsHtml(){ // GM buttons for quick actions. Currently only called when single-month calendar is shown.
@@ -638,6 +650,14 @@ function addEvent(monthToken, dayToken, nameTokens, colorToken){
   var color = isHexColorToken(lastTok) ? sanitizeHexColor(lastTok) : null;
   if (color){ tokens = tokens.slice(0, tokens.length-1); }
 
+  // Optional `--` separator: everything after is treated as the name
+  var sepIdx = tokens.indexOf('--'), forcedName = null;
+  if (sepIdx !== -1){
+    forcedName = tokens.slice(sepIdx+1).join(' ').trim();
+    tokens = tokens.slice(0, sepIdx);
+  }
+
+
   // Pull up to 3 date-like tokens from the front
   var dateToks = [];
   while (dateToks.length<3 && tokens.length && isListToken(tokens[0])){
@@ -650,7 +670,7 @@ function addEvent(monthToken, dayToken, nameTokens, colorToken){
   }
 
   // The rest is the name (quoted or not)
-  var rawName = String(tokens.join(' ')).trim();
+  var rawName = forcedName != null ? forcedName : String(tokens.join(' ')).trim();
   rawName = rawName.replace(/^"(.*)"$/,'$1').replace(/^'(.*)'$/,'$1').trim();
   if (!rawName){ rawName = 'Untitled Event'; }
 
@@ -849,44 +869,63 @@ function compareEvents(a, b){
   return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
 }
 
-function removeEvent(query){ // Remove event by name match or index. If multiple matches, list them with indices and request repeated command.
-  var cal = getCal();
-  var events = cal.events;
+function removeEvent(query){ // Remove event by name match or index. If multiple matches, list them with indices and request repeated command. Also supports "all" and "exact" prefixes.
+  var cal = getCal(), events = cal.events;
+  if (!events.length){ sendChat(script_name, '/w gm No events to remove.'); return; }
 
-  if (!events.length){
-    sendChat(script_name, '/w gm No events to remove.');
-    return;
+  var toks = String(query||'').trim().split(/\s+/);
+  var rmAll=false, exact=false;
+  while (toks.length && /^(all|exact)$/i.test(toks[0])) {
+    var t = toks.shift().toLowerCase();
+    if (t==='all') rmAll=true; else exact=true;
   }
+  var raw = toks.join(' ').trim();
+  if (!raw){ sendChat(script_name, '/w gm Please provide an index or a name.'); return; }
 
-  var idx = parseInt(query, 10);
-  if (isFinite(idx) && idx >= 1 && idx <= events.length){
+  // index (only when no flags given)
+  var idx = parseInt(raw,10);
+  if (!rmAll && !exact && isFinite(idx) && idx>=1 && idx<=events.length){
     var removed = events.splice(idx-1, 1)[0];
+    refreshCalendarState(true);
     sendChat(script_name, '/w gm Removed event #'+idx+': '+esc(removed.name));
     sendCurrentDate(null,true);
     return;
   }
-  var q = String(query||'').trim().toLowerCase();
-  var matches = events.filter(function(e){ return e.name.toLowerCase().indexOf(q) !== -1; });
 
-  if (matches.length === 0){
-    sendChat(script_name, '/w gm No events matched "'+esc(query)+'".');
-    return;
-  } else if (matches.length > 1){
-    var list = matches.map(function(e,i){
-      var idx = events.indexOf(e)+1;
-      return '#'+idx+' '+esc(e.name)+' ('+esc(getCal().months[e.month-1].name)+' '+esc(e.day)+')';
+  var needle = raw.toLowerCase();
+  var matches = events.filter(function(e){
+    var n = String(e.name||'').toLowerCase();
+    return exact ? (n===needle) : (n.indexOf(needle)!==-1);
+  });
+
+  if (!matches.length){
+    sendChat(script_name, '/w gm No events matched "'+esc(raw)+'".'); return;
+  }
+
+  if (!rmAll && matches.length>1){
+    var list = matches.map(function(e){
+      var i = events.indexOf(e)+1, m = getCal().months[e.month-1].name;
+      var y = (e.year==null)? '' : (', '+e.year+' '+LABELS.era);
+      return '#'+i+' '+esc(e.name)+' ('+esc(m)+' '+esc(e.day)+y+')';
     }).join('<br>');
-    sendChat(script_name, '/w gm Multiple matches for "'+esc(query)+'":<br>'+list+'<br>Use the index to remove exactly.');
+    sendChat(script_name, '/w gm Multiple matches for "'+esc(raw)+'"'+(exact?' (exact)':'')+
+      ':<br>'+list+'<br>Use the index to remove one, or prefix with <code>all</code> to remove all.');
     return;
   }
 
-  var e = matches[0];
-  var pos = events.indexOf(e);
-  events.splice(pos,1);
-  refreshCalendarState(true);
-  sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+esc(getCal().months[e.month-1].name)+' '+esc(e.day)+')');
+  if (rmAll){
+    cal.events = events.filter(function(e){ return matches.indexOf(e)===-1; });
+    refreshCalendarState(true);
+    sendChat(script_name, '/w gm Removed '+matches.length+' event'+(matches.length===1?'':'s')+'.');
+  } else {
+    var e = matches[0], pos = events.indexOf(e);
+    events.splice(pos,1);
+    refreshCalendarState(true);
+    sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+esc(getCal().months[e.month-1].name)+' '+esc(e.day)+((e.year!=null)?(', '+e.year+' '+LABELS.era):'')+')');
+  }
   sendCurrentDate(null,true);
 }
+
 
 function getEventsFor(monthIndex, day, year){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges. Year is optional
   var m = monthIndex|0, out=[];
@@ -999,7 +1038,14 @@ function eventsListHTMLArg(argTokens){
     var e4 = s4 + dpy - 1;
     return eventsListHTMLForRange('Events — Next Year (rolling from this month)', s4, e4);
   }
-
+  // "<Month> <Year>" — explicit month within a specific year
+  var my = parseMonthYearTokens(argTokens||[]);
+  if (my){
+    var md = months[my.mi].days|0;
+    var sMY = toSerial(my.year, my.mi, 1);
+    var eMY = toSerial(my.year, my.mi, md);
+    return eventsListHTMLForRange('Events — '+months[my.mi].name+' '+my.year+' '+LABELS.era, sMY, eMY);
+  }
   // numeric year?
   var yNum = parseInt(arg,10);
   if (String(yNum) === arg && isFinite(yNum)){
@@ -1019,19 +1065,34 @@ function eventsListHTMLArg(argTokens){
   }
 
   // fallback
-  return '<div style="opacity:.8;">Didn’t understand <code>'+esc(arg)+'</code>. Try: <code>month</code>, <code>next</code>, <code>next month</code>, <code>year</code>, <code>next year</code>, a year number, or a month name.</div>';
+  return '<div style="opacity:.8;">Didn’t understand <code>'+esc(arg)+'</code>. Try: <code>month</code>, <code>next</code>, <code>next month</code>, <code>year</code>, <code>next year</code>, a year number, a month name, or a <code>Month Year</code> combo.</div>';
 }
 
+function parseMonthYearTokens(tokens){
+  tokens = (tokens||[]).map(function(t){ return String(t).trim(); }).filter(Boolean);
+  if (!tokens.length) return null;
+  var mi = -1, yr = null;
+  for (var i=0;i<tokens.length;i++){
+    var t = tokens[i];
+    var mIdx = monthIndexByName(t);
+    if (mIdx !== -1) mi = mIdx;
+    var y = parseInt(t,10);
+    if (isFinite(y) && /^\d+$/.test(t)) yr = y;
+  }
+  if (mi !== -1 && yr != null) return {mi: mi, year: yr};
+  return null;
+}
 
 // Rendering and output functions
 
 function buildHelpHtml(isGM){
   var common = [
     '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
-    '<div>• <code>!cal</code> or <code>!cal show</code> — show current month (whispered to you)</div>',
-    '<div>• <code>!cal show month|next month|year|next year|999|Aryth</code> — show calendar views</div>',
-    '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show full year</div>',
-    '<div>• <code>!cal events month|next|next month|year|next year|999|Aryth</code> — filter event lists</div>',
+    '<div>• <code>!cal</code> or <code>!cal show</code> — show current month calendar</div>',
+    '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show full year calendar</div>',
+    '<div>• <code>!cal show next | month | year | next month | next year | &lt;named month&gt; | &lt;numbered year&gt; | &lt;named month&gt; &lt;numbered year&gt;</code> — alternative calendar views</div>',
+    '<div>• <code>!cal events</code> — list events for the current month</div>',
+    '<div>• <code>!cal events next | month | year | next month | next year | &lt;named month&gt; | &lt;numbered year&gt; | &lt;named month&gt; &lt;numbered year&gt;</code> — alternative event lists</div>',
     '<div>• <code>!cal help</code> — show this help</div>'
   ];
 
@@ -1041,32 +1102,21 @@ function buildHelpHtml(isGM){
     '<div style="margin-top:6px;"><b>GM Commands</b></div>',
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
-    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set date</div>',
-    '<div>• <code>!cal removeevent &lt;index|name&gt;</code> — remove an event. (this can also remove hard-coded events)</div>',
+    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy optional]</code> — set date</div>',
+
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
+
+    '<div>• <code>!cal addevent [&lt;month&gt;] &lt;day&gt; [&lt;year&gt;] &lt;name...&gt; [#hex]</code> — add event to date. comma-separated-values, hyphen-separated ranges, "all" accepted</div>',
+    '<div>• <code>!cal addnext &lt;DD or MM DD [YYYY optional]&gt; &lt;name&gt; [#hex]</code> — next occurrence. (technically same behavior as addevent)</div>', // alias to addevent, maybe preferable for clarity
+    '<div>• <code>!cal addmonthly &lt;day&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
+    '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
+    '<div>• Tip: if your event name starts with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
+
+    '<div>• <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code> — remove one, or every match (all), with optional exact-name matching</div>',
+
     '<div>• <code>!cal refresh</code> — refresh calendar state</div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>',
-    '<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — smart add (CSV/range/“all” ok)</div>',
-    '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
-    '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
-    '<div>• <code>!cal addnext &lt;day|month day [year]&gt; &lt;name...&gt; [#hex]</code> — next occurrence (warns if explicit MDY is past)</div>', // alias to addevent, maybe preferable for clarity
-    '<div>• <code>!cal events</code> — list events for the current month</div>',
-    '<div>• <code>!cal events month</code> — current month</div>',
-    '<div>• <code>!cal events next</code> — next 28 days</div>',
-    '<div>• <code>!cal events next month</code> — next calendar month</div>',
-    '<div>• <code>!cal events year</code> — current year</div>',
-    '<div>• <code>!cal events next year</code> — current month + next 11 months</div>',
-    '<div>• <code>!cal events <year></code> — specific year</div>',
-    '<div>• <code>!cal events <monthname></code> — next occurrence of that month</div>',
-    '<div>• <code>!cal show</code> — current month</div>',
-    '<div>• <code>!cal show month</code> — current month</div>',
-    '<div>• <code>!cal show next month</code> — next calendar month</div>',
-    '<div>• <code>!cal show year</code> — full current year</div>',
-    '<div>• <code>!cal show next year</code> — rolling 12 months from this month</div>',
-    '<div>• <code>!cal show 999</code> — show year 999</div>',
-    '<div>• <code>!cal show Aryth</code> — show that month (next occurrence)</div>'
-
   ];
 
   return common.concat(gm).join('');
@@ -1108,9 +1158,11 @@ function renderMiniCal(mi, yearLabel){ // Builds mini-calendar for a single mont
       if ((r===0 && c<first) || day>md){
         html.push('<td style="'+STYLES.td+'"></td>');
       } else {
-        var isToday = (mi === cur.month) && (day === cur.day_of_the_month);
-var targetYear = (typeof yearLabel === 'number') ? yearLabel : cur.year;
-var todays = getEventsFor(mi, day, targetYear);
+        var isToday = (mi === cur.month) &&
+                      (day === cur.day_of_the_month) &&
+                      ((typeof yearLabel !== 'number') || (yearLabel === cur.year));
+        var targetYear = (typeof yearLabel === 'number') ? yearLabel : cur.year;
+        var todays = getEventsFor(mi, day, targetYear);
         var evObj = todays[0] || null;
         var style = STYLES.td;
         var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
@@ -1257,6 +1309,12 @@ show: function(m,a){
     whisper(m.who, rollingYearHTML());
     return;
   }
+  // "<Month> <Year>" — explicit month within a specific year
+  var my = parseMonthYearTokens(args);
+  if (my){
+    whisper(m.who, renderMiniCal(my.mi, my.year));
+    return;
+  }
   var yNum = parseInt(q,10);
   if (String(yNum)===q && isFinite(yNum)){
     whisper(m.who, yearHTMLFor(yNum));
@@ -1324,8 +1382,11 @@ addnext: { gm:true, run:function(m,a){
   addNext(a.slice(2));
 }},
   removeevent: { gm:true, run:function(m,a){
-                  if (a.length < 3){ whisper(m.who, 'Usage: <code>!cal removeevent &lt;index|name&gt;</code>'); return; }
-                  removeEvent(a.slice(2).join(' '));
+                if (a.length < 3){
+                  whisper(m.who, 'Usage: <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code>');
+                  return;
+                }
+                removeEvent(a.slice(2).join(' '));
                 }},
   refresh: { gm:true, run:function(){ refreshCalendarState(false); } },
   resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } }
