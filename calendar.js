@@ -107,18 +107,17 @@ if(!Array.isArray(cal.events)){
       color: sanitizeHexColor(e.color) || null
     };
   });
-        var defColorByKey = {};
-        defaults.events.forEach(function(de){
-            var key = (parseInt(de.month,10)||1) + '|' + String(de.day);
-            defColorByKey[key] = sanitizeHexColor(de.color) || null;
-        });
-        cal.events.forEach(function(e){
-            if (!e.color) {
-                var key = e.month + '|' + String(e.day);
-                var col = defColorByKey[key];
-                if (col) e.color = col;
-            }
-        });
+var defColorByKey = {};
+var lim2 = Math.max(1, cal.months.length);
+defaults.events.forEach(function(de){
+  var col = sanitizeHexColor(de.color) || null;
+  if (String(de.month).toLowerCase() === 'all') {
+    for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
+  } else {
+    var m = clamp(parseInt(de.month,10)||1, 1, lim2);
+    defColorByKey[m + '|' + String(de.day)] = col;
+  }
+});
     }
 
     for (var i = 0; i < cal.months.length; i++){
