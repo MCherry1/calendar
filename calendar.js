@@ -917,22 +917,29 @@ function compareEvents(a, b){
 function removeEvent(query){ // Remove event by name or index; supports "all" and "exact"
   var cal = getCal(), events = cal.events;
 
-  function markSuppressedIfDefault(ev){
-    var calLocal = getCal();
-    var defaultsSet = currentDefaultKeySet(calLocal);
-    var maxD = calLocal.months[ev.month-1].days|0;
-    var norm = normalizeDaySpec(ev.day, maxD) || String(firstNumFromDaySpec(ev.day));
-    var k = defaultKeyFor(ev.month, norm, ev.name);
-    if (defaultsSet[k]) {
-      state[state_name].suppressedDefaults[k] = 1;
+  // If the event being removed is in the default set,
+  // then this block ensures the default event isn't resurrected on every refresh.  
+    if (!state[state_name].suppressedDefaults) {
+      state[state_name].suppressedDefaults = {};
     }
-  }
+    function markSuppressedIfDefault(ev){
+      var calLocal = getCal();
+      var defaultsSet = currentDefaultKeySet(calLocal);
+      var maxD = calLocal.months[ev.month-1].days|0;
+      var norm = normalizeDaySpec(ev.day, maxD) || String(firstNumFromDaySpec(ev.day));
+      var k = defaultKeyFor(ev.month, norm, ev.name);
+      if (defaultsSet[k]) {
+        state[state_name].suppressedDefaults[k] = 1;
+      }
+    }
 
+  // If no events exist, then no events exist.
   if (!events.length){
     sendChat(script_name, '/w gm No events to remove.');
     return;
   }
 
+  // Pull out specific arguments "all" and "exact"
   var toks = String(query||'').trim().split(/\s+/);
   var rmAll=false, exact=false;
   while (toks.length && /^(all|exact)$/i.test(toks[0])) {
@@ -940,12 +947,14 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     if (t==='all') rmAll=true; else exact=true;
   }
   var raw = toks.join(' ').trim();
+
+  // If nothing was input, then error.
   if (!raw){
     sendChat(script_name, '/w gm Please provide an index or a name.');
     return;
   }
 
-  // index path (only when no flags given)
+  // Events have a hidden numerical index, that can be called for elimitating ambiguity. Only usable without "all" or "exact".
   var idx = parseInt(raw,10);
   if (!rmAll && !exact && isFinite(idx) && idx>=1 && idx<=events.length){
     var removed = events.splice(idx-1, 1)[0];
@@ -956,18 +965,20 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     return;
   }
 
-  // name path
+  // Name-matching. Can force "exact" matching if desired, but otherwise any matching string is acceptable.
   var needle = raw.toLowerCase();
   var matches = events.filter(function(e){
     var n = String(e.name||'').toLowerCase();
     return exact ? (n===needle) : (n.indexOf(needle)!==-1);
   });
 
+  // If nothing matches.
   if (!matches.length){
     sendChat(script_name, '/w gm No events matched "'+esc(raw)+'".');
     return;
   }
 
+  // If "all" wasn't called, only one event can be removed. If multiple matches, expose the hidden indices.
   if (!rmAll && matches.length>1){
     var list = matches.map(function(e){
       var i = events.indexOf(e)+1, m = getCal().months[e.month-1].name;
@@ -979,12 +990,16 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     return;
   }
 
+  // If "all" was called, remove everything with any matching string.
   if (rmAll){
     matches.forEach(markSuppressedIfDefault);
     cal.events = events.filter(function(e){ return matches.indexOf(e)===-1; });
     refreshCalendarState(true);
     sendChat(script_name, '/w gm Removed '+matches.length+' event'+(matches.length===1?'':'s')+'.');
-  } else {
+  }
+  
+  // If only one event name matches, remove it.
+  else {
     var e = matches[0], pos = events.indexOf(e);
     events.splice(pos,1);
     markSuppressedIfDefault(e);
@@ -993,10 +1008,6 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
   }
 
   sendCurrentDate(null,true);
-}
-
-if (!state[state_name].suppressedDefaults) {
-  state[state_name].suppressedDefaults = {};
 }
 
 function getEventsFor(monthIndex, day, year){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges. Year is optional
