@@ -3,6 +3,7 @@
 // This is written for Roll20's API system.
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
 // Version: 1.9
+// Need to add more holidays to default set
 
 var Calendar = (function(){
 
@@ -32,9 +33,10 @@ var defaults = {
         { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
     ],
     events: [ // Eberron-specific events. Colors are not canon, but chosen to match event themes.
-        { name: "Tain Gala",               month: "all",  day: 5,       color: "#F7E7CE" }, // Champagne Gold
+        { name: "Tain Gala",               month: "all",  day: 6,       color: "#F7E7CE" }, // Champagne Gold
         { name: "Crystalfall",             month: 2,      day: 9,       color: "#87CEEB" }, // Sky blue
         { name: "The Day of Mourning",     month: 2,      day: 20,      color: "#808080" }, // Dead gray mists
+        { name: "Tira's Day",              month: 3,      day: 15,      color: "#F8F8FF" }, // Silver flame
         { name: "Sun's Blessing",          month: 3,      day: 15,      color: "#FFD700" }, // Sun gold
         { name: "Aureon's Crown",          month: 5,      day: 26,      color: "#6A5ACD" }, // Royal purple
         { name: "Brightblade",             month: 6,      day: 12,      color: "#B22222" }, // Firebrick red
@@ -45,7 +47,6 @@ var defaults = {
         { name: "The Ascension",           month: 10,     day: 1,       color: "#F8F8FF" }, // Silver flame
         { name: "Wildnight",               month: 10,     day: "18-19", color: "#8B0000" }, // Dark red of the Fury
         { name: "Thronehold",              month: 11,     day: 11,      color: "#4169E1" }, // Royal blue
-        { name: "Remembrance Day",         month: 11,     day: 11,      color: "#DC143C" }, // Poppy red
         { name: "Long Shadows",            month: 12,     day: "26-28", color: "#0D0D0D" }  // Midnight black
     ]
 };
@@ -1213,9 +1214,9 @@ function parseMonthYearTokens(tokens){
 function buildHelpHtml(isGM){
   var common = [
     '<div style="margin:4px 0;"><b>Basic Commands</b></div>',
-    '<div>• <code>!cal</code> or <code>!cal show</code> — current month calendar</div>',
-    '<div>• <code>!cal year</code> — full year calendar</div>',
-    '<div>• <code>!cal events</code> — list events for the current month</div>',
+    '<div>• <code>!cal</code> or <code>!cal show</code></div>',
+    '<div>• <code>!cal year</code></div>',
+    '<div>• <code>!cal events</code></div>',
     '<div style="height:12px"></div>',
 
     '<div style="margin:4px 0;"><b>Detailed Commands</b></div>',
@@ -1229,8 +1230,8 @@ function buildHelpHtml(isGM){
       '<div style="margin-left:1.8em;">• <code>&lt;named month&gt; and/or &lt;numbered year&gt;</code></div>',
 
     '<div style="opacity:.85;"><i>Notes:</i></div>',
-      '<div style="margin-left:1.8em;opacity:.85;"><i><code>next</code> = the next fixed period (month / calendar year).</i></div>',
-      '<div style="margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = today-inclusive rolling window (28 days / 12 months).</i></div>',
+      '<div style="margin-left:1.8em;opacity:.85;"><i><code>next</code> = next month or calendar year.</i></div>',
+      '<div style="margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = rolling window.</i></div>',
     
     '<div style="height:12px"></div>',
     '<div>• <code>!cal help</code> — show this help</div>'
@@ -1241,9 +1242,9 @@ function buildHelpHtml(isGM){
 
   var gm = [
     '<div style="margin-top:10px;"><b>Date Management</b></div>',
-    '<div>• <code>!cal advanceday</code> — advance one day</div>',
-    '<div>• <code>!cal retreatday</code> — go back one day</div>',
-    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set exact date</div>',
+    '<div>• <code>!cal advanceday</code></div>',
+    '<div>• <code>!cal retreatday</code></div>',
+    '<div>• <code>!cal setdate [MM] DD [YYYY]</code></div>',
     '<div style="height:12px"></div>',
 
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
@@ -1251,25 +1252,18 @@ function buildHelpHtml(isGM){
     '<div style="height:12px"></div>',
 
     '<div style="margin-top:10px;"><b>Event Management</b></div>',
-    '<div>• smart-parsing. [ ] denotes optional arguments. (defaults to the next matching date)</div>',
-    '<div>• comma-separated lists, hyphen-separated ranges, or "all" accepted for months, days, or years.</div>',
-    '<div>• hex codes should be preceded with #</div>',
     '<div>• <code>!cal addevent [MM] DD [YYYY] name #hex</code> — add event(s)</div>',
-    '<div>• <code>!cal addmonthly DD name #hex</code> — repeats every month, every year</div>',
-    '<div>• <code>!cal addannual MM DD name #hex</code> — repeats every year</div>',
-    '<div>• <code>!cal addnext</code> - same as addevent, but makes you feel intentional</div>',
+    '<div>• <code>!cal addmonthly DD name #hex</code></div>',
+    '<div>• <code>!cal addannual MM DD name #hex</code></div>',
+    '<div>• <code>!cal addnext</code></div>',
     '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
     '<div style="height:12px"></div>',
 
-    '<div>• <code>!cal removeevent [all] [exact] [index] name or index number</code></div>',
-    '<div style="margin-left:1.8em;">• removes a single event by name or index, or reveals additional help for ambiguity.</div>',
-    '<div style="margin-left:1.8em;">• all - wipes <i>everything</i> that matches</div>',
-    '<div style="margin-left:1.8em;">• exact - forces exact name-matching. can be used with or without "all"</div>',
-    '<div style="margin-left:1.8em;">• index - assumes name field is event index. cannot be used with all or exact</div>',
+    '<div>• <code>!cal removeevent [all] [exact] [index] name OR index </code></div>',
     '<div style="height:12px"></div>',
 
     '<div style="margin-top:10px;"><b>Script Management</b></div>',
-    '<div>• <code>!cal refresh</code> — re-normalize and de-duplicate calendar state. called automatically, but makes you feel fresh to use.</div>',
+    '<div>• <code>!cal refresh</code></div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults (nukes custom events and current date)</div>'
   ];
 
@@ -1523,7 +1517,7 @@ var commands = { // !cal API command list
     showyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
   
   events: function(m, a){ // !cal events [arg...]
-//  var html = eventsListHTMLArg(args); // uses fallback to current month. comment out the following 3 lines to use.
+    // var html = eventsListHTMLArg(args); // uses fallback to current month. comment out the following 3 lines to use.
     var args = a.slice(2);
     var html = eventsListHTMLArg(args.length ? args : ['upcoming']); // default to rolling 28 days
     whisper(m.who, html);
@@ -1537,7 +1531,23 @@ var commands = { // !cal API command list
 
   advanceday:  { gm:true, run:function(){ advanceDay(); } }, // step forward
   retreatday:  { gm:true, run:function(){ retreatDay(); } }, // step back
-  setdate:     { gm:true, run:function(m,a){ setDate(a[2], a[3], a[4]); } }, // MM DD [YYYY]
+  setdate:     { gm:true, run:function(m,a){ // MM DD [YYYY] or DD
+    if (a.length === 3 && /^\d+$/.test(a[2])) {
+      var cal = getCal(), cur = cal.current, months = cal.months;
+      var targetDay = parseInt(a[2],10)|0;
+      var nextMi = (cur.month + 1) % months.length;
+      var nextYr = cur.year + (nextMi === 0 ? 1 : 0);
+      var useCurMonth = (cur.day_of_the_month <= targetDay);
+      var mi = useCurMonth ? cur.month : nextMi;
+      var yr = useCurMonth ? cur.year : nextYr;
+      var d  = clamp(targetDay, 1, months[mi].days);
+      setDate(mi+1, d, yr);
+      return;
+    }
+    setDate(a[2], a[3], a[4]);
+    }
+  },
+  
   senddate:    { gm:true, run:function(){ sendCurrentDate(); } }, // broadcast current month plus events
   sendyear:    { gm:true, run:function(){ sendToAll(yearHTML()); } }, // broadcast current year (no events)
 
@@ -1596,7 +1606,7 @@ var commands = { // !cal API command list
       removeEvent(a.slice(2).join(' '));
     }},
 
-  refresh: { gm:true, run:function(){ refreshCalendarState(false); } }, // refresh the state. automatically called elsewhere, but makes you feel fresh to manually call it
+  refresh: { gm:true, run:function(){ refreshCalendarState(false); } }, // refresh the state. automatically called elsewhere, but makes you feel fresh to call manually too
   resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } } // nuke the state, restoring to hard-coded defaults in this script
 };
 
