@@ -691,18 +691,28 @@ function setDate(m, d, y){ // Set date to specific month/day[/year]
   var cal = getCal(), cur = cal.current, monthsLen = cal.months.length;
   if (!tokens || !tokens.length){ warnGM('Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>'); return; }
 
-  // Detect trailing color
-  var lastTok = tokens[tokens.length-1];
-  var color = isHexColorToken(lastTok) ? sanitizeHexColor(lastTok) : null;
-  if (color){ tokens = tokens.slice(0, tokens.length-1); }
-
-  // Optional `--` separator: everything after is treated as the name
-  var sepIdx = tokens.indexOf('--'), forcedName = null;
+  // --- Split on `--` first (protect the name), then detect color ---
+  var sepIdx = tokens.indexOf('--'), forcedNameTokens = null;
   if (sepIdx !== -1){
-    forcedName = tokens.slice(sepIdx+1).join(' ').trim();
-    tokens = tokens.slice(0, sepIdx);
+    forcedNameTokens = tokens.slice(sepIdx+1); // name side (still tokenized)
+    tokens = tokens.slice(0, sepIdx);          // date side
   }
 
+  var color = null;
+  // Color on date side: accept bare or #hex (back-compat)
+  if (tokens.length && isHexColorToken(tokens[tokens.length-1])) {
+    color = sanitizeHexColor(tokens.pop());
+  }
+  // Color on name side (only if `--` existed): require a leading # to avoid false positives
+  else if (forcedNameTokens && forcedNameTokens.length) {
+    var maybe = forcedNameTokens[forcedNameTokens.length-1];
+    if (/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(maybe)) {
+      color = sanitizeHexColor(maybe);
+      forcedNameTokens.pop();
+    }
+  }
+
+  var forcedName = forcedNameTokens ? forcedNameTokens.join(' ').trim() : null;
 
   // Pull up to 3 date-like tokens from the front
   var dateToks = [];
@@ -896,7 +906,7 @@ function addAnnual(monthTok, dayTok, nameTokens, colorTok){ // Repeats annually
   addEventSmart(tokens);
 }
 
-function addNext(tokens){ // Thin wrapper to basic operation, but won't insert "Untitled event"
+function addNext(tokens){ // Thin wrapper to basic operation.
   addEventSmart(tokens.slice());
 }
 
@@ -1252,11 +1262,12 @@ function buildHelpHtml(isGM){
     '<div style="height:12px"></div>',
 
     '<div style="margin-top:10px;"><b>Event Management</b></div>',
-    '<div>• <code>!cal addevent [MM] DD [YYYY] name #hex</code></div>',
-    '<div>• <code>!cal addmonthly DD name #hex</code></div>',
-    '<div>• <code>!cal addannual MM DD name #hex</code></div>',
+    '<div>• <code>!cal addevent [MM] DD [YYYY] name hex</code></div>',
+    '<div>• <code>!cal addmonthly DD name hex</code></div>',
+    '<div>• <code>!cal addannual MM DD name hex</code></div>',
     '<div>• <code>!cal addnext</code></div>',
-    '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>--</code> to separate date/hex from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
+    '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>-- [name] #[hex]</code></div>',
+    '<div style="margin-left:1.8em;">• e.g. <code>!cal addevent 3 14 -- 1985 #ABCDEF</code>.</div>',
     '<div style="height:12px"></div>',
 
     '<div>• <code>!cal removeevent [all] [exact] [index] name OR index </code></div>',
