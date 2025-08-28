@@ -943,6 +943,12 @@ function removeEvent(query){ // Remove event by name or index; supports "all", "
     else if (t==='exact') exact=true;
     else if (t==='index') forceIndex=true;
   }
+
+  if (forceIndex && (rmAll || exact)) {
+  sendChat(script_name, '/w gm Use either <code>index</code> or <code>all/exact</code>, not both.');
+  return;
+  }
+
   var raw = toks.join(' ').trim();
 
   // If nothing was input, then error.
@@ -1249,9 +1255,9 @@ function buildHelpHtml(isGM){
     '<div>• comma-separated lists, hyphen-separated ranges, or "all" accepted for months, days, or years.</div>',
     '<div>• hex codes should be preceded with #</div>',
     '<div>• <code>!cal addevent [MM] DD [YYYY] name #hex</code> — add event(s)</div>',
-    '<div>• <code>!cal addmonthly DD name #hex — repeats every month, every year</div>',
+    '<div>• <code>!cal addmonthly DD name #hex</code> — repeats every month, every year</div>',
     '<div>• <code>!cal addannual MM DD name #hex</code> — repeats every year</div>',
-    '<div>• <code>!cal addnext - same as addevent, but makes you feel intentional</div>',
+    '<div>• <code>!cal addnext</code> - same as addevent, but makes you feel intentional</div>',
     '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
     '<div style="height:12px"></div>',
 
@@ -1436,15 +1442,20 @@ var commands = { // !cal API command list
 
 // This commands block is available to all players
 
-  '':function(m){ sendCurrentDate(m.who); }, // !cal 
+  '':function(m){ // !cal (used blank)
+    var isGM = playerIsGM(m.playerid);
+    sendCurrentDate(m.who);
+    if (isGM) whisper(m.who, gmButtonsHtml());
+  },
 
   show: function(m,a){ // !cal show [args...]
-
     var args = a.slice(2);
-      if (!args.length || /^month$/i.test(args[0])){ // current month
-        sendCurrentDate(m.who);
-        return;
-      }
+    if (!args.length || /^month$/i.test(args[0])){ // !cal show (used blank)
+      var isGM = playerIsGM(m.playerid);
+      sendCurrentDate(m.who);
+      if (isGM) whisper(m.who, gmButtonsHtml());
+      return;
+    }
 
       var q = args.join(' ').trim().toLowerCase();
 
@@ -1533,9 +1544,9 @@ var commands = { // !cal API command list
   // Event management
     
     // Custom events accept [MM] DD [YYYY] (name) (hex color code)
-    // Comma-separated lists (like Aryth,Zarantyr or 1,17,7) are supported
-    // Ranges (like 15-21) are supported for days
-    // all is supported
+    // Comma-separated lists (like 1,17,7) are supported
+    // Ranges (like 15-21) are supported
+    // "all" is supported
     addevent: { gm:true, run:function(m,a){ // add a custom event with [MM] DD [YYYY] <name> <hex color>. accepts both lists (1,3,7) and ranges (17-19)
       if (a.length < 3) {
         whisper(m.who, 'Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>');
@@ -1579,7 +1590,7 @@ var commands = { // !cal API command list
     // !cal removeevent all exact Tain Gala - wipes only "Tain Gala" events
     removeevent: { gm:true, run:function(m,a){
       if (a.length < 3){
-        whisper(m.who, 'Usage: <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code>');
+        whisper(m.who, 'Usage: <code>!cal removeevent [all] [exact] [index] &lt;index|name&gt;</code>');
         return;
       }
       removeEvent(a.slice(2).join(' '));
