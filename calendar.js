@@ -1234,7 +1234,7 @@ function buildHelpHtml(isGM){
       '<div style="margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = rolling window.</i></div>',
     
     '<div style="height:12px"></div>',
-    '<div>• <code>!cal help</code> — show this help</div>'
+    '<div>• <code>!cal help</code></div>'
   ];
 
 
@@ -1252,11 +1252,11 @@ function buildHelpHtml(isGM){
     '<div style="height:12px"></div>',
 
     '<div style="margin-top:10px;"><b>Event Management</b></div>',
-    '<div>• <code>!cal addevent [MM] DD [YYYY] name #hex</code> — add event(s)</div>',
+    '<div>• <code>!cal addevent [MM] DD [YYYY] name #hex</code></div>',
     '<div>• <code>!cal addmonthly DD name #hex</code></div>',
     '<div>• <code>!cal addannual MM DD name #hex</code></div>',
     '<div>• <code>!cal addnext</code></div>',
-    '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
+    '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>--</code> to separate date/hex from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
     '<div style="height:12px"></div>',
 
     '<div>• <code>!cal removeevent [all] [exact] [index] name OR index </code></div>',
@@ -1264,7 +1264,7 @@ function buildHelpHtml(isGM){
 
     '<div style="margin-top:10px;"><b>Script Management</b></div>',
     '<div>• <code>!cal refresh</code></div>',
-    '<div>• <code>!cal resetcalendar</code> — reset to defaults (nukes custom events and current date)</div>'
+    '<div>• <code>!cal resetcalendar</code> — nukes custom events and current date</div>'
   ];
 
   return common.concat(gm).join('');
