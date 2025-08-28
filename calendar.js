@@ -725,7 +725,6 @@ function setDate(m, d, y){ // Set date to specific month/day[/year]
   var yearsSpec = null; // null => repeats every year; [] => to be resolved by "next"; [y1,y2,...] explicit years
 
   var monthCount = cal.months.length;
-  var maxDaysInCalendar = 0; // not used, days are clamped per-month
 
   if (dateToks.length === 1){
     // [day]
@@ -856,7 +855,7 @@ function setDate(m, d, y){ // Set date to specific month/day[/year]
   }
 }
 
-function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
+function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){ // Add event to specific day
   var cal = getCal();
   var m = clamp(monthHuman, 1, cal.months.length);
   var maxD = cal.months[m-1].days|0;
@@ -866,7 +865,7 @@ function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
 
   var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
 
-  // dedup
+  // Avoid event duplication.
   var key = eventKey(e);
   var exists = cal.events.some(function(ev){ return eventKey(ev)===key; });
   if (exists) return false;
@@ -876,7 +875,7 @@ function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   return true;
 }
 
-function addMonthly(dayTok, nameTokens, colorTok){
+function addMonthly(dayTok, nameTokens, colorTok){ // Repeats monthly
   var tokens = [];
   tokens.push('all');         // month = all
   tokens.push(String(dayTok)); // day
@@ -886,7 +885,7 @@ function addMonthly(dayTok, nameTokens, colorTok){
   addEventSmart(tokens);
 }
 
-function addAnnual(monthTok, dayTok, nameTokens, colorTok){
+function addAnnual(monthTok, dayTok, nameTokens, colorTok){ // Repeats annually
   var tokens = [];
   tokens.push(String(monthTok)); // month
   tokens.push(String(dayTok));   // day
@@ -896,10 +895,7 @@ function addAnnual(monthTok, dayTok, nameTokens, colorTok){
   addEventSmart(tokens);
 }
 
-function addNext(tokens){
-  // accept [day name color], [month day name color], or [month day year name color]
-  // just pass through to addEventSmart; it already does "next" where applicable,
-  // and warns on explicit past MDY.
+function addNext(tokens){ // Thin wrapper to basic operation, but won't insert "Untitled event"
   addEventSmart(tokens.slice());
 }
 
@@ -914,11 +910,10 @@ function compareEvents(a, b){
   return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
 }
 
-function removeEvent(query){ // Remove event by name or index; supports "all" and "exact"
+function removeEvent(query){ // Remove event by name or index; supports "all", "exact", and "index"
   var cal = getCal(), events = cal.events;
 
-  // If the event being removed is in the default set,
-  // then this block ensures the default event isn't resurrected on every refresh.  
+  // Ensure suppressed defaults aren't resurrected on every refresh.
     if (!state[state_name].suppressedDefaults) {
       state[state_name].suppressedDefaults = {};
     }
@@ -939,12 +934,14 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     return;
   }
 
-  // Pull out specific arguments "all" and "exact"
+  // Parse arguments "all", "exact", and "index"
   var toks = String(query||'').trim().split(/\s+/);
-  var rmAll=false, exact=false;
-  while (toks.length && /^(all|exact)$/i.test(toks[0])) {
+  var rmAll=false, exact=false, forceIndex=false;
+  while (toks.length && /^(all|exact|index)$/i.test(toks[0])) {
     var t = toks.shift().toLowerCase();
-    if (t==='all') rmAll=true; else exact=true;
+    if (t==='all') rmAll=true;
+    else if (t==='exact') exact=true;
+    else if (t==='index') forceIndex=true;
   }
   var raw = toks.join(' ').trim();
 
@@ -954,9 +951,14 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     return;
   }
 
-  // Events have a hidden numerical index, that can be called for elimitating ambiguity. Only usable without "all" or "exact".
-  var idx = parseInt(raw,10);
-  if (!rmAll && !exact && isFinite(idx) && idx>=1 && idx<=events.length){
+  // If "index" argument is used, run immediately.
+  if (forceIndex) {
+    var m = raw.match(/^#?(\d+)$/);
+    var idx = m ? (+m[1]) : NaN;
+    if (!isFinite(idx) || idx < 1 || idx > events.length) {
+      sendChat(script_name, '/w gm After <code>index</code>, give a number 1–'+events.length+'.');
+      return;
+    }
     var removed = events.splice(idx-1, 1)[0];
     markSuppressedIfDefault(removed);
     refreshCalendarState(true);
@@ -965,8 +967,33 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     return;
   }
 
-  // Name-matching. Can force "exact" matching if desired, but otherwise any matching string is acceptable.
+  // Safety function if there is ambiguity between event name and event list index.
   var needle = raw.toLowerCase();
+  var asIdxMatch = raw.match(/^#?(\d+)$/);
+  var asIdx = !!asIdxMatch && (+asIdxMatch[1] >= 1) && (+asIdxMatch[1] <= events.length);
+  var exactNameExists = events.some(function(e){
+    return String(e.name||'').toLowerCase() === needle;
+  });
+  if (!rmAll && !exact && asIdx && exactNameExists) {
+    sendChat(script_name, '/w gm "'+esc(raw)+'" matches an index and an event name. '+
+      'Use <code>!cal removeevent index '+esc(raw)+'</code> to remove index #'+esc(raw)+
+      ' or <code>!cal removeevent exact '+esc(raw)+'</code> to remove the named event.');
+    return;
+  }
+
+  // Events have a hidden numerical index that can be called instead of a name.
+  // Index path only usable without "all" or "exact".
+  if (!rmAll && !exact && asIdx) {
+    var idx = +asIdxMatch[1];
+    var removed = events.splice(idx-1, 1)[0];
+    markSuppressedIfDefault(removed);
+    refreshCalendarState(true);
+    sendChat(script_name, '/w gm Removed event #'+idx+': '+esc(removed.name));
+    sendCurrentDate(null,true);
+    return;
+  }
+
+  // Name-matching. Any matching string is used unless "exact" was called.
   var matches = events.filter(function(e){
     var n = String(e.name||'').toLowerCase();
     return exact ? (n===needle) : (n.indexOf(needle)!==-1);
@@ -978,7 +1005,8 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     return;
   }
 
-  // If "all" wasn't called, only one event can be removed. If multiple matches, expose the hidden indices.
+  // If "all" wasn't called, only one event can be removed.
+  // If multiple matches, expose the hidden indices.
   if (!rmAll && matches.length>1){
     var list = matches.map(function(e){
       var i = events.indexOf(e)+1, m = getCal().months[e.month-1].name;
@@ -997,14 +1025,15 @@ function removeEvent(query){ // Remove event by name or index; supports "all" an
     refreshCalendarState(true);
     sendChat(script_name, '/w gm Removed '+matches.length+' event'+(matches.length===1?'':'s')+'.');
   }
-  
   // If only one event name matches, remove it.
   else {
     var e = matches[0], pos = events.indexOf(e);
     events.splice(pos,1);
     markSuppressedIfDefault(e);
     refreshCalendarState(true);
-    sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+esc(getCal().months[e.month-1].name)+' '+esc(e.day)+((e.year!=null)?(', '+e.year+' '+LABELS.era):'')+')');
+    sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+
+      esc(getCal().months[e.month-1].name)+' '+esc(e.day)+
+      ((e.year!=null)?(', '+e.year+' '+LABELS.era):'')+')');
   }
 
   sendCurrentDate(null,true);
@@ -1177,59 +1206,63 @@ function parseMonthYearTokens(tokens){
 
 function buildHelpHtml(isGM){
   var common = [
-    '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
+    '<div style="margin:4px 0;"><b>Basic Commands</b></div>',
     '<div>• <code>!cal</code> or <code>!cal show</code> — current month calendar</div>',
     '<div>• <code>!cal year</code> — full year calendar</div>',
     '<div>• <code>!cal events</code> — list events for the current month</div>',
-    '<div style="height:4px"></div>',
+    '<div style="height:12px"></div>',
 
+    '<div style="margin:4px 0;"><b>Detailed Commands</b></div>',
     '<div>• <code>!cal show</code> OR <code>!cal events</code> modifiers:</div>',
       '<div style="margin-left:1.8em;">• <code>month</code></div>',
       '<div style="margin-left:1.8em;">• <code>year</code></div>',
-      '<div style="margin-left:1.8em;">• <code>next</code> or <code>next month</code></div>',
+      '<div style="margin-left:1.8em;">• <code>next</code> OR <code>next month</code></div>',
       '<div style="margin-left:1.8em;">• <code>next year</code></div>',
-      '<div style="margin-left:1.8em;">• <code>upcoming</code> (events only)</div>',
+      '<div style="margin-left:1.8em;">• <code>upcoming</code></div>',
       '<div style="margin-left:1.8em;">• <code>upcoming year</code></div>',
-      '<div style="margin-left:1.8em;">• &lt;named month&gt;</div>',
-      '<div style="margin-left:1.8em;">• &lt;numbered year&gt;</div>',
-      '<div style="margin-left:1.8em;">• &lt;named month&gt; &lt;numbered year&gt;</div>',
-    '<div style="height:4px"></div>',
+      '<div style="margin-left:1.8em;">• <code>&lt;named month&gt; and/or &lt;numbered year&gt;</code></div>',
 
-    '<div>• <code>!cal help</code> — show this help</div>',
-    '<div style="height:4px"></div>',
-
-    '<div style="margin-top:6px;opacity:.85;"><i>Notes:</i></div>',
-      '<div style="margin-top:6px;margin-left:1.8em;opacity:.85;"><i><code>next</code> = the next fixed period (next month / next calendar year).</i></div>',
-      '<div style="margin-top:6px;margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = today-inclusive rolling window (28 days / 12 months).</i></div>'
+    '<div style="opacity:.85;"><i>Notes:</i></div>',
+      '<div style="margin-left:1.8em;opacity:.85;"><i><code>next</code> = the next fixed period (month / calendar year).</i></div>',
+      '<div style="margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = today-inclusive rolling window (28 days / 12 months).</i></div>',
+    
+    '<div style="height:12px"></div>',
+    '<div>• <code>!cal help</code> — show this help</div>'
   ];
 
 
   if (!isGM) return common.join(''); // The following block only shows if the player is GM
 
   var gm = [
-    '<div style="margin-top:10px;"><b>GM Commands</b></div>',
+    '<div style="margin-top:10px;"><b>Date Management</b></div>',
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
     '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set exact date</div>',
-    '<div style="height:4px"></div>',
+    '<div style="height:12px"></div>',
 
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
-    '<div style="height:4px"></div>',
+    '<div style="height:12px"></div>',
 
-    '<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — add event (CSV, ranges, and "all" accepted)</div>',
-    '<div>• <code>!cal addnext &lt;DD | MM DD [YYYY]&gt; &lt;name...&gt; [#hex]</code> — add event at the next occurrence of that date</div>',
-    '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
-    '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
-    '<div style="margin-left:1.8em;">• Tip: if your event name starts with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
-    '<div style="height:4px"></div>',
+    '<div style="margin-top:10px;"><b>Event Management</b></div>',
+    '<div>• smart-parsing. [ ] denotes optional arguments. (defaults to the next matching date)</div>',
+    '<div>• comma-separated lists, hyphen-separated ranges, or "all" accepted for months, days, or years.</div>',
+    '<div>• hex codes should be preceded with #</div>',
+    '<div>• <code>!cal addevent [MM] DD [YYYY] name #hex</code> — add event(s)</div>',
+    '<div>• <code>!cal addmonthly DD name #hex — repeats every month, every year</div>',
+    '<div>• <code>!cal addannual MM DD name #hex</code> — repeats every year</div>',
+    '<div>• <code>!cal addnext - same as addevent, but makes you feel intentional</div>',
+    '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
+    '<div style="height:12px"></div>',
 
-    '<div>• <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code></div>',
-    '<div style="margin-left:1.8em;">• removes a single event, or provides an indexed list for multiple matches</div>',
-    '<div style="margin-left:1.8em;">• all - wipes everything that matches ("Gala" wipes all galas, Tain and otherwise)</div>',
-    '<div style="margin-left:1.8em;">• exact - forces exact-name matching. can be used with or without "all"</div>',
-    '<div style="height:4px"></div>',
+    '<div>• <code>!cal removeevent [all] [exact] [index] name or index number</code></div>',
+    '<div style="margin-left:1.8em;">• removes a single event by name or index, or reveals additional help for ambiguity.</div>',
+    '<div style="margin-left:1.8em;">• all - wipes <i>everything</i> that matches</div>',
+    '<div style="margin-left:1.8em;">• exact - forces exact name-matching. can be used with or without "all"</div>',
+    '<div style="margin-left:1.8em;">• index - assumes name field is event index. cannot be used with all or exact</div>',
+    '<div style="height:12px"></div>',
 
+    '<div style="margin-top:10px;"><b>Script Management</b></div>',
     '<div>• <code>!cal refresh</code> — re-normalize and de-duplicate calendar state. called automatically, but makes you feel fresh to use.</div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults (nukes custom events and current date)</div>'
   ];
@@ -1417,6 +1450,18 @@ var commands = { // !cal API command list
 
       if (q === 'year'){ // current numbered calendar year
         whisper(m.who, yearHTML());
+        return;
+      }
+
+      // hidden functionality for confused "upcoming" usage
+      if (q === 'upcoming' || q === 'upcoming month' || q === 'upcomingmonth') {
+        var calU = getCal(), curU = calU.current, monthsU = calU.months;
+        var miU = curU.month, yU = curU.year;
+        if (curU.day_of_the_month >= 15) {
+          miU = (curU.month + 1) % monthsU.length;
+          yU = curU.year + (miU === 0 ? 1 : 0);
+        }
+        whisper(m.who, renderMiniCal(miU, yU));
         return;
       }
 
