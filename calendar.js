@@ -61,81 +61,97 @@ function resetToDefaults(){ // Nuke state and reset to defaults.
 }
 
 function checkInstall(){ // Ensure state is initialized and migrated properly.
-    if(!state[state_name]) state[state_name] = {};
+  if(!state[state_name]) state[state_name] = {};
 
-    if(!state[state_name].calendar ||
-        !Array.isArray(state[state_name].calendar.weekdays) ||
-        !Array.isArray(state[state_name].calendar.months)){
-            state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
-        }
+  if(!state[state_name].calendar ||
+     !Array.isArray(state[state_name].calendar.weekdays) ||
+     !Array.isArray(state[state_name].calendar.months)){
+    state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
+  }
 
-    var cal = state[state_name].calendar;
-    if (!cal.current) cal.current = { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 };
+  var cal = state[state_name].calendar;
+  if (!cal.current) cal.current = { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 };
 
-if(!Array.isArray(cal.events)){
-  var lim = Math.max(1, state[state_name].calendar.months.length);
-  var out = [];
-  JSON.parse(JSON.stringify(defaults.events)).forEach(function(e){
-    var monthsList;
-    if (String(e.month).toLowerCase() === 'all') {
-      monthsList = []; for (var i=1;i<=lim;i++) monthsList.push(i);
-    } else {
+  if(!Array.isArray(cal.events)){
+    // First install: expand defaults
+    var lim = Math.max(1, state[state_name].calendar.months.length);
+    var out = [];
+    JSON.parse(JSON.stringify(defaults.events)).forEach(function(e){
+      var monthsList;
+      if (String(e.month).toLowerCase() === 'all') {
+        monthsList = []; for (var i=1;i<=lim;i++) monthsList.push(i);
+      } else {
+        var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
+        monthsList = [m];
+      }
+      monthsList.forEach(function(m){
+        out.push({
+          name: String(e.name||''),
+          month: m,
+          day: e.day,
+          year: null, // repeats every year
+          color: sanitizeHexColor(e.color) || null
+        });
+      });
+    });
+    cal.events = out;
+  } else {
+    // 1) bring in any new defaults you’ve added since the game started
+    mergeInNewDefaultEvents(cal);
+
+    // 2) sanitize existing events
+    cal.events = cal.events.map(function(e){
+      var lim = Math.max(1, cal.months.length);
       var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
-      monthsList = [m];
-    }
-    monthsList.forEach(function(m){
-      out.push({
+      var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
+      return {
         name: String(e.name||''),
         month: m,
         day: e.day,
-        year: null, // repeats every year
+        year: yr,
         color: sanitizeHexColor(e.color) || null
-      });
+      };
     });
-  });
-  cal.events = out;
-} else {
-  cal.events = cal.events.map(function(e){
-    var lim = Math.max(1, cal.months.length);
-    var m = Math.max(1, Math.min(parseInt(e.month,10)||1, lim));
-    var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
-    return {
-      name: String(e.name||''),
-      month: m,
-      day: e.day,
-      year: yr,
-      color: sanitizeHexColor(e.color) || null
-    };
-  });
-var defColorByKey = {};
-var lim2 = Math.max(1, cal.months.length);
-defaults.events.forEach(function(de){
-  var col = sanitizeHexColor(de.color) || null;
-  if (String(de.month).toLowerCase() === 'all') {
-    for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
-  } else {
-    var m = clamp(parseInt(de.month,10)||1, 1, lim2);
-    defColorByKey[m + '|' + String(de.day)] = col;
+
+    // 3) apply default colors to any events missing a color
+    var defColorByKey = {};
+    var lim2 = Math.max(1, cal.months.length);
+    defaults.events.forEach(function(de){
+      var col = sanitizeHexColor(de.color) || null;
+      if (String(de.month).toLowerCase() === 'all') {
+        for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
+      } else {
+        var m = clamp(parseInt(de.month,10)||1, 1, lim2);
+        defColorByKey[m + '|' + String(de.day)] = col;
+      }
+    });
+    cal.events.forEach(function(e){
+      if (!e.color){
+        var key = e.month + '|' + String(e.day);
+        var col = defColorByKey[key];
+        if (col) e.color = col;
+      }
+    });
   }
-});
-    }
 
-    for (var i = 0; i < cal.months.length; i++){
-        var d = defaults.months[i] || {};
-        cal.months[i] = cal.months[i] || {};
-        if (!cal.months[i].name)   cal.months[i].name   = d.name   || ('Month '+(i+1)); // Default "Month N"
-        if (!cal.months[i].days)   cal.months[i].days   = d.days   || 28; // Default 28 days
-        if (!cal.months[i].season) cal.months[i].season = d.season || ''; // Default empty season
-        if (!cal.months[i].color)  cal.months[i].color  = d.color  || '#EEE'; // Default pale gray
-    }
+  // normalize months
+  for (var i = 0; i < cal.months.length; i++){
+    var d = defaults.months[i] || {};
+    cal.months[i] = cal.months[i] || {};
+    if (!cal.months[i].name)   cal.months[i].name   = d.name   || ('Month '+(i+1));
+    if (!cal.months[i].days)   cal.months[i].days   = d.days   || 28;
+    if (!cal.months[i].season) cal.months[i].season = d.season || '';
+    if (!cal.months[i].color)  cal.months[i].color  = d.color  || '#EEE';
+  }
 
-    if (cal.current.month >= cal.months.length){ // 
-        cal.current.month = Math.max(0, cal.months.length - 1);
-    }
-    var mdays = cal.months[cal.current.month].days;
-    if (cal.current.day_of_the_month > mdays){
-        cal.current.day_of_the_month = mdays;
-    }
+  // clamp current date
+  if (cal.current.month >= cal.months.length){
+    cal.current.month = Math.max(0, cal.months.length - 1);
+  }
+  var mdays = cal.months[cal.current.month].days;
+  if (cal.current.day_of_the_month > mdays){
+    cal.current.day_of_the_month = mdays;
+  }
 }
 
 function refreshCalendarState(silent){
@@ -187,6 +203,47 @@ function esc(s){ // Basic escaping for characters that will break HTML.
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function mergeInNewDefaultEvents(cal){
+  var lim = Math.max(1, cal.months.length);
+
+  // Build a set of existing keys
+  var have = {};
+  cal.events.forEach(function(e){
+    var yKey = (e.year==null) ? 'ALL' : (e.year|0);
+    have[(e.month|0)+'|'+String(e.day)+'|'+yKey+'|'+String(e.name||'').trim().toLowerCase()] = 1;
+  });
+
+  // Expand defaults and add any missing
+  JSON.parse(JSON.stringify(defaults.events)).forEach(function(de){
+    var monthsList;
+    if (String(de.month).toLowerCase() === 'all') {
+      monthsList = []; for (var i=1;i<=lim;i++) monthsList.push(i);
+    } else {
+      var m = clamp(parseInt(de.month,10)||1, 1, lim);
+      monthsList = [m];
+    }
+
+    monthsList.forEach(function(m){
+      var daySpec = de.day;
+      var maxD = cal.months[m-1].days|0;
+      var normDay = normalizeDaySpec(daySpec, maxD) || String(firstNumFromDaySpec(daySpec));
+      var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
+      if (!have[key]) {
+        cal.events.push({
+          name: String(de.name||''),
+          month: m,
+          day: normDay,
+          year: null,
+          color: sanitizeHexColor(de.color) || null
+        });
+        have[key] = 1;
+      }
+    });
+  });
+
+  cal.events.sort(compareEvents);
 }
 
 function clamp(n, min, max){ // Clamps a number to the given [min, max] range. Non-numbers become min.
@@ -598,41 +655,6 @@ function setDate(m, d, y){ // Set date to specific month/day[/year]
 
 // Event functions
 
-function addEvent(monthToken, dayToken, nameTokens, colorToken){
-  var cal = getCal();
-  var m = clamp(monthToken, 1, cal.months.length);
-  var daySpec = normalizeDaySpec(dayToken, cal.months[m-1].days);
-  if (!daySpec){
-    sendChat(script_name, '/w gm Couldn’t understand the day "'+esc(dayToken)+'". Use a number (e.g. 12) or range (e.g. 18-19).');
-    return;
-  }
-  var name = String((nameTokens||[]).join(' ')).trim();
-  name = name.replace(/^"(.*)"$/,'$1').replace(/^'(.*)'$/,'$1').trim();
-  if (!name) name = 'Untitled Event';
-  var color = sanitizeHexColor(colorToken);
-  if (colorToken && !color){
-    sendChat(script_name, '/w gm Invalid color "'+esc(colorToken)+'". Use hex (#RRGGBB or #RGB). Using default.');
-  }
-  var exists = cal.events.some(function(e){ // Check for existing event with same month, day, and name
-    return (parseInt(e.month,10)||1) === m &&
-           String(e.day) === daySpec &&
-           String(e.name||'').trim().toLowerCase() === name.toLowerCase();
-  });
-  if (exists){
-    sendChat(script_name, '/w gm An event with the same month, day, and name already exists. Skipped.');
-    return;
-  }
-
-  cal.events.push({ name: name, month: m, day: daySpec, color: color });
-
-  cal.events.sort(compareEvents);
-
-  var swatch = swatchHtml(color);
-  sendChat(script_name, '/w gm Added event: '+swatch+esc(name)+' on '+esc(cal.months[m-1].name)+' '+esc(daySpec)+ (color ? ' ('+esc(color)+')' : ''));
-  refreshCalendarState(true);
-  sendCurrentDate(null, true);
-}
-
   function addEventSmart(tokens){
   // tokens: array of args AFTER the subcommand, BEFORE optional color
   // Grammar we accept at the front: [month?] [day] [year?]
@@ -1011,10 +1033,10 @@ function eventsListHTMLArg(argTokens){
     return eventsListHTMLForRange('Events — This Month', s, e);
   }
 
-  if (lower === 'next'){ // next 28 days (inclusive)
+  if (lower === 'upcoming' || lower === 'next'){ // 28-day rolling window (keep 'next' as legacy alias)
     var s2 = toSerial(cur.year, cur.month, cur.day_of_the_month);
     var e2 = s2 + 27;
-    return eventsListHTMLForRange('Events — Next 28 Days', s2, e2);
+    return eventsListHTMLForRange('Events — Upcoming (28 Days)', s2, e2);
   }
 
   if (lower === 'next month' || lower === 'nextmonth'){
@@ -1032,12 +1054,19 @@ function eventsListHTMLArg(argTokens){
     return eventsListHTMLForRange('Events — Year '+cur.year+' '+LABELS.era, s3, e3);
   }
 
-  if (lower === 'next year'){ // rolling 12 months from start of current month
+  if (lower === 'upcoming year'){ // rolling 12 months starting this month
     var s4 = toSerial(cur.year, cur.month, 1);
     var e4 = s4 + dpy - 1;
-    return eventsListHTMLForRange('Events — Next Year (rolling from this month)', s4, e4);
+    return eventsListHTMLForRange('Events — Upcoming Year (rolling from this month)', s4, e4);
   }
-  // "<Month> <Year>" — explicit month within a specific year
+
+  if (lower === 'next year'){ // fixed next calendar year
+    var sNY = toSerial(cur.year+1, 0, 1);
+    var eNY = sNY + dpy - 1;
+    return eventsListHTMLForRange('Events — Year '+(cur.year+1)+' '+LABELS.era, sNY, eNY);
+  }
+
+  // "<Month> <Year>"
   var my = parseMonthYearTokens(argTokens||[]);
   if (my){
     var md = months[my.mi].days|0;
@@ -1045,6 +1074,7 @@ function eventsListHTMLArg(argTokens){
     var eMY = toSerial(my.year, my.mi, md);
     return eventsListHTMLForRange('Events — '+months[my.mi].name+' '+my.year+' '+LABELS.era, sMY, eMY);
   }
+
   // numeric year?
   var yNum = parseInt(arg,10);
   if (String(yNum) === arg && isFinite(yNum)){
@@ -1063,8 +1093,7 @@ function eventsListHTMLArg(argTokens){
     return eventsListHTMLForRange('Events — '+months[mi].name+' (next occurrence)', s6, e6);
   }
 
-  // fallback
-  return '<div style="opacity:.8;">Didn’t understand <code>'+esc(arg)+'</code>. Try: <code>month</code>, <code>next</code>, <code>next month</code>, <code>year</code>, <code>next year</code>, a year number, a month name, or a <code>Month Year</code> combo.</div>';
+  return '<div style="opacity:.8;">Didn’t understand <code>'+esc(arg)+'</code>. Try: <code>month</code>, <code>upcoming</code>, <code>next month</code>, <code>year</code>, <code>upcoming year</code>, <code>next year</code>, a year number, a month name, or a <code>Month Year</code> combo.</div>';
 }
 
 function parseMonthYearTokens(tokens){
@@ -1089,37 +1118,59 @@ function buildHelpHtml(isGM){
     '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
     '<div>• <code>!cal</code> or <code>!cal show</code> — show current month calendar</div>',
     '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show full year calendar</div>',
-    '<div>• <code>!cal show next | month | year | next month | next year | &lt;named month&gt; | &lt;numbered year&gt; | &lt;named month&gt; &lt;numbered year&gt;</code> — alternative calendar views</div>',
+    '<div>• <code>!cal show</code> ' +
+      '<code>month</code> | ' +
+      '<code>year</code> | ' +
+      '<code>next</code> (next month) | ' +
+      '<code>next month</code> | ' +
+      '<code>nextmonth</code> | ' +
+      '<code>next year</code> (fixed next calendar year) | ' +
+      '<code>upcoming year</code> (rolling 12 months) | ' +
+      '&lt;named month&gt; | ' +
+      '&lt;numbered year&gt; | ' +
+      '&lt;named month&gt; &lt;numbered year&gt;' +
+    '</div>',
     '<div>• <code>!cal events</code> — list events for the current month</div>',
-    '<div>• <code>!cal events next | month | year | next month | next year | &lt;named month&gt; | &lt;numbered year&gt; | &lt;named month&gt; &lt;numbered year&gt;</code> — alternative event lists</div>',
-    '<div>• <code>!cal help</code> — show this help</div>'
+    '<div>• <code>!cal events</code> ' +
+      '<code>month</code> | ' +
+      '<code>upcoming</code> (next 28 days) | ' +
+      '<code>next month</code> | ' +
+      '<code>year</code> | ' +
+      '<code>next year</code> (fixed next calendar year) | ' +
+      '<code>upcoming year</code> (rolling 12 months) | ' +
+      '&lt;named month&gt; | ' +
+      '&lt;numbered year&gt; | ' +
+      '&lt;named month&gt; &lt;numbered year&gt;' +
+    '</div>',
+    '<div>• <code>!cal help</code> — show this help</div>',
+    '<div style="margin-top:6px;opacity:.85;"><i>Notes: <code>upcoming</code> = rolling window (28 days / 12 months). <code>next</code> = the next fixed period (next month / next calendar year).</i></div>'
   ];
 
   if (!isGM) return common.join('');
 
   var gm = [
-    '<div style="margin-top:6px;"><b>GM Commands</b></div>',
+    '<div style="margin-top:10px;"><b>GM Commands</b></div>',
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
-    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy optional]</code> — set date</div>',
+    '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set exact date</div>',
 
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
 
-    '<div>• <code>!cal addevent [&lt;month&gt;] &lt;day&gt; [&lt;year&gt;] &lt;name...&gt; [#hex]</code> — add event to date. comma-separated-values, hyphen-separated ranges, "all" accepted</div>',
-    '<div>• <code>!cal addnext &lt;DD or MM DD [YYYY optional]&gt; &lt;name&gt; [#hex]</code> — next occurrence. (technically same behavior as addevent)</div>', // alias to addevent, maybe preferable for clarity
-    '<div>• <code>!cal addmonthly &lt;day&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
+    '<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — add event (CSV, ranges, and "all" accepted)</div>',
+    '<div>• <code>!cal addnext &lt;DD | MM DD [YYYY]&gt; &lt;name...&gt; [#hex]</code> — add event at the next occurrence of that date</div>',
+    '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
     '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
     '<div>• Tip: if your event name starts with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
 
-    '<div>• <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code> — remove one, or every match (all), with optional exact-name matching</div>',
-
-    '<div>• <code>!cal refresh</code> — refresh calendar state</div>',
-    '<div>• <code>!cal resetcalendar</code> — reset to defaults. this is an actual nuke of all custom events and current date</div>',
+    '<div>• <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code> — remove one, or all matches; <code>exact</code> forces exact-name matching</div>',
+    '<div>• <code>!cal refresh</code> — re-normalize and de-duplicate calendar state</div>',
+    '<div>• <code>!cal resetcalendar</code> — reset to defaults (nukes custom events and current date)</div>'
   ];
 
   return common.concat(gm).join('');
 }
+
 
 function renderMiniCal(mi, yearLabel){ // Builds mini-calendar for a single month, highlighting current day and events
   var cal = getCal(), cur = cal.current;
@@ -1289,47 +1340,60 @@ show: function(m,a){
   // !cal show [arg...]
   var args = a.slice(2);
   if (!args.length || /^month$/i.test(args[0])){
-    sendCurrentDate(m.who); // current month summary (existing rich output)
+    sendCurrentDate(m.who);
     return;
   }
   var q = args.join(' ').trim().toLowerCase();
+
   if (q === 'year'){
     whisper(m.who, yearHTML());
     return;
   }
-  if (q === 'next month' || q === 'nextmonth'){
-    var calN = getCal(), curN = calN.current;
-    var nextMi = (curN.month + 1) % calN.months.length;
+
+  if (q === 'next' || q === 'next month' || q === 'nextmonth'){
+    var calN = getCal(), curN = calN.current, monthsN = calN.months;
+    var nextMi = (curN.month + 1) % monthsN.length;
     var yN = curN.year + (nextMi === 0 ? 1 : 0);
     whisper(m.who, renderMiniCal(nextMi, yN));
     return;
   }
-  if (q === 'next year'){
+
+  if (q === 'upcoming year'){
     whisper(m.who, rollingYearHTML());
     return;
   }
-  // "<Month> <Year>" — explicit month within a specific year
+
+  if (q === 'next year'){
+    var curY = getCal().current.year;
+    whisper(m.who, yearHTMLFor(curY + 1));
+    return;
+  }
+
+  // "<Month> <Year>"
   var my = parseMonthYearTokens(args);
   if (my){
     whisper(m.who, renderMiniCal(my.mi, my.year));
     return;
   }
+
   var yNum = parseInt(q,10);
   if (String(yNum)===q && isFinite(yNum)){
     whisper(m.who, yearHTMLFor(yNum));
     return;
   }
+
   var mi = monthIndexByName(q);
   if (mi !== -1){
-    // show that month in the next occurrence year (header labeled correctly)
-    var cur=getCal().current;
+    var cur = getCal().current;
     var y = (mi >= cur.month) ? cur.year : (cur.year+1);
     whisper(m.who, renderMiniCal(mi, y));
     return;
   }
+
   // fallback to current month
   sendCurrentDate(m.who);
-},  year:        function(m){ whisper(m.who, yearHTML()); },
+},
+  year:        function(m){ whisper(m.who, yearHTML()); },
   fullyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
   showyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
 events: function(m,a){
@@ -1409,23 +1473,23 @@ function handleInput(msg){ // API command handler
 
 function register(){ on('chat:message', handleInput); }
 
-on("ready", function(){ // Initialization function
-    Calendar.checkInstall();
-    refreshCalendarState(true);
-    Calendar.register();
+on("ready", function(){
+  checkInstall();
+  refreshCalendarState(true);
+  register();
 
-    var currentDate = currentDateLabel();
+  var currentDate = currentDateLabel();
+  log('Eberron Calendar Running, current date: ' + currentDate);
 
-    log('Eberron Calendar Running, current date: ' + currentDate);
-
-    sendChat(script_name,
-        '/direct ' +
-        '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
-        '<div>Current date: ' + esc(currentDate) + '</div>' +
-        '<div>Use <code>!cal</code> to view the calendar.</div>' +
-        '<div>Use <code>!cal help</code> for command details.</div>'
-    );
+  sendChat(script_name,
+    '/direct ' +
+    '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
+    '<div>Current date: ' + esc(currentDate) + '</div>' +
+    '<div>Use <code>!cal</code> to view the calendar.</div>' +
+    '<div>Use <code>!cal help</code> for command details.</div>'
+  );
 });
+
 
 return { checkInstall: checkInstall, register: register };
 })();
