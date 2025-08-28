@@ -69,6 +69,10 @@ function checkInstall(){ // Ensure state is initialized and migrated properly.
     state[state_name].calendar = JSON.parse(JSON.stringify(defaults));
   }
 
+  if (!state[state_name].suppressedDefaults) {
+  state[state_name].suppressedDefaults = {}; // key → 1
+}
+
   var cal = state[state_name].calendar;
   if (!cal.current) cal.current = { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 };
 
@@ -207,15 +211,14 @@ function esc(s){ // Basic escaping for characters that will break HTML.
 
 function mergeInNewDefaultEvents(cal){
   var lim = Math.max(1, cal.months.length);
+  var suppressed = state[state_name].suppressedDefaults || {};
 
-  // Build a set of existing keys
   var have = {};
   cal.events.forEach(function(e){
     var yKey = (e.year==null) ? 'ALL' : (e.year|0);
     have[(e.month|0)+'|'+String(e.day)+'|'+yKey+'|'+String(e.name||'').trim().toLowerCase()] = 1;
   });
 
-  // Expand defaults and add any missing
   JSON.parse(JSON.stringify(defaults.events)).forEach(function(de){
     var monthsList;
     if (String(de.month).toLowerCase() === 'all') {
@@ -226,11 +229,11 @@ function mergeInNewDefaultEvents(cal){
     }
 
     monthsList.forEach(function(m){
-      var daySpec = de.day;
       var maxD = cal.months[m-1].days|0;
-      var normDay = normalizeDaySpec(daySpec, maxD) || String(firstNumFromDaySpec(daySpec));
+      var normDay = normalizeDaySpec(de.day, maxD) || String(firstNumFromDaySpec(de.day));
       var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
-      if (!have[key]) {
+
+      if (!have[key] && !suppressed[key]) {
         cal.events.push({
           name: String(de.name||''),
           month: m,
@@ -400,7 +403,8 @@ var LABELS = {
   era: 'YK', // Eberron-specific abbreviation for "Year of the Kingdom". Change for other settings.
   gmOnlyNotice: 'Only the GM can use that calendar command.'
 };
-var STYLES = {
+
+var STYLES = { // Default style repeated for consistent display structure.
   table: 'border-collapse:collapse;margin:4px;',
   th:    'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:  'border:1px solid #444;padding:0;',
@@ -565,6 +569,26 @@ function eventKey(e){
   // uniqueness key with year awareness (null year → 'ALL')
   var y = (e.year==null)?'ALL':String(e.year|0);
   return (e.month|0)+'|'+String(e.day)+'|'+y+'|'+String(e.name||'').trim().toLowerCase();
+}
+
+function defaultKeyFor(monthHuman, daySpec, name){
+  return (monthHuman|0)+'|'+String(daySpec)+'|ALL|'+String(name||'').trim().toLowerCase();
+}
+
+function currentDefaultKeySet(cal){
+  var lim = Math.max(1, cal.months.length);
+  var out = {};
+  JSON.parse(JSON.stringify(defaults.events)).forEach(function(de){
+    var months = (String(de.month).toLowerCase()==='all')
+      ? (function(){ var a=[]; for (var i=1;i<=lim;i++) a.push(i); return a; })()
+      : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
+    months.forEach(function(m){
+      var maxD = cal.months[m-1].days|0;
+      var norm = normalizeDaySpec(de.day, maxD) || String(firstNumFromDaySpec(de.day));
+      out[ defaultKeyFor(m, norm, de.name) ] = 1;
+    });
+  });
+  return out;
 }
 
 function monthIndexByName(tok){
@@ -890,9 +914,24 @@ function compareEvents(a, b){
   return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
 }
 
-function removeEvent(query){ // Remove event by name match or index. If multiple matches, list them with indices and request repeated command. Also supports "all" and "exact" prefixes.
+function removeEvent(query){ // Remove event by name or index; supports "all" and "exact"
   var cal = getCal(), events = cal.events;
-  if (!events.length){ sendChat(script_name, '/w gm No events to remove.'); return; }
+
+  function markSuppressedIfDefault(ev){
+    var calLocal = getCal();
+    var defaultsSet = currentDefaultKeySet(calLocal);
+    var maxD = calLocal.months[ev.month-1].days|0;
+    var norm = normalizeDaySpec(ev.day, maxD) || String(firstNumFromDaySpec(ev.day));
+    var k = defaultKeyFor(ev.month, norm, ev.name);
+    if (defaultsSet[k]) {
+      state[state_name].suppressedDefaults[k] = 1;
+    }
+  }
+
+  if (!events.length){
+    sendChat(script_name, '/w gm No events to remove.');
+    return;
+  }
 
   var toks = String(query||'').trim().split(/\s+/);
   var rmAll=false, exact=false;
@@ -901,18 +940,23 @@ function removeEvent(query){ // Remove event by name match or index. If multiple
     if (t==='all') rmAll=true; else exact=true;
   }
   var raw = toks.join(' ').trim();
-  if (!raw){ sendChat(script_name, '/w gm Please provide an index or a name.'); return; }
+  if (!raw){
+    sendChat(script_name, '/w gm Please provide an index or a name.');
+    return;
+  }
 
-  // index (only when no flags given)
+  // index path (only when no flags given)
   var idx = parseInt(raw,10);
   if (!rmAll && !exact && isFinite(idx) && idx>=1 && idx<=events.length){
     var removed = events.splice(idx-1, 1)[0];
+    markSuppressedIfDefault(removed);
     refreshCalendarState(true);
     sendChat(script_name, '/w gm Removed event #'+idx+': '+esc(removed.name));
     sendCurrentDate(null,true);
     return;
   }
 
+  // name path
   var needle = raw.toLowerCase();
   var matches = events.filter(function(e){
     var n = String(e.name||'').toLowerCase();
@@ -920,7 +964,8 @@ function removeEvent(query){ // Remove event by name match or index. If multiple
   });
 
   if (!matches.length){
-    sendChat(script_name, '/w gm No events matched "'+esc(raw)+'".'); return;
+    sendChat(script_name, '/w gm No events matched "'+esc(raw)+'".');
+    return;
   }
 
   if (!rmAll && matches.length>1){
@@ -935,18 +980,24 @@ function removeEvent(query){ // Remove event by name match or index. If multiple
   }
 
   if (rmAll){
+    matches.forEach(markSuppressedIfDefault);
     cal.events = events.filter(function(e){ return matches.indexOf(e)===-1; });
     refreshCalendarState(true);
     sendChat(script_name, '/w gm Removed '+matches.length+' event'+(matches.length===1?'':'s')+'.');
   } else {
     var e = matches[0], pos = events.indexOf(e);
     events.splice(pos,1);
+    markSuppressedIfDefault(e);
     refreshCalendarState(true);
     sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+esc(getCal().months[e.month-1].name)+' '+esc(e.day)+((e.year!=null)?(', '+e.year+' '+LABELS.era):'')+')');
   }
+
   sendCurrentDate(null,true);
 }
 
+if (!state[state_name].suppressedDefaults) {
+  state[state_name].suppressedDefaults = {};
+}
 
 function getEventsFor(monthIndex, day, year){ // Returns all events that occur on a specific (monthIndex, day), supporting day ranges. Year is optional
   var m = monthIndex|0, out=[];
@@ -1033,13 +1084,13 @@ function eventsListHTMLArg(argTokens){
     return eventsListHTMLForRange('Events — This Month', s, e);
   }
 
-  if (lower === 'upcoming' || lower === 'next'){ // 28-day rolling window (keep 'next' as legacy alias)
+  if (lower === 'upcoming' || lower === 'upcoming month' || lower === 'upcomingmonth'){ // 28-day rolling window (keep 'next' as legacy alias)
     var s2 = toSerial(cur.year, cur.month, cur.day_of_the_month);
     var e2 = s2 + 27;
     return eventsListHTMLForRange('Events — Upcoming (28 Days)', s2, e2);
   }
 
-  if (lower === 'next month' || lower === 'nextmonth'){
+  if (lower === 'next' || lower === 'next month' || lower === 'nextmonth'){
     var nextMi = (cur.month + 1) % months.length;
     var yN = cur.year + (nextMi === 0 ? 1 : 0);
     var mdN = months[nextMi].days|0;
@@ -1054,13 +1105,13 @@ function eventsListHTMLArg(argTokens){
     return eventsListHTMLForRange('Events — Year '+cur.year+' '+LABELS.era, s3, e3);
   }
 
-  if (lower === 'upcoming year'){ // rolling 12 months starting this month
+  if (lower === 'upcoming year' || lower === 'upcomingyear'){ // rolling 12 months starting this month
     var s4 = toSerial(cur.year, cur.month, 1);
     var e4 = s4 + dpy - 1;
     return eventsListHTMLForRange('Events — Upcoming Year (rolling from this month)', s4, e4);
   }
 
-  if (lower === 'next year'){ // fixed next calendar year
+  if (lower === 'next year' || lower === 'nextyear'){ // fixed next calendar year
     var sNY = toSerial(cur.year+1, 0, 1);
     var eNY = sNY + dpy - 1;
     return eventsListHTMLForRange('Events — Year '+(cur.year+1)+' '+LABELS.era, sNY, eNY);
@@ -1116,55 +1167,59 @@ function parseMonthYearTokens(tokens){
 function buildHelpHtml(isGM){
   var common = [
     '<div style="margin:4px 0;"><b>Calendar Commands</b></div>',
-    '<div>• <code>!cal</code> or <code>!cal show</code> — show current month calendar</div>',
-    '<div>• <code>!cal year</code> (also <code>!cal fullyear</code> / <code>!cal showyear</code>) — show full year calendar</div>',
-    '<div>• <code>!cal show</code> ' +
-      '<code>month</code> | ' +
-      '<code>year</code> | ' +
-      '<code>next</code> (next month) | ' +
-      '<code>next month</code> | ' +
-      '<code>nextmonth</code> | ' +
-      '<code>next year</code> (fixed next calendar year) | ' +
-      '<code>upcoming year</code> (rolling 12 months) | ' +
-      '&lt;named month&gt; | ' +
-      '&lt;numbered year&gt; | ' +
-      '&lt;named month&gt; &lt;numbered year&gt;' +
-    '</div>',
+    '<div>• <code>!cal</code> or <code>!cal show</code> — current month calendar</div>',
+    '<div>• <code>!cal year</code> — full year calendar</div>',
     '<div>• <code>!cal events</code> — list events for the current month</div>',
-    '<div>• <code>!cal events</code> ' +
-      '<code>month</code> | ' +
-      '<code>upcoming</code> (next 28 days) | ' +
-      '<code>next month</code> | ' +
-      '<code>year</code> | ' +
-      '<code>next year</code> (fixed next calendar year) | ' +
-      '<code>upcoming year</code> (rolling 12 months) | ' +
-      '&lt;named month&gt; | ' +
-      '&lt;numbered year&gt; | ' +
-      '&lt;named month&gt; &lt;numbered year&gt;' +
-    '</div>',
+    '<div style="height:4px"></div>',
+
+    '<div>• <code>!cal show</code> OR <code>!cal events</code> modifiers:</div>',
+      '<div style="margin-left:1.8em;">• <code>month</code></div>',
+      '<div style="margin-left:1.8em;">• <code>year</code></div>',
+      '<div style="margin-left:1.8em;">• <code>next</code> or <code>next month</code></div>',
+      '<div style="margin-left:1.8em;">• <code>next year</code></div>',
+      '<div style="margin-left:1.8em;">• <code>upcoming</code> (events only)</div>',
+      '<div style="margin-left:1.8em;">• <code>upcoming year</code></div>',
+      '<div style="margin-left:1.8em;">• &lt;named month&gt;</div>',
+      '<div style="margin-left:1.8em;">• &lt;numbered year&gt;</div>',
+      '<div style="margin-left:1.8em;">• &lt;named month&gt; &lt;numbered year&gt;</div>',
+    '<div style="height:4px"></div>',
+
     '<div>• <code>!cal help</code> — show this help</div>',
-    '<div style="margin-top:6px;opacity:.85;"><i>Notes: <code>upcoming</code> = rolling window (28 days / 12 months). <code>next</code> = the next fixed period (next month / next calendar year).</i></div>'
+    '<div style="height:4px"></div>',
+
+    '<div style="margin-top:6px;opacity:.85;"><i>Notes:</i></div>',
+      '<div style="margin-top:6px;margin-left:1.8em;opacity:.85;"><i><code>next</code> = the next fixed period (next month / next calendar year).</i></div>',
+      '<div style="margin-top:6px;margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = today-inclusive rolling window (28 days / 12 months).</i></div>'
   ];
 
-  if (!isGM) return common.join('');
+
+  if (!isGM) return common.join(''); // The following block only shows if the player is GM
 
   var gm = [
     '<div style="margin-top:10px;"><b>GM Commands</b></div>',
     '<div>• <code>!cal advanceday</code> — advance one day</div>',
     '<div>• <code>!cal retreatday</code> — go back one day</div>',
     '<div>• <code>!cal setdate &lt;mm&gt; &lt;dd&gt; [yyyy]</code> — set exact date</div>',
+    '<div style="height:4px"></div>',
 
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
+    '<div style="height:4px"></div>',
 
     '<div>• <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code> — add event (CSV, ranges, and "all" accepted)</div>',
     '<div>• <code>!cal addnext &lt;DD | MM DD [YYYY]&gt; &lt;name...&gt; [#hex]</code> — add event at the next occurrence of that date</div>',
     '<div>• <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every month, every year</div>',
     '<div>• <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code> — repeats every year</div>',
-    '<div>• Tip: if your event name starts with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
+    '<div style="margin-left:1.8em;">• Tip: if your event name starts with numbers, use <code>--</code> to separate date from name, e.g. <code>!cal addevent 3 14 -- 1985</code>.</div>',
+    '<div style="height:4px"></div>',
 
-    '<div>• <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code> — remove one, or all matches; <code>exact</code> forces exact-name matching</div>',
-    '<div>• <code>!cal refresh</code> — re-normalize and de-duplicate calendar state</div>',
+    '<div>• <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code></div>',
+    '<div style="margin-left:1.8em;">• removes a single event, or provides an indexed list for multiple matches</div>',
+    '<div style="margin-left:1.8em;">• all - wipes everything that matches ("Gala" wipes all galas, Tain and otherwise)</div>',
+    '<div style="margin-left:1.8em;">• exact - forces exact-name matching. can be used with or without "all"</div>',
+    '<div style="height:4px"></div>',
+
+    '<div>• <code>!cal refresh</code> — re-normalize and de-duplicate calendar state. called automatically, but makes you feel fresh to use.</div>',
     '<div>• <code>!cal resetcalendar</code> — reset to defaults (nukes custom events and current date)</div>'
   ];
 
@@ -1333,126 +1388,149 @@ function whisper(to, html){ // Whisper function that sanitizes player name in ca
   sendChat(script_name, '/w "'+ name +'" ' + html);
 }
 
-var commands = { // API command list
-  // This block is available to all players
-  '':          function(m){ sendCurrentDate(m.who); },
-show: function(m,a){
-  // !cal show [arg...]
-  var args = a.slice(2);
-  if (!args.length || /^month$/i.test(args[0])){
-    sendCurrentDate(m.who);
-    return;
-  }
-  var q = args.join(' ').trim().toLowerCase();
+var commands = { // !cal API command list
 
-  if (q === 'year'){
-    whisper(m.who, yearHTML());
-    return;
-  }
+// This commands block is available to all players
 
-  if (q === 'next' || q === 'next month' || q === 'nextmonth'){
-    var calN = getCal(), curN = calN.current, monthsN = calN.months;
-    var nextMi = (curN.month + 1) % monthsN.length;
-    var yN = curN.year + (nextMi === 0 ? 1 : 0);
-    whisper(m.who, renderMiniCal(nextMi, yN));
-    return;
-  }
+  '':function(m){ sendCurrentDate(m.who); }, // !cal 
 
-  if (q === 'upcoming year'){
-    whisper(m.who, rollingYearHTML());
-    return;
-  }
+  show: function(m,a){ // !cal show [args...]
 
-  if (q === 'next year'){
-    var curY = getCal().current.year;
-    whisper(m.who, yearHTMLFor(curY + 1));
-    return;
-  }
+    var args = a.slice(2);
+      if (!args.length || /^month$/i.test(args[0])){ // current month
+        sendCurrentDate(m.who);
+        return;
+      }
 
-  // "<Month> <Year>"
-  var my = parseMonthYearTokens(args);
-  if (my){
-    whisper(m.who, renderMiniCal(my.mi, my.year));
-    return;
-  }
+      var q = args.join(' ').trim().toLowerCase();
 
-  var yNum = parseInt(q,10);
-  if (String(yNum)===q && isFinite(yNum)){
-    whisper(m.who, yearHTMLFor(yNum));
-    return;
-  }
+      if (q === 'year'){ // current numbered calendar year
+        whisper(m.who, yearHTML());
+        return;
+      }
 
-  var mi = monthIndexByName(q);
-  if (mi !== -1){
-    var cur = getCal().current;
-    var y = (mi >= cur.month) ? cur.year : (cur.year+1);
-    whisper(m.who, renderMiniCal(mi, y));
-    return;
-  }
+      if (q === 'next' || q === 'next month' || q === 'nextmonth'){ // next month
+        var calN = getCal(), curN = calN.current, monthsN = calN.months;
+        var nextMi = (curN.month + 1) % monthsN.length;
+        var yN = curN.year + (nextMi === 0 ? 1 : 0);
+        whisper(m.who, renderMiniCal(nextMi, yN));
+        return;
+      }
 
-  // fallback to current month
-  sendCurrentDate(m.who);
-},
-  year:        function(m){ whisper(m.who, yearHTML()); },
-  fullyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
-  showyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
-events: function(m,a){
-  // !cal events [arg...]
-  var html = eventsListHTMLArg(a.slice(2));
-  whisper(m.who, html);
-},  listevents:  function(m){ whisper(m.who, eventsListHTMLArg(['year'])); }, // alias
-  help:        function(m){ showHelp(m.who, playerIsGM(m.playerid)); },
+      if (q === 'next year' || q === 'nextyear'){ // next numbered calendar year
+        var curY = getCal().current.year;
+        whisper(m.who, yearHTMLFor(curY + 1));
+        return;
+      }
 
-  // This block is GM-only
-  advanceday:  { gm:true, run:function(){ advanceDay(); } },
-  retreatday:  { gm:true, run:function(){ retreatDay(); } },
+      if (q === 'upcoming year' || q === 'upcomingyear'){ // current month plus next 11 (rolling)
+        whisper(m.who, rollingYearHTML());
+        return;
+      }
+
+      var my = parseMonthYearTokens(args); // "<Month> <Year>" - specific month in a specific year
+      if (my){
+        whisper(m.who, renderMiniCal(my.mi, my.year));
+        return;
+      }
+
+      var yNum = parseInt(q,10); // specific numbered year
+      if (String(yNum)===q && isFinite(yNum)){
+        whisper(m.who, yearHTMLFor(yNum));
+        return;
+      }
+
+      var mi = monthIndexByName(q); // specific named month (next occurrence)
+      if (mi !== -1){
+        var cur = getCal().current;
+        var y = (mi >= cur.month) ? cur.year : (cur.year+1);
+        whisper(m.who, renderMiniCal(mi, y));
+        return;
+      }
+
+    sendCurrentDate(m.who); // fallback to current month
+  },
+
+  year:        function(m){ whisper(m.who, yearHTML()); }, // current calendar year
+    fullyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
+    showyear:    function(m){ whisper(m.who, yearHTML()); }, // alias
+  
+  events: function(m, a){ // !cal events [arg...]
+//  var html = eventsListHTMLArg(args); // uses fallback to current month. comment out the following 3 lines to use.
+    var args = a.slice(2);
+    var html = eventsListHTMLArg(args.length ? args : ['upcoming']); // default to rolling 28 days
+    whisper(m.who, html);
+  },
+
+  listevents:  function(m){ whisper(m.who, eventsListHTMLArg(['year'])); }, // alias for !cal events year
+
+  help:        function(m){ showHelp(m.who, playerIsGM(m.playerid)); }, // show help block with !cal help
+
+// This block is GM-only
+
+  advanceday:  { gm:true, run:function(){ advanceDay(); } }, // step forward
+  retreatday:  { gm:true, run:function(){ retreatDay(); } }, // step back
   setdate:     { gm:true, run:function(m,a){ setDate(a[2], a[3], a[4]); } }, // MM DD [YYYY]
-  senddate:    { gm:true, run:function(){ sendCurrentDate(); } },
-  sendyear:    { gm:true, run:function(){ sendToAll(yearHTML()); } },
-  addevent: { gm:true, run:function(m,a){
-  if (a.length < 3) {
-    whisper(m.who, 'Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>');
-    return;
-  }
-  addEventSmart(a.slice(2));
-}},
+  senddate:    { gm:true, run:function(){ sendCurrentDate(); } }, // broadcast current month plus events
+  sendyear:    { gm:true, run:function(){ sendToAll(yearHTML()); } }, // broadcast current year (no events)
 
-addmonthly: { gm:true, run:function(m,a){
-  if (a.length < 4){
-    whisper(m.who, 'Usage: <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
-    return;
-  }
-  var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
-  var nameTokens = hasColor ? a.slice(3,a.length-1) : a.slice(3);
-  addMonthly(a[2], nameTokens, hasColor?maybeColor:null);
-}},
+  // Event management
+    
+    // Custom events accept [MM] DD [YYYY] (name) (hex color code)
+    // Comma-separated lists (like Aryth,Zarantyr or 1,17,7) are supported
+    // Ranges (like 15-21) are supported for days
+    // all is supported
+    addevent: { gm:true, run:function(m,a){ // add a custom event with [MM] DD [YYYY] <name> <hex color>. accepts both lists (1,3,7) and ranges (17-19)
+      if (a.length < 3) {
+        whisper(m.who, 'Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>');
+        return;
+      }
+      addEventSmart(a.slice(2));
+    }},
 
-addannual: { gm:true, run:function(m,a){
-  if (a.length < 5){
-    whisper(m.who, 'Usage: <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
-    return;
-  }
-  var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
-  var nameTokens = hasColor ? a.slice(4,a.length-1) : a.slice(4);
-  addAnnual(a[2], a[3], nameTokens, hasColor?maybeColor:null);
-}},
+    // The following don't do anything the above cannot. They just "autofill" certain fields
 
-addnext: { gm:true, run:function(m,a){
-  if (a.length < 4){
-    whisper(m.who, 'Usage: <code>!cal addnext &lt;day&gt; &lt;name...&gt; [#hex]</code> or <code>!cal addnext &lt;month&gt; &lt;day&gt; &lt;name...&gt; [#hex]</code>');
-    return;
-  }
-  addNext(a.slice(2));
-}},
-  removeevent: { gm:true, run:function(m,a){
-                if (a.length < 3){
-                  whisper(m.who, 'Usage: <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code>');
-                  return;
-                }
-                removeEvent(a.slice(2).join(' '));
-                }},
-  refresh: { gm:true, run:function(){ refreshCalendarState(false); } },
-  resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } }
+      addmonthly: { gm:true, run:function(m,a){ // repeats monthly on DD. (as if MM was "all")
+        if (a.length < 4){
+          whisper(m.who, 'Usage: <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
+          return;
+        }
+        var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
+        var nameTokens = hasColor ? a.slice(3,a.length-1) : a.slice(3);
+        addMonthly(a[2], nameTokens, hasColor?maybeColor:null);
+      }},
+
+      addannual: { gm:true, run:function(m,a){ // repeats yearly on MM DD. (as if YYYY was "all")
+        if (a.length < 5){
+          whisper(m.who, 'Usage: <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
+          return;
+        }
+        var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
+        var nameTokens = hasColor ? a.slice(4,a.length-1) : a.slice(4);
+        addAnnual(a[2], a[3], nameTokens, hasColor?maybeColor:null);
+      }},
+
+      addnext: { gm:true, run:function(m,a){ // uses the next incidence of the numbered date. (might be next month.)
+        if (a.length < 4){
+          whisper(m.who, 'Usage: <code>!cal addnext &lt;day&gt; &lt;name...&gt; [#hex]</code> or <code>!cal addnext &lt;month&gt; &lt;day&gt; &lt;name...&gt; [#hex]</code>');
+          return;
+        }
+        addNext(a.slice(2));
+      }},
+
+    // This function can remove default events as well.
+    // !cal removeevent all Gala - wipes all "Gala" events
+    // !cal removeevent all exact Tain Gala - wipes only "Tain Gala" events
+    removeevent: { gm:true, run:function(m,a){
+      if (a.length < 3){
+        whisper(m.who, 'Usage: <code>!cal removeevent [all] [exact] &lt;index|name&gt;</code>');
+        return;
+      }
+      removeEvent(a.slice(2).join(' '));
+    }},
+
+  refresh: { gm:true, run:function(){ refreshCalendarState(false); } }, // refresh the state. automatically called elsewhere, but makes you feel fresh to manually call it
+  resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } } // nuke the state, restoring to hard-coded defaults in this script
 };
 
 function handleInput(msg){ // API command handler
@@ -1489,7 +1567,6 @@ on("ready", function(){
     '<div>Use <code>!cal help</code> for command details.</div>'
   );
 });
-
 
 return { checkInstall: checkInstall, register: register };
 })();
