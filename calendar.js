@@ -1617,7 +1617,7 @@ on("ready", function(){
 
   sendChat(script_name,
     '/direct ' +
-    '<div style="font-weight:bold;">Eberron Calendar Initialized</div>' +
+    '<div>Eberron Calendar Initialized</div>' +
     '<div>Current date: ' + esc(currentDate) + '</div>' +
     '<div>Use <code>!cal</code> to view the calendar.</div>' +
     '<div>Use <code>!cal help</code> for command details.</div>'
