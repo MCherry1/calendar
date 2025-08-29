@@ -323,14 +323,6 @@ function textColorForBg(bgHex){
   return _contrast(bgHex, '#000') >= _contrast(bgHex, '#fff') ? '#000' : '#fff';
 }
 
-// Optional: outline helper that accepts a known ratio so we don’t recompute _contrast.
-function outlineIfNeededRatio(textColor, knownRatio){
-  if (knownRatio >= CONTRAST_MIN) return '';
-  return (textColor === '#fff')
-    ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
-    : 'text-shadow:-0.5px -0.5px 0 #fff,0.5px -0.5px 0 #fff,-0.5px 0.5px 0 #fff,0.5px 0.5px 0 #fff;';
-}
-
 function styleForBg(style, bgHex){
   var t = textColorForBg(bgHex);
   return style + 'background:' + bgHex + ';color:' + t + ';' + outlineIfNeeded(t, bgHex);
@@ -347,7 +339,7 @@ function styleForGradient(style, cols){
   style += 'background-color:' + cols[0] + ';';
   style += 'background-image:' + _gradientFor(cols) + ';';
   style += 'background-repeat:no-repeat;background-size:100% 100%;';
-  style += 'color:' + pick.text + ';' + outlineIfNeededRatio(pick.text, pick.minContrast);
+  style += 'color:' + pick.text + ';' + outlineIfNeeded(pick.text, pick.minContrast);
   return style;
 }
 
@@ -417,7 +409,7 @@ function monthEventsHtml(mi, today){ // Generates a chronological list of events
     if (da !== db) return da - db;
 
     var ay = (a.year==null)?1:0, by = (b.year==null)?1:0; // Resolve a "one-off" event vs recurring event.
-    if (ay !== by) return by - ay; // change to (ay - by) if you prefer recurring to list first
+    if (ay !== by) return ay - by; // Use `by - ay` to list recurring first; `ay - by` for one-off first.
 
     return String(a.name||'').localeCompare(String(b.name||''));
   });
@@ -1575,17 +1567,17 @@ var commands = { // !cal API command list
 
   advanceday:  { gm:true, run:function(){ advanceDay(); } }, // step forward
   retreatday:  { gm:true, run:function(){ retreatDay(); } }, // step back
-  setdate:     { gm:true, run:function(m,a){ // MM DD [YYYY] or DD
+
+  setdate:     { gm:true, run:function(m,a){
+    // MM DD [YYYY] - Defined year, or current year
+    // DD - Assumes you mean next occurance of date. May roll month and year.
+    if (a.length < 3) { whisper(m.who, 'Usage: <code>!cal setdate [MM] DD [YYYY]</code>'); return; }
     if (a.length === 3 && /^\d+$/.test(a[2])) {
-      var cal = getCal(), cur = cal.current, months = cal.months;
-      var targetDay = parseInt(a[2],10)|0;
-      var nextMi = (cur.month + 1) % months.length;
-      var nextYr = cur.year + (nextMi === 0 ? 1 : 0);
-      var useCurMonth = (cur.day_of_the_month <= targetDay);
-      var mi = useCurMonth ? cur.month : nextMi;
-      var yr = useCurMonth ? cur.year : nextYr;
-      var d  = clamp(targetDay, 1, months[mi].days);
-      setDate(mi+1, d, yr);
+      var cal   = getCal(), cur = cal.current, months = cal.months;
+      var day   = parseInt(a[2], 10)|0;
+      var next  = nextForDayOnly(cur, day, months.length);
+      var d     = clamp(day, 1, months[next.month].days);
+      setDate(next.month + 1, d, next.year);
       return;
     }
     setDate(a[2], a[3], a[4]);
