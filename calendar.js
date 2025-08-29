@@ -282,52 +282,73 @@ function makeDayMatcher(spec){ // Tests if a given day matches a spec (number or
   return function(){ return false; };
 }
 
-function styleForBg(style, bgHex){ // Generates a background style for single-event days, with best-contrasting text color.
-  var cBlack = _contrast(bgHex, '#000');
-  var cWhite = _contrast(bgHex, '#fff');
-  var t = (cBlack >= cWhite) ? '#000' : '#fff';
-  return style + 'background:'+bgHex+';color:'+t+';' + outlineIfNeeded(t, bgHex);
+function _normalizeCols(cols){
+  cols = (cols || []).map(sanitizeHexColor).filter(Boolean);
+  if (!cols.length) cols = ['#888888'];
+  if (cols.length > 3) cols = cols.slice(0, 3);
+  return cols;
 }
 
-function styleForGradient(style, cols){ // Generates a background style for multi-event days, with best-contrasting text color.
-  var avg = _avgHexColor(cols);
-  var t   = textColorForBg(avg);
-  style += 'background-color:'+cols[0]+';';
-  style += 'background-image:'+_gradientFor(cols)+';';
-  style += 'background-repeat:no-repeat;background-size:100% 100%;';
-  style += 'color:'+t+';'+outlineIfNeeded(t, avg);
-  return style;
-}
-
-function _gradientFor(cols){ // Generates a crisp color gradient for multi-event days.
-  var ang = GRADIENT_ANGLE;
-  if (cols.length === 2){
-    var a = cols[0], b = cols[1];
-    return 'linear-gradient(' + ang + ','+
-           a+' 0%,'+a+' 50%,'+
-           b+' 50%,'+b+' 100%)';
+function _uniqueCols(cols){
+  var seen = {}, out = [];
+  for (var i=0;i<cols.length;i++){
+    var c = cols[i];
+    if (!seen[c]){ seen[c]=1; out.push(c); }
   }
-  var a = cols[0], b = cols[1], c = cols[2] || cols[1];
-  return 'linear-gradient(' + ang + ','+
-         a+' 0%,'+a+' 33.333%,'+
-         b+' 33.333%,'+b+' 66.667%,'+
-         c+' 66.667%,'+c+' 100%)';
+  return out;
 }
 
-function _avgHexColor(cols){ // Average multiple hex colors together for contrast text calculation.
-  var r=0,g=0,b=0,n=cols.length;
-  for (var i=0;i<n;i++){
-    var hex = cols[i].replace(/^#/,'');
-    var v = parseInt(hex,16);
-    r += (v>>16)&255; g += (v>>8)&255; b += v&255;
+function _gradientFor(cols){
+  var n = cols.length, parts = [];
+  for (var i = 0; i < n; i++){
+    var start = (i * 100 / n).toFixed(3) + '%';
+    var end   = ((i + 1) * 100 / n).toFixed(3) + '%';
+    parts.push(cols[i] + ' ' + start + ',' + cols[i] + ' ' + end);
   }
-  r = Math.round(r/n); g = Math.round(g/n); b = Math.round(b/n);
-  function h(x){ var s=x.toString(16).toUpperCase(); return s.length===1?'0'+s:s; }
-  return '#'+h(r)+h(g)+h(b);
+  return 'linear-gradient(' + GRADIENT_ANGLE + ',' + parts.join(',') + ')';
+}
+
+// Return chosen text color, the worst bg *for that text*, and the min contrast value itself.
+function _pickTextAndWorst(cols){
+  var minB = Infinity, minW = Infinity, worstB = 0, worstW = 0;
+  for (var i=0;i<cols.length;i++){
+    var cB = _contrast(cols[i], '#000'); if (cB < minB){ minB = cB; worstB = i; }
+    var cW = _contrast(cols[i], '#fff'); if (cW < minW){ minW = cW; worstW = i; }
+  }
+  if (minB >= minW) return { text:'#000', worstBg:cols[worstB], minContrast:minB };
+  return { text:'#fff', worstBg:cols[worstW], minContrast:minW };
 }
 
 function textColorForBg(bgHex){
   return _contrast(bgHex, '#000') >= _contrast(bgHex, '#fff') ? '#000' : '#fff';
+}
+
+// Optional: outline helper that accepts a known ratio so we don’t recompute _contrast.
+function outlineIfNeededRatio(textColor, knownRatio){
+  if (knownRatio >= CONTRAST_MIN) return '';
+  return (textColor === '#fff')
+    ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
+    : 'text-shadow:-0.5px -0.5px 0 #fff,0.5px -0.5px 0 #fff,-0.5px 0.5px 0 #fff,0.5px 0.5px 0 #fff;';
+}
+
+function styleForBg(style, bgHex){
+  var t = textColorForBg(bgHex);
+  return style + 'background:' + bgHex + ';color:' + t + ';' + outlineIfNeeded(t, bgHex);
+}
+
+function styleForGradient(style, cols){
+  cols = _normalizeCols(cols);
+
+  // Collapse to single-bg if all stripes are the same
+  var uniq = _uniqueCols(cols);
+  if (uniq.length === 1) return styleForBg(style, uniq[0]);
+
+  var pick = _pickTextAndWorst(cols); // includes minContrast for chosen text
+  style += 'background-color:' + cols[0] + ';';
+  style += 'background-image:' + _gradientFor(cols) + ';';
+  style += 'background-repeat:no-repeat;background-size:100% 100%;';
+  style += 'color:' + pick.text + ';' + outlineIfNeededRatio(pick.text, pick.minContrast);
+  return style;
 }
 
 function daysPerYear(){ // Total days per year from defined months
@@ -346,7 +367,7 @@ function toSerial(y, mi, d){  // Serializes a date to an absolute day count (use
   return (y * daysPerYear()) + monthPrefixDays(mi) + ((parseInt(d,10)||1) - 1);
 }
 
-function weekdayIndexFor(mi, d){ // Given a month index and day, returns the weekday index relative to current date/dow.
+function weekdayIndexFor(mi, d){ // Given a month index and day, returns the weekday index relative to current date.
   var cal = getCal(), cur = cal.current, wdlen = cal.weekdays.length;
   var delta = toSerial(cur.year, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month);
   return ( (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen );
@@ -373,30 +394,42 @@ function normalizeDaySpec(spec, maxDays){ // Normalizes a day spec into "D" or "
   return null;
 }
 
-function currentDateLabel(){
+function currentDateLabel(){ // Formatting for consistent date presentation.
   var cal = getCal(), cur = cal.current;
   return cal.weekdays[cur.day_of_the_week] + ", " +
          cur.day_of_the_month + " " +
          cal.months[cur.month].name + ", " +
-         cur.year + " " + LABELS.era;
+         cur.year + " " + LABELS.era; // Weekday, DD MM YYYY with Era.
 }
 
-function monthEventsHtml(mi, today){
+function monthEventsHtml(mi, today){ // Generates a chronological list of events for the current month for chat output.
   var cal = getCal(), mName = esc(cal.months[mi].name);
   var curYear = cal.current.year;
+
+  var evs = cal.events.filter(function(e){ // Get all events for the month
+    return ((+e.month||1)-1) === mi &&
+           (e.year == null || (e.year|0) === (curYear|0));
+  });
+
+  evs.sort(function(a,b){ // Sort by date
+    var da = firstNumFromDaySpec(a.day);
+    var db = firstNumFromDaySpec(b.day);
+    if (da !== db) return da - db;
+
+    var ay = (a.year==null)?1:0, by = (b.year==null)?1:0; // Resolve a "one-off" event vs recurring event.
+    if (ay !== by) return by - ay; // change to (ay - by) if you prefer recurring to list first
+
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+
   var rows = [];
-  cal.events
-    .filter(function(e){
-      return ((+e.month||1)-1) === mi &&
-             (e.year == null || (e.year|0) === (curYear|0));
-    })
-    .forEach(function(e){
-      var dayLabel = esc(String(e.day));
-      var isToday  = makeDayMatcher(e.day)(today);
-      var swatch   = swatchHtml(e.color);
-      rows.push('<div' + (isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"') +
-                '>' + swatch + mName + ' ' + dayLabel + ': ' + esc(e.name) + '</div>');
-    });
+  evs.forEach(function(e){ // Builds event list. Adds some styling if current day matches an event.
+    var dayLabel = esc(String(e.day));
+    var isToday  = makeDayMatcher(e.day)(today);
+    var swatch   = swatchHtml(e.color);
+    rows.push('<div' + (isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"') +
+              '>' + swatch + mName + ' ' + dayLabel + ': ' + esc(e.name) + '</div>');
+  });
   return rows.join('');
 }
 
@@ -405,7 +438,7 @@ var LABELS = {
   gmOnlyNotice: 'Only the GM can use that calendar command.'
 };
 
-var STYLES = { // Default style repeated for consistent display structure.
+var STYLES = { // Default style used for consistent display structure.
   table: 'border-collapse:collapse;margin:4px;',
   th:    'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:  'border:1px solid #444;padding:0;',
@@ -414,7 +447,7 @@ var STYLES = { // Default style repeated for consistent display structure.
   monthHeaderBase: 'padding:6px;text-align:left;'
 };
 
-function _applyTodayStyle(style){ // This is the style to emphasize the current day cell.
+function _applyTodayStyle(style){ // This is the style to emphasize the current day cell in the miniCal.
   style += 'position:relative;z-index:10;';
   style += 'border-radius:2px;';
   style += 'box-shadow:'
@@ -906,7 +939,7 @@ function addAnnual(monthTok, dayTok, nameTokens, colorTok){ // Repeats annually
   addEventSmart(tokens);
 }
 
-function addNext(tokens){ // Thin wrapper to basic operation.
+function addNext(tokens){ // alias to basic operation. Might make you feel better about the smart parsing of arguments.
   addEventSmart(tokens.slice());
 }
 
