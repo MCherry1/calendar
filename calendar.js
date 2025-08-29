@@ -1570,7 +1570,7 @@ var commands = { // !cal API command list
 
   setdate:     { gm:true, run:function(m,a){
     // MM DD [YYYY] - Defined year, or current year
-    // DD - Assumes you mean next occurance of date. May roll month and year.
+    // DD - Assumes you mean next occurrence of date. May roll month and year.
     if (a.length < 3) { whisper(m.who, 'Usage: <code>!cal setdate [MM] DD [YYYY]</code>'); return; }
     if (a.length === 3 && /^\d+$/.test(a[2])) {
       var cal   = getCal(), cur = cal.current, months = cal.months;
