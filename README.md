@@ -1,30 +1,36 @@
 # calendar
-Roll20 Calendar Script
 # Eberron Calendar (Roll20 API Script)
 
-A compact, GM-friendly calendar and event system tailored for **Eberron** (or any 12×28-day setting) that renders mini-calendars in Roll20 chat, tracks the current date, and supports powerful event management with ranges, CSV lists, “all” selectors, and smart “next occurrence” semantics.
+A calendar and event system tailored for **Eberron** that tracks the current date, renders mini-calendars in Roll20 chat, and supports event management.
 
-**Version:** 1.9
 **Author:** Matthew Cherry (github.com/mcherry1/calendar)
 
 ---
 
 ## Highlights
 
-* **One-command calendar:** `!cal` shows the current month with the current day highlighted.
-* **Clean UI:** Single-month tiles with per-month color themes; multiple events per day render with a crisp diagonal gradient.
-* **Accessible text:** Auto-contrasts text against backgrounds and outlines text when contrast < 4.5:1.
-* **Smart event parsing:** Ranges (`18-19`), CSV (`1,3,5-7`), and `all` for months/days/years.
-* **“Next” semantics:** One-off events land on the *next* matching date (this month if still upcoming, otherwise next month).
-* **Convenient GM controls:** Advance/retreat a day, set dates, broadcast to the table, and manage events—right from chat.
-* **Safe defaults:** You can remove default events and the script will **not** re-insert them later.
+* **Simple Commands:** `!cal` shows a *beautiful* mini-calendar of the current month with:
+   * The current day highlighted.
+   * A list of events.
+   * One-click quick action buttons.
+* **Pretty Displays:** Mini-calendars rendered in chat with color themes, hover text, and quick-glance information. Month headers based on lunar colors.
+* **Player Interaction:** Players can call same calendar and track time on their own (self-whisper only).
+* **GM/Player Distinction:** Players have no access to advanced controls like changing the date, adding/removing events, or broadcasting to the table.
+* **Infinite Variations:** Call any month, any year, or any month of any year.
+* **Event Management:**
+   * Default set of Eberron holidays loaded. Expandable if you edit the code.
+   * Custom color for each event.
+   * Add your own events like birthdays (annual), rent due (monthly), parties (every day), or any other variation you desire.
+   * Remove any event, including defaults.
+   * Generate lists of events in chat.
+* **Smart Semantics:** Interprets your intention with tons of shortcuts, aliases, and various smart-parsing of intention.
 
 ---
 
 ## Installation
 
 1. In your Roll20 game (Pro subscription required), open **Game Settings → API Scripts**.
-2. Create a **New Script**, name it `Calendar` (or anything you like), and paste in `Eberron Calendar Script v1.9`.
+2. Create a **New Script**, name it `Calendar` (or anything you like), and paste in `Eberron Calendar Script`.
 3. Save the script.
    On first load, chat will display:
 
@@ -43,9 +49,9 @@ A compact, GM-friendly calendar and event system tailored for **Eberron** (or an
 
 * **Months (12 × 28 days):**
   Zarantyr, Olarune, Therendor, Eyre, Dravago, Nymm, Lharvion, Barrakas, Rhaan, Sypheros, Aryth, Vult
-  Each month has a **season** label and a **color** used for the header and the “today” highlight.
+  Each month has a **season** label and a lunar-based **color** used for the header and the “today” highlight.
 
-* **Current date (default):** `1 Zarantyr, 998 YK` (weekday index 0)
+* **Current date (default):** `Zarantyr 1, 998 YK`
 
 * **Default events (subset shown):**
 
@@ -65,7 +71,7 @@ A compact, GM-friendly calendar and event system tailored for **Eberron** (or an
   * **Thronehold** — Aryth 11
   * **Long Shadows** — Vult **26-28** (range)
 
-> ⚙️ Removing a default event marks it as **suppressed** so it won’t be re-added when defaults merge in future versions.
+> ⚙️ Removing a default event marks it as **suppressed** so it won’t be resurrected on refresh.
 
 ---
 
@@ -91,36 +97,32 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
   If the caller is a GM, the GM button panel is also whispered.
 
 * `!cal show [modifier]`
-  Show a calendar view. Supported **modifiers**:
+  Show a mini-calendar view. Supported **modifiers**:
 
   * *(none)* or `month` → current month
-  * `year` → the current numbered calendar year
+  * `year` → full set of months for the current numbered calendar year
   * `next` / `next month` → the next month
   * `next year` → next numbered year
-  * `upcoming year` → rolling 12 months starting this month
-  * **Month name** (e.g., `Nymm`) → the *next occurrence* of that month
-  * **“Month Year”** (e.g., `Nymm 999`) → that specific month in that specific year
+  * `upcoming year` → rolling 12 months, starting this month
+  * **"month"** (e.g., `Nymm`) → the *current or next occurrence* of that month
+  * **“month year”** (e.g., `Nymm 999`) → that specific month in that specific year
   * **Special convenience:** `upcoming` (or `upcoming month`) shows:
-
     * current month if today < 15th
     * next month if today ≥ 15th
-
-* `!cal year` (aliases: `!cal fullyear`, `!cal showyear`)
-  Show the full **current** year as twelve tiles.
 
 * `!cal events [modifier]`
   List events in a focused window. **Default** is a **rolling 28-day** window when no modifier is given. Supported modifiers:
 
+  * *(none)* or `upcoming` or `upcoming month` → rolling 28 days (today inclusive)
   * `month` → current month
-  * `next` / `next month` → next month
+  * `next` or `next month` → next month
   * `year` → current calendar year
-  * `upcoming` → rolling 28 days (today inclusive)
-  * `upcoming year` → rolling 12 months starting this month
+  * `upcoming year` → rolling 12 months, starting this month
   * `next year` → next calendar year
   * **Month name**, **“Month Year”**, or **Year number** → targeted range
 
 * `!cal help`
-  Show a trimmed command reference (GM sees GM-only extras).
+  Show available commands (GM sees GM-only extras).
 
 ---
 
@@ -132,14 +134,11 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
 * `!cal retreatday`
   Go back one day (rolls months/years and weekday automatically).
 
-* `!cal setdate [MM] DD [YYYY]` **or** `!cal setdate DD`
+* `!cal setdate [MM] DD [YYYY]`
   Set the current date. Two forms are supported:
 
-  1. **`MM DD [YYYY]`** — set an exact date.
-  2. **`DD`** (single number) — treated as **day-only** with “next” semantics:
-
-     * if DD ≥ today’s day → set to DD in the **current** month
-     * otherwise → set to DD in the **next** month (year rolls if needed)
+  1. **`MM DD [YYYY]`** — set an exact date. year is optional, with current year assumed.
+  2. **`DD`** (single number) — assumed to be the next occurrence of that numbered day. Will roll months or years as needed.
 
 * `!cal senddate`
   **Broadcast** the current month view (plus events) to **all players**.
@@ -147,48 +146,62 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
 * `!cal sendyear`
   **Broadcast** the full current year (no event list) to **all players**.
 
-* `!cal addevent [MM|list|all] [DD|range|list|all] [YYYY|list|all] name [#hex]`
+* `!cal addevent [MM] DD [YYYY] name [#hex]`
   Add custom events. Powerful parsing supports:
 
-  * **Months:** number, CSV (`1,3,7`), range (`2-5`), or `all`
+  * **Months:** numbered, CSV (`1,3,5,8`), range (`2-5`), or `all`
   * **Days:** number, CSV, range (`18-19`), or `all`
   * **Years:** number, CSV, range, or `all` (meaning “repeat every year”)
-  * **Name & color:** see **Color & `--`** below
     **Semantics:**
-  * If you provide **only a day** (`DD`), the script adds a **single one-off** on the next DD (this month if still upcoming; otherwise next month).
-  * If you provide **month and day** (`MM DD`) with both as plain integers, it adds a **single one-off** on the next occurrence of `MM/DD` (this year if not yet passed; otherwise next year).
-  * Any use of **`all`**, **CSV**, or **ranges** triggers **bulk** insertion.
-  * Day **ranges** (e.g., `18-19`) create **multiple occurrences** on each day of the range.
+  * If you provide **only one number** (`DD`), the script assumes the next `DD` (this month if still upcoming; otherwise next month).
+  * If you provide **two numbers** (`MM DD`) it assumes the next occurrence of `MM/DD` (this year if not yet passed; otherwise next year).
+  * Any use of **`all`**, **CSV**, or **ranges** triggers multiple events.
+  * Day **ranges** (e.g., `18-19`) create occurrences for each day of the range.
 
 * `!cal addmonthly DD name [#hex]`
-  Sugar for: “every month, given day, repeating every year.”
+  Alias for: “every month, given day, repeating every year.”
   Equivalent to: `!cal addevent all DD all name [#hex]`.
 
 * `!cal addannual MM DD name [#hex]`
-  Sugar for: “every year, given month/day.”
+  Alias for: “every year, given month/day.”
   Equivalent to: `!cal addevent MM DD all name [#hex]`.
 
-* `!cal addnext <...>`
-  Thin wrapper over `addevent` that behaves like the “next occurrence” form:
-
-  * `!cal addnext DD name [#hex]` → next DD from today
-  * `!cal addnext MM DD name [#hex]` → next MM/DD from today
-    *(Note: if you omit a name entirely, `addevent` defaults to “Untitled Event.” If you prefer to **require** names, you can add a small guard in code.)*
-
 * `!cal removeevent [all] [exact] [index] <index|name>`
-  Remove one or more events by **index** or **name**.
+  Remove one or more events by **name** or **index**.
 
-  * `index <n>` removes the event at position `n` (as shown in internal lists).
-    *Cannot be combined with `all` or `exact`.*
   * Name matching is **substring** by default; add `exact` for exact name matches.
-  * Add `all` to remove **every** match (including defaults—those become suppressed).
-  * Safety: if your query ambiguously matches an **index and a name**, you’ll get instructions to disambiguate.
+      * `!cal removeevent gala` will take out the Tain Gala.
+      * `!cal removeevent exact gala` will only take out events named "gala".
+  * Add `all` to remove **every** match.
+
+  * Safety: if your request matches multiple events, you'll get instructions to disambiguate.
+      * Every event is assigned a hidden index number. Those indices will be revealed if needed for disambiguation.
+
+  * Safety: if your request matches both an **index** and a **name**, you’ll get instructions to disambiguate. `!cal removeevent 7`
+      * `!cal removeevent 1999` might remove an event named "Party Like 1999", but if you also have an event with index 1999, it will ask for more infomation.
+      * `index <n>` removes the event at position `n`. So if you have an event named "Party at 7", and an event with index of 7, it will force the index and leave your party alone. `!cal removeevent index 7`
+      * *Cannot be combined with `all` or `exact`.*
+
+  * There are some nuances here. Technically, there is only one Tain Gala, that occurs on the 6th (1st Far) of every month. The script does not "fill" a calendar. (There is no infinite scroll of years.) It just checks if any defined events matche whatever date it is currently working with.
+  * There are not 12 Tain Galas per year. There is one Tain Gala that happens 12 times per year.
 
 * `!cal refresh`
-  Re-normalize, clamp, and de-duplicate state. Also re-applies default colors to events missing a color.
+  Re-normalize, clamp dates, refresh colors, and de-duplicate state, etc. etc. Boring script stuff. The script automatically calls this function internally, but calling it manually might make you feel a little fresher.
 
 * `!cal resetcalendar`
-  Completely reset to built-in defaults (months/weekdays/events/current date). **Nukes** custom events and current date.
+  Completely reset to built-in defaults state. **Nukes custom events and current date**. You have been warned. The script will not warn you. (The API doesn't support an "Are you sure you want to do that?" function.)
+
+## Aliases
+   I have included a ton of aliases for these functions. Use them as you see fit. Use them accidentally. Just guess. You can do it. Most of the time where I have a "next month" or "next year", it will also accept "nextmonth" or "nextyear". (You'll still need to spell !cal right.)
+   * `!cal <command>`:
+      * `show month` - show, month, current, showmonth, show current, showcurrent, mnoth, monht, curretn
+      * `show year` - all, year, showyear, showyr, yaer, yera
+      * `show next month` - next
+      * `events upcoming` - events, evenst, envetns
+      * `events month` - this list is actually shown in the standard current month view. no aliases.
+      * `events year` - list, list events, listevents, list all, listall, allevents
+      * `addevent` - addevent, add, addnext
+      * `removeevent` - remove, rm   
 
 ---
 
@@ -196,19 +209,29 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
 
 ### Date tokens
 
-At the front of `addevent`/`addmonthly`/`addannual`:
+After `addevent`:
 
-* **Month**: integer (1–12), CSV, range, or `all`
-* **Day**: integer, CSV, range (`A-B`), or `all`
-* **Year**: integer (any 32-bit), CSV, range, or `all` (meaning “repeat every year”)
+* **Month**: integer, comma-separated-values (i.e. CSV) (1,2,5,8), range (`A-B`), or `all` (meaning "repeat every month")
+* **Day**: integer, CSV, range, or `all` (if you want to schedule second breakfast every day)
+* **Year**: integer (any 32-bit, CSV, range, or `all` (meaning “repeat every year"
 
-> **Clamping:** Days are clamped to each month’s length. E.g., `all 31` becomes `1–28` across 28-day months. If you’d rather **skip** months that don’t have the day, you’d need to modify the “clamp/normalize” behavior in `_addConcreteEvent`.
+If you include only a single date token, `!cal add 17 Party`, it will look for the next "17th", (including today).
+If you include two date tokens, `!cal add 2 17 Party`, it will look for the next Olarune 17th.
+If you include all three integers, `!cal add 12 28 997 Party`, it will recognize that as the 28th of Vult, in the year 997 YK.
 
-### Name & Color (the `--` separator)
+If you use `addmonthly` or `addannual` it only accepts a day token or month + day tokens, respectively, and assigns "all" automatically.
 
-To avoid confusion when your **event name contains numbers** (e.g., “1985 Reunion”) or you want to include a hex-like fragment **in the name**, use the `--` separator:
+> **Clamping:** Months are clamped to the number of months (default 12). Days are clamped to each month’s length. E.g., `13 37` becomes `12 28`, or `1-31` becomes `1-28`.
 
-* Everything **before** `--` is parsed as **date tokens** and an optional **color**.
+### Colors & The `--` Separator
+
+The script will pull anything that looks like a hex code from the end of the entry and use it for the color token. So `!cal add 1 20-23 Party ABC` will assume ABC is the hex code (grey-blue).
+
+Similarly, it will pull anything that looks like a date token from the front of the name. So `!cal add 7 5 Card Draw` will assume you meant the next Lharvion 5th.
+
+To avoid confusion when your **event name contains numbers** (e.g., “1985 Reunion” or "5 Card Draw" or "Learning ABC") use the `--` separator:
+
+* Everything **before** `--` is parsed as **date tokens**.
 * Everything **after** `--` is treated as the **name**, with **one exception**:
 
   * If the very **last token** after `--` **starts with `#`** and is a valid hex (`#RGB` or `#RRGGBB`), it is used as the **color** and removed from the name.
@@ -220,20 +243,26 @@ To avoid confusion when your **event name contains numbers** (e.g., “1985 Reun
    → Month 8, Day 4, name "The Hunt", color #228B22
 
 !cal addevent 8 4 -- The Hunt 228B22
-   → Month 8, Day 4, name "The Hunt 228B22" (no color)
+   → Month 8, Day 4, name "The Hunt 228B22" (default color)
 
-!cal addevent 25 Payday
-   → Next 25th (one-off), name "Payday" (no color)
+!cal addevent 3 25 1985 Reunion
+   → Month 3, Day 25, Year 1985, name "Reunion" (default color)
 
-!cal addevent all 5 Rent #00FF00
-   → Day 5 of every month, every year, name "Rent", color #00FF00
+!cal addevent 3 25 -- 1985 Reunion
+   → Month 3, Day 25, name "1985 Reunion" (default color)
+
+!cal addevent all 5 1030 Rent 00FF00
+   → Every month, Day 5, year 1030, name "Rent", color #00FF00
+
+!cal addevent all 5 -- 1030 Rent #00FF00
+   → Day 5 of every month, every year, name "1030 Rent", color #00FF00
 ```
 
 ### Color rules
 
-* Colors are sanitized to **#RRGGBB**. Inputs may be `#RGB`, `#RRGGBB`, or their **bare** equivalents (without `#`) **on the date side**.
+* Colors are sanitized to **#RRGGBB**. Inputs may be `#RGB`, `#RRGGBB`, or their **bare** equivalents (without `#`).
 * If you use `--`, **only** a final token that **starts with `#`** is interpreted as a color; **bare hex** after `--` stays in the **event name**.
-* If you omit a color, the event uses the **default** color **`#FF00F2`** (bright pink).
+* If you omit a color, the event uses the **default** color (currently **`#FF00F2`** - bright pink).
 
 ### “Next” semantics (one-offs)
 
