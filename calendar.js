@@ -2,7 +2,7 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // Roll20 API script
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
-// Version: 1.9 (cleaned)
+// Version: 1.9.1 (named-month setdate, today/goto aliases, year labels in events lists)
 
 var Calendar = (function(){
 
@@ -11,47 +11,88 @@ var script_name = 'Calendar';
 var state_name  = 'CALENDAR';
 var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink for events without a defined color.
 var GRADIENT_ANGLE = '45deg'; // Angle for multi-event day gradients.
-var CONTRAST_MIN = 4.5; // Minimum contrast ratio
 var CONTRAST_MIN_HEADER = 4.5; // AA for normal text
 var CONTRAST_MIN_CELL   = 7.0; // AAA-ish goal for tiny day numbers
 
 
-// ---------- Defaults ----------
+// Default Calendar Definitions
 var defaults = {
   current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 },
   weekdays: ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
-  months: [
-    { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" },
-    { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" },
-    { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" },
-    { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" },
-    { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" },
-    { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" },
-    { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" },
-    { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" },
-    { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" },
-    { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" },
-    { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" },
-    { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }
-  ],
-  events: [
-    { name: "Tain Gala",               month: "all",  day: 6,       color: "#F7E7CE" },
-    { name: "Crystalfall",             month: 2,      day: 9,       color: "#87CEEB" },
-    { name: "The Day of Mourning",     month: 2,      day: 20,      color: "#808080" },
-    { name: "Tira's Day",              month: 3,      day: 15,      color: "#F8F8FF" },
-    { name: "Sun's Blessing",          month: 3,      day: 15,      color: "#FFD700" },
-    { name: "Aureon's Crown",          month: 5,      day: 26,      color: "#6A5ACD" },
-    { name: "Brightblade",             month: 6,      day: 12,      color: "#B22222" },
-    { name: "The Race of Eight Winds", month: 7,      day: 23,      color: "#20B2AA" },
-    { name: "The Hunt",                month: 8,      day: 4,       color: "#228B22" },
-    { name: "Fathen's Fall",           month: 8,      day: 25,      color: "#F8F8FF" },
-    { name: "Boldrei's Feast",         month: 9,      day: 9,       color: "#FFB347" },
-    { name: "The Ascension",           month: 10,     day: 1,       color: "#F8F8FF" },
-    { name: "Wildnight",               month: 10,     day: "18-19", color: "#8B0000" },
-    { name: "Thronehold",              month: 11,     day: 11,      color: "#4169E1" },
-    { name: "Long Shadows",            month: 12,     day: "26-28", color: "#0D0D0D" }
-  ]
+  months: [ // Seasons are canon. Colors chosen to match with the moons that share names.
+        { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" }, // Pearly white
+        { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" }, // Pale orange
+        { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" }, // Pale gray
+        { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" }, // Silver-gray
+        { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" }, // Pale lavender
+        { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" }, // Pale yellow
+        { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" }, // Dull white with black slit
+        { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" }, // Pale gray
+        { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" }, // Pale blue
+        { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" }, // Smoky gray
+        { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" }, // Orange-red
+        { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
+    ],
+    events: [ // Eberron-specific events. Colors are not canon, but chosen to match event themes.
+        { name: "Tain Gala",                month: "all",  day: 6,       color: "#F7E7CE", source: "sharn" },           // Champagne Gold
+        { name: "Crystalfall",              month: 2,      day: 9,       color: "#87CEEB", source: "sharn" },           // Sky blue
+        { name: "The Day of Mourning",      month: 2,      day: 20,      color: "#808080", source: "khorvaire" },       // Dead gray mists
+        { name: "Tira's Day",               month: 3,      day: 15,      color: "#F8F8FF", source: "silver flame" },    // Silver flame
+        { name: "Sun's Blessing",           month: 3,      day: 15,      color: "#FFD700", source: "sovereign host" },  // Sun gold
+        { name: "Aureon's Crown",           month: 5,      day: 26,      color: "#6A5ACD", source: "sovereign host" },  // Royal purple
+        { name: "Brightblade",              month: 6,      day: 12,      color: "#B22222", source: "sovereign host" },  // Firebrick red
+        { name: "The Race of Eight Winds",  month: 7,      day: 23,      color: "#20B2AA", source: "sharn" },           // Sky blue-green
+        { name: "The Hunt",                 month: 8,      day: 4,       color: "#228B22", source: "sovereign host" },  // Forest green
+        { name: "Fathen's Fall",            month: 8,      day: 25,      color: "#D8DDE0", source: "silver flame" },    // Silver flame
+        { name: "Boldrei's Feast",          month: 9,      day: 9,       color: "#FFB347", source: "sovereign host" },  // Hearth orange
+        { name: "The Ascension",            month: 10,     day: 1,       color: "#D8DDE0", source: "silver flame" },    // Silver flame
+        { name: "Wildnight",                month: 10,     day: "18-19", color: "#8B0000", source: "dark six" },        // Dark red of the Fury
+        { name: "Thronehold",               month: 11,     day: 11,      color: "#4169E1", source: "khorvaire" },       // Royal blue
+        { name: "Long Shadows",             month: 12,     day: "26-28", color: "#0D0D0D" }                             // Midnight black
+    ]
 };
+
+// ---- Color names + palette ----
+var NAMED_COLORS = {
+  red:'#E53935', tomato:'#EF5350', coral:'#FF7043', orange:'#F4511E', amber:'#FFB300', gold:'#F6BF26', yellow:'#FDD835',
+  lime:'#7CB342', olive:'#C0CA33', green:'#43A047', forest:'#228B22', mint:'#66BB6A',
+  teal:'#00897B', turquoise:'#26A69A', aqua:'#00ACC1', cyan:'#29B6F6', sky:'#039BE5', azure:'#1E88E5', blue:'#3949AB', navy:'#0D47A1',
+  indigo:'#3949AB', violet:'#7E57C2', purple:'#5E35B1', plum:'#AB47BC', magenta:'#8E24AA', fuchsia:'#D81B60', pink:'#EC407A', rose:'#D81B60', crimson:'#D81B60',
+  brown:'#6D4C41', chocolate:'#795548', tan:'#8D6E63', espresso:'#5D4037',
+  slate:'#607D8B', steel:'#78909C', gray:'#9E9E9E', grey:'#9E9E9E', silver:'#C0C0C0', black:'#000000', white:'#FFFFFF'
+};
+
+// A 32-color “box of markers/crayons” palette (distinct, readable)
+var PALETTE = [
+  '#E53935','#EF5350','#FF7043','#F4511E',
+  '#FFB300','#F6BF26','#FDD835','#C0CA33',
+  '#7CB342','#66BB6A','#43A047','#228B22',
+  '#26A69A','#00897B','#00ACC1','#29B6F6',
+  '#039BE5','#1E88E5','#3949AB','#0D47A1',
+  '#5E35B1','#7E57C2','#8E24AA','#AB47BC',
+  '#D81B60','#EC407A','#6D4C41','#8D6E63',
+  '#795548','#5D4037','#607D8B','#78909C'
+];
+
+// Resolve either a hex like "#abc" / "#A1B2C3" or a color name like "teal" → "#00897B"
+function resolveColor(s){
+  if (!s) return null;
+  var hex = sanitizeHexColor(s);
+  if (hex) return hex;
+  var key = String(s).trim().toLowerCase();
+  return NAMED_COLORS[key] || null;
+}
+
+// Stable hash → consistent palette index per event name
+function _stableHash(str){
+  var h = 5381; str = String(str||'');
+  for (var i=0;i<str.length;i++){ h = ((h<<5)+h) + str.charCodeAt(i); h|=0; }
+  return Math.abs(h);
+}
+function autoColorForEvent(e){
+  return PALETTE[_stableHash(e && e.name) % PALETTE.length];
+}
+
 
 // ---------- Core state / install ----------
 function resetToDefaults(){
@@ -96,7 +137,7 @@ function checkInstall(){
           month: m,
           day: e.day,
           year: null,
-          color: sanitizeHexColor(e.color) || null
+ color: resolveColor(e.color) || null
         });
       });
     });
@@ -114,7 +155,7 @@ function checkInstall(){
         month: m,
         day: e.day,
         year: yr,
-        color: sanitizeHexColor(e.color) || null
+color: resolveColor(e.color) || null
       };
     });
 
@@ -122,7 +163,7 @@ function checkInstall(){
     var defColorByKey = {};
     var lim2 = Math.max(1, cal.months.length);
     defaults.events.forEach(function(de){
-      var col = sanitizeHexColor(de.color) || null;
+ var col = resolveColor(de.color) || null;
       if (String(de.month).toLowerCase() === 'all') {
         for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
       } else {
@@ -172,7 +213,7 @@ function refreshCalendarState(silent){
       month: m,
       day: daySpec,
       year: yr,
-      color: sanitizeHexColor(e.color) || null
+color: resolveColor(e.color) || null
     };
   });
 
@@ -196,7 +237,12 @@ function sanitizeHexColor(s){
   if(/^[0-9a-f]{6}$/i.test(hex)) return '#'+hex.toUpperCase();
   return null;
 }
-function getEventColor(e){ return sanitizeHexColor(e.color) || EVENT_DEFAULT_COLOR; }
+function getEventColor(e){
+  return resolveColor(e && e.color) || autoColorForEvent(e) || EVENT_DEFAULT_COLOR;
+}
+
+function isColorToken(tok){ return !!resolveColor(tok); }
+
 function esc(s){
   if (s == null) return '';
   return String(s)
@@ -225,8 +271,19 @@ function makeDayMatcher(spec){
   }
   return function(){ return false; };
 }
+
+function normalizeEvent(e, monthsLen, daysInMonth){
+  return {
+    name: String(e.name||''),
+    month: clamp(parseInt(e.month,10)||1, 1, monthsLen),
+    day: normalizeDaySpec(e.day, daysInMonth) || String(firstNumFromDaySpec(e.day)),
+    year: isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null,
+    color: resolveColor(e.color) || null
+  };
+}
+
 function _normalizeCols(cols){
-  cols = (cols || []).map(sanitizeHexColor).filter(Boolean);
+  cols = (cols || []).map(resolveColor).filter(Boolean);
   if (!cols.length) cols = ['#888888'];
   if (cols.length > 3) cols = cols.slice(0, 3);
   return cols;
@@ -264,13 +321,7 @@ function _pickTextAndWorst(cols){
   return { text:'#fff', worstBg:cols[worstW], minContrast:minW };
 }
 function textColorForBg(bgHex){ return _contrast(bgHex, '#000') >= _contrast(bgHex, '#fff') ? '#000' : '#fff'; }
-function outlineIfNeeded(textColor, bgHex){
-  var ratio = _contrast(bgHex, textColor);
-  if (ratio >= CONTRAST_MIN) return '';
-  return (textColor === '#fff')
-    ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
-    : 'text-shadow:-0.5px -0.5px 0 #fff,0.5px -0.5px 0 #fff,-0.5px 0.5px 0 #fff,0.5px 0.5px 0 #fff;';
-}
+
 function outlineIfNeededMin(textColor, bgHex, minTarget){
   var ratio = _contrast(bgHex, textColor);
   if (ratio >= (minTarget||CONTRAST_MIN_HEADER)) return '';
@@ -281,7 +332,8 @@ function outlineIfNeededMin(textColor, bgHex, minTarget){
 }
 function styleForBg(style, bgHex, minTarget){
   var t = textColorForBg(bgHex);
-  style += 'background-color:'+bgHex+';';  // was: background:
+  style += 'background-color:'+bgHex+';';
+  style += 'background-clip:padding-box;';
   style += 'color:'+t+';';
   style += outlineIfNeededMin(t, bgHex, (minTarget||CONTRAST_MIN_HEADER));
   return style;
@@ -297,8 +349,8 @@ function styleForGradient(style, cols, minTarget){
   style += 'background-color:'+cols[0]+';';
   style += 'background-image:'+_gradientFor(cols)+';';
   style += 'background-repeat:no-repeat;background-size:100% 100%;';
+  style += 'background-clip:padding-box;';
   style += 'color:'+pick.text+';';
-  // IMPORTANT bug fix: pass the WORST background color, not the number
   style += outlineIfNeededMin(pick.text, pick.worstBg, (minTarget||CONTRAST_MIN_CELL));
   return style;
 }
@@ -358,8 +410,8 @@ function nextForMonthDay(cur, mIndex, d){
   if (serialCand >= serialNow) return { year: cur.year };
   return { year: cur.year + 1 };
 }
-function swatchHtml(hex){
-  var col = sanitizeHexColor(hex) || EVENT_DEFAULT_COLOR;
+function swatchHtml(colLike){
+  var col = resolveColor(colLike) || EVENT_DEFAULT_COLOR;
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 }
 function sendToAll(html){ sendChat(script_name, '/direct ' + html); }
@@ -404,7 +456,8 @@ function mergeInNewDefaultEvents(cal){
       var normDay = normalizeDaySpec(de.day, maxD) || String(firstNumFromDaySpec(de.day));
       var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
       if (!have[key] && !suppressed[key]) {
-        cal.events.push({ name: String(de.name||''), month: m, day: normDay, year: null, color: sanitizeHexColor(de.color) || null });
+        cal.events.push({ name: String(de.name||''), month: m, day: normDay, year: null, color: resolveColor(de.color) || null
+ });
         have[key] = 1;
       }
     });
@@ -447,8 +500,6 @@ function _levenshtein(a,b){
 }
 
 // Common short forms / frequent typos you might see in play chat.
-// We map a few normalized strings to their target month index resolver.
-// (We’ll also accept 3-letter prefixes & near-levenshtein matches.)
 var MONTH_SYNONYMS = {
   zarantyr: 'zarantyr', zarantir: 'zarantyr', zar: 'zarantyr',
   olarune: 'olarune', olarun: 'olarune', olar: 'olarune', ola: 'olarune',
@@ -499,7 +550,7 @@ function _fuzzyMonthIndex(rawTok){
     for (var j=0;j<norm.length;j++){ if (norm[j]===nsyn) return j; }
   }
 
-  // 3) 3-letter abbreviation == match (users often type "dra", "ary", etc.)
+  // 3) 3-letter abbreviation == match
   if (ntok.length===3){
     for (var k=0;k<abbr.length;k++){ if (abbr[k]===ntok) return k; }
   }
@@ -508,12 +559,10 @@ function _fuzzyMonthIndex(rawTok){
   var bestIdx=-1, bestDist=1e9;
   for (var t=0;t<norm.length;t++){
     var d = _levenshtein(ntok, norm[t]);
-    // prefer prefix-ish by giving them a small bonus
     if (norm[t].indexOf(ntok)===0) d = Math.min(d, 1);
     if (d<bestDist){ bestDist=d; bestIdx=t; }
   }
 
-  // Thresholds: short strings must be really close; longer strings can be off by 2–3.
   var len = ntok.length;
   var maxDist = (len<=3) ? 1 : (len<=5 ? 2 : 3);
 
@@ -573,7 +622,7 @@ function monthEventsHtml(mi, today){
   evs.forEach(function(e){
     var dayLabel = esc(String(e.day));
     var isToday  = makeDayMatcher(e.day)(today);
-    var swatch   = swatchHtml(e.color);
+ var swatch = swatchHtml(getEventColor(e));
     rows.push('<div' + (isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"') +
               '>' + swatch + mName + ' ' + dayLabel + ': ' + esc(e.name) + '</div>');
   });
@@ -584,7 +633,7 @@ function renderMiniCal(mi, yearLabel){
   var wd = cal.weekdays, mObj = cal.months[mi], md = mObj.days;
   var monthColor = mObj.color || '#eee';
   var textColor = textColorForBg(monthColor);
-var outline = outlineIfNeededMin(textColor, monthColor, CONTRAST_MIN_HEADER);
+  var outline = outlineIfNeededMin(textColor, monthColor, CONTRAST_MIN_HEADER);
   var first = (typeof yearLabel === 'number') ? weekdayIndexForYear(yearLabel, mi, 1) : weekdayIndexFor(mi, 1);
   var html = ['<table style="'+STYLES.table+'">'];
   html.push(
@@ -611,13 +660,13 @@ var outline = outlineIfNeededMin(textColor, monthColor, CONTRAST_MIN_HEADER);
         var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
         if (todays.length >= 2){
           var cols = todays.slice(0,3).map(getEventColor);
-style = styleForGradient(style, cols, CONTRAST_MIN_CELL);
+          style = styleForGradient(style, cols, CONTRAST_MIN_CELL);
           if (isToday){ style = _applyTodayStyle(style); }
         } else if (evObj){
-style = styleForBg(style, getEventColor(evObj), CONTRAST_MIN_CELL);
+          style = styleForBg(style, getEventColor(evObj), CONTRAST_MIN_CELL);
           if (isToday){ style = _applyTodayStyle(style); }
         } else if (isToday){
-style = styleForBg(style, monthColor, CONTRAST_MIN_CELL);
+          style = styleForBg(style, monthColor, CONTRAST_MIN_CELL);
           style = _applyTodayStyle(style);
         }
         html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div></td>');
@@ -691,17 +740,17 @@ function occurrencesInRange(startSerial, endSerial){
   occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
   return occ;
 }
-function eventsListHTMLForRange(title, startSerial, endSerial){
+function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var today = todaySerial();
   var occ = occurrencesInRange(startSerial, endSerial);
-  var includeYear = (Math.floor(startSerial/daysPerYear()) !== Math.floor(endSerial/daysPerYear()));
+  var includeYear = forceYearLabel || (Math.floor(startSerial/daysPerYear()) !== Math.floor(endSerial/daysPerYear()));
   var out = ['<div style="margin:4px 0;"><b>'+esc(title)+'</b></div>'];
   if (!occ.length){ out.push('<div style="opacity:.7;">No events in this range.</div>'); return out.join(''); }
   for (var i=0;i<occ.length;i++){
-    var o = occ[i], sw = swatchHtml(o.e.color);
+ var o = occ[i], sw = swatchHtml(getEventColor(o.e));
     var isToday = (o.serial === today);
     var dateLbl = formatDateLabel(o.y, o.m, o.d, includeYear);
-    out.push('<div'+(isToday?' style="font-weight:bold;margin:2px 0;"':' style="margin:2px 0;"')+'>'+ sw + dateLbl + ': ' + esc(o.e.name) + '</div>');
+    out.push('<div'+(isToday?' style="font-weight:bold;margin:2px 0;"':' style="margin:2px 0;"')+'>'+ sw + ' ' + dateLbl + ': ' + esc(o.e.name) + '</div>');
   }
   return out.join('');
 }
@@ -718,7 +767,7 @@ function sendCurrentDate(to, gmOnly){
   ];
   publicMsg.push(monthEventsHtml(c.month, c.day_of_the_month));
   publicMsg.push('<div style="margin-top:8px;"></div>');
-  publicMsg.push('<div>Season: '+mSeason+'</div>');
+  publicMsg.push('<div>Month: '+monthCount+', '+mSeason+'</div>');
   if (gmOnly){ sendToGM(publicMsg.join('')); }
   else if (to){ whisper(to, publicMsg.join('')); }
   else { sendToAll(publicMsg.join('')); }
@@ -728,6 +777,7 @@ function buildHelpHtml(isGM){
   var common = [
     '<div style="margin:4px 0;"><b>Basic Commands</b></div>',
     '<div>• <code>!cal</code> or <code>!cal show</code></div>',
+    '<div>• <code>!cal today</code> (alias of current month)</div>',
     '<div>• <code>!cal year</code></div>',
     '<div>• <code>!cal events</code></div>',
     '<div style="height:12px"></div>',
@@ -744,6 +794,7 @@ function buildHelpHtml(isGM){
       '<div style="margin-left:1.8em;opacity:.85;"><i><code>next</code> = next month or calendar year.</i></div>',
       '<div style="margin-left:1.8em;opacity:.85;"><i><code>upcoming</code> = rolling window.</i></div>',
     '<div style="height:12px"></div>',
+    '<div>• <code>!cal events list [month|year|next|upcoming]</code></div>',
     '<div>• <code>!cal help</code></div>'
   ];
   if (!isGM) return common.join('');
@@ -751,15 +802,15 @@ function buildHelpHtml(isGM){
     '<div style="margin-top:10px;"><b>Date Management</b></div>',
     '<div>• <code>!cal advanceday</code></div>',
     '<div>• <code>!cal retreatday</code></div>',
-    '<div>• <code>!cal setdate [MM] DD [YYYY]</code></div>',
+    '<div>• <code>!cal setdate [MM] DD [YYYY]</code> or <code>!cal setdate &lt;MonthName&gt; DD [YYYY]</code></div>',
     '<div style="height:12px"></div>',
     '<div>• <code>!cal senddate</code> — broadcast current month</div>',
     '<div>• <code>!cal sendyear</code> — broadcast full year</div>',
     '<div style="height:12px"></div>',
     '<div style="margin-top:10px;"><b>Event Management</b></div>',
-    '<div>• <code>!cal addevent [MM] DD [YYYY] name hex</code></div>',
-    '<div>• <code>!cal addmonthly DD name hex</code></div>',
-    '<div>• <code>!cal addannual MM DD name hex</code></div>',
+    '<div>• <code>!cal addevent [MM] DD [YYYY] [color-name|#hex]</code></div>',
+    '<div>• <code>!cal addmonthly DD [color-name|#hex]</code></div>',
+    '<div>• <code>!cal addannual MM DD [color-name|#hex]</code></div>',
     '<div>• <code>!cal addnext</code></div>',
     '<div style="margin-left:1.8em;">• Tip: if your event name starts or ends with numbers, use <code>-- [name] #[hex]</code></div>',
     '<div style="margin-left:1.8em;">• e.g. <code>!cal addevent 3 14 -- 1985 #ABCDEF</code>.</div>',
@@ -812,7 +863,7 @@ function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   var maxD = cal.months[m-1].days|0;
   var normDay = normalizeDaySpec(daySpec, maxD);
   if (!normDay) return false;
-  var col = sanitizeHexColor(color) || null;
+var col = resolveColor(color) || null;
   var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
   var key = eventKey(e);
   var exists = cal.events.some(function(ev){ return eventKey(ev)===key; });
@@ -822,7 +873,6 @@ function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   return true;
 }
 function parseIntSafe(x){ var n=parseInt(x,10); return isFinite(n)?n:null; }
-function isHexColorToken(tok){ return !!sanitizeHexColor(tok); }
 function isListToken(tok){ return /^all$/i.test(tok) || /^[0-9,\-\s]+$/.test(tok); }
 function parseIntList(token, minV, maxV){
   if (!token) return [];
@@ -864,16 +914,17 @@ function parseDaySpecList(token, maxDays){
   return out;
 }
 function addEventSmart(tokens){
-  var cal = getCal(), cur = cal.current, monthsLen = cal.months.length;
+  var cal = getCal(), cur = cal.current;
   if (!tokens || !tokens.length){ warnGM('Usage: <code>!cal addevent [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>'); return; }
   var sepIdx = tokens.indexOf('--'), forcedNameTokens = null;
   if (sepIdx !== -1){ forcedNameTokens = tokens.slice(sepIdx+1); tokens = tokens.slice(0, sepIdx); }
-  var color = null;
-  if (tokens.length && isHexColorToken(tokens[tokens.length-1])) { color = sanitizeHexColor(tokens.pop()); }
-  else if (forcedNameTokens && forcedNameTokens.length) {
-    var maybe = forcedNameTokens[forcedNameTokens.length-1];
-    if (/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(maybe)) { color = sanitizeHexColor(maybe); forcedNameTokens.pop(); }
-  }
+var color = null;
+if (tokens.length && isColorToken(tokens[tokens.length-1])) {
+  color = resolveColor(tokens.pop());
+} else if (forcedNameTokens && forcedNameTokens.length) {
+  var maybe = forcedNameTokens[forcedNameTokens.length-1];
+  if (isColorToken(maybe)) { color = resolveColor(maybe); forcedNameTokens.pop(); }
+}
   var forcedName = forcedNameTokens ? forcedNameTokens.join(' ').trim() : null;
   var dateToks = [];
   while (dateToks.length<3 && tokens.length && isListToken(tokens[0])){ dateToks.push(tokens.shift()); }
@@ -890,7 +941,14 @@ function addEventSmart(tokens){
     if (singleDay != null && /^[0-9]+$/.test(dayTok)){
       var nextMY = nextForDayOnly(cur, singleDay, monthCount);
       var di = clamp(singleDay, 1, cal.months[nextMY.month].days);
-      _addConcreteEvent(nextMY.month+1, String(di), nextMY.year, rawName, color);
+      var ok1 = _addConcreteEvent(nextMY.month+1, String(di), nextMY.year, rawName, color);
+      if (ok1){
+        refreshCalendarState(true);
+        sendCurrentDate(null, true);
+        warnGM('Added 1 event.');
+      } else {
+        warnGM('No event added (duplicate or invalid).');
+      }
       return;
     } else {
       monthsSpec = parseIntList('all', 1, monthCount);
@@ -906,7 +964,14 @@ function addEventSmart(tokens){
       var mi = clamp(singleM, 1, monthCount) - 1;
       var nextY = nextForMonthDay(cur, mi, singleD).year;
       var di2 = clamp(singleD, 1, cal.months[mi].days);
-      _addConcreteEvent(mi+1, String(di2), nextY, rawName, color);
+      var ok2 = _addConcreteEvent(mi+1, String(di2), nextY, rawName, color);
+      if (ok2){
+        refreshCalendarState(true);
+        sendCurrentDate(null, true);
+        warnGM('Added 1 event.');
+      } else {
+        warnGM('No event added (duplicate or invalid).');
+      }
       return;
     }
     monthsSpec = monthsBulk;
@@ -1107,7 +1172,7 @@ function gmButtonsHtml(){ return [
   '[⏭ Advance Day](!cal advanceday)',
   '[⏮ Retreat Day](!cal retreatday)',
   '[❔ Help](!cal help)'
-].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join(''); } // (kept here intentionally)
+].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join(''); }
 
 // Tiny normalizers used by parseTimeSpec / routing
 function _normalizePackedWords(q){
@@ -1119,21 +1184,40 @@ function _normalizePackedWords(q){
     .replace(/\bcurrentmonth\b/g, 'month')
     .replace(/\bthismonth\b/g, 'month')
     .replace(/\bthisyear\b/g, 'year')
+    .replace(/\bnext-month\b/g,'next month')
+    .replace(/\bnext-year\b/g,'next year')
+    .replace(/\bupcoming-month\b/g,'upcoming month')
+    .replace(/\bupcoming-year\b/g,'upcoming year')
     .trim();
 }
 function normalizeSubcommand(sub){ return String(sub||'').toLowerCase(); }
 
 function parseTimeSpec(tokens){
-  var q = tokens.join(' ').toLowerCase().replace(/\s+/g,' ').trim();
+  var raw = tokens.join(' ');
+  var q = raw.toLowerCase().replace(/\s+/g,' ').trim();
   q = _normalizePackedWords(q);
+
+  // NEW: today alias
+  if (q === 'today') return { kind:'currentMonth' };
+
+  // NEW: goto <month> [year]
+  if (q.indexOf('goto ') === 0){
+    var after = q.slice(5).trim();
+    var toks = after.split(/\s+/).filter(Boolean);
+    var my = parseMonthYearTokens(toks);
+    if (my) return { kind:'monthYear', mi:my.mi, year:my.year };
+    var miOnly = monthIndexByName(after);
+    if (miOnly !== -1) return { kind:'nextOccurrenceOfMonth', mi:miOnly };
+  }
+
   if (!q || q === 'month' || q === 'current')          return { kind:'currentMonth' };
   if (q === 'year' || q === 'current year')            return { kind:'currentYear' };
   if (q === 'next' || q === 'next month')              return { kind:'nextMonth' };
   if (q === 'next year')                               return { kind:'nextYear' };
   if (q === 'upcoming year')                           return { kind:'rollingYear' };
   if (q === 'upcoming' || q === 'upcoming month')      return { kind:'autoUpcomingMonth' };
-  var my = parseMonthYearTokens(tokens);
-  if (my) return { kind:'monthYear', mi:my.mi, year:my.year };
+  var my2 = parseMonthYearTokens(tokens);
+  if (my2) return { kind:'monthYear', mi:my2.mi, year:my2.year };
   var yNum = parseInt(q,10);
   if (String(yNum) === q && isFinite(yNum)) return { kind:'yearNumber', year:yNum };
   var mi = monthIndexByName(q);
@@ -1234,13 +1318,15 @@ function runShowSpec(who, spec){
   sendCurrentDate(who);
 }
 function runEventsSpec(who, spec, broadcast){
+  // NEW: force year labels for year-spanning views
+  var forceYear = (spec.kind === 'currentYear' || spec.kind === 'nextYear' || spec.kind === 'yearNumber');
   if (spec.kind === 'rollingDays'){
     var r0 = rangeFromSpec(spec);
-    var html0 = eventsListHTMLForRange(r0.title, r0.start, r0.end);
+    var html0 = eventsListHTMLForRange(r0.title, r0.start, r0.end, forceYear);
     return broadcast ? sendToAll(html0) : whisper(who, html0);
   }
   var r = rangeFromSpec(spec);
-  var html = eventsListHTMLForRange(r.title, r.start, r.end);
+  var html = eventsListHTMLForRange(r.title, r.start, r.end, forceYear);
   return broadcast ? sendToAll(html) : whisper(who, html);
 }
 function runSendShow(spec){
@@ -1294,7 +1380,11 @@ var argPresets = {
 
   // SEND
   senddate:  { target: 'send',   inject: ['date'] },
-  sendyear:  { target: 'send',   inject: ['year'] }
+  sendyear:  { target: 'send',   inject: ['year'] },
+
+  // NEW aliases
+  today:     { target: '',       inject: [] },
+  goto:      { target: 'show',   inject: [] }
 };
 
 var commandAliases = {}; // (kept for future)
@@ -1324,6 +1414,7 @@ var commands = {
     var spec = parseTimeSpec(args);
     runShowSpec(m.who, spec);
   },
+  
   // Unified EVENTS: add/remove/restore (GM), or list windows (all)
   events: function(m, a){
     var args = a.slice(2);
@@ -1368,7 +1459,12 @@ var commands = {
   advanceday: { gm:true, run:function(){ advanceDay(); } },
   retreatday: { gm:true, run:function(){ retreatDay(); } },
   setdate: { gm:true, run:function(m,a){
-    if (a.length < 3) { whisper(m.who, 'Usage: <code>!cal setdate [MM] DD [YYYY]</code>'); return; }
+    // Accepts:
+    //   !cal setdate [MM] DD [YYYY]
+    //   !cal setdate <MonthName> DD [YYYY]   <-- NEW
+    if (a.length < 3) { whisper(m.who, 'Usage: <code>!cal setdate [MM] DD [YYYY]</code> or <code>!cal setdate &lt;MonthName&gt; DD [YYYY]</code>'); return; }
+
+    // Branch 1: numeric "[MM] DD [YYYY?]" forms handled first (existing behavior)
     if (a.length === 3 && /^\d+$/.test(a[2])) {
       var cal = getCal(), cur = cal.current, months = cal.months;
       var day = parseInt(a[2],10)|0;
@@ -1377,15 +1473,31 @@ var commands = {
       setDate(next.month + 1, d, next.year);
       return;
     }
-    if (a.length === 4 && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) {
+    if (a.length >= 4 && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) {
       var cal2 = getCal(), cur2 = cal2.current, months2 = cal2.months;
-      var mi = clamp(parseInt(a[2],10), 1, months2.length) - 1;
-      var dd = parseInt(a[3],10)|0;
-      var next2 = nextForMonthDay(cur2, mi, dd);
-      var d2 = clamp(dd, 1, months2[mi].days);
-      setDate(mi + 1, d2, next2.year);
+      var miNum = clamp(parseInt(a[2],10), 1, months2.length) - 1;
+      var ddNum = parseInt(a[3],10)|0;
+      var next2 = nextForMonthDay(cur2, miNum, ddNum);
+      var d2 = clamp(ddNum, 1, months2[miNum].days);
+      var yOverride = (a[4] && /^\d+$/.test(a[4])) ? (parseInt(a[4],10)|0) : next2.year;
+      setDate(miNum + 1, d2, yOverride);
       return;
     }
+
+    // Branch 2 (NEW): named month + day [+ optional year]
+    var mTok = a[2], dTok = a[3], yTok = a[4];
+    var maybeMi = monthIndexByName(mTok);
+    if (maybeMi !== -1 && /^\d+$/.test(dTok)) {
+      var calZ = getCal(), curZ = calZ.current, monthsZ = calZ.months;
+      var dd = parseInt(dTok,10)|0;
+      var nextZ = nextForMonthDay(curZ, maybeMi, dd);
+      var d3 = clamp(dd, 1, monthsZ[maybeMi].days);
+      var y3 = (yTok && /^\d+$/.test(yTok)) ? (parseInt(yTok,10)|0) : nextZ.year;
+      setDate(maybeMi + 1, d3, y3);
+      return;
+    }
+
+    // Fallback: keep old permissive behavior (may be invalid)
     setDate(a[2], a[3], a[4]);
   }},
   send: { gm:true, run:function(m,a){
@@ -1398,6 +1510,7 @@ var commands = {
     var spec = parseTimeSpec(args);
     return runSendShow(spec);
   }},
+  
   senddate: { gm:true, run:function(){ sendCurrentDate(); } },
   sendyear: { gm:true, run:function(){ sendToAll(yearHTML()); } },
 
@@ -1406,18 +1519,22 @@ var commands = {
       whisper(m.who, 'Usage: <code>!cal addmonthly &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
       return;
     }
-    var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
-    var nameTokens = hasColor ? a.slice(3,a.length-1) : a.slice(3);
-    addMonthly(a[2], nameTokens, hasColor?maybeColor:null);
+var maybeColor = a[a.length-1],
+    hasColor   = isColorToken(maybeColor);
+var nameTokens = hasColor ? a.slice(3, a.length-1) : a.slice(3);
+addMonthly(a[2], nameTokens, hasColor ? maybeColor : null);
+
   }},
   addannual: { gm:true, run:function(m,a){
     if (a.length < 5){
       whisper(m.who, 'Usage: <code>!cal addannual &lt;month|list|all&gt; &lt;day|range|list|all&gt; &lt;name...&gt; [#hex]</code>');
       return;
     }
-    var maybeColor=a[a.length-1], hasColor=!!sanitizeHexColor(maybeColor);
-    var nameTokens = hasColor ? a.slice(4,a.length-1) : a.slice(4);
-    addAnnual(a[2], a[3], nameTokens, hasColor?maybeColor:null);
+var maybeColor = a[a.length-1],
+    hasColor   = isColorToken(maybeColor);
+var nameTokens = hasColor ? a.slice(4, a.length-1) : a.slice(4);
+addAnnual(a[2], a[3], nameTokens, hasColor ? maybeColor : null);
+
   }},
   addnext: { gm:true, run:function(m,a){
     if (a.length < 4){
@@ -1430,7 +1547,8 @@ var commands = {
   resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } }
 };
 
-// ---------- Date mutators ----------
+// ---------- Date Management ----------
+
 function advanceDay(){
   var cal=getCal(), cur=cal.current;
   cur.day_of_the_month++;
@@ -1442,6 +1560,7 @@ function advanceDay(){
   cur.day_of_the_week = (cur.day_of_the_week + 1) % cal.weekdays.length;
   sendCurrentDate(null,true);
 }
+
 function retreatDay(){
   var cal=getCal(), cur=cal.current;
   cur.day_of_the_month--;
@@ -1453,6 +1572,7 @@ function retreatDay(){
   cur.day_of_the_week = (cur.day_of_the_week + cal.weekdays.length - 1) % cal.weekdays.length;
   sendCurrentDate(null,true);
 }
+
 function setDate(m, d, y){
   var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
