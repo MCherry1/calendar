@@ -1337,6 +1337,13 @@ function _monthsFromRangeSpec(spec){
 function buildCalendarsHtmlForSpec(spec){
   var months = _monthsFromRangeSpec(spec);
   var out = ['<div style="text-align:left;">'];
+
+  // For quick “is this month already shown?” checks
+  var present = {};
+  for (var i=0;i<months.length;i++){
+    present[ months[i].y + '|' + months[i].mi ] = 1;
+  }
+
   var cur = getCal().current;
   var todaySer = todaySerial();
   var todayInRange = (todaySer >= spec.start && todaySer <= spec.end);
@@ -1345,30 +1352,37 @@ function buildCalendarsHtmlForSpec(spec){
     var m = months[i];
     var isCurrentMonth = (m.y === cur.year && m.mi === cur.month);
 
-    // If we’re at the very beginning of the current month, prepend previous-month strip
+    // If we’re within the first 5 days of the *current* month,
+    // prepend the previous-month strip — but only if that month isn’t already shown.
     if (isCurrentMonth && cur.day_of_the_month <= 5){
       var prevMi = (cur.month + getCal().months.length - 1) % getCal().months.length;
       var prevY  = cur.year - (cur.month === 0 ? 1 : 0);
-      out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
-               renderMonthEdgeStrip(prevY, prevMi, 'prev') + '</div>');
+      if (!present[prevY + '|' + prevMi]) {
+        out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+                 renderMonthEdgeStrip(prevY, prevMi, 'prev') + '</div>');
+      }
     }
 
-    // Main month tile (dimming only if the range includes today)
+    // Main month (dim past only if the requested range includes today)
     out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
              renderMiniCal(m.mi, m.y, /*dimPast*/ todayInRange) + '</div>');
 
-    // If we’re at the very end of the current month, append next-month strip
-    if (isCurrentMonth && cur.day_of_the_month >= (getCal().months[cur.month].days|0) - 4){
+    // If we’re within the last 5 days of the *current* month,
+    // append the next-month strip — but only if that month isn’t already shown.
+    if (isCurrentMonth && cur.day_of_the_month >= ((getCal().months[cur.month].days|0) - 4)){
       var nextMi = (cur.month + 1) % getCal().months.length;
       var nextY  = cur.year + (nextMi === 0 ? 1 : 0);
-      out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
-               renderMonthEdgeStrip(nextY, nextMi, 'next') + '</div>');
+      if (!present[nextY + '|' + nextMi]) {
+        out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+                 renderMonthEdgeStrip(nextY, nextMi, 'next') + '</div>');
+      }
     }
   }
 
   out.push('</div>');
   return out.join('');
 }
+
 
 
 function runShowUsingUnifiedRange(who, args){
