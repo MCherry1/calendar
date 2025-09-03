@@ -2,7 +2,7 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // Roll20 API script
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
-// Version: 1.10
+// Version: 1.12 (range-aware dimming + edge-strip behavior)
 
 var Calendar = (function(){
 
@@ -54,13 +54,34 @@ var defaults = {
 
 // ---- Color names + palette ----
 var NAMED_COLORS = {
-  red:'#E53935', tomato:'#EF5350', coral:'#FF7043', orange:'#F4511E', amber:'#FFB300', gold:'#F6BF26', yellow:'#FDD835',
-  lime:'#7CB342', olive:'#C0CA33', green:'#43A047', forest:'#228B22', mint:'#66BB6A',
-  teal:'#00897B', turquoise:'#26A69A', aqua:'#00ACC1', cyan:'#29B6F6', sky:'#039BE5', azure:'#1E88E5', blue:'#3949AB', navy:'#0D47A1',
-  indigo:'#3949AB', violet:'#7E57C2', purple:'#5E35B1', plum:'#AB47BC', magenta:'#8E24AA', fuchsia:'#D81B60', pink:'#EC407A', rose:'#D81B60', crimson:'#D81B60',
+  // reds
+  red:'#E53935',  scarlet:'#FF2400',  crimson:'#D81B60',  ruby:'#C2185B', maroon:'#800000', tomato:'#EF5350', coral:'#FF7043',  salmon:'#FA8072',
+  // oranges / ambers
+  orange:'#F4511E', amber:'#FFB300', apricot:'#FBCEB1', peach:'#FFCBA4',
+  // yellows
+  yellow:'#FDD835', gold:'#F6BF26', lemon:'#FFF44F', khaki:'#F0E68C',
+  // limes / greens
+  lime:'#7CB342', olive:'#C0CA33', green:'#43A047', forest:'#228B22', emerald:'#2E8B57',
+  mint:'#66BB6A', jade:'#00A86B', chartreuse:'#7FFF00',
+  // teals / cyans / aquas
+  teal:'#00897B', turquoise:'#26A69A', aqua:'#00ACC1', cyan:'#29B6F6',
+  // blues
+  sky:'#039BE5', azure:'#1E88E5', blue:'#3949AB', navy:'#0D47A1', cobalt:'#0047AB',
+  indigo:'#3949AB',
+  // violets / purples
+  violet:'#7E57C2', purple:'#5E35B1', plum:'#AB47BC', magenta:'#8E24AA', fuchsia:'#D81B60',
+  lavender:'#E6E6FA', lilac:'#C8A2C8',
+  // pinks / roses
+  pink:'#EC407A', rose:'#D81B60', hotpink:'#FF69B4',
+  // browns / tans
   brown:'#6D4C41', chocolate:'#795548', tan:'#8D6E63', espresso:'#5D4037',
-  slate:'#607D8B', steel:'#78909C', gray:'#9E9E9E', grey:'#9E9E9E', silver:'#C0C0C0', black:'#000000', white:'#FFFFFF'
+  // grays
+  slate:'#607D8B', steel:'#78909C', gray:'#9E9E9E', grey:'#9E9E9E', silver:'#C0C0C0',
+  charcoal:'#36454F', smoke:'#708090',
+  // black/white
+  black:'#000000', white:'#FFFFFF', ivory:'#FFFFF0', snow:'#FFFAFA'
 };
+
 
 // A 32-color “box of markers/crayons” palette (distinct, readable)
 var PALETTE = [
@@ -96,6 +117,7 @@ function resetToDefaults(){
   sendChat(script_name, '/w gm Calendar state wiped and reset to defaults.');
   sendCurrentDate(null, true);
 }
+
 function checkInstall(){
   if(!state[state_name]) state[state_name] = {};
 
@@ -108,6 +130,8 @@ function checkInstall(){
   if (!state[state_name].suppressedDefaults) {
     state[state_name].suppressedDefaults = {}; // key → 1
   }
+
+  if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
 
   var cal = state[state_name].calendar;
   if (!cal.current) cal.current = { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 };
@@ -130,7 +154,8 @@ function checkInstall(){
           month: m,
           day: e.day,
           year: null,
-          color: resolveColor(e.color) || null
+          color: resolveColor(e.color) || null,
+          source: (e.source != null) ? String(e.source) : null
         });
       });
     });
@@ -148,7 +173,8 @@ function checkInstall(){
         month: m,
         day: e.day,
         year: yr,
-        color: resolveColor(e.color) || null
+        color: resolveColor(e.color) || null,
+        source: (e.source != null) ? String(e.source) : null
       };
     });
 
@@ -182,7 +208,6 @@ function checkInstall(){
     if (!cal.months[i].season) cal.months[i].season = d.season || '';
     if (!cal.months[i].color)  cal.months[i].color  = d.color  || '#EEE';
   }
-
   // clamp current date
   if (cal.current.month >= cal.months.length){
     cal.current.month = Math.max(0, cal.months.length - 1);
@@ -205,7 +230,8 @@ function refreshCalendarState(silent){
       month: m,
       day: daySpec,
       year: yr,
-      color: resolveColor(e.color) || null
+      color: resolveColor(e.color) || null,
+      source: (e.source != null) ? String(e.source) : null
     };
   });
 
@@ -261,15 +287,7 @@ function makeDayMatcher(spec){
   }
   return function(){ return false; };
 }
-function normalizeEvent(e, monthsLen, daysInMonth){
-  return {
-    name: String(e.name||''),
-    month: clamp(parseInt(e.month,10)||1, 1, monthsLen),
-    day: normalizeDaySpec(e.day, daysInMonth) || String(firstNumFromDaySpec(e.day)),
-    year: isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null,
-    color: resolveColor(e.color) || null
-  };
-}
+
 function _normalizeCols(cols){
   cols = (cols || []).map(resolveColor).filter(Boolean);
   if (!cols.length) cols = ['#888888'];
@@ -305,18 +323,44 @@ function _pickTextAndWorst(cols){
     var cB = _contrast(cols[i], '#000'); if (cB < minB){ minB = cB; worstB = i; }
     var cW = _contrast(cols[i], '#fff'); if (cW < minW){ minW = cW; worstW = i; }
   }
-  if (minB >= minW) return { text:'#000', worstBg:cols[worstB], minContrast:minB };
-  return { text:'#fff', worstBg:cols[worstW], minContrast:minW };
+  // Bias toward white if it's close or both meet target contrast
+  var close = Math.abs(minB - minW) < 0.4;
+  if (close || (minB >= CONTRAST_MIN_CELL && minW >= CONTRAST_MIN_CELL)){
+    return { text:'#fff', worstBg:cols[worstW], minContrast:minW };
+  }
+  return (minB >= minW)
+    ? { text:'#000', worstBg:cols[worstB], minContrast:minB }
+    : { text:'#fff', worstBg:cols[worstW], minContrast:minW };
 }
+
 function textColorForBg(bgHex){ return _contrast(bgHex, '#000') >= _contrast(bgHex, '#fff') ? '#000' : '#fff'; }
 function outlineIfNeededMin(textColor, bgHex, minTarget){
   var ratio = _contrast(bgHex, textColor);
   if (ratio >= (minTarget||CONTRAST_MIN_HEADER)) return '';
-  return (textColor === '#fff')
-    ? 'text-shadow:-0.5px -0.5px 0 #000,0.5px -0.5px 0 #000,-0.5px 0.5px 0 #000,0.5px 0.5px 0 #000;'
-    : 'text-shadow:-0.5px -0.5px 0 #fff,0.5px -0.5px 0 #fff,-0.5px 0.5px 0 #fff,0.5px 0.5px 0 #fff;';
+
+  
+  if (textColor === '#fff'){
+    // white text → dark outline (stays crisp)
+    var off = 1;
+    return 'text-shadow:'+
+      (-off)+'px '+(-off)+'px 0 rgba(0,0,0,.95),'+
+      ( off)+'px '+(-off)+'px 0 rgba(0,0,0,.95),'+
+      (-off)+'px '+( off)+'px 0 rgba(0,0,0,.95),'+
+      ( off)+'px '+( off)+'px 0 rgba(0,0,0,.95);';
+  } else {
+    // black text → gentler, less “halo” white
+    var off = .5;
+    return 'text-shadow:'+
+      (-off)+'px '+(-off)+'px 0 rgba(255,255,255,.70),'+
+      ( off)+'px '+(-off)+'px 0 rgba(255,255,255,.70),'+
+      (-off)+'px '+( off)+'px 0 rgba(255,255,255,.70),'+
+      ( off)+'px '+( off)+'px 0 rgba(255,255,255,.70);';
+      //return 'text-shadow: 0 0 1px rgba(255,255,255,.85);'; // micro-glow option instead of outline
+
+  }
 }
-function styleForBg(style, bgHex, minTarget){
+
+function applyBg(style, bgHex, minTarget){
   var t = textColorForBg(bgHex);
   style += 'background-color:'+bgHex+';';
   style += 'background-clip:padding-box;';
@@ -327,9 +371,7 @@ function styleForBg(style, bgHex, minTarget){
 function styleForGradient(style, cols, minTarget){
   cols = _normalizeCols(cols);
   var uniq = _uniqueCols(cols);
-  if (uniq.length === 1){
-    return styleForBg(style, uniq[0], (minTarget||CONTRAST_MIN_CELL));
-  }
+  if (uniq.length === 1){ return applyBg(style, uniq[0], (minTarget||CONTRAST_MIN_CELL)); }
   var pick = _pickTextAndWorst(cols);
   style += 'background-color:'+cols[0]+';';
   style += 'background-image:'+_gradientFor(cols)+';';
@@ -343,8 +385,41 @@ function styleForGradient(style, cols, minTarget){
 function daysPerYear(){ var months = getCal().months, sum = 0; for (var i=0;i<months.length;i++) sum += (parseInt(months[i].days,10)||0); return sum; }
 function monthPrefixDays(mi){ var months = getCal().months, sum = 0; for (var i=0;i<mi;i++) sum += (parseInt(months[i].days,10)||0); return sum; }
 function toSerial(y, mi, d){ return (y * daysPerYear()) + monthPrefixDays(mi) + ((parseInt(d,10)||1) - 1); }
-function weekdayIndexFor(mi, d){ var cal = getCal(), cur = cal.current, wdlen = cal.weekdays.length; var delta = toSerial(cur.year, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month); return ( (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen ); }
-function weekdayIndexForYear(year, mi, d){ var cal=getCal(), cur=cal.current, wdlen=cal.weekdays.length; var delta = toSerial(year, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month); return ( (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen ); }
+function weekdayIndex(y, mi, d){
+  var cal=getCal(), cur=cal.current, wdlen=cal.weekdays.length;
+  var delta = toSerial(y, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month);
+  return (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen;
+}
+function weekdayIndexFor(mi, d){
+  return weekdayIndex(getCal().current.year, mi, d);
+}
+function weekdayIndexForYear(y, mi, d){
+  return weekdayIndex(y, mi, d);
+}
+
+
+// Start-of-week helper (missing in original diff)
+function weekStartSerial(y, mi, d){
+  var wd = weekdayIndexForYear(y, mi, d); // 0..6 starting on Sul
+  var s = toSerial(y, mi, d);
+  return s - wd;
+}
+
+// --- Serial/date helpers (NEW) ---
+function fromSerial(s){
+  var dpy = daysPerYear();
+  var y = Math.floor(s/dpy);
+  var rem = s - y*dpy;
+  var months = getCal().months;
+  var mi = 0;
+  // Prevent indexing past the last month
+  while (mi < months.length - 1 && rem >= (months[mi].days|0)) {
+    rem -= (months[mi].days|0);
+    mi++;
+  }
+  return { year:y, mi:mi, day:(rem|0)+1 };
+}
+
 function firstNumFromDaySpec(daySpec){ if (typeof daySpec === 'number') return daySpec|0; var s = String(daySpec||'').trim(); var m = s.match(/^\s*(\d+)/); return m ? Math.max(1, parseInt(m[1],10)) : 1; }
 function normalizeDaySpec(spec, maxDays){
   var s = String(spec||'').trim();
@@ -372,6 +447,12 @@ function expandDaySpec(spec, maxDays){
   return out2;
 }
 function todaySerial(){ var c = getCal().current; return toSerial(c.year, c.month, c.day_of_the_month); }
+
+// Small helper used all over when state changes
+function refreshAndSend(){
+  refreshCalendarState(true);
+  sendCurrentDate(null, true);
+}
 
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
@@ -424,12 +505,20 @@ function currentDefaultKeySet(cal){
 function mergeInNewDefaultEvents(cal){
   var lim = Math.max(1, cal.months.length);
   var suppressed = state[state_name].suppressedDefaults || {};
+  var suppressedSources = state[state_name].suppressedSources || {};
+
+  // current calendar has these:
   var have = {};
   cal.events.forEach(function(e){
     var yKey = (e.year==null) ? 'ALL' : (e.year|0);
     have[(e.month|0)+'|'+String(e.day)+'|'+yKey+'|'+String(e.name||'').trim().toLowerCase()] = 1;
   });
+
   JSON.parse(JSON.stringify(defaults.events)).forEach(function(de){
+    // NEW: skip defaults from disabled sources
+    var src = (de.source != null) ? String(de.source).toLowerCase() : null;
+    if (src && suppressedSources[src]) return;
+
     var monthsList;
     if (String(de.month).toLowerCase() === 'all') {
       monthsList = []; for (var i=1;i<=lim;i++) monthsList.push(i);
@@ -442,13 +531,22 @@ function mergeInNewDefaultEvents(cal){
       var normDay = normalizeDaySpec(de.day, maxD) || String(firstNumFromDaySpec(de.day));
       var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
       if (!have[key] && !suppressed[key]) {
-        cal.events.push({ name: String(de.name||''), month: m, day: normDay, year: null, color: resolveColor(de.color) || null });
+        cal.events.push({
+          name: String(de.name||''),
+          month: m,
+          day: normDay,
+          year: null,
+          color: resolveColor(de.color) || null,
+          source: (de.source != null) ? String(de.source) : null
+        });
         have[key] = 1;
       }
     });
   });
+
   cal.events.sort(compareEvents);
 }
+
 
 // --- Fuzzy helpers (month matching) ---------------------------------
 function _asciiFold(s){
@@ -477,6 +575,7 @@ function _levenshtein(a,b){
   }
   return prev[n];
 }
+
 
 // Common short forms / frequent typos you might see in play chat.
 var MONTH_SYNONYMS = {
@@ -567,94 +666,116 @@ function monthEventsHtml(mi, today){
   });
   return rows.join('');
 }
-function renderMiniCal(mi, yearLabel){
-  var cal = getCal(), cur = cal.current;
-  var wd = cal.weekdays, mObj = cal.months[mi], md = mObj.days;
+
+function monthTableOpen(mi, yearLabel){
+  var cal = getCal(), cur = cal.current, mObj = cal.months[mi];
   var monthColor = mObj.color || '#eee';
   var textColor = textColorForBg(monthColor);
   var outline = outlineIfNeededMin(textColor, monthColor, CONTRAST_MIN_HEADER);
-  var first = (typeof yearLabel === 'number') ? weekdayIndexForYear(yearLabel, mi, 1) : weekdayIndexFor(mi, 1);
-  var html = ['<table style="'+STYLES.table+'">'];
-  html.push(
-    '<tr><th colspan="7" style="'+STYLES.head+'">' +
-      '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">' +
-        esc(mObj.name) +
-        '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>' +
-      '</div>' +
-    '</th></tr>'
-  );
-  html.push('<tr>' + wd.map(function(d){ return '<th style="'+STYLES.th+'">'+esc(d)+'</th>'; }).join('') + '</tr>');
-  var day=1;
-  for (var r=0;r<6;r++){
+  var wd = cal.weekdays;
+
+  var head = [
+    '<table style="'+STYLES.table+'">',
+    '<tr><th colspan="7" style="'+STYLES.head+'">',
+      '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">',
+        esc(mObj.name),
+        '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
+      '</div>',
+    '</th></tr>',
+    '<tr>'+ wd.map(function(d){ return '<th style="'+STYLES.th+'">'+esc(d)+'</th>'; }).join('') +'</tr>'
+  ].join('');
+
+  return { html: head, monthColor: monthColor };
+}
+function monthTableClose(){ return '</table>'; }
+
+function dayTdFromSerial(serial, headerMi, headerYear, headerMonthColor, includePast){
+  var d = fromSerial(serial);
+  var todaySer = todaySerial();
+
+  var evts    = getEventsFor(d.mi, d.day, d.year);
+  var isToday = (serial === todaySer);
+  var isPast  = !!includePast && (serial < todaySer);
+
+  var label = formatDateLabel(d.year, d.mi, d.day, true);
+  if (evts.length){ label += ': ' + evts.map(function(e){ return e.name; }).join(', '); }
+
+  var style = styleForDayCell(STYLES.td, evts, isToday, headerMonthColor, isPast);
+  return '<td title="'+esc(label)+'" aria-label="'+esc(label)+'" style="'+style+'"><div>'+d.day+'</div></td>';
+}
+
+function renderMiniCal(mi, yearLabel, dimPast){
+  var cal = getCal(), cur = cal.current, md = cal.months[mi].days|0;
+  var y = (typeof yearLabel === 'number') ? yearLabel : cur.year;
+  var first = weekdayIndexForYear(y, mi, 1)|0; // 0..6
+  var parts = monthTableOpen(mi, yearLabel);
+  var html = [parts.html];
+
+  var includePast = !!dimPast; // only dim past when caller wants it (e.g., current year view)
+  var gridFirstSerial = toSerial(y, mi, 1) - first;
+
+  for (var r=0, idx=0; r<6; r++){
     html.push('<tr>');
-    for (var c=0;c<7;c++){
-      if ((r===0 && c<first) || day>md){
-        html.push('<td style="'+STYLES.td+'"></td>');
-      } else {
-        var isToday = (mi === cur.month) && (day === cur.day_of_the_month) && ((typeof yearLabel !== 'number') || (yearLabel === cur.year));
-        var targetYear = (typeof yearLabel === 'number') ? yearLabel : cur.year;
-        var todays = getEventsFor(mi, day, targetYear);
-        var evObj = todays[0] || null;
-        var style = STYLES.td;
-        var titleAttr = todays.length ? ' title="'+esc(todays.map(function(e){ return e.name; }).join(', '))+'"' : '';
-        if (todays.length >= 2){
-          var cols = todays.slice(0,3).map(getEventColor);
-          style = styleForGradient(style, cols, CONTRAST_MIN_CELL);
-          if (isToday){ style = _applyTodayStyle(style); }
-        } else if (evObj){
-          style = styleForBg(style, getEventColor(evObj), CONTRAST_MIN_CELL);
-          if (isToday){ style = _applyTodayStyle(style); }
-        } else if (isToday){
-          style = styleForBg(style, monthColor, CONTRAST_MIN_CELL);
-          style = _applyTodayStyle(style);
-        }
-        html.push('<td'+titleAttr+' style="'+style+'"><div>'+day+'</div></td>');
-        day++;
-      }
+    for (var c=0; c<7; c++, idx++){
+      var s = gridFirstSerial + idx;
+      html.push(dayTdFromSerial(s, mi, y, parts.monthColor, includePast));
     }
     html.push('</tr>');
-    if (day>md) break;
+    // optional early break once we've fully covered this month
+    var lastSerialThisRow = gridFirstSerial + idx - 1;
+    var lastOfMonthSerial = toSerial(y, mi, md);
+    if (lastSerialThisRow >= lastOfMonthSerial && (idx % 7 === 0)) break;
   }
-  html.push('</table>');
+  html.push(monthTableClose());
   return html.join('');
 }
-function currentMonthHTML(){ return renderMiniCal(getCal().current.month); }
-function renderMonthHTML(monthIndex){ return renderMiniCal(monthIndex); }
-function yearHTML(){
+
+
+function currentMonthHTML(){ return renderMiniCal(getCal().current.month, null, true); }
+
+function yearHTMLFor(targetYear, dimPast){
   var months = getCal().months;
   var html = ['<div style="text-align:left;">'];
   for (var i=0; i<months.length; i++){
-    html.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' + renderMonthHTML(i) + '</div>');
+    html.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' + renderMiniCal(i, targetYear, !!dimPast) + '</div>');
   }
   html.push('</div>');
   return html.join('');
 }
-function yearHTMLFor(targetYear){
-  var months = getCal().months;
-  var html = ['<div style="text-align:left;">'];
-  for (var i=0; i<months.length; i++){
-    html.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' + renderMiniCal(i, targetYear) + '</div>');
+
+function renderMonthEdgeStrip(targetYear, targetMi, side){
+  var parts = monthTableOpen(targetMi, targetYear);
+  var html = [parts.html, '<tr>'];
+  var md = getCal().months[targetMi].days|0;
+  var startDay = (side === 'prev') ? (md - 6) : 1;
+
+  for (var i = 0; i < 7; i++){
+    var s = toSerial(targetYear, targetMi, startDay + i);
+    html.push(dayTdFromSerial(s, targetMi, targetYear, parts.monthColor, /*includePast*/ true));
   }
-  html.push('</div>');
+  html.push('</tr>', monthTableClose());
   return html.join('');
 }
-function rollingYearHTML(){
-  var cal=getCal(), cur=cal.current, months=getCal().months;
-  var html=['<div style="text-align:left;">'];
-  for (var off=0; off<12; off++){
-    var mi = (cur.month + off) % months.length;
-    var y  = cur.year + Math.floor((cur.month + off) / months.length);
-    html.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' + renderMiniCal(mi, y) + '</div>');
-  }
-  html.push('</div>');
-  return html.join('');
+
+
+function expandRangeWithRecentPast(spec){
+  var cur = getCal().current;
+  // Always include the previous 5 days in event *lists* (doesn't affect calendar tiles)
+  var baseBack = 5;
+  var extra = (cur.day_of_the_week <= 4) ? 7 : 0;
+  var back = baseBack + extra;
+  var start = Math.min(spec.start, todaySerial() - back);
+  return { title: spec.title, start: start, end: spec.end, months: spec.months };
 }
+
 function formatDateLabel(y, mi, d, includeYear){
   var cal=getCal();
   var lbl = esc(cal.months[mi].name)+' '+d;
   if (includeYear) lbl += ', '+esc(String(y))+' '+LABELS.era;
   return lbl;
 }
+
+// ---------- Events list helpers ----------
 function occurrencesInRange(startSerial, endSerial){
   var cal = getCal(), dpy = daysPerYear(), occ=[];
   var yStart = Math.floor(startSerial/dpy);
@@ -679,6 +800,35 @@ function occurrencesInRange(startSerial, endSerial){
   occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
   return occ;
 }
+
+// Shared row renderer for event listings
+function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
+  var dateLbl = formatDateLabel(y, mi, d, includeYear);
+  var sw = swatchHtml(color);
+  var sty = isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"';
+  return '<div'+sty+'>'+ sw + ' ' + dateLbl + ': ' + esc(name) + '</div>';
+}
+
+// Default-event helpers (used by remove/restore logic)
+function isDefaultEvent(ev){
+  var calLocal = getCal();
+  var defaultsSet = currentDefaultKeySet(calLocal);
+  var maxD = calLocal.months[ev.month-1].days|0;
+  var norm = normalizeDaySpec(ev.day, maxD) || String(firstNumFromDaySpec(ev.day));
+  var k = defaultKeyFor(ev.month, norm, ev.name);
+  return !!defaultsSet[k];
+}
+function markSuppressedIfDefault(ev){
+  if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
+  if (isDefaultEvent(ev)){
+    var calLocal = getCal();
+    var maxD = calLocal.months[ev.month-1].days|0;
+    var norm = normalizeDaySpec(ev.day, maxD) || String(firstNumFromDaySpec(ev.day));
+    var k = defaultKeyFor(ev.month, norm, ev.name);
+    state[state_name].suppressedDefaults[k] = 1;
+  }
+}
+
 function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var today = todaySerial();
   var occ = occurrencesInRange(startSerial, endSerial);
@@ -686,10 +836,8 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var out = ['<div style="margin:4px 0;"><b>'+esc(title)+'</b></div>'];
   if (!occ.length){ out.push('<div style="opacity:.7;">No events in this range.</div>'); return out.join(''); }
   for (var i=0;i<occ.length;i++){
-    var o = occ[i], sw = swatchHtml(getEventColor(o.e));
-    var isToday = (o.serial === today);
-    var dateLbl = formatDateLabel(o.y, o.m, o.d, includeYear);
-    out.push('<div'+(isToday?' style="font-weight:bold;margin:2px 0;"':' style="margin:2px 0;"')+'>'+ sw + ' ' + dateLbl + ': ' + esc(o.e.name) + '</div>');
+    var o = occ[i];
+    out.push(eventLineHtml(o.y, o.m, o.d, o.e.name, includeYear, (o.serial===today), getEventColor(o.e)));
   }
   return out.join('');
 }
@@ -728,7 +876,7 @@ function buildHelpHtml(isGM){
   var gm = [
     '<div style="margin-top:10px;"><b>Date Management</b></div>',
     '<div>• <code>!cal advanceday</code>, <code>!cal retreatday</code></div>',
-    '<div>• <code>!cal setdate [MM] DD [YYYY]</code> or <code>!cal set &lt;MonthName&gt; DD [YYYY]</code></div>',
+    '<div>• <code>!cal setdate [MM] DD [YYYY]</code> or <code>!cal setdate &lt;MonthName&gt; DD [YYYY]</code></div>',
     '<div>• <code>!cal send</code> / <code>!cal send events</code> &lt;range&gt;</div>',
     '<div style="height:12px"></div>',
     '<div style="margin-top:10px;"><b>Event Management</b></div>',
@@ -736,6 +884,10 @@ function buildHelpHtml(isGM){
     '<div>• <code>!cal events remove [all] [exact] [index] &lt;index|name&gt;</code></div>',
     '<div>• <code>!cal events restore [all] [exact] &lt;name...&gt;</code></div>',
     '<div style="height:12px"></div>',
+    '<div style="margin-top:10px;"><b>Event Sources</b></div>',
+    '<div>• <code>!cal source list</code> — show known sources and which are disabled</div>',
+    '<div>• <code>!cal source disable &lt;name&gt;</code> — stop adding defaults from a source</div>',
+    '<div>• <code>!cal source enable &lt;name&gt;</code> — re-enable and restore its defaults</div>',
     '<div style="margin-top:10px;"><b>Script Management</b></div>',
     '<div>• <code>!cal refresh</code></div>',
     '<div>• <code>!cal resetcalendar</code></div>'
@@ -751,20 +903,7 @@ function whisper(to, html){
   name = name.replace(/"/g,'').replace(/\[/g,'(').replace(/\]/g,')').replace(/[|\\]/g,'-').replace(/[<>]/g,'-');
   sendChat(script_name, '/w "'+ name +'" ' + html);
 }
-function parseMonthYearTokens(tokens){
-  tokens = (tokens||[]).map(function(t){ return String(t).trim(); }).filter(Boolean);
-  if (!tokens.length) return null;
-  var mi = -1, yr = null;
-  for (var i=0;i<tokens.length;i++){
-    var t = tokens[i];
-    var mIdx = monthIndexByName(t);
-    if (mIdx !== -1) mi = mIdx;
-    var y = parseInt(t,10);
-    if (isFinite(y) && /^\d+$/.test(t)) yr = y;
-  }
-  if (mi !== -1 && yr != null) return {mi: mi, year: yr};
-  return null;
-}
+
 
 // ---------- Event CRUD ----------
 function compareEvents(a, b){
@@ -790,8 +929,44 @@ function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   cal.events.sort(compareEvents);
   return true;
 }
+
+function _edgeWeekStrips(spec){
+  // Returns { prependHtml:'', appendHtml:'' }.
+  // Range-aware rule: ONLY when the requested range includes today,
+  // show a single edge strip if we're within 5 days of a month edge.
+  var out = { prependHtml:'', appendHtml:'' };
+
+  var cal = getCal(), cur = cal.current;
+  var mdays = cal.months[cur.month].days|0;
+  var d = cur.day_of_the_month;
+
+  // If range doesn't include today, no strips at all.
+  var incToday = (todaySerial() >= spec.start && todaySerial() <= spec.end);
+  if (!incToday) return out;
+
+  // Week anchors
+  var curStart  = weekStartSerial(cur.year, cur.month, cur.day_of_the_month);
+  var prevStart = curStart - 7;
+  var nextStart = curStart + 7;
+
+  function stripHtmlByStart(start){
+    var end = fromSerial(start + 6); // pick the strip’s “home” month for header
+    return '<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+             renderWeekStripForMonth(end.year, end.mi, start) +
+           '</div>';
+  }
+
+  if (d <= 5){
+    out.prependHtml = stripHtmlByStart(prevStart);
+  } else if (d >= mdays - 4){
+    out.appendHtml = stripHtmlByStart(nextStart);
+  }
+  return out;
+}
+
 function parseIntSafe(x){ var n=parseInt(x,10); return isFinite(n)?n:null; }
 function isListToken(tok){ return /^all$/i.test(tok) || /^[0-9,\-\s]+$/.test(tok); }
+
 function parseIntList(token, minV, maxV){
   if (!token) return [];
   token = String(token).trim().toLowerCase();
@@ -861,8 +1036,7 @@ function addEventSmart(tokens){
       var di = clamp(singleDay, 1, cal.months[nextMY.month].days);
       var ok1 = _addConcreteEvent(nextMY.month+1, String(di), nextMY.year, rawName, color);
       if (ok1){
-        refreshCalendarState(true);
-        sendCurrentDate(null, true);
+        refreshAndSend();
         warnGM('Added 1 event.');
       } else {
         warnGM('No event added (duplicate or invalid).');
@@ -884,8 +1058,7 @@ function addEventSmart(tokens){
       var di2 = clamp(singleD, 1, cal.months[mi].days);
       var ok2 = _addConcreteEvent(mi+1, String(di2), nextY, rawName, color);
       if (ok2){
-        refreshCalendarState(true);
-        sendCurrentDate(null, true);
+        refreshAndSend();
         warnGM('Added 1 event.');
       } else {
         warnGM('No event added (duplicate or invalid).');
@@ -931,7 +1104,7 @@ function addEventSmart(tokens){
       for (var k=0;k<list.length;k++){ if (daySpecsForMonth.indexOf(list[k])===-1) daySpecsForMonth.push(list[k]); }
     }
     if (yearsSpec === null){
-      for (var j=0;j<daySpecsForMonth.length;j++){
+      for (var j=0; j<daySpecsForMonth.length;j++){
         added += _addConcreteEvent(mHuman, daySpecsForMonth[j], null, rawName, color) ? 1 : 0;
       }
     } else if (Array.isArray(yearsSpec) && yearsSpec.length){
@@ -946,152 +1119,26 @@ function addEventSmart(tokens){
     }
   }
   if (added){
-    refreshCalendarState(true);
-    sendCurrentDate(null, true);
+    refreshAndSend();
     warnGM('Added '+added+' event'+(added===1?'':'s')+'.');
   } else {
     warnGM('No events were added (possible duplicates or invalid specs).');
   }
 }
-function addMonthly(dayTok, nameTokens, colorTok){
-  var tokens = [];
-  tokens.push('all'); tokens.push(String(dayTok)); tokens.push('all');
-  if (nameTokens && nameTokens.length) tokens = tokens.concat(nameTokens);
-  if (colorTok) tokens.push(colorTok);
-  addEventSmart(tokens);
-}
-function addAnnual(monthTok, dayTok, nameTokens, colorTok){
-  var tokens = [];
-  tokens.push(String(monthTok)); tokens.push(String(dayTok)); tokens.push('all');
-  if (nameTokens && nameTokens.length) tokens = tokens.concat(nameTokens);
-  if (colorTok) tokens.push(colorTok);
-  addEventSmart(tokens);
-}
-function addNext(tokens){ addEventSmart(tokens.slice()); }
 
-function restoreDefaultEvents(query){
-  if (!state[state_name].suppressedDefaults){ state[state_name].suppressedDefaults = {}; }
-  var sup = state[state_name].suppressedDefaults;
-  var toks = String(query||'').trim().split(/\s+/).filter(Boolean);
-  var restoreAll = false, exact = false;
-  while (toks.length && /^(all|exact)$/i.test(toks[0])){
-    var t = toks.shift().toLowerCase();
-    if (t === 'all')   restoreAll = true;
-    if (t === 'exact') exact = true;
+function styleForDayCell(baseStyle, todays, isToday, monthColor, isPast){
+  var style = baseStyle;
+  if (todays.length >= 2){
+    style = styleForGradient(style, todays.slice(0,3).map(getEventColor), CONTRAST_MIN_CELL);
+  } else if (todays.length === 1){
+    style = applyBg(style, getEventColor(todays[0]), CONTRAST_MIN_CELL);
+  } else if (isToday){
+    style = applyBg(style, monthColor, CONTRAST_MIN_CELL);
   }
-  var needle = toks.join(' ').trim().toLowerCase();
-  var keys = Object.keys(sup);
-  var restored = 0;
-  if (restoreAll || !needle){
-    keys.forEach(function(k){ if (sup[k]){ delete sup[k]; restored++; } });
-    refreshCalendarState(true);
-    sendChat(script_name, '/w gm Restored ' + restored + ' default event'+(restored===1?'':'s')+'.');
-    sendCurrentDate(null,true);
-    return;
-  }
-  keys.forEach(function(k){
-    var parts = k.split('|'); var nm = (parts[3]||'').toLowerCase();
-    if ((exact && nm === needle) || (!exact && nm.indexOf(needle) !== -1)){ if (sup[k]){ delete sup[k]; restored++; } }
-  });
-  refreshCalendarState(true);
-  if (restored){
-    sendChat(script_name, '/w gm Restored ' + restored + ' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".');
-    sendCurrentDate(null,true);
-  } else {
-    sendChat(script_name, '/w gm No suppressed default events matched "'+esc(needle)+'".');
-  }
+  if (isPast) style += 'opacity:.65;';
+  if (isToday) style = _applyTodayStyle(style);
+  return style;
 }
-function removeEvent(query){
-  var cal = getCal(), events = cal.events;
-  if (!state[state_name].suppressedDefaults) { state[state_name].suppressedDefaults = {}; }
-  function markSuppressedIfDefault(ev){
-    var calLocal = getCal();
-    var defaultsSet = currentDefaultKeySet(calLocal);
-    var maxD = calLocal.months[ev.month-1].days|0;
-    var norm = normalizeDaySpec(ev.day, maxD) || String(firstNumFromDaySpec(ev.day));
-    var k = defaultKeyFor(ev.month, norm, ev.name);
-    if (defaultsSet[k]) { state[state_name].suppressedDefaults[k] = 1; }
-  }
-  if (!events.length){ sendChat(script_name, '/w gm No events to remove.'); return; }
-  var toks = String(query||'').trim().split(/\s+/);
-  var rmAll=false, exact=false, forceIndex=false;
-  while (toks.length && /^(all|exact|index)$/i.test(toks[0])) {
-    var t = toks.shift().toLowerCase();
-    if (t==='all') rmAll=true; else if (t==='exact') exact=true; else if (t==='index') forceIndex=true;
-  }
-  if (forceIndex && (rmAll || exact)) { sendChat(script_name, '/w gm Use either <code>index</code> or <code>all/exact</code>, not both.'); return; }
-  var raw = toks.join(' ').trim();
-  if (!raw){ sendChat(script_name, '/w gm Please provide an index or a name.'); return; }
-  if (forceIndex) {
-    var m = raw.match(/^#?(\d+)$/); var idx = m ? (+m[1]) : NaN;
-    if (!isFinite(idx) || idx < 1 || idx > events.length) { sendChat(script_name, '/w gm After <code>index</code>, give a number 1–'+events.length+'.'); return; }
-    var removed = events.splice(idx-1, 1)[0];
-    markSuppressedIfDefault(removed);
-    refreshCalendarState(true);
-    sendChat(script_name, '/w gm Removed event #'+idx+': '+esc(removed.name));
-    sendCurrentDate(null,true);
-    return;
-  }
-  var needle = raw.toLowerCase();
-  var asIdxMatch = raw.match(/^#?(\d+)$/);
-  var asIdx = !!asIdxMatch && (+asIdxMatch[1] >= 1) && (+asIdxMatch[1] <= events.length);
-  var exactNameExists = events.some(function(e){ return String(e.name||'').toLowerCase() === needle; });
-  if (!rmAll && !exact && asIdx && exactNameExists) {
-    sendChat(script_name, '/w gm "'+esc(raw)+'" matches an index and an event name. Use <code>!cal removeevent index '+esc(raw)+'</code> or <code>!cal removeevent exact '+esc(raw)+'</code>.');
-    return;
-  }
-  if (!rmAll && !exact && asIdx) {
-    var idx2 = +asIdxMatch[1];
-    var removed2 = events.splice(idx2-1, 1)[0];
-    markSuppressedIfDefault(removed2);
-    refreshCalendarState(true);
-    sendChat(script_name, '/w gm Removed event #'+idx2+': '+esc(removed2.name));
-    sendCurrentDate(null,true);
-    return;
-  }
-  var matches = events.filter(function(e){ var n = String(e.name||'').toLowerCase(); return exact ? (n===needle) : (n.indexOf(needle)!==-1); });
-  if (!matches.length){ sendChat(script_name, '/w gm No events matched "'+esc(raw)+'".'); return; }
-  if (!rmAll && matches.length>1){
-    var list = matches.map(function(e){ var i = events.indexOf(e)+1, m3 = getCal().months[e.month-1].name; var y = (e.year==null)? '' : (', '+e.year+' '+LABELS.era); return '#'+i+' '+esc(e.name)+' ('+esc(m3)+' '+esc(e.day)+y+')'; }).join('<br>');
-    sendChat(script_name, '/w gm Multiple matches for "'+esc(raw)+'"'+(exact?' (exact)':'')+':<br>'+list+'<br>Use the index to remove one, or prefix with <code>all</code> to remove all.');
-    return;
-  }
-  if (rmAll){
-    matches.forEach(markSuppressedIfDefault);
-    cal.events = events.filter(function(e){ return matches.indexOf(e)===-1; });
-    refreshCalendarState(true);
-    sendChat(script_name, '/w gm Removed '+matches.length+' event'+(matches.length===1?'':'s')+'.');
-  } else {
-    var e2 = matches[0], pos = events.indexOf(e2);
-    events.splice(pos,1);
-    markSuppressedIfDefault(e2);
-    refreshCalendarState(true);
-    sendChat(script_name, '/w gm Removed event: '+esc(e2.name)+' ('+esc(getCal().months[e2.month-1].name)+' '+esc(e2.day)+((e2.year!=null)?(', '+e2.year+' '+LABELS.era):'')+')');
-  }
-  sendCurrentDate(null,true);
-}
-function getEventsFor(monthIndex, day, year){
-  var m = monthIndex|0, out=[];
-  var events = getCal().events;
-  var y = (typeof year === 'number') ? (year|0) : getCal().current.year;
-  if (!events || !events.length) return [];
-  for (var i=0;i<events.length;i++){
-    var e = events[i];
-    if (((parseInt(e.month,10)||1)-1) !== m) continue;
-    if (e.year != null && (e.year|0) !== y) continue;
-    if (makeDayMatcher(e.day)(day)) out.push(e);
-  }
-  return out;
-}
-
-// ---------- GM buttons ----------
-function gmButtonsHtml(){ return [
-  '[📅 Send Date](!cal send date)',
-  '[📅 Send Year](!cal send year)',
-  '[⏭ Advance Day](!cal advanceday)',
-  '[⏮ Retreat Day](!cal retreatday)',
-  '[❔ Help](!cal help)'
-].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join(''); }
 
 // ---------- Unified Range Engine (months, years, weekdays, ordinals, phrases) ----------
 var ORDINALS = {
@@ -1287,43 +1334,93 @@ function _monthsFromRangeSpec(spec){
   }
   return months;
 }
+function buildCalendarsHtmlForSpec(spec){
+  var months = _monthsFromRangeSpec(spec);
+  var out = ['<div style="text-align:left;">'];
+  var cur = getCal().current;
+  var todaySer = todaySerial();
+  var todayInRange = (todaySer >= spec.start && todaySer <= spec.end);
+
+  for (var i=0; i<months.length; i++){
+    var m = months[i];
+    var isCurrentMonth = (m.y === cur.year && m.mi === cur.month);
+
+    // If we’re at the very beginning of the current month, prepend previous-month strip
+    if (isCurrentMonth && cur.day_of_the_month <= 5){
+      var prevMi = (cur.month + getCal().months.length - 1) % getCal().months.length;
+      var prevY  = cur.year - (cur.month === 0 ? 1 : 0);
+      out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+               renderMonthEdgeStrip(prevY, prevMi, 'prev') + '</div>');
+    }
+
+    // Main month tile (dimming only if the range includes today)
+    out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+             renderMiniCal(m.mi, m.y, /*dimPast*/ todayInRange) + '</div>');
+
+    // If we’re at the very end of the current month, append next-month strip
+    if (isCurrentMonth && cur.day_of_the_month >= (getCal().months[cur.month].days|0) - 4){
+      var nextMi = (cur.month + 1) % getCal().months.length;
+      var nextY  = cur.year + (nextMi === 0 ? 1 : 0);
+      out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+               renderMonthEdgeStrip(nextY, nextMi, 'next') + '</div>');
+    }
+  }
+
+  out.push('</div>');
+  return out.join('');
+}
+
+
 function runShowUsingUnifiedRange(who, args){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
-  var months = _monthsFromRangeSpec(spec);
-  if (months.length===0){ return whisper(who, currentMonthHTML()); }
-  if (months.length===12){
-    var y = months[0].y, contiguous = months.every(function(m,i){ return m.y===y && m.mi===i; });
-    if (contiguous) return whisper(who, yearHTMLFor(y));
-  }
-  var html = ['<div style="text-align:left;">'];
-  months.forEach(function(m){
-    html.push('<div style="display:inline-block;vertical-align:top;margin:4px;">'+renderMiniCal(m.mi, m.y)+'</div>');
-  });
-  html.push('</div>');
-  whisper(who, html.join(''));
+  var html = buildCalendarsHtmlForSpec(spec);
+  whisper(who, html);
 }
+
 function runEventsUsingUnifiedRange(who, args, broadcast){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
-  var html = eventsListHTMLForRange(spec.title, spec.start, spec.end,
-    (Math.floor(spec.start/daysPerYear())!==Math.floor(spec.end/daysPerYear())));
+  spec = expandRangeWithRecentPast(spec); // include recent past
+  var html = eventsListHTMLForRange(
+    spec.title,
+    spec.start,
+    spec.end,
+    (Math.floor(spec.start/daysPerYear())!==Math.floor(spec.end/daysPerYear()))
+  );
   return broadcast ? sendToAll(html) : whisper(who, html);
 }
+
 function runSendUsingUnifiedRange(who, args){
+  // events/list → delegate to the unified events function
   if (args.length && /^(events|list)$/i.test(String(args[0]))){
     return runEventsUsingUnifiedRange(who, args.slice(1), /*broadcast*/true);
   }
+  // otherwise it’s a calendar send
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
-  var months = _monthsFromRangeSpec(spec);
-  if (months.length===12){
-    var y = months[0].y, contiguous = months.every(function(m,i){ return m.y===y && m.mi===i; });
-    if (contiguous) return sendToAll(yearHTMLFor(y));
+  var html = buildCalendarsHtmlForSpec(spec);
+  sendToAll(html);
+}
+
+// ---------- GM buttons ----------
+function gmButtonsHtml(){ return [
+  '[📅 Send Date](!cal send date)',
+  '[📅 Send Year](!cal send year)',
+  '[⏭ Advance Day](!cal advanceday)',
+  '[⏮ Retreat Day](!cal retreatday)',
+  '[❔ Help](!cal help)'
+].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join(''); }
+
+function getEventsFor(monthIndex, day, year){
+  var m = monthIndex|0, out=[];
+  var events = getCal().events;
+  var y = (typeof year === 'number') ? (year|0) : getCal().current.year;
+  if (!events || !events.length) return [];
+  for (var i=0;i<events.length;i++){
+    var e = events[i];
+    if (((parseInt(e.month,10)||1)-1) !== m) continue;
+    if (e.year != null && (e.year|0) !== y) continue;
+    if (makeDayMatcher(e.day)(day)) out.push(e);
   }
-  var html = ['<div style="text-align:left;">'];
-  months.forEach(function(m){
-    html.push('<div style="display:inline-block;vertical-align:top;margin:4px;">'+renderMiniCal(m.mi, m.y)+'</div>');
-  });
-  html.push('</div>');
-  return sendToAll(html.join(''));
+  return out;
 }
 
 // ---------- Tiny normalizers used by routing ----------
@@ -1346,29 +1443,30 @@ function normalizeSubcommand(sub){ return String(sub||'').toLowerCase(); }
 
 // ---------- Command presets / routing ----------
 var argPresets = {
-  year:      { target: 'show',   inject: ['year'] },
-  fullyear:  { target: 'show',   inject: ['year'] },
-  showyear:  { target: 'show',   inject: ['year'] },
+  year:         { target: 'show',   inject: ['year'] },
+  yr:           { target: 'show',   inject: ['year'] },
+  currentyear:  { target: 'show',   inject: ['year'] },
+  fullyear:     { target: 'show',   inject: ['year'] },
+  showyear:     { target: 'show',   inject: ['year'] },
 
   listevents:{ target: 'events', inject: [] },
   list:      { target: 'events', inject: [] },
 
-  add:         { target: 'events', inject: ['add'] },
-  addevent:    { target: 'events', inject: ['add'] },
-  remove:      { target: 'events', inject: ['remove'] },
-  removeevent: { target: 'events', inject: ['remove'] },
-  rmevent:     { target: 'events', inject: ['remove'] },
-  restore:     { target: 'events', inject: ['restore'] },
+  add:          { target: 'events', inject: ['add'] },
+  addevent:     { target: 'events', inject: ['add'] },
+  remove:       { target: 'events', inject: ['remove'] },
+  rm:           { target: 'events', inject: ['remove'] },
+  removeevent:  { target: 'events', inject: ['remove'] },
+  rmevent:      { target: 'events', inject: ['remove'] },
+  restore:      { target: 'events', inject: ['restore'] },
 
   senddate:  { target: 'send',   inject: ['date'] },
   sendyear:  { target: 'send',   inject: ['year'] },
 
   today:     { target: 'show',   inject: ['today'] },
-  goto:      { target: 'show',   inject: [] },
 
   set:       { target: 'setdate', inject: [] } // alias
 };
-var commandAliases = {};
 function _resolveCommandAndArgs(args){
   var sub = normalizeSubcommand(args[1] || '');
   var preset = argPresets[sub];
@@ -1377,7 +1475,6 @@ function _resolveCommandAndArgs(args){
     var newArgs = [args[0], preset.target].concat(injected, args.slice(2));
     return { sub: preset.target, args: newArgs };
   }
-  if (commandAliases[sub]){ args[1] = commandAliases[sub]; return { sub: args[1], args: args }; }
   return { sub: sub, args: args };
 }
 
@@ -1389,12 +1486,12 @@ var commands = {
     runShowUsingUnifiedRange(m.who, []); // default = current month via unified range
     if (isGM) whisper(m.who, gmButtonsHtml());
   },
-  show: function(m,a){
-    var args = a.slice(2);
-    // Support "goto <month> [year]" by just passing the tokens through
-    if (args[0] && args[0].toLowerCase()==='goto'){ args = args.slice(1); }
-    runShowUsingUnifiedRange(m.who, _normalizePackedWords(args.join(' ')).split(/\s+/).filter(Boolean));
-  },
+show: function(m, a){
+  // a = ["!cal","show", ...range tokens...]
+  runShowUsingUnifiedRange(m.who, a.slice(2));
+  if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
+},
+
 
   // Unified EVENTS/LIST (GM add/remove/restore preserved; otherwise list over range)
   events: function(m, a){
@@ -1437,6 +1534,68 @@ var commands = {
   help: function(m){ showHelp(m.who, playerIsGM(m.playerid)); },
 
   // GM-only
+  source: { gm:true, run: function(m, a){
+    // Usage:
+    // !cal source list
+    // !cal source disable <name>
+    // !cal source enable <name>
+    var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
+    var sub = (args[0]||'').toLowerCase();
+    var suppressedSources = state[state_name].suppressedSources || (state[state_name].suppressedSources = {});
+    function listSources(){
+      var cal = getCal();
+      // Collect distinct sources from defaults/events
+      var seen = {};
+      defaults.events.forEach(function(de){
+        if (de.source) seen[String(de.source).toLowerCase()] = String(de.source);
+      });
+      cal.events.forEach(function(e){
+        if (e.source) seen[String(e.source).toLowerCase()] = String(e.source);
+      });
+      var names = Object.keys(seen).sort().map(function(k){
+        var label = seen[k];
+        var sup = suppressedSources[k] ? ' (disabled)' : '';
+        return '• ' + esc(label) + sup;
+      });
+      if (!names.length) return whisper(m.who, 'No sources found in events.');
+      whisper(m.who, '<div><b>Sources</b></div><div>'+names.join('<br>')+'</div>');
+    }
+    function disableSource(name){
+      var key = String(name||'').toLowerCase();
+      if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
+      suppressedSources[key] = 1;
+
+      // Remove any existing default events with that source (non-custom)
+      var cal = getCal();
+      var defaultsSet = currentDefaultKeySet(cal);
+      cal.events = cal.events.filter(function(e){
+        var src = (e.source != null) ? String(e.source).toLowerCase() : null;
+        if (src !== key) return true;
+        // Only remove defaults; keep custom events the GM added
+        var maxD = cal.months[e.month-1].days|0;
+        var norm = normalizeDaySpec(e.day, maxD) || String(firstNumFromDaySpec(e.day));
+        var k = defaultKeyFor(e.month, norm, e.name);
+        return !defaultsSet[k];
+      });
+
+      refreshAndSend();
+      sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.');
+    }
+    function enableSource(name){
+      var key = String(name||'').toLowerCase();
+      if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
+      delete suppressedSources[key];
+      // Pull in any defaults belonging to this source (that aren’t already present)
+      mergeInNewDefaultEvents(getCal());
+      refreshAndSend();
+      sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+    }
+    if (!sub || sub==='list'){ listSources(); return; }
+    if (sub==='disable'){ if (!args[1]) { whisper(m.who,'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; } return disableSource(args.slice(1).join(' ')); }
+    if (sub==='enable'){ if (!args[1]) { whisper(m.who,'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; } return enableSource(args.slice(1).join(' ')); }
+    whisper(m.who, 'Usage: <code>!cal source [list|disable|enable] [&lt;name&gt;]</code>');
+  }},
+
   advanceday: { gm:true, run:function(){ advanceDay(); } },
   retreatday: { gm:true, run:function(){ retreatDay(); } },
 
@@ -1480,7 +1639,6 @@ var commands = {
   send: { gm:true, run:function(m,a){
     var args = a.slice(2);
     if (!args.length || /^date$|^month$/i.test(args[0])){ return sendCurrentDate(); }
-    if (/^events$|^list$/i.test(args[0])){ return runSendUsingUnifiedRange(m.who, args); }
     return runSendUsingUnifiedRange(m.who, args);
   }},
 
@@ -1523,6 +1681,157 @@ function setDate(m, d, y){
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
   sendCurrentDate(null, true);
 }
+function removeEvent(query){ // Remove event by name or index; supports "all", "exact", and "index"
+  var cal = getCal(), events = cal.events;
+
+  // Ensure suppressed defaults aren't resurrected on every refresh.
+  if (!state[state_name].suppressedDefaults) {
+    state[state_name].suppressedDefaults = {};
+  }
+
+  // If no events exist, then no events exist.
+  if (!events.length){
+    sendChat(script_name, '/w gm No events to remove.');
+    return;
+  }
+
+  // Parse arguments "all", "exact", and "index"
+  var toks = String(query||'').trim().split(/\s+/);
+  var rmAll=false, exact=false, forceIndex=false;
+  while (toks.length && /^(all|exact|index)$/i.test(toks[0])) {
+    var t = toks.shift().toLowerCase();
+    if (t==='all') rmAll=true;
+    else if (t==='exact') exact=true;
+    else if (t==='index') forceIndex=true;
+  }
+
+  if (forceIndex && (rmAll || exact)) {
+    sendChat(script_name, '/w gm Use either <code>index</code> or <code>all/exact</code>, not both.');
+    return;
+  }
+
+  var raw = toks.join(' ').trim();
+
+  // If nothing was input, then error.
+  if (!raw){
+    sendChat(script_name, '/w gm Please provide an index or a name.');
+    return;
+  }
+
+  // If "index" argument is used, run immediately.
+  if (forceIndex) {
+    var m = raw.match(/^#?(\d+)$/);
+    var idx = m ? (+m[1]) : NaN;
+    if (!isFinite(idx) || idx < 1 || idx > events.length) {
+      sendChat(script_name, '/w gm After <code>index</code>, give a number 1–'+events.length+'.');
+      return;
+    }
+    var removed = events.splice(idx-1, 1)[0];
+    markSuppressedIfDefault(removed);
+    refreshAndSend();
+    sendChat(script_name, '/w gm Removed event #'+idx+': '+esc(removed.name));
+    return;
+  }
+
+  // Safety function if there is ambiguity between event name and event list index.
+  var needle = raw.toLowerCase();
+  var asIdxMatch = raw.match(/^#?(\d+)$/);
+  var asIdx = !!asIdxMatch && (+asIdxMatch[1] >= 1) && (+asIdxMatch[1] <= events.length);
+  var exactNameExists = events.some(function(e){
+    return String(e.name||'').toLowerCase() === needle;
+  });
+  if (!rmAll && !exact && asIdx && exactNameExists) {
+    sendChat(script_name, '/w gm "'+esc(raw)+'" matches an index and an event name. '+
+      'Use <code>!cal removeevent index '+esc(raw)+'</code> to remove index #'+esc(raw)+
+      ' or <code>!cal removeevent exact '+esc(raw)+'</code> to remove the named event.');
+    return;
+  }
+
+  // Events have a hidden numerical index that can be called instead of a name.
+  // Index path only usable without "all" or "exact".
+  if (!rmAll && !exact && asIdx) {
+    var idx = +asIdxMatch[1];
+    var removed = events.splice(idx-1, 1)[0];
+    markSuppressedIfDefault(removed);
+    refreshAndSend();
+    sendChat(script_name, '/w gm Removed event #'+idx+': '+esc(removed.name));
+    return;
+  }
+
+  // Name-matching. Any matching string is used unless "exact" was called.
+  var matches = events.filter(function(e){
+    var n = String(e.name||'').toLowerCase();
+    return exact ? (n===needle) : (n.indexOf(needle)!==-1);
+  });
+
+  // If nothing matches.
+  if (!matches.length){
+    sendChat(script_name, '/w gm No events matched "'+esc(raw)+'".');
+    return;
+  }
+
+  // If "all" wasn't called, only one event can be removed.
+  // If multiple matches, expose the hidden indices.
+  if (!rmAll && matches.length>1){
+    var list = matches.map(function(e){
+      var i = events.indexOf(e)+1, m = getCal().months[e.month-1].name;
+      var y = (e.year==null)? '' : (', '+e.year+' '+LABELS.era);
+      return '#'+i+' '+esc(e.name)+' ('+esc(m)+' '+esc(e.day)+y+')';
+    }).join('<br>');
+    sendChat(script_name, '/w gm Multiple matches for "'+esc(raw)+'"'+(exact?' (exact)':'')+
+      ':<br>'+list+'<br>Use the index to remove one, or prefix with <code>all</code> to remove all.');
+    return;
+  }
+
+  // If "all" was called, remove everything with any matching string.
+  if (rmAll){
+    matches.forEach(markSuppressedIfDefault);
+    cal.events = events.filter(function(e){ return matches.indexOf(e)===-1; });
+    refreshAndSend();
+    sendChat(script_name, '/w gm Removed '+matches.length+' event'+(matches.length===1?'':'s')+'.');
+  }
+  // If only one event name matches, remove it.
+  else {
+    var e = matches[0], pos = events.indexOf(e);
+    events.splice(pos,1);
+    markSuppressedIfDefault(e);
+    refreshAndSend();
+    sendChat(script_name, '/w gm Removed event: '+esc(e.name)+' ('+
+      esc(getCal().months[e.month-1].name)+' '+esc(e.day)+
+      ((e.year!=null)?(', '+e.year+' '+LABELS.era):'')+')');
+  }
+}
+function restoreDefaultEvents(query){
+  if (!state[state_name].suppressedDefaults){ state[state_name].suppressedDefaults = {}; }
+  var sup = state[state_name].suppressedDefaults;
+  var toks = String(query||'').trim().split(/\s+/).filter(Boolean);
+  var restoreAll = false, exact = false;
+  while (toks.length && /^(all|exact)$/i.test(toks[0])){
+    var t = toks.shift().toLowerCase();
+    if (t === 'all')   restoreAll = true;
+    if (t === 'exact') exact = true;
+  }
+  var needle = toks.join(' ').trim().toLowerCase();
+  var keys = Object.keys(sup);
+  var restored = 0;
+  if (restoreAll || !needle){
+    keys.forEach(function(k){ if (sup[k]){ delete sup[k]; restored++; } });
+    refreshAndSend();
+    sendChat(script_name, '/w gm Restored ' + restored + ' default event'+(restored===1?'':'s')+'.');
+    return;
+  }
+  keys.forEach(function(k){
+    var parts = k.split('|'); var nm = (parts[3]||'').toLowerCase();
+    if ((exact && nm === needle) || (!exact && nm.indexOf(needle) !== -1)){ if (sup[k]){ delete sup[k]; restored++; } }
+  });
+  refreshAndSend();
+  if (restored){
+    sendChat(script_name, '/w gm Restored ' + restored + ' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".');
+  } else {
+    sendChat(script_name, '/w gm No suppressed default events matched "'+esc(needle)+'".');
+  }
+}
+
 
 // ---------- Routing ----------
 function handleInput(msg){
@@ -1535,7 +1844,7 @@ function handleInput(msg){
   var sub = r.sub; args = r.args;
   var cmd = commands[sub];
   if (!cmd){
-    runShowUsingUnifiedRange(msg.who, []);
+    runShowUsingUnifiedRange(msg.who, args.slice(1));
     return;
   }
   if (typeof cmd === 'function'){ cmd(msg, args); return; }
