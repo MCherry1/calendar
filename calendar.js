@@ -1183,7 +1183,7 @@ function _tokenizeRangeArgs(args){
   var toks = (args||[]).map(function(t){return String(t).trim();}).filter(Boolean);
   return toks;
 }
-function _isPhrase(tok){ return /^(today|now|month|year|current|this|next|previous|prev|last|upcoming)$/.test(String(tok||'').toLowerCase()); }
+function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|last|upcoming)$/.test(String(tok||'').toLowerCase()); }
 function _isYear(tok){ return /^\d{1,6}$/.test(String(tok||'')); }
 function _isNum(tok){ return /^\d+$/.test(String(tok||'')); }
 
