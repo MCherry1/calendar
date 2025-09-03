@@ -145,10 +145,10 @@ Available terms:
     * `upcoming` — rolling period that (generally) includes present date
 
   * Examples:
-    * `!cal list year previous` or `!cal events last year`,
-    * `!cal next` or `!cal next month`,
-    * `!cal Nymm` or `!cal show 6`,
-    * `!cal events Olarune 994`,
+    * `!cal list year previous` or `!cal events last year`
+    * `!cal next` or `!cal next month`
+    * `!cal Nymm` or `!cal show 6`
+    * `!cal events Olarune 994`
     * `!cal list year 894`
     * `!cal set 1 999`
     * `!cal last Dravago`
