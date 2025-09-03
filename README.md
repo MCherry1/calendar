@@ -150,7 +150,7 @@ Available terms:
     * `!cal Nymm` or `!cal show 6`
     * `!cal events Olarune 994`
     * `!cal list year 894`
-    * `!cal set 1 999`
+    * `!cal show 1 999`
     * `!cal last Dravago`
 
 ## GM Options
