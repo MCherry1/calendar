@@ -114,12 +114,12 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
   List events in a focused window. **Default** is a **rolling 28-day** window when no modifier is given. Supported modifiers:
 
   * *(none)* or `upcoming` or `upcoming month` → rolling 28 days (today inclusive)
-  * `month` → current month
+  * `current` or `month` → current month
   * `next` or `next month` → next month
-  * `year` → current calendar year
+  * `year` or `current year` → current calendar year
   * `upcoming year` → rolling 12 months, starting this month
   * `next year` → next calendar year
-  * **Month name**, **“Month Year”**, or **Year number** → targeted range
+  * **Month name** (assumes current year), **“Month Year”**, or **Year number** → as described
 
 * `!cal help`
   Show available commands (GM sees GM-only extras).
@@ -137,11 +137,11 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
 * `!cal setdate [MM] DD [YYYY]`
   Set the current date. Two forms are supported:
 
-  1. **`MM DD [YYYY]`** — set an exact date. year is optional, with current year assumed.
+  1. **`MM DD [YYYY]`** — set an exact date. year is optional, with next occurrence assumed. will roll year as needed.
   2. **`DD`** (single number) — assumed to be the next occurrence of that numbered day. Will roll months or years as needed.
 
 * `!cal senddate`
-  **Broadcast** the current month view (plus events) to **all players**.
+  **Broadcast** the current month view (plus the month's events) to **all players**.
 
 * `!cal sendyear`
   **Broadcast** the full current year (no event list) to **all players**.
@@ -170,38 +170,39 @@ When a GM uses `!cal` or `!cal show` (single month), a small private block of **
   Remove one or more events by **name** or **index**.
 
   * Name matching is **substring** by default; add `exact` for exact name matches.
-      * `!cal removeevent gala` will take out the Tain Gala.
-      * `!cal removeevent exact gala` will only take out events named "gala".
+      * `!cal removeevent gala` will take out the Tain Gala. (unless there are multiple galas - see *safety* below.)
+      * `!cal removeevent exact gala` will only take out an event named exactly "gala".
   * Add `all` to remove **every** match.
+      * `!cal removeevent all gala` will take out all the galas, Tain and otherwise.
 
-  * Safety: if your request matches multiple events, you'll get instructions to disambiguate.
+  * *Safety*: if your request matches multiple events, you'll get instructions to disambiguate.
       * Every event is assigned a hidden index number. Those indices will be revealed if needed for disambiguation.
 
-  * Safety: if your request matches both an **index** and a **name**, you’ll get instructions to disambiguate. `!cal removeevent 7`
+  * *Safety*: if your request matches both an **index** and a **name**, you’ll get instructions to disambiguate. `!cal removeevent 7`
       * `!cal removeevent 1999` might remove an event named "Party Like 1999", but if you also have an event with index 1999, it will ask for more infomation.
       * `index <n>` removes the event at position `n`. So if you have an event named "Party at 7", and an event with index of 7, it will force the index and leave your party alone. `!cal removeevent index 7`
       * *Cannot be combined with `all` or `exact`.*
 
-  * There are some nuances here. Technically, there is only one Tain Gala, that occurs on the 6th (1st Far) of every month. The script does not "fill" a calendar. (There is no infinite scroll of years.) It just checks if any defined events matche whatever date it is currently working with.
-  * There are not 12 Tain Galas per year. There is one Tain Gala that happens 12 times per year.
+  * There are some nuances here. Technically, there is only one Tain Gala, that occurs on the 6th (1st Far) of every month. The script does not "fill" a calendar. (There is no infinite scroll of years.) It just checks if any defined events match whatever date it is currently working with.
+    * "There are not 12 Tain Galas per year. There is one Tain Gala that happens 12 times per year."
 
 * `!cal refresh`
-  Re-normalize, clamp dates, refresh colors, and de-duplicate state, etc. etc. Boring script stuff. The script automatically calls this function internally, but calling it manually might make you feel a little fresher.
+  Re-normalize, clamp dates, refresh colors, and de-duplicate state, etc. etc. Boring script stuff. The script automatically calls this function internally, but calling it manually might make you feel a little fresher. Realistically, it does stuff, but nothing that isn't happening anyways.
 
 * `!cal resetcalendar`
-  Completely reset to built-in defaults state. **Nukes custom events and current date**. You have been warned. The script will not warn you. (The API doesn't support an "Are you sure you want to do that?" function.)
+  Completely reset to built-in defaults state. **Nukes custom events and current date**. You have been warned. The script will not warn you. (The API doesn't support an "Are you sure?" function.)
 
 ## Aliases
-   I have included a ton of aliases for these functions. Use them as you see fit. Use them accidentally. Just guess. You can do it. Most of the time where I have a "next month" or "next year", it will also accept "nextmonth" or "nextyear". (You'll still need to spell !cal right.)
+   I have included a ton of aliases for these functions. Use them as you see fit. Use them accidentally. Just guess. You can do it. Most of the time where I have a "next month" or "upcoming year", it will also accept "nextmonth" or "upcomingyear". (You'll still need to spell !cal right.)
    * `!cal <command>`:
       * `show month` - show, month, current, showmonth, show current, showcurrent, mnoth, monht, curretn
       * `show year` - all, year, showyear, showyr, yaer, yera
-      * `show next month` - next
+      * `show next month` - next, nxet, netx
       * `events upcoming` - events, evenst, envetns
-      * `events month` - this list is actually shown in the standard current month view. no aliases.
+      * `events month` - no aliases. this is actually shown in the standard current month view. just mentioning it here for that note.
       * `events year` - list, list events, listevents, list all, listall, allevents
-      * `addevent` - addevent, add, addnext
-      * `removeevent` - remove, rm   
+      * `addevent` - add, add event, add next, addnext
+      * `removeevent` - remove, rm, remove event
 
 ---
 
@@ -234,7 +235,7 @@ To avoid confusion when your **event name contains numbers** (e.g., “1985 Reun
 * Everything **before** `--` is parsed as **date tokens**.
 * Everything **after** `--` is treated as the **name**, with **one exception**:
 
-  * If the very **last token** after `--` **starts with `#`** and is a valid hex (`#RGB` or `#RRGGBB`), it is used as the **color** and removed from the name.
+  * If the very **last token** after `--` **starts with `#`** and is a valid hex (`#RGB` or `#RRGGBB`), it is used as the **color** and removed from the name. This means that using the `--` separator *requires* you to preface your hex color with `#`.
 
 **Examples**
 
@@ -264,28 +265,30 @@ To avoid confusion when your **event name contains numbers** (e.g., “1985 Reun
 * If you use `--`, **only** a final token that **starts with `#`** is interpreted as a color; **bare hex** after `--` stays in the **event name**.
 * If you omit a color, the event uses the **default** color (currently **`#FF00F2`** - bright pink).
 
-### “Next” semantics (one-offs)
+### “Next” assumptions
 
 * `DD` (just a day) → add a **single event** on the **next** `DD` (this month if today ≤ `DD`; otherwise next month).
 * `MM DD` (both plain integers) → add a **single event** on the **next** `MM/DD` in or after the current year.
 
-### Repeating semantics
+### Repeating distinctions
 
-* If **`all`** or **CSV/range** appears in **any** of month/day/year, insertion is **bulk** for all combinations.
-* `year=all` means **repeat every year** (stored with `year = null`).
+* If **`all`** or **CSV/range** appears in **any** of month/day/year, the event will show up multiple times in your event lists.
+* An event happening on `1-3 17-18 all` occurs on the 17th & 18th days of the first 3 months of every year. But this is *not multiple events*. This is *one event happening multiple times*.
 
 ### Uniqueness
 
-Events are considered duplicates (and not re-inserted) if the **name**, **month**, **day spec** (normalized), and **year** (or “ALL” if repeating) are identical.
-
+* Events are considered duplicates (and not re-inserted) if both every part of the date fields and the name field are *identical*.
+* If you have `1 7 all Party` and `1 8 all Party` and `1 7-8 all Party`, you have 3 unique events.
+* But on the mini-calendars, and on the events list, it will look like you have duplicate "Party" entries on both the 7th and 8th of Zarantyr.
+* Similarly, you might add a 4th unique event `1 8 998 Party`, and it would start looking like you have a busy social life.
+  
 ---
 
 ## Rendering & Accessibility
 
-* **Single event day:** Solid background with the event’s color; text color auto-selects **black/white** for the best contrast.
-* **Multiple events:** Up to **three colors** render as a sharp diagonal gradient at **45°**. Text color is computed from the **average** of the colors for best readability.
-* **Today’s cell:** Receives a strong highlight (larger font, inner glow, outer shadow, outline) layered atop its base (event color or month color).
-* **Contrast:** The script measures WCAG contrast; if < **4.5:1**, it adds a subtle text outline using the opposite color to boost legibility.
+* **Single event day:** Solid background with the event’s color; text color auto-selects **black/white** (possibly with outline) for the best contrast.
+* **Multiple events:** Up to **three colors** render as a sharp gradient. Text color optimizes to make the best case of the worst contrast.  
+* **Today’s cell:** Receives a strong highlight (larger font, inner glow, outer shadow, outline) layered atop its base (event color or basic month color).
 
 Hover a date to see a **title tooltip** listing all event names for that day.
 
@@ -325,13 +328,14 @@ Hover a date to see a **title tooltip** listing all event names for that day.
 * **Default events merging:**
 
   * `mergeInNewDefaultEvents()` inserts defaults added in newer script versions **unless** previously removed (suppressed).
+  * This lets you add to the default events list without needing to nuke the state.
 * **Date math:**
 
   * `toSerial()` linearizes y/m/d onto an absolute day count for consistent day-of-week deltas.
   * `weekdayIndexFor()` computes weekday for any month/day relative to the current date.
 * **Event expansion:**
 
-  * `normalizeDaySpec()` converts a day string to `D` or `A-B` within the month bounds.
+  * `normalizeDaySpec()` converts a day string to `DD` or `A-B` within the month bounds.
   * `expandDaySpec()` turns a spec into explicit day integers for range queries.
 * **Style helpers:**
 
@@ -367,15 +371,15 @@ Hover a date to see a **title tooltip** listing all event names for that day.
 !cal addevent 8 4 -- The Hunt #228B22
 !cal addannual 6 12 Brightblade #B22222
 !cal addmonthly 5 Rent #00FF00
-!cal addevent all 9 -- Market Day
-!cal addevent 3 18-19 -- Festival #FFD700
+!cal add all 9 -- Market Day
+!cal add 3 18-19 -- Festival #FFD700
 !cal addnext 25 Payday
 !cal addnext 11 11 -- Armistice #4169E1
 
 # Remove events (GM)
 !cal removeevent index 7
-!cal removeevent exact Long Shadows
-!cal removeevent all Gala
+!cal remove exact Long Shadows
+!cal rm all Gala
 ```
 
 ---
@@ -383,11 +387,9 @@ Hover a date to see a **title tooltip** listing all event names for that day.
 ## Customizing for Other Settings
 
 * **Change weekday names** and **month names/days/season/colors** in the `defaults` block.
-* **Add/adjust default events** in `defaults.events`. Ranges like `"18-19"` and `"26-28"` are supported.
+* **Add/adjust default events** in `defaults.events`. Ranges like `"18-19"` or `all` are supported.
 * **Era label** (`YK`) lives in `LABELS.era`.
-* **Event default color** is `EVENT_DEFAULT_COLOR`.
-* **Gradient angle** is `GRADIENT_ANGLE` (default `45deg`).
-* **Contrast threshold** is `CONTRAST_MIN` (default `4.5`).
+* I don't have leap year (Gregorian) or Intercalery days (Forgotten Realms) programmed yet. 
 
 ---
 
@@ -395,39 +397,15 @@ Hover a date to see a **title tooltip** listing all event names for that day.
 
 * **Clamping:** `addevent all 31 ...` will clamp to each month’s max (28). To **skip** months without that day instead of clamping, adjust `_addConcreteEvent` to bail when `normalizeDaySpec` clamps.
 * **Duplicates:** Exact duplicates (same name/month/daySpec/year) are not added.
-* **“Untitled Event”:** If no name is parsed, a default name is used. If you want to make name **required**, add a quick guard in `addEventSmart`.
+* **“Untitled Event”:** If no name is parsed, a default name is used.
 * **sendyear:** broadcasts the **year grid only** (no event list), by design.
 * **Month names for adding:** Month **names** are recognized by `show/events` views but **not** for `addevent` month inputs (which expect numbers/lists/ranges/`all`).
 
 ---
 
-## Changelog (v1.9)
-
-* **Cleaner parsing with `--`:** The name is split **before** color detection, so embedded numbers/hex-ish strings stay in the name.
-
-  * On the **date side**, a trailing color can be bare hex or `#hex`.
-  * On the **name side**, only a final token that **starts with `#`** is treated as color.
-* **`!cal setdate DD` added:** Single integer is treated as a **day-only** jump to the next occurrence (this month if upcoming, else next month).
-* **Default events expanded/adjusted:** Includes **Tain Gala on day 6 every month** and several Eberron holidays (with theme colors).
-* **Events listing defaults to “Upcoming (28 days)”** when no modifier is given to `!cal events`.
-* **UI & accessibility polish:** Better contrast handling plus a subtle text outline when needed.
-
----
-
 ## License
 
-Add your license here (e.g., MIT).
-
----
-
-## Contributing
-
-PRs welcome! Common contributions:
-
-* New/adjusted defaults (months, holidays, colors)
-* Additional viewing shortcuts
-* Optional flags (e.g., month-name support for `addevent`)
-* Doc updates / examples
+I'm just a kid and life is a nightmare.
 
 ---
 
