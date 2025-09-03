@@ -1,32 +1,52 @@
-# calendar
 # Eberron Calendar (Roll20 API Script)
 
-A calendar and event system tailored for **Eberron** that tracks the current date, renders mini-calendars in Roll20 chat, and supports event management.
+A calendar and event system (currently) tailored for **Eberron** that tracks the current date, renders mini-calendars in Roll20 chat, and supports event management.
 
 **Author:** Matthew Cherry (github.com/mcherry1/calendar)
-
 ---
 
+> Game time is of utmost importance.
+> ...
+> YOU CAN NOT HAVE A MEANINGFUL CAMPAIGN IF STRICT TIME RECORDS ARE NOT KEPT.
+> 
+> Dungeon Master’s Guide (page 37), Gary Gygax
+
+---
+## Purpose
+
+I put this script together to encourage interaction with, and awareness of, the in-game calendar. Towards that end, these are my primary goals:
+  1. Easy for GMs to manage.
+  2. Easy for players to use *without* needing the GM.
+
+That's really it.
+
+There are other fantasy calendars.  Plenty of GMs track time in their own notes. Sometimes players do, too. But it can be challenging to keep everything sychronized; and it can be frustrating as a player to not know where or how to find the calendar.
+  
+Besides, plenty of players might be unfamiliar with the calendar, or the setting entirely.
+  
+---
 ## Highlights
 
-* **Simple Commands:** `!cal` shows a *beautiful* mini-calendar of the current month with:
-   * The current day highlighted.
-   * A list of events.
-   * One-click quick action buttons.
-* **Pretty Displays:** Mini-calendars rendered in chat with color themes, hover text, and quick-glance information. Month headers based on lunar colors.
-* **Player Interaction:** Players can call same calendar and track time on their own (self-whisper only).
-* **GM/Player Distinction:** Players have no access to advanced controls like changing the date, adding/removing events, or broadcasting to the table.
-* **Infinite Variations:** Call any month, any year, or any month of any year.
+* **Quick Buttons:** Quick-access buttons for basic interaction (show, send, advance, retreat, help, etc.)
+  * *Tip:* Add a macro that simply says `!cal` to the macro bar.
+* **Simple Commands:**
+   * `!cal` or `!cal show` for a quick calendar.
+   * `!cal list` or `!cal events` for a quick list of upcoming events.
+   * `!cal send` to broadcast the quick calendar. *(GM only)*
+   * `!cal send list` or `!cal send events` to broadcast the event list. *(GM only)*
+   * `!cal advance`, `!cal retreat`, `!cal set Nymm 2004` to manage the current date.  *(GM only)*
+* **Smart Semantics :** Interprets your intention with tons of shortcuts, aliases, and various smart-parsing to cut down on required command text. (See logic further down.)
+* **Pretty Displays:** Mini-calendars rendered in chat with color themes, cell highlights, contrasting text, etc.
+* **Useful Displays:** Current date highlights, event-day hover text, faded past dates, and more.
+* **Infinite Variations:** Call any month, any year, any time.
 * **Event Management:**
-   * Default set of Eberron holidays loaded. Expandable if you edit the code.
+   * Default set of Eberron events loaded.
    * Custom color for each event.
-   * Add your own events like birthdays (annual), rent due (monthly), parties (every day), or any other variation you desire.
-   * Remove any event, including defaults.
-   * Generate lists of events in chat.
-* **Smart Semantics:** Interprets your intention with tons of shortcuts, aliases, and various smart-parsing of intention.
+   * Add your own events from the chat (`!cal add Far Party #sapphire` adds an event called "Party" on the next Far, with a sapphire-colored calendar cell).
+   * Remove any event, including defaults, by name or by source (`!cal remove source Silver Flame` removes all Silver Flame holidays).
+   * Generate lists of events in chat, with custom-defined ranges (`!cal list upcoming year` generates a chronological list of events for the current month and the next 11 months).
 
 ---
-
 ## Installation
 
 1. In your Roll20 game (Pro subscription required), open **Game Settings → API Scripts**.
@@ -49,13 +69,14 @@ A calendar and event system tailored for **Eberron** that tracks the current dat
 
 * **Months (12 × 28 days):**
   Zarantyr, Olarune, Therendor, Eyre, Dravago, Nymm, Lharvion, Barrakas, Rhaan, Sypheros, Aryth, Vult
-  Each month has a **season** label and a lunar-based **color** used for the header and the “today” highlight.
+  Each month has a **season** label and a header **color** also used for the “today” highlight.
+    Header **colors** have two sets: one themed for seasons, and another themed with the shared-name lunar color palette.
 
-* **Current date (default):** `Zarantyr 1, 998 YK`
+* **Starting date:** `Zarantyr 1, 998 YK`
 
 * **Default events (subset shown):**
 
-  * **Tain Gala** — day **6** of **every** month
+  * **Tain Gala** — day 6 of *every* month
   * **Crystalfall** — Olarune 9
   * **The Day of Mourning** — Olarune 20
   * **Tira's Day** — Therendor 15
@@ -67,127 +88,98 @@ A calendar and event system tailored for **Eberron** that tracks the current dat
   * **Fathen's Fall** — Barrakas 25
   * **Boldrei's Feast** — Rhaan 9
   * **The Ascension** — Sypheros 1
-  * **Wildnight** — Sypheros **18-19** (range)
+  * **Wildnight** — Sypheros 18-19
   * **Thronehold** — Aryth 11
-  * **Long Shadows** — Vult **26-28** (range)
+  * **Long Shadows** — Vult 26-28
 
 > ⚙️ Removing a default event marks it as **suppressed** so it won’t be resurrected on refresh.
 
 ---
 
-## What Players See vs. What GMs See
+## Logic
 
-* **Everyone** can use informational commands (`!cal`, `!cal show …`, `!cal events …`, `!cal year`, `!cal help`).
-* **GMs only** may use any command that **changes** calendar state (advance/retreat/set dates, add/remove events, broadcast to table, refresh/reset).
+The script makes a lot of default assumptions if you provide partial inputs.
 
-When a GM uses `!cal` or `!cal show` (single month), a small private block of **GM buttons** is whispered for quick actions:
+* The script *always* assumes you mean the *next* occurrance of whatever you input.
+* Going back in time is *never* assumed, and must be done explicitly using a `YYYY` input.
+* This is true for calendar views, event scheduling, and date setting.
 
-```
-[📤 Send Date] [⏭ Advance Day] [⏮ Retreat Day] [❓ Help]
-```
+* When a specific date is asked for (`MM DD YYYY`), one integer is assumed to be `DD`, and two integers `MM DD`.
+* When a period is asked for (`MM YYYY`), one integer is assumed to be `MM`.
+* *Note: There are some edge cases here if integers provided don't fit the defined number of days or months. Since there is no limit on the number of the year, a single integer will usually fall back to that assumption, where possible. Multiple integers that do not match defined numbers of days and/or months will fail and generate an error message.*
+
+Examples:  
+  * `!cal set 6` on the 5th means advancing one day.
+  * `!cal set 6` on the 7th means advancing one month (minus a day).
+  * `!cal set 2 3` on 2/2 advances one day.
+  * `!cal set 2 3` on 2/4 advances one year (minus a day).
+  * `!cal 2` in Month 1 shows next month's calendar. `!cal 2` in Month 3 shows next year's Month 2 calendar.
 
 ---
 
 ## Commands
 
-### Everyone
+There are two core commands, (and one help):
+  1. Calendar: `!cal` or `!cal show`
+  2. Events List: `!cal list` or `!cal events`
+  3. Help: `!cal help`
 
-* `!cal`
-  Show the **current month** (whispered to the caller) with the current day highlighted and today’s events listed.
-  If the caller is a GM, the GM button panel is also whispered.
+If no command is given, it assumes `show` (`!cal` = `!cal show`).
 
-* `!cal show [modifier]`
-  Show a mini-calendar view. Supported **modifiers**:
+Both of these commands can be followed by an optional range of dates: `!cal [range]`/`!cal show [range]` or `!cal list [range]`/`!cal events [range]`.
 
-  * *(none)* or `month` → current month
-  * `year` → full set of months for the current numbered calendar year
-  * `next` / `next month` → the next month
-  * `next year` → next numbered year
-  * `upcoming year` → rolling 12 months, starting this month
-  * **"month"** (e.g., `Nymm`) → the *current or next occurrence* of that month
-  * **“month year”** (e.g., `Nymm 999`) → that specific month in that specific year
-  * **Special convenience:** `upcoming` (or `upcoming month`) shows:
-    * current month if today < 15th
-    * next month if today ≥ 15th
+Available terms:
+  * `MM YYYY`
+    * *If only one integer is provided, assumes `MM` if possible (total count of months), then falls back to `YYYY`.*
+    * (`!cal 11` shows the current or next occurrance of month 11. `!cal 77` shows year 77, unless you had 77 months.)
+  * `month` (defaults to current month)
+  * `MM`, `[name]`, `month [name]`, or `month 9` (current or next occurrance)
+  * `year` (defaults to current year)
+  * `YYYY` (if number provided is greater than the count of months) or `year YYYY`
+  * *Note: Months also accept a 3-4 letter abbreviation. (e.g. `drav` = `dravago`, `syph` = `syp` = `sypheros`.)*
+    
+  * Prepend or append these terms to the above. If used on their own, they assume `month`. (e.g. `!cal current` = `!cal show this month` = `!cal`)
+    * `current`, `this` — inclusive of present date
+    * `last`, `previous`, `prev` — period before present date
+    * `next` — period after present date
+    * `upcoming` — rolling period that (generally) includes present date
 
-* `!cal events [modifier]`
-  List events in a focused window. **Default** is a **rolling 28-day** window when no modifier is given. Supported modifiers:
+  * Examples:
+    * `!cal list year previous` or `!cal events last year`,
+    * `!cal next` or `!cal next month`,
+    * `!cal Nymm` or `!cal show 6`,
+    * `!cal events Olarune 994`,
+    * `!cal list year 894`
+    * `!cal set 1 999`
+    * `!cal last Dravago`
 
-  * *(none)* or `upcoming` or `upcoming month` → rolling 28 days (today inclusive)
-  * `current` or `month` → current month
-  * `next` or `next month` → next month
-  * `year` or `current year` → current calendar year
-  * `upcoming year` → rolling 12 months, starting this month
-  * `next year` → next calendar year
-  * **Month name** (assumes current year), **“Month Year”**, or **Year number** → as described
+## GM Options
 
-* `!cal help`
-  Show available commands (GM sees GM-only extras).
-
----
-
-### GM-Only
-
-* `!cal advanceday`
-  Advance one day (rolls months/years and weekday automatically).
-
-* `!cal retreatday`
-  Go back one day (rolls months/years and weekday automatically).
-
-* `!cal setdate [MM] DD [YYYY]`
-  Set the current date. Two forms are supported:
-
-  1. **`MM DD [YYYY]`** — set an exact date. year is optional, with next occurrence assumed. will roll year as needed.
-  2. **`DD`** (single number) — assumed to be the next occurrence of that numbered day. Will roll months or years as needed.
-
-* `!cal senddate`
-  **Broadcast** the current month view (plus the month's events) to **all players**.
-
-* `!cal sendyear`
-  **Broadcast** the full current year (no event list) to **all players**.
-
-* `!cal addevent [MM] DD [YYYY] name [#hex]`
-  Add custom events. Powerful parsing supports:
-
-  * **Months:** numbered, CSV (`1,3,5,8`), range (`2-5`), or `all`
-  * **Days:** number, CSV, range (`18-19`), or `all`
-  * **Years:** number, CSV, range, or `all` (meaning “repeat every year”)
-    **Semantics:**
-  * If you provide **only one number** (`DD`), the script assumes the next `DD` (this month if still upcoming; otherwise next month).
-  * If you provide **two numbers** (`MM DD`) it assumes the next occurrence of `MM/DD` (this year if not yet passed; otherwise next year).
-  * Any use of **`all`**, **CSV**, or **ranges** triggers multiple events.
-  * Day **ranges** (e.g., `18-19`) create occurrences for each day of the range.
-
-* `!cal addmonthly DD name [#hex]`
-  Alias for: “every month, given day, repeating every year.”
-  Equivalent to: `!cal addevent all DD all name [#hex]`.
-
-* `!cal addannual MM DD name [#hex]`
-  Alias for: “every year, given month/day.”
-  Equivalent to: `!cal addevent MM DD all name [#hex]`.
-
-* `!cal removeevent [all] [exact] [index] <index|name>`
-  Remove one or more events by **name** or **index**.
-
+GMs have several more options.
+1. `send` - Prepend `send` on either of the above core commands to broadcast to chat. (e.g. `!cal send list 999`
+2. `set` - Change current day to a defined date using `!cal set [MM] DD [YYYY]`. Uses default "next" logic, with MM and YYYY optional.
+3. `advance` or `advanceday` - steps current day forward
+4. `retreat` or `retreatday` - steps current day back
+5. `add` or `event add` or `addevent` - Add a custom event using `!cal add [MM] DD [YYYY] name #[hex]`
+  * Months, Days, and Years accept numbers, comma-separated-values (`1,3,5,8`), ranges (`2-5`), or `all`
+  * Standard "next" logic assumed.
+  * `!cal addmonthly` or `!cal addannual` auto-fill `all` in the appropriate field.
+6. `remove` or `event remove` or `removeevent` or `rm` - Remove any event using `!cal remove [all] [exact] [index] <index|name>`
+  * Remove one or more events by **name** or **index**.
   * Name matching is **substring** by default; add `exact` for exact name matches.
-      * `!cal removeevent gala` will take out the Tain Gala. (unless there are multiple galas - see *safety* below.)
-      * `!cal removeevent exact gala` will only take out an event named exactly "gala".
+    * `!cal removeevent gala` will take out the Tain Gala. (unless there are multiple galas - see *safety* below.)
+    * `!cal removeevent exact gala` will only take out an event named exactly "gala".
   * Add `all` to remove **every** match.
       * `!cal removeevent all gala` will take out all the galas, Tain and otherwise.
-
   * *Safety*: if your request matches multiple events, you'll get instructions to disambiguate.
       * Every event is assigned a hidden index number. Those indices will be revealed if needed for disambiguation.
-
-  * *Safety*: if your request matches both an **index** and a **name**, you’ll get instructions to disambiguate. `!cal removeevent 7`
+  * *Safety*: if your request matches both an **index** and a **name**, you’ll get instructions to disambiguate.
       * `!cal removeevent 1999` might remove an event named "Party Like 1999", but if you also have an event with index 1999, it will ask for more infomation.
       * `index <n>` removes the event at position `n`. So if you have an event named "Party at 7", and an event with index of 7, it will force the index and leave your party alone. `!cal removeevent index 7`
       * *Cannot be combined with `all` or `exact`.*
 
-  * There are some nuances here. Technically, there is only one Tain Gala, that occurs on the 6th (1st Far) of every month. The script does not "fill" a calendar. (There is no infinite scroll of years.) It just checks if any defined events match whatever date it is currently working with.
-    * "There are not 12 Tain Galas per year. There is one Tain Gala that happens 12 times per year."
-
-* `!cal refresh`
-  Re-normalize, clamp dates, refresh colors, and de-duplicate state, etc. etc. Boring script stuff. The script automatically calls this function internally, but calling it manually might make you feel a little fresher. Realistically, it does stuff, but nothing that isn't happening anyways.
+  * *Note: There is some nuance here. Technically, there is only one Tain Gala, that occurs on the 6th (1st Far) of every month. The script does not "fill" a calendar. (There is no infinite scroll of years.) There are not 12 Tain Galas per year. There is one Tain Gala that happens 12 times per year. You only need to remove it once.*
+  * *Note: Default events are never truly removed. They are merely suppressed, and can be recalled.*
 
 * `!cal resetcalendar`
   Completely reset to built-in defaults state. **Nukes custom events and current date**. You have been warned. The script will not warn you. (The API doesn't support an "Are you sure?" function.)
