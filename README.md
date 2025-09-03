@@ -156,8 +156,8 @@ Available terms:
 ## GM Options
 
 GMs have several more options.
-1. `send` - Prepend `send` on either of the above core commands to broadcast to chat. (e.g. `!cal send list 999`
-2. `set` - Change current day to a defined date using `!cal set [MM] DD [YYYY]`. Uses default "next" logic, with MM and YYYY optional.
+1. `send` - Prepend `send` on either of the above core commands to broadcast to chat. (e.g. `!cal send list 999`, or `!cal send Therendor`)
+2. `set` or `setdate` or `set date` - Change current day to a defined date using `!cal set [MM] DD [YYYY]`. Uses default "next" logic, with MM and YYYY optional. (e.g. `!cal set 7`, `!cal set 7 5`, or `!cal set 2 20 994`). Unlike both `show` and `list`, accepts 3 integers for a specific date.
 3. `advance` or `advanceday` - steps current day forward
 4. `retreat` or `retreatday` - steps current day back
 5. `add` or `event add` or `addevent` - Add a custom event using `!cal add [MM] DD [YYYY] name #[hex]`
@@ -177,7 +177,6 @@ GMs have several more options.
       * `!cal removeevent 1999` might remove an event named "Party Like 1999", but if you also have an event with index 1999, it will ask for more infomation.
       * `index <n>` removes the event at position `n`. So if you have an event named "Party at 7", and an event with index of 7, it will force the index and leave your party alone. `!cal removeevent index 7`
       * *Cannot be combined with `all` or `exact`.*
-
   * *Note: There is some nuance here. Technically, there is only one Tain Gala, that occurs on the 6th (1st Far) of every month. The script does not "fill" a calendar. (There is no infinite scroll of years.) There are not 12 Tain Galas per year. There is one Tain Gala that happens 12 times per year. You only need to remove it once.*
   * *Note: Default events are never truly removed. They are merely suppressed, and can be recalled.*
 
