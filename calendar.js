@@ -17,6 +17,23 @@ var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink for events
 var GRADIENT_ANGLE = '45deg'; // Angle for multi-event day gradients.
 var CONTRAST_MIN_HEADER = 4.5; // AA for normal text
 var CONTRAST_MIN_CELL   = 7.0; // AAA-ish goal for tiny day numbers
+// === [ADDED] Small, reusable helpers =========================================
+function h(s){ // HTML escape (alias for esc)
+  return esc(s);
+}
+
+// Single, DRY sending function
+function send(opts, html){
+  opts = opts || {};
+  var to = (opts.to || '').replace(/\s+\(GM\)$/,'').trim();
+  var prefix;
+  if (opts.broadcast){            prefix = '/direct ';
+  } else if (opts.gmOnly){        prefix = '/w gm ';
+  } else if (to){                 prefix = '/w "' + to.replace(/"/g,'') + '" ';
+  } else {                        prefix = '/direct ';
+  }
+  sendChat(script_name, prefix + html);
+}
 
 // Default Calendar Definitions
 var defaults = {
@@ -878,15 +895,11 @@ function swatchHtml(colLike){
   var col = resolveColor(colLike) || EVENT_DEFAULT_COLOR;
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 }
-
-function sendToAll(html){ sendChat(script_name, '/direct ' + html); }
-function sendToGM(html){  sendChat(script_name, '/w gm ' + html); }
+function sendToAll(html){ send({ broadcast:true }, html); }
+function sendToGM(html){  send({ gmOnly:true }, html); }
+function whisper(to, html){ send({ to:to }, html); }
 function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
-function whisper(to, html){
-  var name = String(to || '').replace(/\s+\(GM\)$/,'').trim();
-  name = name.replace(/"/g,'').replace(/\[/g,'(').replace(/\]/g,')').replace(/[|\\]/g,'-').replace(/[<>]/g,'-');
-  sendChat(script_name, '/w "'+ name +'" ' + html);
-}
+
 
 // --- Day context + cell renderer (DRY for both full grids and week strips) ---
 function makeDayCtx(y, mi, d, dimPast){
@@ -1122,6 +1135,69 @@ function expandRangeWithRecentPast(spec){
   return { title: spec.title, start: start, end: spec.end, months: spec.months };
 >>>>>>> Stashed changes
 }
+// === [ADDED] Day Spec utilities (single source of truth) =====================
+var daySpec = {
+  normalize: function(spec, maxDays){
+    var s = String(spec||'').trim();
+    if (/^\d+$/.test(s)){ return String(clamp(s, 1, maxDays)); }
+    var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m){
+      var a = clamp(m[1], 1, maxDays), b = clamp(m[2], 1, maxDays);
+      if (a > b){ var t=a; a=b; b=t; }
+      return a <= b ? (a+'-'+b) : null;
+    }
+    return null;
+  },
+  expand: function(spec, maxDays){
+    var s = String(spec||'').trim();
+    var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m){
+      var a = clamp(m[1],1,maxDays), b = clamp(m[2],1,maxDays);
+      if (a>b){ var t=a;a=b;b=t; }
+      var out=[]; for (var d=a; d<=b; d++) out.push(d);
+      return out;
+    }
+    var n = parseInt(s,10);
+    if (isFinite(n)) return [clamp(n,1,maxDays)];
+    var out2=[]; for (var d2=1; d2<=maxDays; d2++) out2.push(d2);
+    return out2;
+  },
+  matches: function(spec){
+    if (typeof spec === 'number') { var n = spec|0; return function(d){ return d === n; }; }
+    if (typeof spec === 'string') {
+      var s = spec.trim();
+      if (s.indexOf('-') !== -1) {
+        var parts = s.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
+        var a = parts[0], b = parts[1];
+        if (isFinite(a) && isFinite(b)) {
+          if (a > b) { var t=a; a=b; b=t; }
+          return function(d){ return d >= a && d <= b; };
+        }
+      }
+      var n2 = parseInt(s,10);
+      if (isFinite(n2)) return function(d){ return d === n2; };
+    }
+    return function(){ return false; };
+  },
+  startDayOf: function(spec){
+    if (typeof spec === 'number') return spec|0;
+    var s = String(spec||'').trim();
+    var m = s.match(/^\s*(\d+)/);
+    return m ? Math.max(1, parseInt(m[1],10)) : 1;
+  }
+};
+
+// ---- [RENAMED] Human-like names + compatibility aliases ---------------------
+function normalizeDay(spec, maxDays){ return daySpec.normalize(spec, maxDays); }
+function expandDay(spec, maxDays){ return daySpec.expand(spec, maxDays); }
+function matchesDay(spec){ return daySpec.matches(spec); }
+function startDayOf(spec){ return daySpec.startDayOf(spec); }
+
+// Back-compat (old names) — keep the code working without touching call sites:
+function normalizeDaySpec(spec, maxDays){ return normalizeDay(spec, maxDays); }
+function expandDaySpec(spec, maxDays){ return expandDay(spec, maxDays); }
+function makeDayMatcher(spec){ return matchesDay(spec); }
+function firstNumFromDaySpec(spec){ return startDayOf(spec); }
 
 function occurrencesInRange(startSerial, endSerial){
   var cal = getCal(), dpy = daysPerYear(), occ=[];
