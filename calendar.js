@@ -471,6 +471,133 @@ function fromSerial(s){
   return { year:y, mi:mi, day:(rem|0)+1 };
 }
 
+// --- Row/day utilities for boundary strips -----------------------------------
+function _rowDaysInMonth(y, mi, rowStart){
+  var cal = getCal(), wdCount = cal.weekdays.length|0, out = [];
+  for (var c=0; c<wdCount; c++){
+    var d = fromSerial(rowStart + c);
+    if (d.year === y && d.mi === mi) out.push(d.day);
+  }
+  return out;
+}
+function _setAddAll(setObj, arr){
+  for (var i=0;i<arr.length;i++) setObj[arr[i]] = 1;
+}
+function _setCount(setObj){ return Object.keys(setObj).length; }
+function _setMin(setObj){
+  var keys = Object.keys(setObj).map(function(k){return +k;});
+  return keys.length ? Math.min.apply(null, keys) : null;
+}
+function _setMax(setObj){
+  var keys = Object.keys(setObj).map(function(k){return +k;});
+  return keys.length ? Math.max.apply(null, keys) : null;
+}
+
+// Render a month "strip" using an explicit set of day numbers for that month.
+// Cells not in the set stay empty, but the table keeps weekday geometry.
+function renderMonthStripWantedDays(year, mi, wantedSet, dimPast){
+  var parts = monthTableOpen(mi, year);      // month header + weekday header
+  var html  = [parts.html];
+  var wdCnt = getCal().weekdays.length|0;
+
+  var minD = _setMin(wantedSet), maxD = _setMax(wantedSet);
+  if (minD == null || maxD == null){
+    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.td+';opacity:.6;">(no days)</td></tr>');
+    html.push(monthTableClose());
+    return html.join('');
+  }
+
+  var firstRow = weekStartSerial(year, mi, minD);
+  var lastRow  = weekStartSerial(year, mi, maxD);
+  for (var rowStart = firstRow; rowStart <= lastRow; rowStart += wdCnt){
+    html.push('<tr>');
+    for (var c=0; c<wdCnt; c++){
+      var s = rowStart + c;
+      var d = fromSerial(s);
+      if (d.year === year && d.mi === mi && wantedSet[d.day]){
+        var ctx = makeDayCtx(d.year, d.mi, d.day, /*dimPast*/!!dimPast);
+        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
+      } else {
+        html.push('<td style="'+STYLES.td+'"></td>');
+      }
+    }
+    html.push('</tr>');
+  }
+  html.push(monthTableClose());
+  return html.join('');
+}
+
+// Compute the "wanted day" sets for boundary strips based on proximity to range.
+// Returns { prev: {y,mi,wanted:Set} | null, next: {y,mi,wanted:Set} | null }
+function computeBoundaryWantedDays(spec){
+  var cal = getCal(), today = todaySerial();
+  var res = { prev:null, next:null };
+  var wdCnt = cal.weekdays.length|0;
+
+  // PREPEND side: today <= 5 days BEFORE start → use previous month
+  if (today < spec.start && (spec.start - today) <= 5){
+    var startD = fromSerial(spec.start);
+    var prevMi = (startD.mi + cal.months.length - 1) % cal.months.length;
+    var prevY  = startD.year - (startD.mi === 0 ? 1 : 0);
+    var prevMD = cal.months[prevMi].days|0;
+
+    var tD = fromSerial(today);
+    // "today" should indeed be in that previous month; if not, clamp to that month’s last day
+    var todayDay = (tD.year === prevY && tD.mi === prevMi) ? tD.day : prevMD;
+
+    var todayRow = weekStartSerial(prevY, prevMi, todayDay);
+    var lastRow  = weekStartSerial(prevY, prevMi, prevMD);
+
+    var wanted = {};
+    // include all rows from the week containing 'today' through the last row
+    for (var row = todayRow; row <= lastRow; row += wdCnt){
+      _setAddAll(wanted, _rowDaysInMonth(prevY, prevMi, row));
+    }
+    // ensure >= 5 days: if not, add rows *before* the today row
+    var backRow = todayRow - wdCnt, safety = 0;
+    while (_setCount(wanted) < 5 && safety++ < 6){
+      var extra = _rowDaysInMonth(prevY, prevMi, backRow);
+      if (!extra.length) break;
+      _setAddAll(wanted, extra);
+      backRow -= wdCnt;
+    }
+    res.prev = { y:prevY, mi:prevMi, wanted:wanted };
+  }
+
+  // APPEND side: today <= 5 days AFTER end → use next month
+  if (today > spec.end && (today - spec.end) <= 5){
+    var endD = fromSerial(spec.end);
+    var nextMi = (endD.mi + 1) % cal.months.length;
+    var nextY  = endD.year + (nextMi === 0 ? 1 : 0);
+    var nextMD = cal.months[nextMi].days|0;
+
+    var firstRow = weekStartSerial(nextY, nextMi, 1);
+
+    var tD2 = fromSerial(today);
+    var todayRow2 = (tD2.year === nextY && tD2.mi === nextMi)
+      ? weekStartSerial(nextY, nextMi, tD2.day)
+      : firstRow;
+
+    var wanted2 = {};
+    // include first row after range through the week containing today
+    for (var row2 = firstRow; row2 <= todayRow2; row2 += wdCnt){
+      _setAddAll(wanted2, _rowDaysInMonth(nextY, nextMi, row2));
+    }
+    // ensure >=5 days: extend forward if needed
+    var fwdRow = todayRow2 + wdCnt, safety2 = 0;
+    while (_setCount(wanted2) < 5 && safety2++ < 6){
+      var extra2 = _rowDaysInMonth(nextY, nextMi, fwdRow);
+      if (!extra2.length) break;
+      _setAddAll(wanted2, extra2);
+      fwdRow += wdCnt;
+    }
+    res.next = { y:nextY, mi:nextMi, wanted:wanted2 };
+  }
+
+  return res;
+}
+
+
 function firstNumFromDaySpec(daySpec){ if (typeof daySpec === 'number') return daySpec|0; var s = String(daySpec||'').trim(); var m = s.match(/^\s*(\d+)/); return m ? Math.max(1, parseInt(m[1],10)) : 1; }
 function normalizeDaySpec(spec, maxDays){
   var s = String(spec||'').trim();
@@ -821,6 +948,11 @@ function monthTableOpen(mi, yearLabel){
 }
 function monthTableClose(){ return '</table>'; }
 
+<<<<<<< Updated upstream
+=======
+// ---- Unified month renderer ---------------------------------------------------
+// opts: { year, mi, mode:'full'|'week', weekStartSerial?:number, dimPast?:boolean }
+>>>>>>> Stashed changes
 function renderMonthTable(opts){
   var cal = getCal(), cur = cal.current;
   var y   = (opts && typeof opts.year === 'number') ? (opts.year|0) : cur.year;
@@ -829,7 +961,11 @@ function renderMonthTable(opts){
   var dimPast = !!(opts && opts.dimPast);
 
   var mdays = cal.months[mi].days|0;
+<<<<<<< Updated upstream
   var parts = monthTableOpen(mi, y);
+=======
+  var parts = monthTableOpen(mi, y);  // keeps your header + weekday row
+>>>>>>> Stashed changes
   var html  = [parts.html];
 
   if (mode === 'full'){
@@ -840,21 +976,36 @@ function renderMonthTable(opts){
       html.push('<tr>');
       for (var c=0; c<7; c++){
         var s = gridStart + r*7 + c;
+<<<<<<< Updated upstream
         var d = fromSerial(s);
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimPast);
           html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
           printed++;
         } else {
+=======
+        var d = fromSerial(s); // {year, mi, day}
+        if (d.year === y && d.mi === mi){
+          var ctx = makeDayCtx(y, mi, d.day, dimPast);
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, /*numeralStyle*/''));
+          printed++;
+        } else {
+          // Outside this month → empty cell (keeps table geometry)
+>>>>>>> Stashed changes
           html.push('<td style="'+STYLES.td+'"></td>');
         }
       }
       html.push('</tr>');
+<<<<<<< Updated upstream
       if (printed >= mdays) break;
+=======
+      if (printed >= mdays) break; // stop after we've placed all real days
+>>>>>>> Stashed changes
     }
     html.push(monthTableClose());
     return html.join('');
   }
+<<<<<<< Updated upstream
 
   // mode === 'week'
   var startSer = (opts && typeof opts.weekStartSerial === 'number')
@@ -925,6 +1076,51 @@ function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
   var sw = swatchHtml(color);
   var sty = isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"';
   return '<div'+sty+'>'+ sw + ' ' + dateLbl + ': ' + esc(name) + '</div>';
+=======
+
+  // mode === 'week'
+  var startSer = (opts && typeof opts.weekStartSerial === 'number')
+    ? (opts.weekStartSerial|0)
+    : weekStartSerial(y, mi, 1); // default to the first week strip if not provided
+
+  html.push('<tr>');
+  for (var i=0; i<7; i++){
+    var s = startSer + i;
+    var d = fromSerial(s);
+    var ctx = makeDayCtx(d.year, d.mi, d.day, dimPast);
+    // If the date doesn't belong to the header's month, soften the numeral
+    var numeralStyle = (d.mi === mi) ? '' : 'opacity:.5;';
+    html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, numeralStyle));
+  }
+  html.push('</tr>', monthTableClose());
+  return html.join('');
+}
+
+// Tiny helpers for edge strips
+function _edgeWeekStart(y, mi, which){
+  var cal = getCal(), md = cal.months[mi].days|0;
+  return (which === 'prev') ? weekStartSerial(y, mi, md) : weekStartSerial(y, mi, 1);
+}
+
+function renderMonthEdgeStrip(year, mi, which, dimPast){
+  var start = _edgeWeekStart(year, mi, which);
+  return renderMonthTable({ year:year, mi:mi, mode:'week', weekStartSerial:start, dimPast: !!dimPast });
+}
+
+function currentMonthHTML(){
+  var spec = parseUnifiedRange(['month']);
+  return buildCalendarsHtmlForSpec(spec);
+}
+
+function expandRangeWithRecentPast(spec){
+  var cur = getCal().current;
+  // Always include the previous 5 days in event *lists* (doesn't affect calendar tiles)
+  var baseBack = 5;
+  var extra = (cur.day_of_the_week <= 4) ? 7 : 0;
+  var back = baseBack + extra;
+  var start = Math.min(spec.start, todaySerial() - back);
+  return { title: spec.title, start: start, end: spec.end, months: spec.months };
+>>>>>>> Stashed changes
 }
 
 function occurrencesInRange(startSerial, endSerial){
@@ -951,6 +1147,39 @@ function occurrencesInRange(startSerial, endSerial){
   occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
   return occ;
 }
+function stripRangeExtensionDynamic(spec){
+  var months = _monthsFromRangeSpec(spec);
+  var present = {};
+  for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
+
+  var boundary = computeBoundaryWantedDays(spec);
+  var start = spec.start, end = spec.end;
+
+  if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
+    var minPrev = _setMin(boundary.prev.wanted);
+    var maxPrev = _setMax(boundary.prev.wanted);
+    if (minPrev != null && maxPrev != null){
+      var sPrev = toSerial(boundary.prev.y, boundary.prev.mi, minPrev);
+      var ePrev = toSerial(boundary.prev.y, boundary.prev.mi, maxPrev);
+      start = Math.min(start, sPrev);
+      end   = Math.max(end,   ePrev);
+    }
+  }
+  if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
+    var minNext = _setMin(boundary.next.wanted);
+    var maxNext = _setMax(boundary.next.wanted);
+    if (minNext != null && maxNext != null){
+      var sNext = toSerial(boundary.next.y, boundary.next.mi, minNext);
+      var eNext = toSerial(boundary.next.y, boundary.next.mi, maxNext);
+      start = Math.min(start, sNext);
+      end   = Math.max(end,   eNext);
+    }
+  }
+
+  if (start !== spec.start || end !== spec.end) return { start:start, end:end };
+  return null;
+}
+
 
 function formatDateLabel(y, mi, d, includeYear){
   var cal=getCal();
@@ -1022,6 +1251,7 @@ function buildCalendarsHtmlForSpec(spec){
   var months = _monthsFromRangeSpec(spec);
   var out = ['<div style="text-align:left;">'];
 
+<<<<<<< Updated upstream
   var present = {};
   for (var i=0; i<months.length; i++){
     present[ months[i].y + '|' + months[i].mi ] = 1;
@@ -1034,6 +1264,35 @@ function buildCalendarsHtmlForSpec(spec){
   for (var i2=0; i2<months.length; i2++){
     var m = months[i2];
     var isCurrentMonth = (m.y === cur.year && m.mi === cur.month);
+=======
+// ---------- Event CRUD ----------
+function compareEvents(a, b){
+  var ya = (a.year==null)? -Infinity : (a.year|0);
+  var yb = (b.year==null)? -Infinity : (b.year|0);
+  if (ya !== yb) return ya - yb;
+  var am = (+a.month||1), bm = (+b.month||1);
+  if (am !== bm) return am - bm;
+  return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
+}
+function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
+  var cal = getCal();
+  var m = clamp(monthHuman, 1, cal.months.length);
+  var maxD = cal.months[m-1].days|0;
+  var normDay = normalizeDaySpec(daySpec, maxD);
+  if (!normDay) return false;
+  var col = resolveColor(color) || null;
+  var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
+  var key = eventKey(e);
+  var exists = cal.events.some(function(ev){ return eventKey(ev)===key; });
+  if (exists) return false;
+  cal.events.push(e);
+  cal.events.sort(compareEvents);
+  return true;
+}
+
+function parseIntSafe(x){ var n=parseInt(x,10); return isFinite(n)?n:null; }
+function isListToken(tok){ return /^all$/i.test(tok) || /^[0-9,\-\s]+$/.test(tok); }
+>>>>>>> Stashed changes
 
     if (isCurrentMonth && cur.day_of_the_month <= 5){
       var prevMi = (cur.month + getCal().months.length - 1) % getCal().months.length;
@@ -1084,6 +1343,7 @@ function _setMax(setObj){
   return keys.length ? Math.max.apply(null, keys) : null;
 }
 
+<<<<<<< Updated upstream
 function _edgeWeekStart(y, mi, which){
   var cal = getCal(), md = cal.months[mi].days|0;
   return (which === 'prev') ? weekStartSerial(y, mi, md) : weekStartSerial(y, mi, 1);
@@ -1201,6 +1461,33 @@ function _normalizePackedWords(q){
 }
 function normalizeSubcommand(sub){ return String(sub||'').toLowerCase(); }
 
+=======
+// ---- Day context + cell renderer (DRY for both full grids and week strips) ----
+function makeDayCtx(y, mi, d, dimPast){
+  var ser = toSerial(y, mi, d);
+  var tSer = todaySerial();
+  var evts = getEventsFor(mi, d, y);
+  var label = formatDateLabel(y, mi, d, true);
+  if (evts.length){ label += ': ' + evts.map(function(e){ return e.name; }).join(', '); }
+  return {
+    y:y, mi:mi, d:d, serial:ser,
+    isToday: (ser === tSer),
+    isPast:  !!dimPast && (ser < tSer),
+    events:  evts,
+    title:   label
+  };
+}
+
+function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
+  var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast);
+  var titleAttr = ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"';
+  var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
+  return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
+}
+
+
+// ---------- Unified Range Engine (months, years, weekdays, ordinals, phrases) ----------
+>>>>>>> Stashed changes
 var ORDINALS = {
   '1':'first','2':'second','3':'third','4':'fourth','5':'fifth',
   'first':'first','second':'second','third':'third','fourth':'fourth','fifth':'fifth',
@@ -1387,11 +1674,76 @@ var showRange       = runShowUsingUnifiedRange;
 var showRangePlus   = runShowPlusEventsUsingUnifiedRange;
 
 // ---------- Range adapters for show/events/send ----------
+<<<<<<< Updated upstream
+=======
+function _monthsFromRangeSpec(spec){
+  if (spec.months && spec.months.length) return spec.months.slice();
+  var months = [], dpy=daysPerYear(), cal=getCal(), firstY=Math.floor(spec.start/dpy), lastY=Math.floor(spec.end/dpy);
+  for (var y=firstY; y<=lastY; y++){
+    for (var mi=0; mi<cal.months.length; mi++){
+      var s = toSerial(y, mi, 1), e = toSerial(y, mi, cal.months[mi].days);
+      if (e < spec.start) continue;
+      if (s > spec.end) break;
+      months.push({y:y, mi:mi});
+    }
+  }
+  return months;
+}
+
+function buildCalendarsHtmlForSpec(spec){
+  var months = _monthsFromRangeSpec(spec);
+  var out = ['<div style="text-align:left;">'];
+
+  // Which months are already present in this view?
+  var present = {};
+  for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
+
+  // Main dimming rule (only dim in-range if the range includes today)
+  var tSer = todaySerial();
+  var dimPastMain = (tSer >= spec.start && tSer <= spec.end);
+
+  // NEW: boundary-aware prepend/append strips, keyed off the requested range
+  var boundary = computeBoundaryWantedDays(spec);
+
+  // PREPEND (show only if that adjacent month isn’t already present)
+  if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
+    out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+      renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, /*force dim*/true) +
+      '</div>');
+  }
+
+  // Main months
+  for (var k=0; k<months.length; k++){
+    var m = months[k];
+    out.push(
+      '<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+      renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimPastMain }) +
+      '</div>'
+    );
+  }
+
+  // APPEND (show only if that adjacent month isn’t already present)
+  if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
+    out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+      renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, /*force dim*/true) +
+      '</div>');
+  }
+
+  out.push('</div>');
+  return out.join('');
+}
+
+
+
+
+
+>>>>>>> Stashed changes
 function runShowUsingUnifiedRange(who, args){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
   var html = buildCalendarsHtmlForSpec(spec);
   whisper(who, html);
 }
+<<<<<<< Updated upstream
 function runShowPlusEventsUsingUnifiedRange(who, args){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
   var calHtml = buildCalendarsHtmlForSpec(spec);
@@ -1400,6 +1752,24 @@ function runShowPlusEventsUsingUnifiedRange(who, args){
   var listHtml = eventsListHTMLForRange(spec.title, ext.start, ext.end, forceYear);
   whisper(who, calHtml + '<div style="height:8px"></div>' + listHtml);
 }
+=======
+
+function runShowPlusEventsUsingUnifiedRange(who, args){
+  var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
+
+  // 1) calendars (with boundary-aware strips)
+  var calHtml = buildCalendarsHtmlForSpec(spec);
+
+  // 2) events list, extended to include any strip days (if shown)
+  var ext = stripRangeExtensionDynamic(spec) || spec;
+  var forceYear = (Math.floor(ext.start/daysPerYear()) !== Math.floor(ext.end/daysPerYear()));
+  var listHtml = eventsListHTMLForRange(spec.title, ext.start, ext.end, forceYear);
+
+  whisper(who, calHtml + '<div style="height:8px"></div>' + listHtml);
+}
+
+
+>>>>>>> Stashed changes
 function runEventsUsingUnifiedRange(who, args, broadcast){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
   spec = expandRangeWithRecentPast(spec); // include recent past
@@ -1899,6 +2269,7 @@ function _resolveCommandAndArgs(args){
 }
 
 var commands = {
+<<<<<<< Updated upstream
   // Everyone
   '': function(m){
     var isGM = playerIsGM(m.playerid);
@@ -1913,6 +2284,38 @@ var commands = {
     runShowPlusEventsUsingUnifiedRange(m.who, a.slice(2));
     if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
   },
+=======
+'': function(m){
+  var isGM = playerIsGM(m.playerid);
+  // Current month view → calendar + events (strip-aware)
+  runShowPlusEventsUsingUnifiedRange(m.who, []);
+  if (isGM) whisper(m.who, gmButtonsHtml());
+},
+
+show: function(m, a){
+  var rangeTokens = a.slice(2);
+
+  // Decide if this resolves to THE current-month view
+  var spec = parseUnifiedRange(_tokenizeRangeArgs(rangeTokens));
+  var cal  = getCal(), cur = cal.current, mdays = cal.months[cur.month].days;
+  var isCurrentMonth =
+    spec.months && spec.months.length === 1 &&
+    spec.months[0].y  === cur.year &&
+    spec.months[0].mi === cur.month &&
+    spec.start === toSerial(cur.year, cur.month, 1) &&
+    spec.end   === toSerial(cur.year, cur.month, mdays);
+
+  if (isCurrentMonth){
+    // current-month → calendar + events
+    runShowPlusEventsUsingUnifiedRange(m.who, rangeTokens);
+  } else {
+    // everything else → calendar only
+    runShowUsingUnifiedRange(m.who, rangeTokens);
+  }
+
+  if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
+},
+>>>>>>> Stashed changes
 
   // Unified EVENTS/LIST
   events: function(m, a){
