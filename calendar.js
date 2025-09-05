@@ -815,9 +815,9 @@ function monthTableOpen(mi, yearLabel){
 
   var head = [
     '<table style="'+STYLES.table+'">',
-    '<tr><th colspan="7" style="'+STYLES.head+'">',
-      '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">',
-        esc(mObj.name),
+    '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">',
+    '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">',
+      esc(mObj.name),
         '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
       '</div>',
     '</th></tr>',
