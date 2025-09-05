@@ -2,7 +2,7 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // Roll20 API script
 // Call `!cal` to show the calendar, and use `!cal help` for command details.
-// Version: 1.13 (refactor + serial cache + bugfix in events list)
+// Version: 1.15 (renaming pass: date/theme/names/reset, no back-compat)
 
 var Calendar = (function(){
 
@@ -13,13 +13,14 @@ var Calendar = (function(){
  * ==========================================================================*/
 var script_name = 'Calendar';
 var state_name  = 'CALENDAR';
-var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink for events without a defined color.
-var GRADIENT_ANGLE = '45deg'; // Angle for multi-event day gradients.
-var CONTRAST_MIN_HEADER = 4.5; // AA for normal text
-var CONTRAST_MIN_CELL   = 7.0; // AAA-ish goal for tiny day numbers
 
-// Small, reusable helpers
-function h(s){ return esc(s); } // HTML escape (alias)
+var EVENT_DEFAULT_COLOR = sanitizeHexColor('#ff00f2'); // Bright pink default.
+var GRADIENT_ANGLE = '45deg';
+var CONTRAST_MIN_HEADER = 4.5; // AA for normal text
+var CONTRAST_MIN_CELL   = 7.0; // AAA-ish target for tiny numerals
+
+// HTML escape (short alias)
+function h(s){ return esc(s); }
 
 // Single, DRY sending function
 function send(opts, html){
@@ -39,65 +40,54 @@ var defaults = {
   current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 },
   weekdays: ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
   months: [ // Seasons are canon. Colors chosen to match with the moons that share names.
-    { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" }, // Pearly white
-    { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" }, // Pale orange
-    { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" }, // Pale gray
-    { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" }, // Silver-gray
-    { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" }, // Pale lavender
-    { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" }, // Pale yellow
-    { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" }, // Dull white with black slit
-    { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" }, // Pale gray
-    { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" }, // Pale blue
-    { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" }, // Smoky gray
-    { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" }, // Orange-red
-    { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }  // Gray and pockmarked
+    { name: "Zarantyr",  days: 28, season: "Mid-winter",    color: "#F5F5FA" },
+    { name: "Olarune",   days: 28, season: "Late winter",   color: "#FFC68A" },
+    { name: "Therendor", days: 28, season: "Early spring",  color: "#D3D3D3" },
+    { name: "Eyre",      days: 28, season: "Mid-spring",    color: "#C0C0C0" },
+    { name: "Dravago",   days: 28, season: "Late spring",   color: "#E6E6FA" },
+    { name: "Nymm",      days: 28, season: "Early summer",  color: "#FFD96B" },
+    { name: "Lharvion",  days: 28, season: "Mid-summer",    color: "#F5F5F5" },
+    { name: "Barrakas",  days: 28, season: "Late summer",   color: "#DCDCDC" },
+    { name: "Rhaan",     days: 28, season: "Early autumn",  color: "#9AC0FF" },
+    { name: "Sypheros",  days: 28, season: "Mid-autumn",    color: "#696969" },
+    { name: "Aryth",     days: 28, season: "Late autumn",   color: "#FF4500" },
+    { name: "Vult",      days: 28, season: "Early winter",  color: "#A9A9A9" }
   ],
-  events: [ // Eberron-specific events. Colors are not canon, but chosen to match event themes.
-    { name: "Tain Gala",                month: "all",  day: 6,       color: "#F7E7CE", source: "sharn" },           // Champagne Gold
-    { name: "Crystalfall",              month: 2,      day: 9,       color: "#87CEEB", source: "sharn" },           // Sky blue
-    { name: "The Day of Mourning",      month: 2,      day: 20,      color: "#808080", source: "khorvaire" },       // Dead gray mists
-    { name: "Tira's Day",               month: 3,      day: 15,      color: "#F8F8FF", source: "silver flame" },    // Silver flame
-    { name: "Sun's Blessing",           month: 3,      day: 15,      color: "#FFD700", source: "sovereign host" },  // Sun gold
-    { name: "Aureon's Crown",           month: 5,      day: 26,      color: "#6A5ACD", source: "sovereign host" },  // Royal purple
-    { name: "Brightblade",              month: 6,      day: 12,      color: "#B22222", source: "sovereign host" },  // Firebrick red
-    { name: "The Race of Eight Winds",  month: 7,      day: 23,      color: "#20B2AA", source: "sharn" },           // Sky blue-green
-    { name: "The Hunt",                 month: 8,      day: 4,       color: "#228B22", source: "sovereign host" },  // Forest green
-    { name: "Fathen's Fall",            month: 8,      day: 25,      color: "#D8DDE0", source: "silver flame" },    // Silver flame
-    { name: "Boldrei's Feast",          month: 9,      day: 9,       color: "#FFB347", source: "sovereign host" },  // Hearth orange
-    { name: "The Ascension",            month: 10,     day: 1,       color: "#D8DDE0", source: "silver flame" },    // Silver flame
-    { name: "Wildnight",                month: 10,     day: "18-19", color: "#8B0000", source: "dark six" },        // Dark red of the Fury
-    { name: "Thronehold",               month: 11,     day: 11,      color: "#4169E1", source: "khorvaire" },       // Royal blue
-    { name: "Long Shadows",             month: 12,     day: "26-28", color: "#0D0D0D" }                             // Midnight black
+  events: [ // Eberron-specific events.
+    { name: "Tain Gala",                month: "all",  day: 6,       color: "#F7E7CE", source: "sharn" },
+    { name: "Crystalfall",              month: 2,      day: 9,       color: "#87CEEB", source: "sharn" },
+    { name: "The Day of Mourning",      month: 2,      day: 20,      color: "#808080", source: "khorvaire" },
+    { name: "Tira's Day",               month: 3,      day: 15,      color: "#F8F8FF", source: "silver flame" },
+    { name: "Sun's Blessing",           month: 3,      day: 15,      color: "#FFD700", source: "sovereign host" },
+    { name: "Aureon's Crown",           month: 5,      day: 26,      color: "#6A5ACD", source: "sovereign host" },
+    { name: "Brightblade",              month: 6,      day: 12,      color: "#B22222", source: "sovereign host" },
+    { name: "The Race of Eight Winds",  month: 7,      day: 23,      color: "#20B2AA", source: "sharn" },
+    { name: "The Hunt",                 month: 8,      day: 4,       color: "#228B22", source: "sovereign host" },
+    { name: "Fathen's Fall",            month: 8,      day: 25,      color: "#D8DDE0", source: "silver flame" },
+    { name: "Boldrei's Feast",          month: 9,      day: 9,       color: "#FFB347", source: "sovereign host" },
+    { name: "The Ascension",            month: 10,     day: 1,       color: "#D8DDE0", source: "silver flame" },
+    { name: "Wildnight",                month: 10,     day: "18-19", color: "#8B0000", source: "dark six" },
+    { name: "Thronehold",               month: 11,     day: 11,      color: "#4169E1", source: "khorvaire" },
+    { name: "Long Shadows",             month: 12,     day: "26-28", color: "#0D0D0D" }
   ]
 };
 
 // ---- Color names + palette ----
 var NAMED_COLORS = {
-  // reds
   red:'#E53935',  scarlet:'#FF2400',  crimson:'#D81B60',  ruby:'#C2185B', maroon:'#800000', tomato:'#EF5350', coral:'#FF7043',  salmon:'#FA8072',
-  // oranges / ambers
   orange:'#F4511E', amber:'#FFB300', apricot:'#FBCEB1', peach:'#FFCBA4',
-  // yellows
   yellow:'#FDD835', gold:'#F6BF26', lemon:'#FFF44F', khaki:'#F0E68C',
-  // limes / greens
   lime:'#7CB342', olive:'#C0CA33', green:'#43A047', forest:'#228B22', emerald:'#2E8B57',
   mint:'#66BB6A', jade:'#00A86B', chartreuse:'#7FFF00',
-  // teals / cyans / aquas
   teal:'#00897B', turquoise:'#26A69A', aqua:'#00ACC1', cyan:'#29B6F6',
-  // blues
   sky:'#039BE5', azure:'#1E88E5', blue:'#3949AB', navy:'#0D47A1', cobalt:'#0047AB',
   indigo:'#3949AB',
-  // violets / purples
   violet:'#7E57C2', purple:'#5E35B1', plum:'#AB47BC', magenta:'#8E24AA', fuchsia:'#D81B60',
   lavender:'#E6E6FA', lilac:'#C8A2C8',
-  // pinks / roses
   pink:'#EC407A', rose:'#D81B60', hotpink:'#FF69B4',
-  // browns / tans
   brown:'#6D4C41', chocolate:'#795548', tan:'#8D6E63', espresso:'#5D4037',
-  // grays
   slate:'#607D8B', steel:'#78909C', gray:'#9E9E9E', grey:'#9E9E9E', silver:'#C0C0C0',
   charcoal:'#36454F', smoke:'#708090',
-  // black/white
   black:'#000000', white:'#FFFFFF', ivory:'#FFFFF0', snow:'#FFFAFA'
 };
 
@@ -132,7 +122,7 @@ var COLOR_THEMES = {
   ]
 };
 
-// Switchable month name sets (days/seasons unchanged). Replace names if you like.
+// Switchable month name sets (days/seasons unchanged)
 var MONTH_NAME_SETS = {
   canonical: ["Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm","Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"],
   druidic:   ["Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm","Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"],
@@ -297,9 +287,6 @@ function checkInstall(){
   _rebuildSerialCache();
 
   // clamp current date
-  if (cal.current.month >= cal.months.length){
-    cal.current.month = Math.max(0, cal.months.length - 1);
-  }
   var mdays = cal.months[cal.current.month].days;
   if (cal.current.day_of_the_month > mdays){
     cal.current.day_of_the_month = mdays;
@@ -359,6 +346,11 @@ function resolveColor(s){
   var key = String(s).trim().toLowerCase();
   return NAMED_COLORS[key] || null;
 }
+// NEW: color token helper used by addEventSmart
+function isColorToken(s){
+  return !!(sanitizeHexColor(s) || NAMED_COLORS[String(s||'').toLowerCase()]);
+}
+
 function _stableHash(str){
   var h = 5381; str = String(str||'');
   for (var i=0;i<str.length;i++){ h = ((h<<5)+h) + str.charCodeAt(i); h|=0; }
@@ -486,131 +478,20 @@ function fromSerial(s){
   }
   return { year:y, mi:mi, day:(rem|0)+1 };
 }
+// Human-like date math wrappers
+function totalDaysPerYear(){ return daysPerYear(); }
+function daysBeforeMonth(monthIndex){ return monthPrefixDays(monthIndex); }
+function toAbsoluteDay(y, mi, d){ return toSerial(y, mi, d); }
+function fromAbsoluteDay(s){ return fromSerial(s); }
+function weekdayFor(y, mi, d){ return weekdayIndex(y, mi, d); }
 
-// Row/day utilities for boundary strips
-function _rowDaysInMonth(y, mi, rowStart){
-  var cal = getCal(), wdCount = cal.weekdays.length|0, out = [];
-  for (var c=0; c<wdCount; c++){
-    var d = fromSerial(rowStart + c);
-    if (d.year === y && d.mi === mi) out.push(d.day);
-  }
-  return out;
-}
-function _setAddAll(setObj, arr){ for (var i=0;i<arr.length;i++) setObj[arr[i]] = 1; }
-function _setCount(setObj){ return Object.keys(setObj).length; }
-function _setMin(setObj){
-  var keys = Object.keys(setObj).map(function(k){return +k;});
-  return keys.length ? Math.min.apply(null, keys) : null;
-}
-function _setMax(setObj){
-  var keys = Object.keys(setObj).map(function(k){return +k;});
-  return keys.length ? Math.max.apply(null, keys) : null;
-}
-
-// Render a month "strip" using an explicit set of day numbers for that month.
-function renderMonthStripWantedDays(year, mi, wantedSet, dimPast){
-  var parts = monthTableOpen(mi, year);      // month header + weekday header
-  var html  = [parts.html];
-  var wdCnt = getCal().weekdays.length|0;
-
-  var minD = _setMin(wantedSet), maxD = _setMax(wantedSet);
-  if (minD == null || maxD == null){
-    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.td+';opacity:.6;">(no days)</td></tr>');
-    html.push(monthTableClose());
-    return html.join('');
-  }
-
-  var firstRow = weekStartSerial(year, mi, minD);
-  var lastRow  = weekStartSerial(year, mi, maxD);
-  for (var rowStart = firstRow; rowStart <= lastRow; rowStart += wdCnt){
-    html.push('<tr>');
-    for (var c=0; c<wdCnt; c++){
-      var s = rowStart + c;
-      var d = fromSerial(s);
-      if (d.year === year && d.mi === mi && wantedSet[d.day]){
-        var ctx = makeDayCtx(d.year, d.mi, d.day, /*dimPast*/!!dimPast);
-        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
-      } else {
-        html.push('<td style="'+STYLES.td+'"></td>');
-      }
-    }
-    html.push('</tr>');
-  }
-  html.push(monthTableClose());
-  return html.join('');
-}
-
-// Compute the "wanted day" sets for boundary strips based on proximity to range.
-function computeBoundaryWantedDays(spec){
-  var cal = getCal(), today = todaySerial();
-  var res = { prev:null, next:null };
-  var wdCnt = cal.weekdays.length|0;
-
-  // PREPEND side: today <= 5 days BEFORE start → use previous month
-  if (today < spec.start && (spec.start - today) <= 5){
-    var startD = fromSerial(spec.start);
-    var prevMi = (startD.mi + cal.months.length - 1) % cal.months.length;
-    var prevY  = startD.year - (startD.mi === 0 ? 1 : 0);
-    var prevMD = cal.months[prevMi].days|0;
-
-    var tD = fromSerial(today);
-    var todayDay = (tD.year === prevY && tD.mi === prevMi) ? tD.day : prevMD;
-
-    var todayRow = weekStartSerial(prevY, prevMi, todayDay);
-    var lastRow  = weekStartSerial(prevY, prevMi, prevMD);
-
-    var wanted = {};
-    // include all rows from the week containing 'today' through the last row
-    for (var row = todayRow; row <= lastRow; row += wdCnt){
-      _setAddAll(wanted, _rowDaysInMonth(prevY, prevMi, row));
-    }
-    // ensure >= 5 days: if not, add rows *before* the today row
-    var backRow = todayRow - wdCnt, safety = 0;
-    while (_setCount(wanted) < 5 && safety++ < 6){
-      var extra = _rowDaysInMonth(prevY, prevMi, backRow);
-      if (!extra.length) break;
-      _setAddAll(wanted, extra);
-      backRow -= wdCnt;
-    }
-    res.prev = { y:prevY, mi:prevMi, wanted:wanted };
-  }
-
-  // APPEND side: today <= 5 days AFTER end → use next month
-  if (today > spec.end && (today - spec.end) <= 5){
-    var endD = fromSerial(spec.end);
-    var nextMi = (endD.mi + 1) % cal.months.length;
-    var nextY  = endD.year + (nextMi === 0 ? 1 : 0);
-    var nextMD = cal.months[nextMi].days|0;
-
-    var firstRow = weekStartSerial(nextY, nextMi, 1);
-
-    var tD2 = fromSerial(today);
-    var todayRow2 = (tD2.year === nextY && tD2.mi === nextMi)
-      ? weekStartSerial(nextY, nextMi, tD2.day)
-      : firstRow;
-
-    var wanted2 = {};
-    // include first row after range through the week containing today
-    for (var row2 = firstRow; row2 <= todayRow2; row2 += wdCnt){
-      _setAddAll(wanted2, _rowDaysInMonth(nextY, nextMi, row2));
-    }
-    // ensure >=5 days: extend forward if needed
-    var fwdRow = todayRow2 + wdCnt, safety2 = 0;
-    while (_setCount(wanted2) < 5 && safety2++ < 6){
-      var extra2 = _rowDaysInMonth(nextY, nextMi, fwdRow);
-      if (!extra2.length) break;
-      _setAddAll(wanted2, extra2);
-      fwdRow += wdCnt;
-    }
-    res.next = { y:nextY, mi:nextMi, wanted:wanted2 };
-  }
-
-  return res;
-}
+function todaySerial(){ var c = getCal().current; return toSerial(c.year, c.month, c.day_of_the_month); }
 
 /* ============================================================================
  * 5) PARSING & FUZZY MATCHING
  * ==========================================================================*/
+function isMonthToken(tok){ return monthIndexByName(tok) !== -1; }
+
 function _asciiFold(s){
   var str = String(s || '');
   return (typeof str.normalize === 'function')
@@ -683,30 +564,19 @@ function monthIndexByName(tok){
   return (bestDist<=maxDist) ? bestIdx : -1;
 }
 
-// ---------- Labels & styles helpers ----------
-function _applyTodayStyle(style){
-  style += 'position:relative;z-index:10;';
-  style += 'border-radius:2px;';
-  style += 'box-shadow:0 3px 8px rgba(0,0,0,0.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);';
-  style += 'outline:2px solid rgba(0,0,0,0.35);outline-offset:1px;';
-  style += 'box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;';
-  return style;
-}
-
 /* ============================================================================
  * 6) EVENTS MODEL
  * ==========================================================================*/
 function eventDisplayName(e){
   var base = String(e && e.name || '').trim();
   if (!base) return '';
+  var st = ensureSettings();
   var src = (e && e.source!=null) ? titleCase(String(e.source)) : null;
-  return src ? (base + ' (' + src + ')') : base;
+  return (src && st.showSourceLabels) ? (base + ' (' + src + ')') : base;
 }
 function eventKey(e){ var y = (e.year==null)?'ALL':String(e.year|0); return (e.month|0)+'|'+String(e.day)+'|'+y+'|'+String(e.name||'').trim().toLowerCase(); }
 function defaultKeyFor(monthHuman, daySpec, name){ return (monthHuman|0)+'|'+String(daySpec)+'|ALL|'+String(name||'').trim().toLowerCase(); }
-function labelForEvent(e){ return eventDisplayName(e); }
 
-// Grouped facades (so code reads nicely in new places)
 var colorsAPI = {
   textForBg: textColorForBg,
   applyBg: applyBg,
@@ -716,12 +586,14 @@ var colorsAPI = {
     return 'background-color:'+monthHex+';color:'+t+';'+outlineIfNeededMin(t, monthHex, CONTRAST_MIN_HEADER);
   }
 };
+
 var eventsAPI = {
   forDay: function(monthIndex, day, year){ return getEventsFor(monthIndex, day, year); },
   forRange: function(startSerial, endSerial){ return occurrencesInRange(startSerial, endSerial); },
   colorFor: getEventColor,
   isDefault: isDefaultEvent
 };
+
 var renderAPI = {
   month: function(opts){ return renderMonthTable(opts); },
   monthGrid: function(mi, yearLabel, dimPast){ return renderMiniCal(mi, yearLabel, dimPast); },
@@ -731,63 +603,6 @@ var renderAPI = {
     return eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel);
   }
 };
-
-// Day Spec utilities (single source of truth)
-var daySpec = {
-  normalize: function(spec, maxDays){
-    var s = String(spec||'').trim();
-    if (/^\d+$/.test(s)){ return String(clamp(s, 1, maxDays)); }
-    var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (m){
-      var a = clamp(m[1], 1, maxDays), b = clamp(m[2], 1, maxDays);
-      if (a > b){ var t=a; a=b; b=t; }
-      return a <= b ? (a+'-'+b) : null;
-    }
-    return null;
-  },
-  expand: function(spec, maxDays){
-    var s = String(spec||'').trim();
-    var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (m){
-      var a = clamp(m[1],1,maxDays), b = clamp(m[2],1,maxDays);
-      if (a>b){ var t=a;a=b;b=t; }
-      var out=[]; for (var d=a; d<=b; d++) out.push(d);
-      return out;
-    }
-    var n = parseInt(s,10);
-    if (isFinite(n)) return [clamp(n,1,maxDays)];
-    var out2=[]; for (var d2=1; d2<=maxDays; d2++) out2.push(d2);
-    return out2;
-  },
-  matches: function(spec){
-    if (typeof spec === 'number') { var n = spec|0; return function(d){ return d === n; }; }
-    if (typeof spec === 'string') {
-      var s = spec.trim();
-      if (s.indexOf('-') !== -1) {
-        var parts = s.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
-        var a = parts[0], b = parts[1];
-        if (isFinite(a) && isFinite(b)) {
-          if (a > b) { var t=a; a=b; b=t; }
-          return function(d){ return d >= a && d <= b; };
-        }
-      }
-      var n2 = parseInt(s,10);
-      if (isFinite(n2)) return function(d){ return d === n2; };
-    }
-    return function(){ return false; };
-  },
-  startDayOf: function(spec){
-    if (typeof spec === 'number') return spec|0;
-    var s = String(spec||'').trim();
-    var m = s.match(/^\s*(\d+)/);
-    return m ? Math.max(1, parseInt(m[1],10)) : 1;
-  }
-};
-// Back-compat (old names) — single definitions:
-function normalizeDaySpec(spec, maxDays){ return daySpec.normalize(spec, maxDays); }
-function expandDaySpec(spec, maxDays){ return daySpec.expand(spec, maxDays); }
-function makeDayMatcher(spec){ return daySpec.matches(spec); }
-function firstNumFromDaySpec(spec){ return daySpec.startDayOf(spec); }
 
 function compareEvents(a, b){
   var ya = (a.year==null)? -Infinity : (a.year|0);
@@ -876,11 +691,11 @@ function mergeInNewDefaultEvents(cal){
   cal.events.sort(compareEvents);
 }
 
-function _addConcreteEvent(monthHuman, daySpecStr, yearOrNull, name, color){
+function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   var cal = getCal();
   var m = clamp(monthHuman, 1, cal.months.length);
   var maxD = cal.months[m-1].days|0;
-  var normDay = normalizeDaySpec(daySpecStr, maxD);
+  var normDay = normalizeDaySpec(daySpec, maxD);
   if (!normDay) return false;
   var col = resolveColor(color) || null;
   var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
@@ -921,7 +736,23 @@ function esc(s){
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-function isColorToken(tok){ return !!resolveColor(tok); }
+function makeDayMatcher(spec){
+  if (typeof spec === 'number') { var n = spec|0; return function(d){ return d === n; }; }
+  if (typeof spec === 'string') {
+    var s = spec.trim();
+    if (s.indexOf('-') !== -1) {
+      var parts = s.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
+      var a = parts[0], b = parts[1];
+      if (isFinite(a) && isFinite(b)) {
+        if (a > b) { var t=a; a=b; b=t; }
+        return function(d){ return d >= a && d <= b; };
+      }
+    }
+    var n2 = parseInt(s,10);
+    if (isFinite(n2)) return function(d){ return d === n2; };
+  }
+  return function(){ return false; };
+}
 
 function swatchHtml(colLike){
   var col = resolveColor(colLike) || EVENT_DEFAULT_COLOR;
@@ -932,7 +763,7 @@ function sendToGM(html){  send({ gmOnly:true }, html); }
 function whisper(to, html){ send({ to:to }, html); }
 function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
 
-// Day context + cell renderer (DRY for both full grids and week strips)
+// Day context + cell renderer
 function makeDayCtx(y, mi, d, dimPast){
   var ser = toSerial(y, mi, d);
   var tSer = todaySerial();
@@ -947,14 +778,6 @@ function makeDayCtx(y, mi, d, dimPast){
     title:   label
   };
 }
-function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
-  var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast);
-  var titleAttr = ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"';
-  var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
-  return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
-}
-
-// Cell styling
 function styleForDayCell(baseStyle, eventsToday, isToday, monthColor, isPast){
   var style = baseStyle;
   if (eventsToday.length >= 2){
@@ -965,21 +788,35 @@ function styleForDayCell(baseStyle, eventsToday, isToday, monthColor, isPast){
     style = applyBg(style, monthColor, CONTRAST_MIN_CELL);
   }
   if (isPast) style += 'opacity:.65;';
-  if (isToday) style = _applyTodayStyle(style);
+  if (isToday) style = (function(s){
+    s += 'position:relative;z-index:10;';
+    s += 'border-radius:2px;';
+    s += 'box-shadow:0 3px 8px rgba(0,0,0,0.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);';
+    s += 'outline:2px solid rgba(0,0,0,0.35);outline-offset:1px;';
+    s += 'box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;';
+    return s;
+  })(style);
   return style;
 }
+function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
+  var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast);
+  var titleAttr = ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"';
+  var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
+  return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
+}
 
-// ---------- Month/Year tables (clean) ----------
+// Month/Year tables
 function monthTableOpen(mi, yearLabel){
   var cal = getCal(), cur = cal.current, mObj = cal.months[mi];
   var monthColor = colorForMonth(mi);
-  var headerStyle = STYLES.monthHeaderBase + colorsAPI.monthHeaderStyle(monthColor);
+  var textColor = textColorForBg(monthColor);
+  var outline = outlineIfNeededMin(textColor, monthColor, CONTRAST_MIN_HEADER);
   var wd = cal.weekdays;
 
   var head = [
     '<table style="'+STYLES.table+'">',
     '<tr><th colspan="7" style="'+STYLES.head+'">',
-      '<div style="'+headerStyle+'">',
+      '<div style="'+STYLES.monthHeaderBase+'background-color:'+monthColor+';color:'+textColor+';'+outline+'">',
         esc(mObj.name),
         '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
       '</div>',
@@ -1004,24 +841,23 @@ function renderMonthTable(opts){
   var html  = [parts.html];
 
   if (mode === 'full'){
-    // 6x7 grid anchored at the first week row containing day 1
     var gridStart = weekStartSerial(y, mi, 1);
     var printed = 0;
     for (var r=0; r<6; r++){
       html.push('<tr>');
       for (var c=0; c<7; c++){
         var s = gridStart + r*7 + c;
-        var d = fromSerial(s); // {year, mi, day}
+        var d = fromSerial(s);
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimPast);
-          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, /*numeralStyle*/''));
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
           printed++;
         } else {
           html.push('<td style="'+STYLES.td+'"></td>');
         }
       }
       html.push('</tr>');
-      if (printed >= mdays) break; // stop after we've placed all real days
+      if (printed >= mdays) break;
     }
     html.push(monthTableClose());
     return html.join('');
@@ -1030,7 +866,7 @@ function renderMonthTable(opts){
   // mode === 'week'
   var startSer = (opts && typeof opts.weekStartSerial === 'number')
     ? (opts.weekStartSerial|0)
-    : weekStartSerial(y, mi, 1); // default to first week strip
+    : weekStartSerial(y, mi, 1);
 
   html.push('<tr>');
   for (var i=0; i<7; i++){
@@ -1044,7 +880,10 @@ function renderMonthTable(opts){
   return html.join('');
 }
 
-// Tiny helpers for edge strips
+function renderMiniCal(mi, yearLabel, dimPast){
+  var y = (typeof yearLabel === 'number') ? yearLabel : getCal().current.year;
+  return renderMonthTable({ year:y, mi:mi, mode:'full', dimPast: !!dimPast });
+}
 function _edgeWeekStart(y, mi, which){
   var cal = getCal(), md = cal.months[mi].days|0;
   return (which === 'prev') ? weekStartSerial(y, mi, md) : weekStartSerial(y, mi, 1);
@@ -1054,14 +893,7 @@ function renderMonthEdgeStrip(year, mi, which, dimPast){
   return renderMonthTable({ year:year, mi:mi, mode:'week', weekStartSerial:start, dimPast: !!dimPast });
 }
 
-function renderMiniCal(mi, yearLabel, dimPast){
-  var y = (typeof yearLabel === 'number') ? yearLabel : getCal().current.year;
-  return renderMonthTable({ year:y, mi:mi, mode:'full', dimPast: !!dimPast });
-}
-
-function currentMonthHTML(){
-  return renderMonthTable({ year:getCal().current.year, mi:getCal().current.month, mode:'full', dimPast:true });
-}
+function currentMonthHTML(){ return renderMiniCal(getCal().current.month, null, true); }
 
 function yearHTMLFor(targetYear, dimPast){
   var months = getCal().months;
@@ -1073,7 +905,7 @@ function yearHTMLFor(targetYear, dimPast){
   return html.join('');
 }
 
-// ---------- Event listings & month side-list ----------
+// Event listings & month side-list
 function monthEventsHtml(mi, today){
   var cal = getCal(), mName = esc(cal.months[mi].name);
   var curYear = cal.current.year;
@@ -1097,8 +929,6 @@ function monthEventsHtml(mi, today){
   });
   return rows.join('');
 }
-
-// Shared row renderer for event listings
 function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
   var dateLbl = formatDateLabel(y, mi, d, includeYear);
   var sw = swatchHtml(color);
@@ -1106,120 +936,45 @@ function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
   return '<div'+sty+'>'+ sw + ' ' + dateLbl + ': ' + esc(name) + '</div>';
 }
 
-function occurrencesInRange(startSerial, endSerial){
-  var cal = getCal(), dpy = daysPerYear(), occ=[];
-  var yStart = Math.floor(startSerial/dpy);
-  var yEnd   = Math.floor(endSerial/dpy);
-  for (var i=0;i<cal.events.length;i++){
-    var e = cal.events[i];
-    var mi = clamp(e.month,1,cal.months.length)-1;
-    var maxD = cal.months[mi].days|0;
-    var days = expandDaySpec(e.day, maxD);
-    var ys = (e.year==null) ? yStart : (e.year|0);
-    var ye = (e.year==null) ? yEnd   : (e.year|0);
-    for (var y=ys; y<=ye; y++){
-      for (var k=0;k<days.length;k++){
-        var d = clamp(days[k],1,maxD);
-        var ser = toSerial(y, mi, d);
-        if (ser>=startSerial && ser<=endSerial){
-          occ.push({serial:ser, y:y, m:mi, d:d, e:e});
-        }
-      }
-    }
+/* ============================================================================
+ * 8) DAY SPEC HELPERS (single source of truth)
+ * ==========================================================================*/
+function firstNumFromDaySpec(daySpec){ if (typeof daySpec === 'number') return daySpec|0; var s = String(daySpec||'').trim(); var m = s.match(/^\s*(\d+)/); return m ? Math.max(1, parseInt(m[1],10)) : 1; }
+function normalizeDaySpec(spec, maxDays){
+  var s = String(spec||'').trim();
+  if (/^\d+$/.test(s)){ return String(clamp(s, 1, maxDays)); }
+  var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (m){
+    var a = clamp(m[1], 1, maxDays), b = clamp(m[2], 1, maxDays);
+    if (a > b){ var t=a; a=b; b=t; }
+    return a <= b ? (a+'-'+b) : null;
   }
-  occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
-  return occ;
-}
-function stripRangeExtensionDynamic(spec){
-  var months = _monthsFromRangeSpec(spec);
-  var present = {};
-  for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
-
-  var boundary = computeBoundaryWantedDays(spec);
-  var start = spec.start, end = spec.end;
-
-  if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
-    var minPrev = _setMin(boundary.prev.wanted);
-    var maxPrev = _setMax(boundary.prev.wanted);
-    if (minPrev != null && maxPrev != null){
-      var sPrev = toSerial(boundary.prev.y, boundary.prev.mi, minPrev);
-      var ePrev = toSerial(boundary.prev.y, boundary.prev.mi, maxPrev);
-      start = Math.min(start, sPrev);
-      end   = Math.max(end,   ePrev);
-    }
-  }
-  if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
-    var minNext = _setMin(boundary.next.wanted);
-    var maxNext = _setMax(boundary.next.wanted);
-    if (minNext != null && maxNext != null){
-      var sNext = toSerial(boundary.next.y, boundary.next.mi, minNext);
-      var eNext = toSerial(boundary.next.y, boundary.next.mi, maxNext);
-      start = Math.min(start, sNext);
-      end   = Math.max(end,   eNext);
-    }
-  }
-
-  if (start !== spec.start || end !== spec.end) return { start:start, end:end };
   return null;
 }
-
-function formatDateLabel(y, mi, d, includeYear){
-  var cal=getCal();
-  var lbl = esc(cal.months[mi].name)+' '+d;
-  if (includeYear) lbl += ', '+esc(String(y))+' '+LABELS.era;
-  return lbl;
+function expandDaySpec(spec, maxDays){
+  var s = String(spec||'').trim();
+  var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (m){
+    var a = clamp(m[1],1,maxDays), b = clamp(m[2],1,maxDays);
+    if (a>b){ var t=a;a=b;b=t; }
+    var out=[]; for (var d=a; d<=b; d++) out.push(d);
+    return out;
+  }
+  var n = parseInt(s,10);
+  if (isFinite(n)) return [clamp(n,1,maxDays)];
+  var out2=[]; for (var d2=1; d2<=maxDays; d2++) out2.push(d2);
+  return out2;
 }
 
-// Event list (grouped by source if enabled)
-function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
-  var st = ensureSettings();
-  var today = todaySerial();
-  var occ = occurrencesInRange(startSerial, endSerial);
-  var includeYear = forceYearLabel || (Math.floor(startSerial/daysPerYear()) !== Math.floor(endSerial/daysPerYear()));
-  var out = ['<div style="margin:4px 0;"><b>'+esc(title)+'</b></div>'];
-  if (!occ.length){
-    out.push('<div style="opacity:.7;">No events in this range.</div>');
-    return out.join('');
-  }
-
-  if (!st.groupEventsBySource){
-    for (var i=0;i<occ.length;i++){
-      var o = occ[i];
-      var name2 = eventDisplayName(o.e);
-      out.push(eventLineHtml(o.y, o.m, o.d, name2, includeYear, (o.serial===today), getEventColor(o.e)));
-    }
-    return out.join('');
-  }
-
-  // Group by source label
-  var groups = {}; var order = [];
-  for (var k=0;k<occ.length;k++){
-    var o2 = occ[k];
-    var key = (o2.e && o2.e.source!=null) ? titleCase(String(o2.e.source)) : 'Other';
-    if (!groups[key]){ groups[key] = []; order.push(key); }
-    groups[key].push(o2);
-  }
-  order.sort(function(a,b){ return a.localeCompare(b); });
-
-  for (var g=0; g<order.length; g++){
-    var label = order[g];
-    out.push('<div style="margin-top:6px;font-weight:bold;">'+esc(label)+'</div>');
-    var arr = groups[label];
-    for (var j=0;j<arr.length;j++){
-      var o3 = arr[j];
-      var name3 = eventDisplayName(o3.e);
-      out.push(eventLineHtml(o3.y, o3.m, o3.d, name3, includeYear, (o3.serial===today), getEventColor(o3.e)));
-    }
-  }
-  return out.join('');
-}
-
-// ---------- Unified Range Engine (months, years, weekdays, ordinals, phrases) ----------
+/* ============================================================================
+ * 9) RANGE ENGINE (months, years, weekdays, ordinals, phrases)
+ * ==========================================================================*/
 var ORDINALS = {
   '1':'first','2':'second','3':'third','4':'fourth','5':'fifth',
   'first':'first','second':'second','third':'third','fourth':'fourth','fifth':'fifth',
   '1st':'first','2nd':'second','3rd':'third','4th':'fourth','5th':'fifth','last':'last'
 };
+
 function _weekdayIndexByName(tok){
   var cal = getCal();
   if (tok==null) return -1;
@@ -1253,6 +1008,7 @@ function _lastWeekdayOfMonth(year, mi, wdi){
   var day = mdays - delta;
   return day>=1 ? day : null;
 }
+
 function _tokenizeRangeArgs(args){
   var toks = (args||[]).map(function(t){return String(t).trim();}).filter(Boolean);
   return toks;
@@ -1294,6 +1050,7 @@ function _parseMonthYearLoose(tokens){
   if (mi===-1 && day==null && tokens.length===1 && _isYear(tokens[0])){ year = parseInt(tokens[0],10); }
   return { mi: mi, day: day, year: year };
 }
+
 function _phraseToSpec(tokens){
   var cal = getCal(), cur=cal.current, months=cal.months, dpy = daysPerYear();
   var t0 = (tokens[0]||'').toLowerCase();
@@ -1334,6 +1091,7 @@ function _phraseToSpec(tokens){
   }
   return null;
 }
+
 function parseUnifiedRange(tokens){
   if (tokens.length && _isPhrase(tokens[0].toLowerCase())){
     var ps = _phraseToSpec(tokens);
@@ -1382,7 +1140,7 @@ function parseUnifiedRange(tokens){
   if (md.mi!==-1 && md.day==null && md.year==null){
     var y3 = (md.mi >= cur.month) ? cur.year : (cur.year+1);
     var mdays3 = months[md.mi].days|0;
-    return { title:'Events — '+months[md.i].name+' (next occurrence)',
+    return { title:'Events — '+months[md.mi].name+' (next occurrence)',
              start: toSerial(y3, md.mi, 1), end: toSerial(y3, md.mi, mdays3), months:[{y:y3,mi:md.mi}] };
   }
   if (md.year!=null && md.mi===-1){
@@ -1394,7 +1152,151 @@ function parseUnifiedRange(tokens){
            months:[{y:cur.year,mi:cur.month}] };
 }
 
-// ---------- Range → months + rendering bundles ----------
+/* ============================================================================
+ * 10) OCCURRENCES, BOUNDARY STRIPS & LISTS
+ * ==========================================================================*/
+function occurrencesInRange(startSerial, endSerial){
+  var cal = getCal(), dpy = daysPerYear(), occ=[];
+  var yStart = Math.floor(startSerial/dpy);
+  var yEnd   = Math.floor(endSerial/dpy);
+    if (yEnd - yStart > 120){ yEnd = yStart + 120; }
+  for (var i=0;i<cal.events.length;i++){
+    var e = cal.events[i];
+    var mi = clamp(e.month,1,cal.months.length)-1;
+    var maxD = cal.months[mi].days|0;
+    var days = expandDaySpec(e.day, maxD);
+    var ys = (e.year==null) ? yStart : (e.year|0);
+    var ye = (e.year==null) ? yEnd   : (e.year|0);
+    for (var y=ys; y<=ye; y++){
+      for (var k=0;k<days.length;k++){
+        var d = clamp(days[k],1,maxD);
+        var ser = toSerial(y, mi, d);
+        if (ser>=startSerial && ser<=endSerial){
+          occ.push({serial:ser, y:y, m:mi, d:d, e:e});
+        }
+      }
+    }
+  }
+  occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
+  return occ;
+}
+
+function _rowDaysInMonth(y, mi, rowStart){
+  var cal = getCal(), wdCount = cal.weekdays.length|0, out = [];
+  for (var c=0; c<wdCount; c++){
+    var d = fromSerial(rowStart + c);
+    if (d.year === y && d.mi === mi) out.push(d.day);
+  }
+  return out;
+}
+function _setAddAll(setObj, arr){ for (var i=0;i<arr.length;i++) setObj[arr[i]] = 1; }
+function _setCount(setObj){ return Object.keys(setObj).length; }
+function _setMin(setObj){
+  var keys = Object.keys(setObj).map(function(k){return +k;});
+  return keys.length ? Math.min.apply(null, keys) : null;
+}
+function _setMax(setObj){
+  var keys = Object.keys(setObj).map(function(k){return +k;});
+  return keys.length ? Math.max.apply(null, keys) : null;
+}
+
+// Render a month "strip" using explicit set of day numbers (keeps weekday geometry)
+function renderMonthStripWantedDays(year, mi, wantedSet, dimPast){
+  var parts = monthTableOpen(mi, year);
+  var html  = [parts.html];
+  var wdCnt = getCal().weekdays.length|0;
+
+  var minD = _setMin(wantedSet), maxD = _setMax(wantedSet);
+  if (minD == null || maxD == null){
+    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.td+';opacity:.6;">(no days)</td></tr>');
+    html.push(monthTableClose());
+    return html.join('');
+  }
+
+  var firstRow = weekStartSerial(year, mi, minD);
+  var lastRow  = weekStartSerial(year, mi, maxD);
+  for (var rowStart = firstRow; rowStart <= lastRow; rowStart += wdCnt){
+    html.push('<tr>');
+    for (var c=0; c<wdCnt; c++){
+      var s = rowStart + c;
+      var d = fromSerial(s);
+      if (d.year === year && d.mi === mi && wantedSet[d.day]){
+        var ctx = makeDayCtx(d.year, d.mi, d.day, /*dimPast*/!!dimPast);
+        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
+      } else {
+        html.push('<td style="'+STYLES.td+'"></td>');
+      }
+    }
+    html.push('</tr>');
+  }
+  html.push(monthTableClose());
+  return html.join('');
+}
+
+// Compute boundary strip wanted days based on proximity to range
+function computeBoundaryWantedDays(spec){
+  var cal = getCal(), today = todaySerial();
+  var res = { prev:null, next:null };
+  var wdCnt = cal.weekdays.length|0;
+
+  // PREPEND side: today <= 5 days BEFORE start → use previous month
+  if (today < spec.start && (spec.start - today) <= 5){
+    var startD = fromSerial(spec.start);
+    var prevMi = (startD.mi + cal.months.length - 1) % cal.months.length;
+    var prevY  = startD.year - (startD.mi === 0 ? 1 : 0);
+    var prevMD = cal.months[prevMi].days|0;
+
+    var tD = fromSerial(today);
+    var todayDay = (tD.year === prevY && tD.mi === prevMi) ? tD.day : prevMD;
+
+    var todayRow = weekStartSerial(prevY, prevMi, todayDay);
+    var lastRow  = weekStartSerial(prevY, prevMi, prevMD);
+
+    var wanted = {};
+    for (var row = todayRow; row <= lastRow; row += wdCnt){
+      _setAddAll(wanted, _rowDaysInMonth(prevY, prevMi, row));
+    }
+    var backRow = todayRow - wdCnt, safety = 0;
+    while (_setCount(wanted) < 5 && safety++ < 6){
+      var extra = _rowDaysInMonth(prevY, prevMi, backRow);
+      if (!extra.length) break;
+      _setAddAll(wanted, extra);
+      backRow -= wdCnt;
+    }
+    res.prev = { y:prevY, mi:prevMi, wanted:wanted };
+  }
+
+  // APPEND side: today <= 5 days AFTER end → use next month
+  if (today > spec.end && (today - spec.end) <= 5){
+    var endD = fromSerial(spec.end);
+    var nextMi = (endD.mi + 1) % cal.months.length;
+    var nextY  = endD.year + (nextMi === 0 ? 1 : 0);
+    var nextMD = cal.months[nextMi].days|0;
+
+    var firstRow = weekStartSerial(nextY, nextMi, 1);
+
+    var tD2 = fromSerial(today);
+    var todayRow2 = (tD2.year === nextY && tD2.mi === nextMi)
+      ? weekStartSerial(nextY, nextMi, tD2.day)
+      : firstRow;
+
+    var wanted2 = {};
+    for (var row2 = firstRow; row2 <= todayRow2; row2 += wdCnt){
+      _setAddAll(wanted2, _rowDaysInMonth(nextY, nextMi, row2));
+    }
+    var fwdRow = todayRow2 + wdCnt, safety2 = 0;
+    while (_setCount(wanted2) < 5 && safety2++ < 6){
+      var extra2 = _rowDaysInMonth(nextY, nextMi, fwdRow);
+      if (!extra2.length) break;
+      _setAddAll(wanted2, extra2);
+      fwdRow += wdCnt;
+    }
+    res.next = { y:nextY, mi:nextMi, wanted:wanted2 };
+  }
+
+  return res;
+}
+
 function _monthsFromRangeSpec(spec){
   if (spec.months && spec.months.length) return spec.months.slice();
   var months = [], dpy=daysPerYear(), cal=getCal(), firstY=Math.floor(spec.start/dpy), lastY=Math.floor(spec.end/dpy);
@@ -1413,18 +1315,18 @@ function buildCalendarsHtmlForSpec(spec){
   var months = _monthsFromRangeSpec(spec);
   var out = ['<div style="text-align:left;">'];
 
-  // Which months are already present in this view?
+  // Which months are already present?
   var present = {};
   for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
 
-  // Only dim in-range if the range includes today
+  // Only dim past if today is inside the requested range
   var tSer = todaySerial();
   var dimPastMain = (tSer >= spec.start && tSer <= spec.end);
 
-  // Boundary-aware prepend/append strips, keyed off the requested range
+  // boundary-aware prepend/append strips
   var boundary = computeBoundaryWantedDays(spec);
 
-  // PREPEND (only if that adjacent month isn’t already present)
+  // PREPEND (if not already present)
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
     out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
       renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, /*force dim*/true) +
@@ -1441,7 +1343,7 @@ function buildCalendarsHtmlForSpec(spec){
     );
   }
 
-  // APPEND (only if that adjacent month isn’t already present)
+  // APPEND (if not already present)
   if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
     out.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
       renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, /*force dim*/true) +
@@ -1452,12 +1354,106 @@ function buildCalendarsHtmlForSpec(spec){
   return out.join('');
 }
 
-// ---------- Range adapters for show/events/send ----------
+function stripRangeExtensionDynamic(spec){
+  var months = _monthsFromRangeSpec(spec);
+  var present = {};
+  for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
+
+  var boundary = computeBoundaryWantedDays(spec);
+  var start = spec.start, end = spec.end;
+
+  if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
+    var minPrev = _setMin(boundary.prev.wanted);
+    var maxPrev = _setMax(boundary.prev.wanted);
+    if (minPrev != null && maxPrev != null){
+      var sPrev = toSerial(boundary.prev.y, boundary.prev.mi, minPrev);
+      var ePrev = toSerial(boundary.prev.y, boundary.prev.mi, maxPrev);
+      start = Math.min(start, sPrev);
+      end   = Math.max(end,   ePrev);
+    }
+  }
+  if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
+    var minNext = _setMin(boundary.next.wanted);
+    var maxNext = _setMax(boundary.next.wanted);
+    if (minNext != null && maxNext != null){
+      var sNext = toSerial(boundary.next.y, boundary.next.mi, minNext);
+      var eNext = toSerial(boundary.next.y, boundary.next.mi, maxNext);
+      start = Math.min(start, sNext);
+      end   = Math.max(end,   eNext);
+    }
+  }
+
+  if (start !== spec.start || end !== spec.end) return { start:start, end:end };
+  return null;
+}
+
+function formatDateLabel(y, mi, d, includeYear){
+  var cal=getCal();
+  var lbl = esc(cal.months[mi].name)+' '+d;
+  if (includeYear) lbl += ', '+esc(String(y))+' '+LABELS.era;
+  return lbl;
+}
+
+function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var occ = occurrencesInRange(startSerial, endSerial);
+  var includeYear = forceYearLabel || (Math.floor(startSerial/daysPerYear()) !== Math.floor(endSerial/daysPerYear()));
+  var out = ['<div style="margin:4px 0;"><b>'+esc(title)+'</b></div>'];
+
+  if (!occ.length){
+    out.push('<div style="opacity:.7;">No events in this range.</div>');
+    return out.join('');
+  }
+
+  if (!st.groupEventsBySource){
+    for (var i=0;i<occ.length;i++){
+      var o = occ[i];
+      var name2 = eventDisplayName(o.e);
+      out.push(eventLineHtml(o.y, o.m, o.d, name2, includeYear, (o.serial===today), getEventColor(o.e)));
+    }
+    return out.join('');
+  }
+
+  // Group by source label
+  var groups = {}; 
+  var order  = [];
+  for (var k=0;k<occ.length;k++){
+    var o2 = occ[k];
+    var key = (o2.e && o2.e.source!=null) ? titleCase(String(o2.e.source)) : 'Other';
+    if (!groups[key]){ groups[key] = []; order.push(key); }
+    groups[key].push(o2);
+  }
+
+  order.sort(function(a,b){
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return a.localeCompare(b);
+  });
+
+  for (var g=0; g<order.length; g++){
+    var label = order[g];
+    out.push('<div style="margin-top:6px;font-weight:bold;">'+esc(label)+'</div>');
+    var arr = groups[label];
+    for (var j=0;j<arr.length;j++){
+      var o3 = arr[j];
+      var name3 = eventDisplayName(o3.e);
+      out.push(eventLineHtml(o3.y, o3.m, o3.d, name3, includeYear, (o3.serial===today), getEventColor(o3.e)));
+    }
+  }
+  return out.join('');
+}
+
+
+/* ============================================================================
+ * 11) SHOW/SEND GLUE
+ * ==========================================================================*/
 function runShowUsingUnifiedRange(who, args){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
   var html = buildCalendarsHtmlForSpec(spec);
   whisper(who, html);
 }
+
 function runShowPlusEventsUsingUnifiedRange(who, args){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
 
@@ -1472,6 +1468,26 @@ function runShowPlusEventsUsingUnifiedRange(who, args){
   whisper(who, calHtml + '<div style="height:8px"></div>' + listHtml);
 }
 
+// broadcast calendars + list for a given range (used by `send`)
+function runSendUsingUnifiedRange(who, args){
+  var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
+  var calHtml = buildCalendarsHtmlForSpec(spec);
+  var ext = stripRangeExtensionDynamic(spec) || spec;
+  var forceYear = (Math.floor(ext.start/daysPerYear()) !== Math.floor(ext.end/daysPerYear()));
+  var listHtml = eventsListHTMLForRange(spec.title, ext.start, ext.end, forceYear);
+  sendToAll(calHtml + '<div style="height:8px"></div>' + listHtml);
+}
+
+function expandRangeWithRecentPast(spec){
+  var cur = getCal().current;
+  // Always include the previous 5 days in event *lists* (doesn't affect calendar tiles)
+  var baseBack = 5;
+  var extra = (cur.day_of_the_week <= 4) ? 7 : 0;
+  var back = baseBack + extra;
+  var start = Math.min(spec.start, todaySerial() - back);
+  return { title: spec.title, start: start, end: spec.end, months: spec.months };
+}
+
 function runEventsUsingUnifiedRange(who, args, broadcast){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
   spec = expandRangeWithRecentPast(spec); // include recent past
@@ -1483,30 +1499,10 @@ function runEventsUsingUnifiedRange(who, args, broadcast){
   );
   return broadcast ? sendToAll(html) : whisper(who, html);
 }
-function runSendUsingUnifiedRange(who, args){
-  if (args.length && /^(events|list)$/i.test(String(args[0]))){
-    return runEventsUsingUnifiedRange(who, args.slice(1), /*broadcast*/true);
-  }
-  var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
-  var html = buildCalendarsHtmlForSpec(spec);
-  sendToAll(html);
-}
 
 /* ============================================================================
- * 9) MUTATIONS (DATE & EVENTS CRUD) + MISC
+ * 12) MUTATIONS (DATE & EVENTS CRUD) + MISC
  * ==========================================================================*/
-function expandRangeWithRecentPast(spec){
-  var cur = getCal().current;
-  // Always include the previous 5 days in event *lists* (doesn't affect calendar tiles)
-  var baseBack = 5;
-  var extra = (cur.day_of_the_week <= 4) ? 7 : 0;
-  var back = baseBack + extra;
-  var start = Math.min(spec.start, todaySerial() - back);
-  return { title: spec.title, start: start, end: spec.end, months: spec.months };
-}
-
-function todaySerial(){ var c = getCal().current; return toSerial(c.year, c.month, c.day_of_the_month); }
-
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
   return cal.weekdays[cur.day_of_the_week] + ", " +
@@ -1549,6 +1545,57 @@ function sendCurrentDate(to, gmOnly){
   if (gmOnly || !to) { sendToGM(gmButtonsHtml()); }
 }
 
+function parseIntSafe(x){ var n=parseInt(x,10); return isFinite(n)?n:null; }
+function isListToken(tok){ return /^all$/i.test(tok) || /^[0-9,\-\s]+$/.test(tok); }
+function parseIntList(token, minV, maxV){
+  if (!token) return [];
+  token = String(token).trim().toLowerCase();
+  if (token === 'all'){ var out=[]; for (var i=minV;i<=maxV;i++) out.push(i); return out; }
+  var set = {};
+  String(token).split(',').forEach(function(part){
+    part = part.trim(); if (!part) return;
+    var m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m){
+      var a=parseInt(m[1],10), b=parseInt(m[2],10);
+      if (isFinite(a) && isFinite(b)){
+        if (a>b){ var t=a;a=b;b=t; }
+        for (var j=a;j<=b;j++){ if (j>=minV && j<=maxV) set[j]=1; }
+      }
+    } else {
+      var n=parseInt(part,10);
+      if (isFinite(n) && n>=minV && n<=maxV) set[n]=1;
+    }
+  });
+  var arr = Object.keys(set).map(function(k){ return parseInt(k,10); });
+  arr.sort(function(a,b){ return a-b; });
+  return arr;
+}
+function parseDaySpecList(token, maxDays){
+  token = String(token||'').trim().toLowerCase();
+  if (token === 'all'){ return ['1-'+maxDays]; }
+  var parts = token.split(','), out=[], seen={};
+  for (var i=0;i<parts.length;i++){
+    var p = parts[i].trim(); if (!p) continue;
+    var norm = normalizeDaySpec(p, maxDays);
+    if (!norm){ var n = parseInt(p,10); if (isFinite(n)) norm = String(clamp(n,1,maxDays)); }
+    if (norm && !seen[norm]){ seen[norm]=1; out.push(norm); }
+  }
+  if (!out.length){
+    var n1 = normalizeDaySpec(token, maxDays);
+    if (n1) out.push(n1);
+  }
+  return out;
+}
+// Add near other helpers
+function parseMonthListOrName(tok, monthCount){
+  var list = parseIntList(tok, 1, monthCount);
+  if (!list.length){
+    var byName = monthIndexByName(tok);
+    if (byName !== -1) list = [byName + 1];
+  }
+  return list;
+}
+
 function addEventSmart(tokens){
   var cal = getCal(), cur = cal.current;
   if (!tokens || !tokens.length){ warnGM('Usage: <code>!cal events add [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code>'); return; }
@@ -1563,7 +1610,9 @@ function addEventSmart(tokens){
   }
   var forcedName = forcedNameTokens ? forcedNameTokens.join(' ').trim() : null;
   var dateToks = [];
-  while (dateToks.length<3 && tokens.length && isListToken(tokens[0])){ dateToks.push(tokens.shift()); }
+while (dateToks.length < 3 && tokens.length && (isListToken(tokens[0]) || isMonthToken(tokens[0]))){
+  dateToks.push(tokens.shift());
+}
   if (dateToks.length===0){ warnGM('Could not parse a date from your input. Expected <code>day</code>, <code>month day</code>, or <code>month day year</code>.'); return; }
   var rawName = forcedName != null ? forcedName : String(tokens.join(' ')).trim();
   rawName = rawName.replace(/^"(.*)"$/,'$1').replace(/^'(.*)'$/,'$1').trim();
@@ -1590,30 +1639,38 @@ function addEventSmart(tokens){
       daysSpecList = [String(dayTok)];
       yearsSpec = null;
     }
-  } else if (dateToks.length === 2){
-    var mTok = dateToks[0], dTok = dateToks[1];
-    var monthsBulk = parseIntList(mTok, 1, monthCount);
-    var looksBulk = (mTok.toLowerCase() === 'all' || mTok.indexOf(',')!==-1 || mTok.indexOf('-')!==-1);
-    var singleM = parseIntSafe(mTok), singleD = parseIntSafe(dTok);
-    if (!looksBulk && singleM != null && /^[0-9]+$/.test(dTok)){
-      var mi = clamp(singleM, 1, monthCount) - 1;
-      var nextY = nextForMonthDay(cur, mi, singleD).year;
-      var di2 = clamp(singleD, 1, cal.months[mi].days);
-      var ok2 = _addConcreteEvent(mi+1, String(di2), nextY, rawName, color);
-      if (ok2){
-        refreshAndSend();
-        warnGM('Added 1 event.');
-      } else {
-        warnGM('No event added (duplicate or invalid).');
-      }
-      return;
-    }
-    monthsSpec = monthsBulk;
-    daysSpecList = [String(dTok)];
-    yearsSpec = null;
+} else if (dateToks.length === 2){
+  var mTok = dateToks[0], dTok = dateToks[1];
+
+  // Case: named month + numeric day (e.g., "Rhaan 9") → add next occurrence immediately
+  var maybeMiByName = monthIndexByName(mTok);
+  if (maybeMiByName !== -1 && /^\d+$/.test(dTok)){
+    var dd = parseInt(dTok,10)|0;
+    var nextY = nextForMonthDay(cur, maybeMiByName, dd).year;
+    var dClamp = clamp(dd, 1, cal.months[maybeMiByName].days);
+    var ok = _addConcreteEvent(maybeMiByName+1, String(dClamp), nextY, rawName, color);
+    warnGM(ok ? 'Added 1 event.' : 'No event added (duplicate or invalid).');
+    if (ok){ refreshAndSend(); }
+    return;
+  }
+
+  // Otherwise: month list token ("all", "1-3", "2,5,7") OR a single name
+  var mList2 = parseMonthListOrName(mTok, monthCount);
+  monthsSpec   = mList2.length ? mList2 : parseIntList('all', 1, monthCount);
+  daysSpecList = [String(dTok)];
+  yearsSpec    = null;
+
+
   } else {
-    var mTok3 = dateToks[0], dTok3 = dateToks[1], yTok3 = dateToks[2];
-    var mList = parseIntList(mTok3, 1, monthCount);
+// In addEventSmart(), inside the "dateToks.length === 3" branch,
+// resolve a single named month if parseIntList() yields nothing:
+var mTok3 = dateToks[0], dTok3 = dateToks[1], yTok3 = dateToks[2];
+var mList = parseIntList(mTok3, 1, monthCount);
+if (!mList.length){
+  var byName = monthIndexByName(mTok3);
+  if (byName !== -1){ mList = [byName + 1]; }
+}
+
     var yList;
     var yIsAll = /^all$/i.test(yTok3);
     if (yIsAll){ yList = null; }
@@ -1667,48 +1724,6 @@ function addEventSmart(tokens){
   } else {
     warnGM('No events were added (possible duplicates or invalid specs).');
   }
-}
-
-function parseIntSafe(x){ var n=parseInt(x,10); return isFinite(n)?n:null; }
-function isListToken(tok){ return /^all$/i.test(tok) || /^[0-9,\-\s]+$/.test(tok); }
-function parseIntList(token, minV, maxV){
-  if (!token) return [];
-  token = String(token).trim().toLowerCase();
-  if (token === 'all'){ var out=[]; for (var i=minV;i<=maxV;i++) out.push(i); return out; }
-  var set = {};
-  String(token).split(',').forEach(function(part){
-    part = part.trim(); if (!part) return;
-    var m = part.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (m){
-      var a=parseInt(m[1],10), b=parseInt(m[2],10);
-      if (isFinite(a) && isFinite(b)){
-        if (a>b){ var t=a;a=b;b=t; }
-        for (var j=a;j<=b;j++){ if (j>=minV && j<=maxV) set[j]=1; }
-      }
-    } else {
-      var n=parseInt(part,10);
-      if (isFinite(n) && n>=minV && n<=maxV) set[n]=1;
-    }
-  });
-  var arr = Object.keys(set).map(function(k){ return parseInt(k,10); });
-  arr.sort(function(a,b){ return a-b; });
-  return arr;
-}
-function parseDaySpecList(token, maxDays){
-  token = String(token||'').trim().toLowerCase();
-  if (token === 'all'){ return ['1-'+maxDays]; }
-  var parts = token.split(','), out=[], seen={};
-  for (var i=0;i<parts.length;i++){
-    var p = parts[i].trim(); if (!p) continue;
-    var norm = normalizeDaySpec(p, maxDays);
-    if (!norm){ var n = parseInt(p,10); if (isFinite(n)) norm = String(clamp(n,1,maxDays)); }
-    if (norm && !seen[norm]){ seen[norm]=1; out.push(norm); }
-  }
-  if (!out.length){
-    var n1 = normalizeDaySpec(token, maxDays);
-    if (n1) out.push(n1);
-  }
-  return out;
 }
 
 function advanceDay(){
@@ -1799,8 +1814,8 @@ function removeEvent(query){
   });
   if (!rmAll && !exact && asIdx && exactNameExists) {
     sendChat(script_name, '/w gm "'+esc(raw)+'" matches an index and an event name. '+
-      'Use <code>!cal removeevent index '+esc(raw)+'</code> to remove index #'+esc(raw)+
-      ' or <code>!cal removeevent exact '+esc(raw)+'</code> to remove the named event.');
+      'Use <code>!cal events remove index '+esc(raw)+'</code> to remove index #'+esc(raw)+
+      ' or <code>!cal events remove exact '+esc(raw)+'</code> to remove the named event.');
     return;
   }
 
@@ -1881,12 +1896,14 @@ function restoreDefaultEvents(query){
   }
 }
 
-// ---------- GM buttons / Help ----------
+/* ============================================================================
+ * 13) GM BUTTONS / HELP
+ * ==========================================================================*/
 function gmButtonsHtml(){ return [
   '[📅 Send Date](!cal send date)',
   '[📅 Send Year](!cal send year)',
-  '[⏭ Advance Day](!cal advanceday)',
-  '[⏮ Retreat Day](!cal retreatday)',
+  '[⏭ Advance Day](!cal date advance)',
+  '[⏮ Retreat Day](!cal date retreat)',
   '[❔ Help](!cal help)'
 ].map(function(b){ return '<div style="'+STYLES.gmBtnWrap+'">'+b+'</div>'; }).join(''); }
 
@@ -1895,8 +1912,10 @@ function buildHelpHtml(isGM){
     '<div style="margin:4px 0;"><b>Basic Commands</b></div>',
     '<div>• <code>!cal</code> or <code>!cal show</code> — current month</div>',
     '<div>• <code>!cal show &lt;range&gt;</code> (e.g., <code>next month</code>, <code>Rhaan 1001</code>, <code>third Far</code>)</div>',
-    '<div>• <code>!cal events &lt;range&gt;</code> or <code>!cal list &lt;range&gt;</code></div>',
-    '<div>• <code>!cal send [events|list] &lt;range&gt;</code></div>',
+    '<div>• <code>!cal show events &lt;range&gt;</code> — month(s) + an events list</div>',
+    '<div>• <code>!cal events &lt;range&gt;</code> — events list only (to you)</div>',
+    '<div>• <code>!cal send &lt;range&gt;</code> — broadcast month(s) + list</div>',
+    '<div>• <code>!cal send events &lt;range&gt;</code> — broadcast list only</div>',
     '<div>• Phrases: <code>today|now</code>, <code>this/current month|year</code>, <code>next month|year</code>, <code>last|previous month|year</code>, <code>upcoming [days|month|year]</code></div>',
     '<div>• Ordinals: <code>first|second|third|fourth|fifth|last &lt;weekday&gt; [of] [&lt;month&gt;] [&lt;year&gt;]</code></div>',
     '<div>• Loose dates: <code>&lt;month&gt; [day] [year]</code>, <code>MM DD [YYYY]</code>, <code>DD</code>, <code>YYYY</code></div>',
@@ -1905,9 +1924,8 @@ function buildHelpHtml(isGM){
   if (!isGM) return common.join('');
   var gm = [
     '<div style="margin-top:10px;"><b>Date Management</b></div>',
-    '<div>• <code>!cal advanceday</code>, <code>!cal retreatday</code></div>',
-    '<div>• <code>!cal setdate [MM] DD [YYYY]</code> or <code>!cal setdate &lt;MonthName&gt; DD [YYYY]</code></div>',
-    '<div>• <code>!cal send</code> / <code>!cal send events</code> &lt;range&gt;</div>',
+    '<div>• <code>!cal date advance</code>, <code>!cal date retreat</code></div>',
+    '<div>• <code>!cal date set [MM] DD [YYYY]</code> or <code>!cal date set &lt;MonthName&gt; DD [YYYY]</code></div>',
     '<div style="height:12px"></div>',
     '<div style="margin-top:10px;"><b>Event Management</b></div>',
     '<div>• <code>!cal events add [&lt;month|list|all&gt;] &lt;day|range|list|all&gt; [&lt;year|list|all&gt;] &lt;name...&gt; [#hex]</code></div>',
@@ -1919,12 +1937,12 @@ function buildHelpHtml(isGM){
     '<div>• <code>!cal source disable &lt;name&gt;</code> — stop adding defaults from a source</div>',
     '<div>• <code>!cal source enable &lt;name&gt;</code> — re-enable and restore its defaults</div>',
     '<div style="margin-top:10px;"><b>Script Management</b></div>',
+    '<div>• <code>!cal theme list</code> / <code>!cal theme &lt;name&gt;</code> — month-header color theme</div>',
+    '<div>• <code>!cal names list</code> / <code>!cal names &lt;name&gt;</code> — switch month names</div>',
     '<div>• <code>!cal refresh</code></div>',
-    '<div>• <code>!cal colors list</code> — show month-header themes</div>',
-    '<div>• <code>!cal colors &lt;name&gt;</code> — switch month-header theme</div>',
-    '<div>• <code>!cal monthset list</code> — show month name sets</div>',
-    '<div>• <code>!cal monthset &lt;name&gt;</code> — switch month names (days/seasons unchanged)</div>',
-    '<div>• <code>!cal resetcalendar</code></div>'
+    '<div>• <code>!cal settings (group|labels) (on|off)</code></div>',
+
+    '<div>• <code>!cal reset</code></div>'
   ];
   return common.concat(gm).join('');
 }
@@ -1934,7 +1952,7 @@ function showHelp(to, isGM){
 }
 
 /* ============================================================================
- * 10) COMMANDS & ROUTING
+ * 14) COMMANDS & ROUTING (GM gates explicit, renamed API)
  * ==========================================================================*/
 function _normalizePackedWords(q){
   return String(q||'')
@@ -1951,86 +1969,41 @@ function _normalizePackedWords(q){
     .replace(/\bupcoming-year\b/g,'upcoming year')
     .trim();
 }
-function normalizeSubcommand(sub){ return String(sub||'').toLowerCase(); }
-
-var argPresets = {
-  year:         { target: 'show',   inject: ['year'] },
-  yr:           { target: 'show',   inject: ['year'] },
-  currentyear:  { target: 'show',   inject: ['year'] },
-  fullyear:     { target: 'show',   inject: ['year'] },
-  showyear:     { target: 'show',   inject: ['year'] },
-
-  listevents:   { target: 'events', inject: [] },
-  list:         { target: 'events', inject: [] },
-
-  add:          { target: 'events', inject: ['add'] },
-  addevent:     { target: 'events', inject: ['add'] },
-  remove:       { target: 'events', inject: ['remove'] },
-  rm:           { target: 'events', inject: ['remove'] },
-  removeevent:  { target: 'events', inject: ['remove'] },
-  rmevent:      { target: 'events', inject: ['remove'] },
-  restore:      { target: 'events', inject: ['restore'] },
-
-  senddate:     { target: 'send',   inject: ['date'] },
-  sendyear:     { target: 'send',   inject: ['year'] },
-
-  today:        { target: 'show',   inject: ['today'] },
-
-  set:          { target: 'setdate', inject: [] },
-
-  showevents:   { target: 'showevents', inject: [] }
-};
-
-function _resolveCommandAndArgs(args){
-  var sub = normalizeSubcommand(args[1] || '');
-  var preset = argPresets[sub];
-  if (preset){
-    var injected = (preset.inject || []);
-    var newArgs = [args[0], preset.target].concat(injected, args.slice(2));
-    return { sub: preset.target, args: newArgs };
-  }
-  return { sub: sub, args: args };
-}
 
 var commands = {
   // Everyone
   '': function(m){
     var isGM = playerIsGM(m.playerid);
-    // Current month view → calendar + events (strip-aware)
-    runShowPlusEventsUsingUnifiedRange(m.who, []);
+    runShowUsingUnifiedRange(m.who, []); // default = current month calendar
     if (isGM) whisper(m.who, gmButtonsHtml());
   },
 
   show: function(m, a){
-    var rangeTokens = a.slice(2);
-
-    // Decide if this resolves to THE current-month view
-    var spec = parseUnifiedRange(_tokenizeRangeArgs(rangeTokens));
-    var cal  = getCal(), cur = cal.current, mdays = cal.months[cur.month].days;
-    var isCurrentMonth =
-      spec.months && spec.months.length === 1 &&
-      spec.months[0].y  === cur.year &&
-      spec.months[0].mi === cur.month &&
-      spec.start === toSerial(cur.year, cur.month, 1) &&
-      spec.end   === toSerial(cur.year, cur.month, mdays);
-
-    if (isCurrentMonth){
-      // current-month → calendar + events
-      runShowPlusEventsUsingUnifiedRange(m.who, rangeTokens);
+    var rest = a.slice(2);
+    // `!cal show events <range>` → calendar + list to the user
+    if ((rest[0]||'').toLowerCase() === 'events'){
+      runShowPlusEventsUsingUnifiedRange(m.who, rest.slice(1));
     } else {
-      // everything else → calendar only
-      runShowUsingUnifiedRange(m.who, rangeTokens);
+      runShowUsingUnifiedRange(m.who, rest);
     }
-
     if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
   },
 
-  showevents: function(m, a){
-    runShowPlusEventsUsingUnifiedRange(m.who, a.slice(2));
-    if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
-  },
+  settings: { gm:true, run:function(m,a){
+    var key = String(a[2]||'').toLowerCase();
+    var val = String(a[3]||'').toLowerCase();
+    if (!key || !/^(group|labels)$/.test(key) || !/^(on|off)$/.test(val)){
+      return whisper(m.who,'Usage: <code>!cal settings (group|labels) (on|off)</code>');
+    }
+    var st = ensureSettings();
+    if (key==='group') st.groupEventsBySource = (val==='on');
+    if (key==='labels') st.showSourceLabels = (val==='on');
+    refreshAndSend();
+    whisper(m.who,'Setting updated.');
+  }},
 
-  // Unified EVENTS/LIST
+
+
   events: function(m, a){
     var args = a.slice(2);
     var sub = (args[0]||'').toLowerCase();
@@ -2064,13 +2037,55 @@ var commands = {
         return;
       }
     }
-    if (sub === 'list') args.shift();
+    if (sub === 'list') args.shift(); // keep forgiving if someone types "events list"
     runEventsUsingUnifiedRange(m.who, args, /*broadcast*/false);
   },
 
+  send: { gm:true, run:function(m,a){
+    var args = a.slice(2);
+    var first = (args[0]||'').toLowerCase();
+
+    if (!args.length || /^date$|^month$/.test(first)){ return sendCurrentDate(); }
+
+    if (first==='events' || first==='list'){
+      return runEventsUsingUnifiedRange(m.who, args.slice(1), /*broadcast*/ true);
+    }
+
+    return runSendUsingUnifiedRange(m.who, args);
+  }},
+
   help: function(m){ showHelp(m.who, playerIsGM(m.playerid)); },
 
-  // GM-only
+  // GM-only renamed groups
+  theme: { gm:true, run:function(m, a){
+    var sub = String(a[2]||'').toLowerCase();
+    if (!sub || sub==='list'){
+      var names = Object.keys(COLOR_THEMES).sort();
+      return whisper(m.who, '<div><b>Color Themes</b></div><div>'+names.map(esc).join(', ')+'</div>');
+    }
+    if (!COLOR_THEMES[sub]){
+      return whisper(m.who, 'Unknown theme. Try: <code>!cal theme list</code>');
+    }
+    var st = ensureSettings(); st.colorTheme = sub;
+    refreshAndSend();
+    whisper(m.who, 'Color theme set to <b>'+esc(sub)+'</b>.');
+  }},
+
+  names: { gm:true, run:function(m, a){
+    var sub = String(a[2]||'').toLowerCase();
+    if (!sub || sub==='list'){
+      var names = Object.keys(MONTH_NAME_SETS).sort();
+      return whisper(m.who, '<div><b>Month Name Sets</b></div><div>'+names.map(esc).join(', ')+'</div>');
+    }
+    if (!MONTH_NAME_SETS[sub]){
+      return whisper(m.who, 'Unknown set. Try: <code>!cal names list</code>');
+    }
+    var st = ensureSettings(); st.monthSet = sub;
+    applyMonthSet(sub);
+    refreshAndSend();
+    whisper(m.who, 'Month names set to <b>'+esc(sub)+'</b>.');
+  }},
+
   source: { gm:true, run: function(m, a){
     var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
     var sub = (args[0]||'').toLowerCase();
@@ -2124,59 +2139,38 @@ var commands = {
     if (sub==='enable'){ if (!args[1]) { whisper(m.who,'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; } return enableSource(args.slice(1).join(' ')); }
     whisper(m.who, 'Usage: <code>!cal source [list|disable|enable] [&lt;name&gt;]</code>');
   }},
-  colors: { gm:true, run:function(m, a){
-    var sub = String(a[2]||'').toLowerCase();
-    if (!sub || sub==='list'){
-      var names = Object.keys(COLOR_THEMES).sort();
-      return whisper(m.who, '<div><b>Color Themes</b></div><div>'+names.map(esc).join(', ')+'</div>');
-    }
-    var key = sub;
-    if (!COLOR_THEMES[key]){
-      return whisper(m.who, 'Unknown theme. Try: <code>!cal colors list</code>');
-    }
-    var st = ensureSettings(); st.colorTheme = key;
-    refreshAndSend();
-    whisper(m.who, 'Color theme set to <b>'+esc(key)+'</b>.');
-  }},
-  monthset: { gm:true, run:function(m, a){
-    var sub = String(a[2]||'').toLowerCase();
-    if (!sub || sub==='list'){
-      var names = Object.keys(MONTH_NAME_SETS).sort();
-      return whisper(m.who, '<div><b>Month Name Sets</b></div><div>'+names.map(esc).join(', ')+'</div>');
-    }
-    var key = sub;
-    if (!MONTH_NAME_SETS[key]){
-      return whisper(m.who, 'Unknown set. Try: <code>!cal monthset list</code>');
-    }
-    var st = ensureSettings(); st.monthSet = key;
-    applyMonthSet(key);
-    refreshAndSend();
-    whisper(m.who, 'Month names set to <b>'+esc(key)+'</b>.');
-  }},
-  advanceday: { gm:true, run:function(){ advanceDay(); } },
-  retreatday: { gm:true, run:function(){ retreatDay(); } },
 
-  setdate: { gm:true, run:function(m,a){
-    if (a.length < 3) { whisper(m.who, 'Usage: <code>!cal setdate [MM] DD [YYYY]</code> or <code>!cal setdate &lt;MonthName&gt; DD [YYYY]</code>'); return; }
-    if (a.length === 3 && /^\d+$/.test(a[2])) {
+  date: { gm:true, run:function(m, a){
+    var sub = String(a[2]||'').toLowerCase();
+    if (!sub || (sub!=='advance' && sub!=='retreat' && sub!=='set')){
+      whisper(m.who, 'Usage: <code>!cal date advance</code> | <code>!cal date retreat</code> | <code>!cal date set [MM] DD [YYYY]</code>');
+      return;
+    }
+    if (sub==='advance'){ advanceDay(); return; }
+    if (sub==='retreat'){ retreatDay(); return; }
+
+    // sub === 'set'
+    if (a.length < 4) { whisper(m.who, 'Usage: <code>!cal date set [MM] DD [YYYY]</code> or <code>!cal date set &lt;MonthName&gt; DD [YYYY]</code>'); return; }
+
+    if (a.length === 4 && /^\d+$/.test(a[3])) {
       var cal = getCal(), cur = cal.current, months = cal.months;
-      var day = parseInt(a[2],10)|0;
+      var day = parseInt(a[3],10)|0;
       var next = nextForDayOnly(cur, day, months.length);
       var d = clamp(day, 1, months[next.month].days);
       setDate(next.month + 1, d, next.year);
       return;
     }
-    if (a.length >= 4 && /^\d+$/.test(a[2]) && /^\d+$/.test(a[3])) {
+    if (a.length >= 5 && /^\d+$/.test(a[3]) && /^\d+$/.test(a[4])) {
       var cal2 = getCal(), cur2 = cal2.current, months2 = cal2.months;
-      var miNum = clamp(parseInt(a[2],10), 1, months2.length) - 1;
-      var ddNum = parseInt(a[3],10)|0;
+      var miNum = clamp(parseInt(a[3],10), 1, months2.length) - 1;
+      var ddNum = parseInt(a[4],10)|0;
       var next2 = nextForMonthDay(cur2, miNum, ddNum);
       var d2 = clamp(ddNum, 1, months2[miNum].days);
-      var yOverride = (a[4] && /^\d+$/.test(a[4])) ? (parseInt(a[4],10)|0) : next2.year;
+      var yOverride = (a[5] && /^\d+$/.test(a[5])) ? (parseInt(a[5],10)|0) : next2.year;
       setDate(miNum + 1, d2, yOverride);
       return;
     }
-    var mTok = a[2], dTok = a[3], yTok = a[4];
+    var mTok = a[3], dTok = a[4], yTok = a[5];
     var maybeMi = monthIndexByName(mTok);
     if (maybeMi !== -1 && /^\d+$/.test(dTok)) {
       var calZ = getCal(), curZ = calZ.current, monthsZ = calZ.months;
@@ -2187,34 +2181,23 @@ var commands = {
       setDate(maybeMi + 1, d3, y3);
       return;
     }
-    setDate(a[2], a[3], a[4]);
-  }},
-
-  send: { gm:true, run:function(m,a){
-    var args = a.slice(2);
-    if (!args.length || /^date$|^month$/i.test(args[0])){ return sendCurrentDate(); }
-    return runSendUsingUnifiedRange(m.who, args);
+    setDate(a[3], a[4], a[5]);
   }},
 
   refresh: { gm:true, run:function(){ refreshCalendarState(false); } },
-  resetcalendar:{ gm:true, run:function(){ resetToDefaults(); } }
+  reset:   { gm:true, run:function(){ resetToDefaults(); } }
 };
 
 /* ============================================================================
- * 11) BOOT
+ * 15) BOOT
  * ==========================================================================*/
 function handleInput(msg){
   if (msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
   checkInstall();
   var args = msg.content.trim().split(/\s+/);
   args = args.slice(0,2).concat(_normalizePackedWords(args.slice(2).join(' ')).split(/\s+/).filter(Boolean));
-  var r = _resolveCommandAndArgs(args);
-  var sub = r.sub; args = r.args;
-  var cmd = commands[sub];
-  if (!cmd){
-    runShowUsingUnifiedRange(msg.who, args.slice(1));
-    return;
-  }
+  var sub = String(args[1]||'').toLowerCase();
+  var cmd = commands[sub] || commands[''];
   if (typeof cmd === 'function'){ cmd(msg, args); return; }
   if (cmd.gm && !playerIsGM(msg.playerid)){
     whisper((msg.who||'').replace(/\s+\(GM\)$/,''), LABELS.gmOnlyNotice);
@@ -2239,5 +2222,12 @@ on("ready", function(){
   );
 });
 
-return { checkInstall: checkInstall, register: register };
+// Final return (bottom of IIFE)
+return {
+  checkInstall: checkInstall,
+  register: register,
+  render: renderAPI,
+  events: eventsAPI,
+  colors: colorsAPI
+};
 })();
