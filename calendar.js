@@ -178,9 +178,9 @@ var STYLES = {
   gmbuttonWrap: 'margin:2px 0;',
   today: // current day
     'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
-  yesterday: // past days
+  past: // past days
     'opacity:0.65;',
-  tomorrow: // future days
+  future: // future days
     'opacity:0.95;'
 };
 
@@ -285,7 +285,7 @@ function ensureSettings(){
     monthSet: 'eberron',
     weekdaySet: 'eberron',
     seasonSet: 'northern',
-    groupEventsBySource: true,
+    groupEventsBySource: false,
     showSourceLabels: false
   };
   return root.settings;
@@ -962,6 +962,10 @@ var Parse = (function(){
   };
 })();
 
+function isTodayVisibleInRange(startSerial, endSerial){
+  var t = todaySerial();
+  return t >= startSerial && t <= endSerial;
+}
 
 // ------------------------------ DaySpec -------------------------------------
 var DaySpec = (function(){
@@ -1211,7 +1215,7 @@ function getEventsFor(monthIndex, day, year){
 }
 
 /* ============================================================================
- * 7) RENDERING (month builder preserved, with today/yesterday hooks)
+ * 7) RENDERING
  * ==========================================================================*/
 function clamp(n, min, max){ n = parseInt(n,10); if (!isFinite(n)) n = min; return n < min ? min : (n > max ? max : n); }
 function int(v, fallback){ var n = parseInt(v,10); return isFinite(n) ? n : fallback; }
@@ -1317,20 +1321,29 @@ function openMonthTable(mi, yearLabel){
 
 function closeMonthTable(){ return '</table>'; }
 
-function makeDayCtx(y, mi, d, dimPast){
+function _nameWithSource(e){
+  var name = String(e && e.name || '').trim();
+  if (!name) return '';
+  var src  = (e && e.source != null) ? titleCase(String(e.source)) : null;
+  return src ? (name + ' (' + src + ')') : name;
+}
+
+function makeDayCtx(y, mi, d, dimActive){
   var ser = toSerial(y, mi, d);
   var tSer = todaySerial();
   var events = getEventsFor(mi, d, y);
-  var label = formatDateLabel(y, mi, d, true);
-  if (events.length){ label += ': ' + events.map(function(e){ return eventDisplayName(e); }).join(', '); }
+
+  var label = events.length
+    ? events.map(_nameWithSource).filter(Boolean).join(', ')
+    : '';
+
   return {
     y:y, mi:mi, d:d, serial:ser,
-    isToday: (ser === tSer),
-    isYesterday: (ser === tSer - 1),
-    isPast:  !!dimPast && (ser < tSer),
-    isFuture:    !!dimPast && (ser >  tSer),
-    events:  events,
-    title:   label
+    isToday:  (ser === tSer),
+    isPast:   !!dimActive && (ser <  tSer),
+    isFuture: !!dimActive && (ser >  tSer),
+    events:   events,
+    title:    label
   };
 }
 
@@ -1344,18 +1357,16 @@ function styleForDayCell(baseStyle, eventsToday, isToday, monthColor, isPast, is
     style += colorsAPI.textOn(monthColor, CONTRAST_MIN_CELL);
   }
 
-  if (isPast)   style += STYLES.yesterday;
-  if (isFuture) style += STYLES.tomorrow;
+  if (isPast)   style += STYLES.past;
+  if (isFuture) style += STYLES.future;
   if (isToday)  style += STYLES.today;
 
   return style;
 }
 
 function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
-  var style = styleForDayCell(
-    baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture
-  );
-  var titleAttr = ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"';
+  var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture);
+  var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"' : '';
   var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
   return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
 }
@@ -1366,12 +1377,11 @@ function renderMonthTable(opts){
   var y   = (opts && typeof opts.year === 'number') ? (opts.year|0) : cur.year;
   var mi  = (opts && typeof opts.mi   === 'number') ? (opts.mi|0)   : cur.month;
   var mode    = (opts && opts.mode) || 'full';
-  var dimPast = !!(opts && opts.dimPast);
+  var dimActive = !!(opts && opts.dimPast); // keep param name for minimal churn
 
   var mdays = cal.months[mi].days|0;
   var parts = openMonthTable(mi, y);
   var html  = [parts.html];
-
   var wdCnt = weekLength()|0;
 
   if (mode === 'full'){
@@ -1383,7 +1393,7 @@ function renderMonthTable(opts){
         var s = rowStart + c;
         var d = fromSerial(s);
         if (d.year === y && d.mi === mi){
-          var ctx = makeDayCtx(y, mi, d.day, dimPast);
+          var ctx = makeDayCtx(y, mi, d.day, dimActive);
           html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
         } else {
           html.push('<td style="'+STYLES.td+'"></td>');
@@ -1404,7 +1414,7 @@ function renderMonthTable(opts){
   for (var i=0; i<wdCnt; i++){
     var s2 = startSer + i;
     var d2 = fromSerial(s2);
-    var ctx2 = makeDayCtx(d2.year, d2.mi, d2.day, dimPast);
+    var ctx2 = makeDayCtx(d2.year, d2.mi, d2.day, dimActive);
     var numeralStyle = (d2.mi === mi) ? '' : 'opacity:.5;';
     html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.td, numeralStyle));
   }
@@ -1412,22 +1422,23 @@ function renderMonthTable(opts){
   return html.join('');
 }
 
-function renderMiniCal(mi, yearLabel, dimPast){
+function renderMiniCal(mi, yearLabel, dimActive){
   var y = (typeof yearLabel === 'number') ? yearLabel : getCal().current.year;
-  return renderMonthTable({ year:y, mi:mi, mode:'full', dimPast: !!dimPast });
+  return renderMonthTable({ year:y, mi:mi, mode:'full', dimPast: !!dimActive });
 }
 
 function renderCurrentMonth(){ return renderMiniCal(getCal().current.month, null, true); }
 
-function yearHTMLFor(targetYear, dimPast){
+function yearHTMLFor(targetYear, dimActive){
   var months = getCal().months;
   var html = ['<div style="text-align:left;">'];
   for (var i=0; i<months.length; i++){
-    html.push('<div style="'+STYLES.wrap+'">' + renderMiniCal(i, targetYear, !!dimPast) + '</div>');
+    html.push('<div style="'+STYLES.wrap+'">' + renderMiniCal(i, targetYear, !!dimActive) + '</div>');
   }
   html.push('</div>');
   return html.join('');
 }
+
 
 function formatDateLabel(y, mi, d, includeYear){
   var cal=getCal();
@@ -1694,7 +1705,7 @@ function _setCount(setObj){ return Object.keys(setObj).length; }
 function _setMin(setObj){ var keys = Object.keys(setObj).map(function(k){return +k;}); return keys.length ? Math.min.apply(null, keys) : null; }
 function _setMax(setObj){ var keys = Object.keys(setObj).map(function(k){return +k;}); return keys.length ? Math.max.apply(null, keys) : null; }
 
-function renderMonthStripWantedDays(year, mi, wantedSet, dimPast){
+function renderMonthStripWantedDays(year, mi, wantedSet, dimActive){
   var parts = openMonthTable(mi, year);
   var html  = [parts.html];
   var wdCnt = getCal().weekdays.length|0;
@@ -1714,7 +1725,7 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimPast){
       var s = rowStart + c;
       var d = fromSerial(s);
       if (d.year === year && d.mi === mi && wantedSet[d.day]){
-        var ctx = makeDayCtx(d.year, d.mi, d.day, /*dimPast*/!!dimPast);
+        var ctx = makeDayCtx(d.year, d.mi, d.day, /*dimActive*/true);
         html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
       } else {
         html.push('<td style="'+STYLES.td+'"></td>');
@@ -1813,27 +1824,26 @@ function buildCalendarsHtmlForSpec(spec){
   var present = {};
   for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
 
-  var tSer = todaySerial();
-  var dimPastMain = (tSer >= spec.start && tSer <= spec.end);
+  var dimActiveMain = isTodayVisibleInRange(spec.start, spec.end);
 
   var boundary = adjacentPartialMonths(spec);
 
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
     out.push('<div style="'+STYLES.wrap+'">' +
-      renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, /*force dim*/true) +
+      renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, /*force*/true) +
       '</div>');
   }
 
   for (var k=0; k<months.length; k++){
     var m = months[k];
     out.push('<div style="'+STYLES.wrap+'">' +
-      renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimPastMain }) +
+      renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimActiveMain }) +
       '</div>');
   }
 
   if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
     out.push('<div style="'+STYLES.wrap+'">' +
-      renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, /*force dim*/true) +
+      renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, /*force*/true) +
       '</div>');
   }
 
@@ -2847,18 +2857,25 @@ var EVENT_SUB = {
 var commands = {
 
 // Everyone (self-whisper)
-  '': function(m, a){ // bare !cal
-    var restTokens = _normalizePackedWords(a.slice(1).join(' '))
-                      .split(/\s+/).filter(Boolean);
-    var mode = restTokens.length ? 'cal' : 'bundle';
-    deliverRange({ who:m.who, args:restTokens, mode:mode, dest:'whisper' });
+  '': function (m, a) { // bare !cal
+    var restTokens = _normalizePackedWords(a.slice(1).join(' ')).split(/\s+/).filter(Boolean);
+    if (!restTokens.length) { // no args
+      sendCurrentDate(m.who, false);
+      sendGMButtons(m);
+      return;
+    }
+    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' }); // has args
     sendGMButtons(m);
   },
 
-  show: function(m, a){
-    var rest = a.slice(2);
-    var mode = rest.length ? 'cal' : 'bundle'; // with args → calendars only
-    deliverRange({ who:m.who, args:rest, mode:mode, dest:'whisper' });
+  show: function (m, a) { // !cal show [...]
+    var restTokens = _normalizePackedWords(a.slice(2).join(' ')).split(/\s+/).filter(Boolean);
+    if (!restTokens.length) { // no args
+      sendCurrentDate(m.who, false);
+      sendGMButtons(m);
+      return;
+    }
+    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' }); // has args
     sendGMButtons(m);
   },
 
@@ -2916,10 +2933,13 @@ var commands = {
 
 
   // GM: Send (broadcast)
-  send: { gm:true, run:function(m,a){
-    var rest = a.slice(2);
-    var mode = rest.length ? 'cal' : 'bundle';
-    deliverRange({ args:rest, mode:mode, dest:'broadcast' });
+  send: { gm:true, run:function (m, a) { // !cal send [...]
+    var restTokens = _normalizePackedWords(a.slice(2).join(' ')).split(/\s+/).filter(Boolean);
+    if (!restTokens.length) { // no args
+      sendCurrentDate(null, false);
+      return;
+    }
+    deliverRange({ args:restTokens, mode:'cal', dest:'broadcast' }); // has args
   }},
 
   advance: { gm:true, run:function(m,a){ stepDays(parseInt(a[2],10) || 1); } },
