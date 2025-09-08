@@ -1,7 +1,7 @@
 // Eberron Calendar (Clean Unified Edition)
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // Roll20 API script
-// Call `!cal` to show the calendar (self-whisper for players). GM can broadcast with `!cal send`.
+// Call `!cal` to start. Add macro for easy access.
 // Version: 2.0
 
 var Calendar = (function(){
@@ -33,6 +33,34 @@ var SEASON_SETS = {
 
 
 // === THEME & NAME SETS ====================================================
+
+// Eberron month names. Sets do not change month length or event dates.
+var MONTH_NAME_SETS = {
+  eberron: [
+    "Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm",
+    "Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"
+  ],
+
+  druidic: [
+    "Frostmantle","Thornrise","Treeborn","Rainsong","Arrowfar","Sunstride",
+    "Glitterstream","Havenwild","Stormborn","Harrowfall","Silvermoon","Windwhisper"
+  ],
+
+  dwarven: [
+    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",
+    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"
+  ],
+
+  halfling: [
+    "Fang","Wind","Ash","Hunt","Song","Dust",
+    "Claw","Blood","Horn","Heart","Spirit","Smoke"
+  ],
+
+  gregorian: [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ]
+};
 
 var COLOR_THEMES = {
     lunar: [ // from Dragonshards article on Moons of Eberron
@@ -126,35 +154,6 @@ var COLOR_THEMES = {
     "#00B8D4"  // Dec Turquoise
   ]};
 
-
-// Eberron month names. Sets do not change month length or event dates.
-var MONTH_NAME_SETS = {
-  eberron: [
-    "Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm",
-    "Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"
-  ],
-
-  druidic: [
-    "Frostmantle","Thornrise","Treeborn","Rainsong","Arrowfar","Sunstride",
-    "Glitterstream","Havenwild","Stormborn","Harrowfall","Silvermoon","Windwhisper"
-  ],
-
-  dwarven: [
-    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",
-    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"
-  ],
-
-  halfling: [
-    "Fang","Wind","Ash","Hunt","Song","Dust",
-    "Claw","Blood","Horn","Heart","Spirit","Smoke"
-  ],
-
-  gregorian: [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
-  ]
-};
-
 // Auto-apply a color theme when a name set is chosen
 var NAMESET_TO_THEME = {
   eberron:  'lunar',
@@ -177,44 +176,44 @@ var STYLES = {
   td:    'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
   monthHeaderBase: 'padding:6px;text-align:left;',
   gmBtnWrap: 'margin:2px 0;',
-  todayCellExtra:
+  today:
     'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
-  yesterdayCellExtra:
+  yesterday:
     'filter:saturate(.85) brightness(.95);'
 };
 
 var DEFAULT_EVENT_SOURCES = {
   sharn: [
-    { name: "Tain Gala",               month: "all",  day: "first far",  color: "#F7E7CE" }, // champagne
-    { name: "Crystalfall",             month: 2,      day: 9,            color: "#64B5F6" }, // river-blue
-    { name: "The Race of Eight Winds", month: 7,      day: 23,           color: "#004225" }, // racing green
-//    { name: "Olladra's Feast",         month: "varies", day: "varies",   color: "#FFEE58" }, // festive gold
-//    { name: "Day of Ashes",            month: "varies", day: "varies",   color: "#CFD8DC" }  // ash gray
+    { name: "Tain Gala",               month: "all",  day: "first far", color: "#F7E7CE" }, // champagne 
+    { name: "Crystalfall",             month: 2,      day: 9,           color: "#D7F3FF" }, // crystal blue
+    { name: "Day of Ashes",            month: 5,      day: 3,           color: "#B0BEC5" }, // ash gray
+    { name: "The Race of Eight Winds", month: 7,      day: 23,          color: "#004225" }  // racing green
   ],
 
   khorvaire: [
-    { name: "Day of Mourning",         month: 2,   day: 20,  color: "#9E9E9E" }, // smoke gray
-    { name: "Galifar's Throne",        month: 6,   day: 5,   color: "#1976D2" }, // civic blue
+    { name: "Day of Mourning",         month: 2,   day: 20,  color: "#9E9E9E" }, // dead gray mists
+    { name: "Galifar's Throne",        month: 6,   day: 5,   color: "#D4AF37" }, // crown gold
     { name: "Thronehold",              month: 11,  day: 11,  color: "#E80001" }  // poppy red
   ],
 
   "sovereign host": [
-    { name: "Onatar's Flame",          month: 1,   day: 7,   color: "#F57C00" }, // molten orange (Onatar)
-    { name: "Turrant's Gift",          month: 2,   day: 14,  color: "#FFB300" }, // merchant's amber (Three Faces / Kol Korran)
-    { name: "Winter's End",            month: 2,   day: 28,  color: "#C8E6C9" }, // lucky mint (Olladra)
-    { name: "Sun's Blessing",          month: 3,   day: 15,  color: "#FFD54F" }, // sun gold (Dol Arrah)
-    { name: "Aureon's Crown",          month: 5,   day: 26,  color: "#5C6BC0" }, // learned indigo (Aureon)
-    { name: "Brightblade",             month: 6,   day: 12,  color: "#C62828" }, // battle red (Dol Dorn)
-    { name: "Bounty's Blessing",       month: 7,   day: 14,  color: "#4CAF50" }, // harvest green (Arawai)
-    { name: "The Hunt",                month: 8,   day: 4,   color: "#2E7D32" }, // hunter green (Balinor)
-    { name: "Boldrei's Feast",         month: 9,   day: 9,   color: "#FFA726" }, // hearth amber (Boldrei)
-    { name: "Market Day",              month: 11,  day: 20,  color: "#F6C453" }  // merchant’s gold (Kol Korran)
+    { name: "Onatar's Flame",     month: 1,  day: 7,   color: "#FF6F00" }, // forge-orange, closer to glowing metal (Onatar)
+    { name: "Turrant's Gift",     month: 2,  day: 14,  color: "#FBC02D" }, // bright coin-gold, a merchant’s shine (Kol Korran / Three Faces)
+    { name: "Olladra's Feast",    month: 2,  day: 28,  color: "#8BC34A" }, // lucky clover green, prosperity & chance (Olladra)
+    { name: "Sun's Blessing",     month: 3,  day: 15,  color: "#FFC107" }, // radiant sunlight yellow (Dol Arrah)
+    { name: "Aureon's Crown",     month: 5,  day: 26,  color: "#283593" }, // deep indigo/blue, scholarly authority (Aureon)
+    { name: "Brightblade",        month: 6,  day: 12,  color: "#B71C1C" }, // bold crimson, martial vigor (Dol Dorn)
+    { name: "Bounty's Blessing",  month: 7,  day: 14,  color: "#388E3C" }, // lush harvest green, fertility & growth (Arawai)
+    { name: "The Hunt",           month: 8,  day: 4,   color: "#1B5E20" }, // dark forest green, wilderness mastery (Balinor)
+    { name: "Boldrei's Feast",    month: 9,  day: 9,   color: "#F57C00" }, // warm hearth orange, home & community (Boldrei)
+    { name: "Market Day",         month: 11, day: 20,  color: "#FFD54F" }  // bright gold, trade & exchange (Kol Korran)
+
   ],
 
   "dark six": [
-    { name: "Shargon's Bargain",       month: 4,   day: 13,       color: "#0D47A1" }, // storm blue (The Devourer)
-    { name: "Second Skin",             month: 6,   day: 11,       color: "#6A1B9A" }, // mask violet (The Mockery)
-    { name: "Wildnight",               month: 10,  day: "18-19",  color: "#B71C1C" }, // carmine (The Fury)
+    { name: "Shargon's Bargain",       month: 4,   day: 13,       color: "#006064" }, // stormy ocean blue (The Devourer)
+    { name: "Second Skin",             month: 6,   day: 11,       color: "#AEEA00" }, // venom green (The Mockery)
+    { name: "Wildnight",               month: 10,  day: "18-19",  color: "#AD1457" }, // passion red (The Fury)
     { name: "Long Shadows",            month: 12,  day: "26-28",  color: "#0D0D0D" }  // abyssal black (The Shadow)
   ],
 
@@ -266,19 +265,8 @@ var defaults = {
   // days per month
   // intercalery days (like Forgotten Realms' Shieldmeet) are not supported (yet)
   // leap years are not supported (yet)
-  months: [ 28, // Month 1
-            28, // Month 2
-            28, // Month 3
-            28, // Month 4
-            28, // Month 5
-            28, // Month 6
-            28, // Month 7
-            28, // Month 8
-            28, // Month 9
-            28, // Month 10
-            28, // Month 11
-            28  // Month 12
-      ],
+  months: [   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28  ],
+          //  1st,  2nd,  3rd,  4th, 5th,   6th,  7th,  8th,  9th,  10th, 11th, 12th
   events: _flattenSources(DEFAULT_EVENT_SOURCES)
 };
 
@@ -986,13 +974,7 @@ function swatchHtml(colLike){
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 }
 
-var _BTN_STYLES = {
-  neutral: 'display:inline-block;margin:2px 3px;padding:{PAD};border:1px solid #4b5563;border-radius:4px;background:linear-gradient(#f8f8f8,#e6e6e6);box-shadow:0 1px 0 rgba(0,0,0,.25);font-weight:600;',
-  primary: 'display:inline-block;margin:2px 3px;padding:{PAD};border:1px solid #1E88E5;border-radius:4px;background:#1E88E5;box-shadow:0 1px 0 rgba(0,0,0,.25);color:#fff;',
-  success: 'display:inline-block;margin:2px 3px;padding:{PAD};border:1px solid #2e7d32;border-radius:4px;background:#43A047;box-shadow:0 1px 0 rgba(0,0,0,.25);color:#fff;',
-  danger:  'display:inline-block;margin:2px 3px;padding:{PAD};border:1px solid #b71c1c;border-radius:4px;background:#E53935;box-shadow:0 1px 0 rgba(0,0,0,.25);color:#fff;',
-  ghost:   'display:inline-block;margin:2px 3px;padding:{PAD};border:1px dashed rgba(0,0,0,.45);border-radius:4px;background:transparent;opacity:.95;'
-};
+var BTN_STYLE = 'display:inline-block;margin:4px 6px 4px 0;padding:{PAD};border:0;background:transparent;border-radius:6px;';
 
 function _btnPad(compact){ return compact ? '2px 6px' : '4px 8px'; }
 
@@ -1002,43 +984,29 @@ function _btnHasEmojiStart(s){
   return !!s && s.charCodeAt(0) > 127;
 }
 
-function _btnAutoVariant(lbl){
-  var t = String(lbl||'').toLowerCase();
-  if (/\b(remove|delete|disable|retreat)\b/.test(t)) return 'danger';
-  if (/\b(restore|enable|apply|advance|refresh|send|theme)\b/.test(t)) return 'primary';
-  if (/\b(ok|save|done|create|add)\b/.test(t)) return 'success';
-  if (/\b(back|help|menu|list|show|colors?|names?)\b/.test(t)) return 'ghost';
-  return 'neutral';
-}
-
 function _btnAutoIcon(lbl){
   var t = String(lbl||'').toLowerCase();
-  if (/\b(remove|delete)\b/.test(t)) return '🗑️';
-  if (/\b(restore|enable)\b/.test(t)) return '↩️';
-  if (/\b(apply|theme|colors?)\b/.test(t)) return '🎨';
-  if (/\b(send)\b/.test(t)) return '📣';
-  if (/\b(show|view)\b/.test(t)) return '👁️';
-  if (/\b(list)\b/.test(t)) return '📋';
-  if (/\b(help|menu)\b/.test(t)) return '❔';
-  if (/\b(back)\b/.test(t)) return '⬅️';
-  if (/\b(advance)\b/.test(t)) return '▶️';
-  if (/\b(retreat)\b/.test(t)) return '◀️';
-  if (/\b(refresh)\b/.test(t)) return '♻️';
-  if (/\b(add|create)\b/.test(t)) return '➕';
+  if (/\b(show|view)\b/.test(t))            return '📅';
+  if (/\b(send)\b/.test(t))                 return '📣';
+  if (/\b(advance)\b/.test(t))              return '⏭️';
+  if (/\b(retreat)\b/.test(t))              return '⏮️';
+  if (/\b(list)\b/.test(t))                 return '📋';
+  if (/\b(add|create)\b/.test(t))           return '➕';
+  if (/\b(remove|delete)\b/.test(t))        return '🗑️';
+  if (/\b(restore|enable)\b/.test(t))       return '↩️';
+  if (/\b(apply|theme|colors?)\b/.test(t))  return '🎨';
+  if (/\b(help|menu)\b/.test(t))            return '❔';
+  if (/\b(back)\b/.test(t))                 return '⬅️';
   return '';
 }
 
 function btn(label, cmd, opts){
   opts = opts || {};
   var lbl = String(label||'').trim();
-  var variant = opts.variant || _btnAutoVariant(lbl);
-  var style = (_BTN_STYLES[variant] || _BTN_STYLES.neutral).replace('{PAD}', _btnPad(!!opts.compact));
+  var style = BTN_STYLE.replace('{PAD}', _btnPad(!!opts.compact));
   var titleAttr = opts.title ? ' title="'+esc(opts.title)+'" aria-label="'+esc(opts.title)+'"' : '';
   var icon = (opts.icon!=null) ? String(opts.icon) : (_btnHasEmojiStart(lbl) ? '' : _btnAutoIcon(lbl));
   var text = (icon ? (icon+' ') : '') + lbl;
-
-  // Wrap the Roll20 ability button in a styled span for visuals + larger hit target
-  // The actual click target is still the [Label](!command) link inside.
   return '<span role="button"'+titleAttr+' style="'+style+'">['+esc(text)+'](!cal '+cmd+')</span>';
 }
 
@@ -1116,10 +1084,10 @@ function styleForDayCell(baseStyle, eventsToday, isToday, isYesterday, monthColo
   if (isPast) style += 'opacity:.65;';
 
   if (isYesterday){
-    style += STYLES.yesterdayCellExtra;
+    style += STYLES.yesterday;
   }
   if (isToday){
-    style += STYLES.todayCellExtra;
+    style += STYLES.today;
   }
   return style;
 }
@@ -1332,7 +1300,65 @@ function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|la
 
 function _isYear(tok){ return /^\d{1,6}$/.test(String(tok||'')); }
 
-function _isNum(tok){ return /^\d+$/.test(String(tok||'')); }
+function parseSetDateTokens(tokens){
+  // tokens after 'set'
+  // Forms: [MM] DD [YYYY]  |  <MonthName> DD [YYYY]  |  DD
+  var cal = getCal(), months = cal.months;
+  if (!tokens || !tokens.length) return null;
+
+  // single number or ordinal → day only
+  if (tokens.length === 1){
+    if (/^\d+$/.test(tokens[0])) return { mode:'dayOnly', day:(parseInt(tokens[0],10)|0) };
+    var od = parseOrdinalDay(tokens[0]);
+    if (od != null) return { mode:'dayOnly', day:(od|0) };
+    return null;
+  }
+
+  // numeric month + day(ordinal ok) [year]
+  if (/^\d+$/.test(tokens[0])){
+    var miNum = clamp(parseInt(tokens[0],10), 1, months.length) - 1;
+    var dTok = tokens[1];
+    var dNum = (/^\d+$/.test(dTok)) ? (parseInt(dTok,10)|0) : parseOrdinalDay(dTok);
+    if (dNum == null) return null;
+    var yNum  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
+    return { mode:'mdy', mi:miNum, day:dNum, year:yNum };
+  }
+
+  // MonthName + day(ordinal ok) [year]
+  var miByName = monthIndexByName(tokens[0]);
+  if (miByName !== -1){
+    var dTok2 = tokens[1];
+    var dN  = (/^\d+$/.test(dTok2)) ? (parseInt(dTok2,10)|0) : parseOrdinalDay(dTok2);
+    if (dN == null) return null;
+    var yN  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
+    return { mode:'mdy', mi:miByName, day:dN, year:yN };
+  }
+  return null;
+}
+function parseOrdinalDay(tok){
+  if (!tok) return null;
+  var s = String(tok).toLowerCase().trim().replace(/[.,;:!?]+$/,'');
+  var m = s.match(/^(\d+)(st|nd|rd|th)$/);
+  if (m) return parseInt(m[1],10);
+
+  var baseWords = {
+    first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9,
+    tenth:10, eleventh:11, twelfth:12, thirteenth:13, fourteenth:14, fifteenth:15, sixteenth:16,
+    seventeenth:17, eighteenth:18, nineteenth:19, twentieth:20, thirtieth:30
+  };
+  if (baseWords[s] != null) return baseWords[s];
+
+  // handle "twenty-first" .. "twenty-ninth" and "thirty-first" .. "thirty-ninth" (if needed)
+  var m2 = s.replace(/[\u2010-\u2015]/g, '-')
+            .match(/^(twenty|thirty)(?:[-\s]?)(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)$/);
+  if (m2){
+    var tens = (m2[1] === 'twenty') ? 20 : 30;
+    var unitsMap = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9 };
+    return tens + unitsMap[m2[2]];
+  }
+
+  return null;
+}
 
 function _parseOrdinalWeekday(tokens){
   if (!tokens.length) return null;
@@ -1406,7 +1432,6 @@ function _parseMonthYearLoose(tokens){
 
   return { mi: mi, day: day, year: year };
 }
-
 
 function _phraseToSpec(tokens){
   var cal = getCal(), cur=cal.current, months=cal.months, dpy = daysPerYear();
@@ -1951,24 +1976,23 @@ function addMonthlySmart(tokens){
     return warnGM('Usage: !cal addmonthly <daySpec> NAME [#COLOR|color]\n'
       + 'daySpec can be N, N-M, or "first|second|third|fourth|fifth|last <weekday>".');
   }
-
-  // Grab daySpec: try two-word ordinal weekday first
   var daySpec = null, used = 0;
   if (tokens[1]){
     var two = (tokens[0] + ' ' + tokens[1]).toLowerCase().trim();
     if (parseOrdinalWeekdaySpec(two)){ daySpec = two; used = 2; }
   }
   if (!daySpec){
-    // single token numeric / range / ordinal-day like 14th
     var one = String(tokens[0]).toLowerCase().trim();
-    if (/^\d+(-\d+)?$/.test(one) || parseOrdinalDay(one)!=null){
+    if (/^\d+(-\d+)?$/.test(one)) {
       daySpec = one; used = 1;
+    } else {
+      var asNum = parseOrdinalDay(one);
+      if (asNum != null) { daySpec = String(asNum); used = 1; }
     }
   }
   if (!daySpec){
-    return warnGM('Couldn’t parse daySpec. Try examples: 6  |  18-19  |  "first far"  |  "last zor".');
+    return warnGM('Couldn’t parse daySpec. Try: 6  |  18-19  |  "first far"  |  "last zor".');
   }
-
   // Remaining tokens → name (with optional trailing color)
   var pulled = popColorIfPresent(tokens.slice(used), /*allowBareName*/true);
   var color  = pulled.color;
@@ -2413,14 +2437,15 @@ function _menuBox(title, innerHtml){
 }
 
 function gmButtonsHtml(){
-  // Quick GM row: Help, Retreat, Advance, and Send (broadcast current view)
-  return '<div style="'+STYLES.gmBtnWrap+'">'
-    + nav('❔ Help','root') + ' '
-    + nav('◀️ Retreat','step') + ' '
-    + nav('▶️ Advance','step') + ' '
-    + mb('📣 Send','send')
-    + '</div>';
+  var wrap = STYLES.gmBtnWrap;
+  return [
+    '<div style="'+wrap+'">'+ nav('⏮️ Retreat','step') +'</div>',
+    '<div style="'+wrap+'">'+ nav('⏭️ Advance','step') +'</div>',
+    '<div style="'+wrap+'">'+ mb('📣 Send','send')     +'</div>',
+    '<div style="'+wrap+'">'+ nav('❔ Help','root')    +'</div>'
+  ].join('');
 }
+
 
 function helpRootMenu(m){
   var rows = [];
@@ -2589,8 +2614,8 @@ function helpMaintMenu(m){
   }
   var rows = [
     _menuBox('Maintenance',
-      mb('Refresh','refresh') + ' <span style="opacity:.8;">— rebuild state & UI caches</span>' +
-      '<div style="margin-top:6px;opacity:.85;">Reset (no button): type <code>!cal resetcalendar</code></div>'
+      '<div style="margin-top:6px;opacity:.85;">Reset to defaults. This will nuke all custom events and current date.</div>' +
+      '<div style="margin-top:6px;opacity:.85;"><code>!cal resetcalendar</code></div>'
     ),
     '<div style="margin-top:8px;">'+nav('⬅ Back','root')+'</div>'
   ];
@@ -2722,14 +2747,14 @@ var commands = {
                       .split(/\s+/).filter(Boolean);
     var mode = restTokens.length ? 'cal' : 'bundle';
     deliverRange({ who:m.who, args:restTokens, mode:mode, dest:'whisper' });
-    maybeGMButtons(m);
+    sendGMButtons(m);
   },
 
   show: function(m, a){
     var rest = a.slice(2);
     var mode = rest.length ? 'cal' : 'bundle'; // with args → calendars only
     deliverRange({ who:m.who, args:rest, mode:mode, dest:'whisper' });
-    maybeGMButtons(m);
+    sendGMButtons(m);
   },
 
   help: function(m, a){
@@ -2831,7 +2856,6 @@ var commands = {
     }
 
     var st = ensureSettings();
-    st.monthSet = sub;
 
     // Auto-apply a matching theme (can be changed later)
     var autoTheme = NAMESET_TO_THEME[sub];
@@ -2958,74 +2982,10 @@ var commands = {
   }},
 
   // Maintenance (GM)
-  refresh: { gm:true, run:function(){ refreshCalendarState(false); } },
   resetcalendar:   { gm:true, run:function(){ resetToDefaults(); } }
 };
 
-function parseSetDateTokens(tokens){
-  // tokens after 'set'
-  // Forms: [MM] DD [YYYY]  |  <MonthName> DD [YYYY]  |  DD
-  var cal = getCal(), months = cal.months;
-  if (!tokens || !tokens.length) return null;
-
-  // single number or ordinal → day only
-  if (tokens.length === 1){
-    if (/^\d+$/.test(tokens[0])) return { mode:'dayOnly', day:(parseInt(tokens[0],10)|0) };
-    var od = parseOrdinalDay(tokens[0]);
-    if (od != null) return { mode:'dayOnly', day:(od|0) };
-    return null;
-  }
-
-  // numeric month + day(ordinal ok) [year]
-  if (/^\d+$/.test(tokens[0])){
-    var miNum = clamp(parseInt(tokens[0],10), 1, months.length) - 1;
-    var dTok = tokens[1];
-    var dNum = (/^\d+$/.test(dTok)) ? (parseInt(dTok,10)|0) : parseOrdinalDay(dTok);
-    if (dNum == null) return null;
-    var yNum  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
-    return { mode:'mdy', mi:miNum, day:dNum, year:yNum };
-  }
-
-  // MonthName + day(ordinal ok) [year]
-  var miByName = monthIndexByName(tokens[0]);
-  if (miByName !== -1){
-    var dTok2 = tokens[1];
-    var dN  = (/^\d+$/.test(dTok2)) ? (parseInt(dTok2,10)|0) : parseOrdinalDay(dTok2);
-    if (dN == null) return null;
-    var yN  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
-    return { mode:'mdy', mi:miByName, day:dN, year:yN };
-  }
-  return null;
-}
-
-function parseOrdinalDay(tok){
-  if (!tok) return null;
-  var s = String(tok).toLowerCase().trim().replace(/[.,;:!?]+$/,''); // new
-
-  var m = s.match(/^(\d+)(st|nd|rd|th)$/);
-  if (m) return parseInt(m[1],10);
-
-  var baseWords = {
-    first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9,
-    tenth:10, eleventh:11, twelfth:12, thirteenth:13, fourteenth:14, fifteenth:15, sixteenth:16,
-    seventeenth:17, eighteenth:18, nineteenth:19, twentieth:20, thirtieth:30
-  };
-  if (baseWords[s] != null) return baseWords[s];
-
-  var hy = s.replace(/[^a-z-]/g,'').split('-');
-  if (hy.length === 2 && (hy[0] === 'twenty' || hy[0] === 'thirty')){
-    var unitsMap = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9 };
-    var m2 = s.replace(/[\u2010-\u2015]/g, '-')
-              .match(/^(twenty|thirty)(?:[-\s]?)(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)$/);
-    if (m2) {
-      var tens = (m2[1] === 'twenty') ? 20 : 30;
-      return tens + unitsMap[m2[2]];
-    }
-  return null;
-  }
-}
-
-function maybeGMButtons(m){
+function sendGMButtons(m){
   if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
 }
 
