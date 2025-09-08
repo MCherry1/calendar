@@ -175,11 +175,13 @@ var STYLES = {
   head:  'border:1px solid #444;padding:0;',
   td:    'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
   monthHeaderBase: 'padding:6px;text-align:left;',
-  gmBtnWrap: 'margin:2px 0;',
-  today:
+  gmbuttonWrap: 'margin:2px 0;',
+  today: // current day
     'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
-  yesterday:
-    'filter:saturate(.85) brightness(.95);'
+  yesterday: // past days
+    'opacity:0.65;',
+  tomorrow: // future days
+    'opacity:0.95;'
 };
 
 var DEFAULT_EVENT_SOURCES = {
@@ -636,7 +638,7 @@ function _relLum(hex){
 
 function _contrast(bgHex, textHex){ var L1=_relLum(bgHex), L2=_relLum(textHex); var hi=Math.max(L1,L2), lo=Math.min(L1,L2); return (hi+0.05)/(lo+0.05); }
 
-function textColorForBg(bgHex){
+function textColor(bgHex){
   var k = 't:'+bgHex;
   if (_contrastCache[k]) return _contrastCache[k];
   var v = (_contrast(bgHex, '#000') >= _contrast(bgHex, '#fff')) ? '#000' : '#fff';
@@ -645,7 +647,7 @@ function textColorForBg(bgHex){
   return v;
 }
 
-function outlineIfNeededMin(textColor, bgHex, minTarget){
+function textOutline(textColor, bgHex, minTarget){
   var ratio = _contrast(bgHex, textColor);
   if (ratio >= (minTarget||CONTRAST_MIN_HEADER)) return '';
   if (textColor === '#fff'){
@@ -658,15 +660,15 @@ function outlineIfNeededMin(textColor, bgHex, minTarget){
 }
 
 function applyBg(style, bgHex, minTarget){
-  var t = textColorForBg(bgHex);
+  var t = textColor(bgHex);
   style += 'background-color:'+bgHex+';';
   style += 'background-clip:padding-box;';
   style += 'color:'+t+';';
-  style += outlineIfNeededMin(t, bgHex, (minTarget||CONTRAST_MIN_HEADER));
+  style += textOutline(t, bgHex, (minTarget||CONTRAST_MIN_HEADER));
   return style;
 }
 
-function styleForGradient(style, cols, minTarget){
+function styleGradient(style, cols, minTarget){
   cols = _normalizeCols(cols);
   var uniq = _uniqueCols(cols);
   if (uniq.length === 1){ return applyBg(style, uniq[0], (minTarget||CONTRAST_MIN_CELL)); }
@@ -683,21 +685,21 @@ function styleForGradient(style, cols, minTarget){
   style += 'background-repeat:no-repeat;background-size:100% 100%;';
   style += 'background-clip:padding-box;';
   style += 'color:'+pickText.text+';';
-  style += outlineIfNeededMin(pickText.text, pickText.worst, (minTarget||CONTRAST_MIN_CELL));
+  style += textOutline(pickText.text, pickText.worst, (minTarget||CONTRAST_MIN_CELL));
   return style;
 }
 
 // Public colors surface
 var colorsAPI = {
-  textForBg: textColorForBg,
+  textColor: textColor,
   applyBg: applyBg,
-  styleForGradient: styleForGradient,
-  monthHeaderStyle:
+  styleGradient: styleGradient,
+  styleMonthHeader:
     function(monthHex){
       var k = 'hdr:'+monthHex;
       if (_headerStyleCache[k]) return _headerStyleCache[k];
-      var t = textColorForBg(monthHex);
-      var v = 'background-color:'+monthHex+';color:'+t+';'+outlineIfNeededMin(t, monthHex, CONTRAST_MIN_HEADER);
+      var t = textColor(monthHex);
+      var v = 'background-color:'+monthHex+';color:'+t+';'+textOutline(t, monthHex, CONTRAST_MIN_HEADER);
       _headerStyleCache[k] = v;
       _cullCacheIfLarge(_headerStyleCache);
       return v;
@@ -705,9 +707,9 @@ var colorsAPI = {
   reset: _resetColorCaches
 };
 
-colorsAPI.paint = function(style, cols, min){ cols = Array.isArray(cols)?cols:(cols?[cols]:[]); return styleForGradient(style, cols, min||CONTRAST_MIN_CELL); };
+colorsAPI.paint = function(style, cols, min){ cols = Array.isArray(cols)?cols:(cols?[cols]:[]); return styleGradient(style, cols, min||CONTRAST_MIN_CELL); };
 
-colorsAPI.textOn = function(bgHex, min){ var t=textColorForBg(bgHex); return 'color:'+t+';'+outlineIfNeededMin(t,bgHex,min||CONTRAST_MIN_HEADER); };
+colorsAPI.textOn = function(bgHex, min){ var t=textColor(bgHex); return 'color:'+t+';'+textOutline(t,bgHex,min||CONTRAST_MIN_HEADER); };
 
 /* ============================================================================
  * 4) DATE / SERIAL MATH  (with caching)
@@ -1228,17 +1230,22 @@ function swatchHtml(colLike){
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 }
 
-var BTN_STYLE = 'display:inline-block;margin:4px 6px 4px 0;padding:{PAD};border:0;background:transparent;border-radius:6px;';
+var button_STYLE =
+  'display:inline-block;margin:0 3px 3px 0;padding:{PAD};' +
+  'border:1px solid rgba(0,0,0,.14);border-radius:4px;' +
+  'background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.06));' +
+  'background-clip:padding-box;' +
+  'box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.18);';
 
-function _btnPad(compact){ return compact ? '2px 6px' : '4px 8px'; }
+function _buttonPad(compact){ return compact ? '1px 6px' : '4px 10px'; }
 
-function _btnHasEmojiStart(s){
+function _buttonHasEmojiStart(s){
   s = String(s||'');
-  // crude but safe: if first char is non-ASCII, assume it's an icon/emoji already
+  // if first char is non-ASCII, assume it's an icon/emoji already
   return !!s && s.charCodeAt(0) > 127;
 }
 
-function _btnAutoIcon(lbl){
+function _buttonIcon(lbl){
   var t = String(lbl||'').toLowerCase();
   if (/\b(show|view)\b/.test(t))            return '📅';
   if (/\b(send)\b/.test(t))                 return '📣';
@@ -1254,12 +1261,12 @@ function _btnAutoIcon(lbl){
   return '';
 }
 
-function btn(label, cmd, opts){
+function button(label, cmd, opts){
   opts = opts || {};
   var lbl = String(label||'').trim();
-  var style = BTN_STYLE.replace('{PAD}', _btnPad(!!opts.compact));
+  var style = button_STYLE.replace('{PAD}', _buttonPad(!!opts.compact));
   var titleAttr = opts.title ? ' title="'+esc(opts.title)+'" aria-label="'+esc(opts.title)+'"' : '';
-  var icon = (opts.icon!=null) ? String(opts.icon) : (_btnHasEmojiStart(lbl) ? '' : _btnAutoIcon(lbl));
+  var icon = (opts.icon!=null) ? String(opts.icon) : (_buttonHasEmojiStart(lbl) ? '' : _buttonIcon(lbl));
   var text = (icon ? (icon+' ') : '') + lbl;
   return '<span role="button"'+titleAttr+' style="'+style+'">['+esc(text)+'](!cal '+cmd+')</span>';
 }
@@ -1279,25 +1286,25 @@ function canRunCommand(playerid, cmdStr){
 
 // Permissioned menu button: returns '' if the user can't run it
 function mbP(m, label, cmd, opts){
-  return canRunCommand(m.playerid, cmd) ? btn(label, cmd, opts) : '';
+  return canRunCommand(m.playerid, cmd) ? button(label, cmd, opts) : '';
 }
 
 // Permissioned help nav (help itself is public; inner pages gate their buttons)
 function navP(m, label, page, opts){
-  return btn(label, 'help '+page, opts);
+  return button(label, 'help '+page, opts);
 }
 
-// Month/Year tables
+// Building blocks for month table
 function openMonthTable(mi, yearLabel){
   var cal = getCal(), cur = cal.current, mObj = cal.months[mi];
   var monthColor = colorForMonth(mi);
-  var monthHdrStyle = colorsAPI.monthHeaderStyle(monthColor);
+  var monthHeaderStyle = colorsAPI.styleMonthHeader(monthColor);
   var wd = cal.weekdays;
 
   var head = [
     '<table style="'+STYLES.table+'">',
     '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">',
-    '<div style="'+STYLES.monthHeaderBase+monthHdrStyle+'">',
+    '<div style="'+STYLES.monthHeaderBase+monthHeaderStyle+'">',
       esc(mObj.name),
         '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
       '</div>',
@@ -1307,25 +1314,27 @@ function openMonthTable(mi, yearLabel){
 
   return { html: head, monthColor: monthColor };
 }
+
 function closeMonthTable(){ return '</table>'; }
 
 function makeDayCtx(y, mi, d, dimPast){
   var ser = toSerial(y, mi, d);
   var tSer = todaySerial();
-  var evts = getEventsFor(mi, d, y);
+  var events = getEventsFor(mi, d, y);
   var label = formatDateLabel(y, mi, d, true);
-  if (evts.length){ label += ': ' + evts.map(function(e){ return eventDisplayName(e); }).join(', '); }
+  if (events.length){ label += ': ' + events.map(function(e){ return eventDisplayName(e); }).join(', '); }
   return {
     y:y, mi:mi, d:d, serial:ser,
     isToday: (ser === tSer),
     isYesterday: (ser === tSer - 1),
     isPast:  !!dimPast && (ser < tSer),
-    events:  evts,
+    isFuture:    !!dimPast && (ser >  tSer),       // future window
+    events:  events,
     title:   label
   };
 }
 
-function styleForDayCell(baseStyle, eventsToday, isToday, isYesterday, monthColor, isPast){
+function styleForDayCell(baseStyle, eventsToday, isToday, monthColor, isPast, isFuture){
   var style = baseStyle;
 
   if (eventsToday.length >= 1){
@@ -1335,19 +1344,17 @@ function styleForDayCell(baseStyle, eventsToday, isToday, isYesterday, monthColo
     style += colorsAPI.textOn(monthColor, CONTRAST_MIN_CELL);
   }
 
-  if (isPast) style += 'opacity:.65;';
+  if (isPast)   style += STYLES.yesterday;
+  if (isFuture) style += STYLES.tomorrow;
+  if (isToday)  style += STYLES.today;
 
-  if (isYesterday){
-    style += STYLES.yesterday;
-  }
-  if (isToday){
-    style += STYLES.today;
-  }
   return style;
 }
 
 function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
-  var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, ctx.isYesterday, monthColor, ctx.isPast);
+  var style = styleForDayCell(
+    baseStyle, ctx.events, ctx.isToday, ctx.isYesterday, monthColor, ctx.isPast, ctx.isFuture
+  );
   var titleAttr = ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"';
   var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
   return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
@@ -1499,8 +1506,6 @@ function _lastWeekdayOfMonth(year, mi, wdi){
 function _tokenizeRangeArgs(args){ return (args||[]).map(function(t){return String(t).trim();}).filter(Boolean); }
 
 function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|last|upcoming|today|now)$/.test(String(tok||'').toLowerCase()); }
-
-function _isYear(tok){ return /^\d{1,6}$/.test(String(tok||'')); }
 
 function dayFromOrdinalWeekday(year, mi, ow){
   if (!ow) return null;
@@ -1721,7 +1726,7 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimPast){
   return html.join('');
 }
 
-function computeBoundaryWantedDays(spec){
+function adjacentPartialMonths(spec){
   var cal = getCal(), today = todaySerial();
   var res = { prev:null, next:null };
   var wdCnt = weekLength()|0;
@@ -1811,7 +1816,7 @@ function buildCalendarsHtmlForSpec(spec){
   var tSer = todaySerial();
   var dimPastMain = (tSer >= spec.start && tSer <= spec.end);
 
-  var boundary = computeBoundaryWantedDays(spec);
+  var boundary = adjacentPartialMonths(spec);
 
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
     out.push('<div style="'+STYLES.wrap+'">' +
@@ -1841,7 +1846,7 @@ function stripRangeExtensionDynamic(spec){
   var present = {};
   for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
 
-  var boundary = computeBoundaryWantedDays(spec);
+  var boundary = adjacentPartialMonths(spec);
   var start = spec.start, end = spec.end;
 
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
@@ -1870,8 +1875,9 @@ function stripRangeExtensionDynamic(spec){
 }
 
 /* ============================================================================
- * 11) SHOW/SEND GLUE
+ * 11) SHOW/SEND
  * ==========================================================================*/
+
 function deliverRange(opts){
   // opts: { who?:string, args?:string[], mode?:'bundle'|'cal', dest?:'whisper'|'broadcast' }
   opts = opts || {};
@@ -1895,8 +1901,9 @@ function buildRangeBundle(args){
 }
 
 /* ============================================================================
- * 12) EVENTS LISTS (no grouping by default, sources shown in parentheses)
+ * 12) EVENTS LISTS
  * ==========================================================================*/
+
 function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var st = ensureSettings();
   var today = todaySerial();
@@ -1941,8 +1948,9 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
 }
 
 /* ============================================================================
- * 13) MUTATIONS (DATE & EVENTS CRUD)
+ * 13) Roll20 State Interaction & UI
  * ==========================================================================*/
+
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
   return cal.weekdays[cur.day_of_the_week] + ", " +
@@ -1950,6 +1958,7 @@ function currentDateLabel(){
          cal.months[cur.month].name + ", " +
          cur.year + " " + LABELS.era;
 }
+
 function nextForDayOnly(cur, day, monthsLen){
   var mdays = getCal().months[cur.month].days;
   var d = clamp(day, 1, mdays);
@@ -1958,6 +1967,7 @@ function nextForDayOnly(cur, day, monthsLen){
   var ny = cur.year + ((nm===0)?1:0);
   return { month: nm, year: ny };
 }
+
 function nextForMonthDay(cur, mIndex, d){
   var mdays = getCal().months[mIndex].days;
   var day = clamp(d, 1, mdays);
@@ -2250,9 +2260,11 @@ function _defaultDetailsForKey(key){
 }
 
 /* ============================================================================
- * 14) BUTTONED TABLES / LISTS (remove & restore)
+ * 14) BUTTONED TABLES / LISTS
  * ==========================================================================*/
+
 function _encKey(k){ return encodeURIComponent(String(k)); }
+
 function _decKey(k){ try { return decodeURIComponent(String(k)); } catch(e){ return String(k||''); } }
 
 function listAllEventsTableHtml(){
@@ -2298,7 +2310,7 @@ function removeListHtml(){
     var name = eventDisplayName(e);
     var sw = swatchHtml(getEventColor(e));
     var key = eventKey(e); // stable
-    var rm = btn('Remove', 'remove key '+_encKey(key));
+    var rm = button('Remove', 'remove key '+_encKey(key));
     return '<tr>' +
       '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>' +
       '<td style="'+STYLES.td+'">'+ sw + esc(name) +'</td>' +
@@ -2351,7 +2363,7 @@ function removeMatchesListHtml(needle){
     var name = eventDisplayName(e);
     var sw = swatchHtml(getEventColor(e));
     var key = eventKey(e);
-    var rm = btn('Remove', 'remove key '+_encKey(key));
+    var rm = button('Remove', 'remove key '+_encKey(key));
     return '<tr>'+
       '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
       '<td style="'+STYLES.td+'">'+ sw + esc(name) +'</td>'+
@@ -2391,13 +2403,13 @@ function suppressedDefaultsListHtml(){
     var dd = esc(String(info.day));
     var sw = swatchHtml(info.color || autoColorForEvent({name:info.name}));
     var src = info.source ? ' <span style="opacity:.7">('+esc(titleCase(info.source))+')</span>' : '';
-    var restoreBtn = btn('Restore', 'restore key '+_encKey(k));
+    var restorebutton = button('Restore', 'restore key '+_encKey(k));
     return '<tr>'+
       '<td style="'+STYLES.td+'">'+sw+esc(info.name)+src+'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">ALL</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ restoreBtn +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ restorebutton +'</td>'+
     '</tr>';
   });
 
@@ -2410,7 +2422,7 @@ function suppressedDefaultsListHtml(){
   '</tr>';
 
   return '<div style="margin:4px 0;"><b>Suppressed Default Events</b></div>'+
-         '<div style="margin:2px 0;">'+btn('Restore All', 'restore all')+'</div>'+
+         '<div style="margin:2px 0;">'+button('Restore All', 'restore all')+'</div>'+
          '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>';
 }
 function restoreDefaultEvents(query){
@@ -2487,7 +2499,7 @@ function themeListHtml(readOnly){
     var swatches = (COLOR_THEMES[n]||[]).slice(0,12).map(function(c){
       return '<span title="'+esc(c)+'" style="display:inline-block;width:12px;height:12px;border:1px solid #000;margin-right:2px;background:'+esc(c)+';"></span>';
     }).join('');
-    var apply = readOnly ? '' : (' '+btn('Apply', 'theme '+n));
+    var apply = readOnly ? '' : (' '+button('Apply', 'theme '+n));
     return '<div style="margin:4px 0;">'+swatches+' '+esc(n)+apply+'</div>';
   });
   return '<div style="margin:4px 0;"><b>Color Themes</b></div>'+rows.join('');
@@ -2498,7 +2510,7 @@ function namesListHtml(readOnly){
   if(!names.length) return '<div style="opacity:.7;">No name sets available.</div>';
   var rows = names.map(function(n){
     var prev = (MONTH_NAME_SETS[n]||[]).map(esc).join(', ');
-    var apply = readOnly ? '' : (' — '+btn('Apply', 'names '+n));
+    var apply = readOnly ? '' : (' — '+button('Apply', 'names '+n));
     return '<div style="margin:4px 0;"><div style="margin-bottom:2px;"><b>'+esc(n)+'</b>'+apply+'</div><div style="opacity:.85;">'+prev+'</div></div>';
   });
   return '<div style="margin:4px 0;"><b>Month Name Sets</b></div>'+rows.join('');
@@ -2518,8 +2530,8 @@ function colorsNamedListHtml(){
 /* ============================================================================
  * 16) GM BUTTONS & NESTED HELP MENUS
  * ==========================================================================*/
-function mb(label, cmd){ return btn(label, cmd); } // menu button
-function nav(label, page){ return btn(label, 'help '+page); }
+function mb(label, cmd){ return button(label, cmd); } // menu button
+function nav(label, page){ return button(label, 'help '+page); }
 function _menuBox(title, innerHtml){
   return [
     '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:6px 0;">',
@@ -2530,7 +2542,7 @@ function _menuBox(title, innerHtml){
 }
 
 function gmButtonsHtml(){
-  var wrap = STYLES.gmBtnWrap;
+  var wrap = STYLES.gmbuttonWrap;
   return [
     '<div style="'+wrap+'">'+ nav('⏮️ Retreat','step') +'</div>',
     '<div style="'+wrap+'">'+ nav('⏭️ Advance','step') +'</div>',
@@ -2693,11 +2705,11 @@ function helpSettingsMenu(m){
     return whisper(m.who, '<div style="opacity:.7;">GM only.</div>'+ '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
   }
   var st = ensureSettings();
-  var groupBtn = mbP(m,'Group by Source: ' + (st.groupEventsBySource ? 'On' : 'Off') + ' (toggle)',
+  var groupbutton = mbP(m,'Group by Source: ' + (st.groupEventsBySource ? 'On' : 'Off') + ' (toggle)',
                     'settings group ' + (st.groupEventsBySource ? 'off' : 'on'));
-  var labelsBtn = mbP(m,'Source Labels: ' + (st.showSourceLabels ? 'On' : 'Off') + ' (toggle)',
+  var labelsbutton = mbP(m,'Source Labels: ' + (st.showSourceLabels ? 'On' : 'Off') + ' (toggle)',
                      'settings labels ' + (st.showSourceLabels ? 'off' : 'on'));
-  var box = _menuBox('Settings', groupBtn + ' ' + labelsBtn);
+  var box = _menuBox('Settings', groupbutton + ' ' + labelsbutton);
   whisper(m.who, box + '<div style="margin-top:8px;">' + navP(m,'⬅ Back','root') + '</div>');
 }
 
@@ -2720,7 +2732,7 @@ function weekdayListHtml(readOnly){
   if(!names.length) return '<div style="opacity:.7;">No weekday sets.</div>';
   var rows = names.map(function(n){
     var prev = (WEEKDAY_NAME_SETS[n]||[]).map(esc).join(', ');
-    var apply = readOnly ? '' : (' — '+btn('Apply','weekdays '+n));
+    var apply = readOnly ? '' : (' — '+button('Apply','weekdays '+n));
     return '<div style="margin:4px 0;"><div style="margin-bottom:2px;"><b>'+esc(n)+'</b>'+apply+'</div><div style="opacity:.85;">'+prev+'</div></div>';
   });
   return '<div style="margin:4px 0;"><b>Weekday Name Sets</b></div>'+rows.join('');
@@ -2731,7 +2743,7 @@ function seasonSetListHtml(readOnly){
   if(!names.length) return '<div style="opacity:.7;">No season sets.</div>';
   var rows = names.map(function(n){
     var prev = (SEASON_SETS[n]||[]).map(esc).join(', ');
-    var apply = readOnly ? '' : (' — '+btn('Apply','seasons '+n));
+    var apply = readOnly ? '' : (' — '+button('Apply','seasons '+n));
     return '<div style="margin:4px 0;"><div style="margin-bottom:2px;"><b>'+esc(n)+'</b>'+apply+'</div><div style="opacity:.85;">'+prev+'</div></div>';
   });
   return '<div style="margin:4px 0;"><b>Season Sets</b></div>'+rows.join('');
@@ -3024,13 +3036,13 @@ var commands = {
     var label = seen[k];
     var disabled = !!suppressedSources[k];
     var status = disabled ? 'Disabled' : 'Enabled';
-    var actionBtn = disabled
-      ? btn('Enable',  'source enable '  + label, {variant:'success'})
-      : btn('Disable', 'source disable ' + label, {variant:'danger'});
+    var actionbutton = disabled
+      ? button('Enable',  'source enable '  + label, {variant:'success'})
+      : button('Disable', 'source disable ' + label, {variant:'danger'});
     return '<tr>'
       + '<td style="'+STYLES.td+'">'+esc(label)+'</td>'
       + '<td style="'+STYLES.td+';text-align:center;">'+status+'</td>'
-      + '<td style="'+STYLES.td+';text-align:center;">'+actionBtn+'</td>'
+      + '<td style="'+STYLES.td+';text-align:center;">'+actionbutton+'</td>'
       + '</tr>';
   }).join('');
 
