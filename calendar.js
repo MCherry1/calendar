@@ -2754,7 +2754,7 @@ function helpMaintMenu(m){
       '<div style="margin-top:6px;opacity:.85;">Reset to defaults. This will nuke all custom events and current date.</div>' +
       '<div style="margin-top:6px;opacity:.85;"><code>!cal resetcalendar</code></div>'
     ),
-    '<div style="margin-top:8px;">'+navP('⬅ Back','root')+'</div>'
+    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
   ];
   whisper(m.who, rows.join(''));
 }
