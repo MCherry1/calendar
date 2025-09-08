@@ -1725,7 +1725,7 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimActive){
       var s = rowStart + c;
       var d = fromSerial(s);
       if (d.year === year && d.mi === mi && wantedSet[d.day]){
-        var ctx = makeDayCtx(d.year, d.mi, d.day, /*dimActive*/true);
+        var ctx = makeDayCtx(d.year, d.mi, d.day, !!dimActive);
         html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
       } else {
         html.push('<td style="'+STYLES.td+'"></td>');
@@ -1822,29 +1822,51 @@ function buildCalendarsHtmlForSpec(spec){
   var out = ['<div style="text-align:left;">'];
 
   var present = {};
-  for (var i=0;i<months.length;i++) present[ months[i].y + '|' + months[i].mi ] = 1;
-
-  var dimActiveMain = isTodayVisibleInRange(spec.start, spec.end);
+  for (var i=0; i<months.length; i++){
+    present[ months[i].y + '|' + months[i].mi ] = 1;
+  }
 
   var boundary = adjacentPartialMonths(spec);
+  var today = todaySerial();
+  var td = fromSerial(today);
+
+  function stripHasToday(s) {
+    if (!s || !s.wanted) return false;
+    return (td.year === s.y) && (td.mi === s.mi) && !!s.wanted[td.day];
+  }
+
+  var prevKey = boundary.prev ? (boundary.prev.y + '|' + boundary.prev.mi) : null;
+  var nextKey = boundary.next ? (boundary.next.y + '|' + boundary.next.mi) : null;
+
+  // Global “are we rendering the Today cell anywhere?”
+  var dimActiveAll =
+    isTodayVisibleInRange(spec.start, spec.end) ||
+    (!!boundary.prev && !present[prevKey] && stripHasToday(boundary.prev)) ||
+    (!!boundary.next && !present[nextKey] && stripHasToday(boundary.next));
 
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
-    out.push('<div style="'+STYLES.wrap+'">' +
-      renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, /*force*/true) +
-      '</div>');
+    out.push(
+      '<div style="'+STYLES.wrap+'">' +
+        renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, dimActiveAll) +
+      '</div>'
+    );
   }
 
   for (var k=0; k<months.length; k++){
     var m = months[k];
-    out.push('<div style="'+STYLES.wrap+'">' +
-      renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimActiveMain }) +
-      '</div>');
+    out.push(
+      '<div style="'+STYLES.wrap+'">' +
+        renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimActiveAll }) +
+      '</div>'
+    );
   }
 
   if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
-    out.push('<div style="'+STYLES.wrap+'">' +
-      renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, /*force*/true) +
-      '</div>');
+    out.push(
+      '<div style="'+STYLES.wrap+'">' +
+        renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, dimActiveAll) +
+      '</div>'
+    );
   }
 
   out.push('</div>');
@@ -2732,7 +2754,7 @@ function helpMaintMenu(m){
       '<div style="margin-top:6px;opacity:.85;">Reset to defaults. This will nuke all custom events and current date.</div>' +
       '<div style="margin-top:6px;opacity:.85;"><code>!cal resetcalendar</code></div>'
     ),
-    '<div style="margin-top:8px;">'+nav('⬅ Back','root')+'</div>'
+    '<div style="margin-top:8px;">'+navP('⬅ Back','root')+'</div>'
   ];
   whisper(m.who, rows.join(''));
 }
