@@ -356,6 +356,13 @@ function checkInstall(){
   if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
 
   var cal = state[state_name].calendar;
+
+  if (!Array.isArray(cal.weekdays) || !cal.weekdays.length){
+    var st = ensureSettings();
+    var set = WEEKDAY_NAME_SETS[String(st.weekdaySet || 'eberron').toLowerCase()] || WEEKDAY_NAME_SETS.eberron;
+    cal.weekdays = set.slice();
+  }
+
   if (!cal.current) cal.current = deepClone(defaults.current);
 
   if(!Array.isArray(cal.events)){
@@ -382,65 +389,63 @@ function checkInstall(){
     });
     cal.events = out;
   } else {
-    // merge new defaults and sanitize
-    mergeInNewDefaultEvents(cal);
+      cal.events = cal.events.map(function(e){
+        var lim = Math.max(1, cal.months.length);
+        var m = clamp(parseInt(e.month,10)||1, 1, lim);
+        var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
+        return {
+          name: String(e.name||''),
+          month: m,
+          day: e.day,
+          year: yr,
+          color: resolveColor(e.color) || null,
+          source: (e.source != null) ? String(e.source) : null
+        };
+      });
 
-    cal.events = cal.events.map(function(e){
-      var lim = Math.max(1, cal.months.length);
-      var m = clamp(parseInt(e.month,10)||1, 1, lim);
-      var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
-      return {
-        name: String(e.name||''),
-        month: m,
-        day: e.day,
-        year: yr,
-        color: resolveColor(e.color) || null,
-        source: (e.source != null) ? String(e.source) : null
-      };
-    });
+      // backfill colors from defaults if missing
+      var defColorByKey = {};
+      var lim2 = Math.max(1, cal.months.length);
+      defaults.events.forEach(function(de){
+        var col = resolveColor(de.color) || null;
+        if (String(de.month).toLowerCase() === 'all') {
+          for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
+        } else {
+          var m = clamp(parseInt(de.month,10)||1, 1, lim2);
+          defColorByKey[m + '|' + String(de.day)] = col;
+        }
+      });
+      cal.events.forEach(function(e){
+        if (!e.color){
+          var key = e.month + '|' + String(e.day);
+          var col = defColorByKey[key];
+          if (col) e.color = col;
+        }
+      });
+    }
 
-    // backfill colors from defaults if missing
-    var defColorByKey = {};
-    var lim2 = Math.max(1, cal.months.length);
-    defaults.events.forEach(function(de){
-      var col = resolveColor(de.color) || null;
-      if (String(de.month).toLowerCase() === 'all') {
-        for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
-      } else {
-        var m = clamp(parseInt(de.month,10)||1, 1, lim2);
-        defColorByKey[m + '|' + String(de.day)] = col;
-      }
-    });
-    cal.events.forEach(function(e){
-      if (!e.color){
-        var key = e.month + '|' + String(e.day);
-        var col = defColorByKey[key];
-        if (col) e.color = col;
-      }
-    });
+  // normalize months (support numbers = days-only)
+  for (var i = 0; i < cal.months.length; i++){
+    var m = cal.months[i];
+    if (typeof m === 'number'){
+      cal.months[i] = { days: (m|0) || 28 };
+    } else {
+      cal.months[i] = cal.months[i] || {};
+      if (!cal.months[i].days) cal.months[i].days = 28;
+      // name/season will be applied by sets below
+    }
   }
 
-// normalize months (support numbers = days-only)
-for (var i = 0; i < cal.months.length; i++){
-  var m = cal.months[i];
-  if (typeof m === 'number'){
-    cal.months[i] = { days: (m|0) || 28 };
-  } else {
-    cal.months[i] = cal.months[i] || {};
-    if (!cal.months[i].days) cal.months[i].days = 28;
-    // name/season will be applied by sets below
-  }
-}
+  // apply sets (names, weekdays, seasons)
+  var s = ensureSettings();
+  applyMonthSet(s.monthSet || 'eberron');      // writes month names
+  applyWeekdaySet(s.weekdaySet || 'eberron');  // writes weekdays
+  applySeasonSet(s.seasonSet || 'northern');   // writes month seasons
 
-// apply sets (names, weekdays, seasons)
-var s = ensureSettings();
-applyMonthSet(s.monthSet || 'eberron');      // writes month names
-applyWeekdaySet(s.weekdaySet || 'eberron');  // writes weekdays
-applySeasonSet(s.seasonSet || 'northern');   // writes month seasons
+  mergeInNewDefaultEvents(cal);
 
-// rebuild caches after any changes
-_rebuildSerialCache();
-
+  // rebuild caches after any changes
+  _rebuildSerialCache();
 
   // clamp current date
   var mdays = cal.months[cal.current.month].days;
@@ -769,7 +774,6 @@ function monthIndexByName(tok){
   return best;
 }
 
-// ------------------------------ Parse ---------------------------------------
 var Parse = (function(){
   'use strict';
 
@@ -790,6 +794,7 @@ var Parse = (function(){
   function weekdayIndexByName(tok){
     var cal = getCal();
     if (tok==null) return -1;
+    if (!cal || !Array.isArray(cal.weekdays) || !cal.weekdays.length) return -1;
     var raw = String(tok);
     var s = _normAlpha(raw);
     if (/^\d+$/.test(raw)){
