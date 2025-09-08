@@ -1328,7 +1328,7 @@ function makeDayCtx(y, mi, d, dimPast){
     isToday: (ser === tSer),
     isYesterday: (ser === tSer - 1),
     isPast:  !!dimPast && (ser < tSer),
-    isFuture:    !!dimPast && (ser >  tSer),       // future window
+    isFuture:    !!dimPast && (ser >  tSer),
     events:  events,
     title:   label
   };
@@ -1353,7 +1353,7 @@ function styleForDayCell(baseStyle, eventsToday, isToday, monthColor, isPast, is
 
 function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var style = styleForDayCell(
-    baseStyle, ctx.events, ctx.isToday, ctx.isYesterday, monthColor, ctx.isPast, ctx.isFuture
+    baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture
   );
   var titleAttr = ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"';
   var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
