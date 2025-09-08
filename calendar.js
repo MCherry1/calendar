@@ -455,10 +455,10 @@ function refreshCalendarState(silent){
 
   cal.events = (cal.events || []).map(function(e){
     var m = clamp(e.month, 1, cal.months.length);
-    var ow = parseOrdinalWeekdaySpec(e.day);
+    var ow = Parse.ordinalWeekday.fromSpec(e.day);
     var daySpec = ow
       ? String(e.day).toLowerCase().trim()
-      : (normalizeDaySpec(e.day, cal.months[m-1].days) || String(firstNumFromDaySpec(e.day)));
+      : (DaySpec.normalize(e.day, cal.months[m-1].days) || String(DaySpec.first(e.day)));
     var yr = (e.year==null) ? null : (parseInt(e.year,10)|0);
     return {
       name: String(e.name||''),
@@ -769,6 +769,272 @@ function monthIndexByName(tok){
   return best;
 }
 
+// ------------------------------ Parse ---------------------------------------
+var Parse = (function(){
+  'use strict';
+
+  // Local ordinal maps (kept inside to avoid cross-file ordering issues)
+  var ORD_MAP_TOK = {
+    '1':'first','2':'second','3':'third','4':'fourth','5':'fifth','last':'last',
+    '1st':'first','2nd':'second','3rd':'third','4th':'fourth','5th':'fifth',
+    'first':'first','second':'second','third':'third','fourth':'fourth','fifth':'fifth'
+  };
+  var UNITS = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9 };
+
+  // Normalize trailing punctuation (e.g., "12th," -> "12th")
+  function _stripTrailPunct(s){ return String(s||'').trim().toLowerCase().replace(/[.,;:!?]+$/,''); }
+
+  // Weekday name/number → index (0-based). Accepts:
+  //  - exact or prefix of a weekday name
+  //  - "0..len-1" or "1..len" numerals
+  function weekdayIndexByName(tok){
+    var cal = getCal();
+    if (tok==null) return -1;
+    var raw = String(tok);
+    var s = _normAlpha(raw);
+    if (/^\d+$/.test(raw)){
+      var n = parseInt(raw,10);
+      if (n>=0 && n<cal.weekdays.length) return n;
+      if (n>=1 && n<=cal.weekdays.length) return n-1;
+    }
+    for (var i=0;i<cal.weekdays.length;i++){
+      var w = _normAlpha(cal.weekdays[i]);
+      if (s===w || w.indexOf(s)===0) return i;
+    }
+    return -1;
+  }
+
+  // "14th" | "fourteenth" | "twenty-first" → 14 / 21, etc.
+  function ordinalDay(tok){
+    if (!tok) return null;
+    var s = _stripTrailPunct(tok);
+
+    var m = s.match(/^(\d+)(st|nd|rd|th)$/);
+    if (m) return parseInt(m[1],10);
+
+    var baseWords = {
+      first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9,
+      tenth:10, eleventh:11, twelfth:12, thirteenth:13, fourteenth:14, fifteenth:15, sixteenth:16,
+      seventeenth:17, eighteenth:18, nineteenth:19, twentieth:20, thirtieth:30
+    };
+    if (baseWords[s] != null) return baseWords[s];
+
+    var m2 = s.replace(/[\u2010-\u2015]/g, '-')
+              .match(/^(twenty|thirty)(?:[-\s]?)(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)$/);
+    if (m2){
+      var tens = (m2[1] === 'twenty') ? 20 : 30;
+      return tens + UNITS[m2[2]];
+    }
+    return null;
+  }
+
+  // "first far [of] March [999]" (tokens) → { ord, wdi, mi, year }
+  function ordinalWeekdayFromTokens(tokens){
+    tokens = (tokens||[]).map(function(t){ return String(t||''); }).filter(Boolean);
+    if (!tokens.length) return null;
+
+    var ordKey = ORD_MAP_TOK[String(tokens[0]).toLowerCase()];
+    if (!ordKey) return null;
+
+    var wdi = weekdayIndexByName(tokens[1]||'');
+    if (wdi < 0) return null;
+
+    var rest = tokens.slice(2);
+    if (rest[0] && /^of$/i.test(rest[0])) rest.shift();
+
+    var mi = -1, year = null;
+    if (rest.length){
+      var maybeMi = monthIndexByName(rest[0]);
+      if (maybeMi !== -1){ mi = maybeMi; rest.shift(); }
+      else if (/^\d+$/.test(rest[0])){ // allow numeric month
+        var n = parseInt(rest[0],10)|0, lim = getCal().months.length;
+        if (n>=1 && n<=lim){ mi = n-1; rest.shift(); }
+      }
+    }
+    if (rest.length && /^\d{1,6}$/.test(rest[0])){ year = parseInt(rest[0],10); }
+
+    return { ord:ordKey, wdi:wdi, mi:mi, year:year };
+  }
+
+  // "first far" | "last zor" | "every sul" → { ord, wdi }
+  function ordinalWeekdayFromSpec(spec){
+    if (typeof spec !== 'string') return null;
+    var s = _stripTrailPunct(spec);
+    var m = s.match(/^(first|second|third|fourth|fifth|last|every|all)\s+([a-z0-9]+)/);
+    if (!m) return null;
+    var ord = (m[1] === 'all') ? 'every' : m[1];
+    var wdi = weekdayIndexByName(m[2]);
+    if (wdi < 0) return null;
+    return { ord:ord, wdi:wdi };
+  }
+
+  // Month + day + optional year, or day-only (numeric or ordinal).
+  // Forms:
+  //   [MM] DD [YYYY]
+  //   <MonthName> DD [YYYY]
+  //   DD
+  //   (DD may be ordinal: "14th", "fourteenth")
+  // Returns:
+  //   { kind:'dayOnly', day }
+  //   { kind:'mdy', mi:<0-based>, day:<int>, year:<int|null> }
+  function looseMDY(tokens){
+    var cal = getCal(), months = cal.months;
+    tokens = (tokens||[]).map(function(t){return String(t).trim();}).filter(Boolean);
+    if (!tokens.length) return null;
+
+    // Day-only (number or ordinal)
+    if (tokens.length === 1){
+      if (/^\d+$/.test(tokens[0])) return { kind:'dayOnly', day:(parseInt(tokens[0],10)|0) };
+      var od = ordinalDay(tokens[0]);
+      if (od != null) return { kind:'dayOnly', day:(od|0) };
+      return null;
+    }
+
+    // Numeric month
+    if (/^\d+$/.test(tokens[0])){
+      var miNum = clamp(parseInt(tokens[0],10), 1, months.length) - 1;
+      var dTok  = tokens[1];
+      var dNum  = (/^\d+$/.test(dTok)) ? (parseInt(dTok,10)|0) : ordinalDay(dTok);
+      if (dNum == null) return null;
+      var yNum  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
+      return { kind:'mdy', mi:miNum, day:dNum, year:yNum };
+    }
+
+    // Month name
+    var miByName = monthIndexByName(tokens[0]);
+    if (miByName !== -1){
+      var dTok2 = tokens[1];
+      var dN    = (/^\d+$/.test(dTok2)) ? (parseInt(dTok2,10)|0) : ordinalDay(dTok2);
+      if (dN == null) return null;
+      var yN    = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
+      return { kind:'mdy', mi:miByName, day:dN, year:yN };
+    }
+
+    // Fallback: if first token is an ordinal word like "fourteenth" but there
+    // were extra tokens (bad form), reject to avoid guessing.
+    return null;
+  }
+
+  // Month/Day/Year loose (used by unified range; mirrors old _parseMonthYearLoose)
+  function monthYearLoose(tokens){
+    var cal = getCal(), cur = cal.current;
+    var mi = -1, day = null, year = null, idx = 0;
+
+    if (idx<tokens.length){
+      var maybeMi = monthIndexByName(tokens[idx]);
+      if (maybeMi !== -1){ mi = maybeMi; idx++; }
+      else if (/^\d+$/.test(tokens[idx])){
+        var n = parseInt(tokens[idx],10);
+        if (n>=1 && n<=cal.months.length){ mi = n-1; idx++; }
+      }
+    }
+
+    if (idx<tokens.length){
+      if (/^\d+$/.test(tokens[idx])){ day = parseInt(tokens[idx],10); idx++; }
+      else {
+        var od = ordinalDay(tokens[idx]);
+        if (od != null){ day = od|0; idx++; }
+      }
+    }
+
+    if (idx<tokens.length && /^\d{1,6}$/.test(tokens[idx])){ year = parseInt(tokens[idx],10); idx++; }
+    if (mi===-1 && day==null && tokens.length===1 && /^\d{1,6}$/.test(tokens[0])){ year = parseInt(tokens[0],10); }
+
+    return { mi:mi, day:day, year:year };
+  }
+
+  return {
+    weekdayIndexByName: weekdayIndexByName,
+    ordinalDay: ordinalDay,
+    ordinalWeekday: {
+      fromTokens: ordinalWeekdayFromTokens,
+      fromSpec:   ordinalWeekdayFromSpec
+    },
+    looseMDY: looseMDY,
+    monthYearLoose: monthYearLoose
+  };
+})();
+
+
+// ------------------------------ DaySpec -------------------------------------
+var DaySpec = (function(){
+  'use strict';
+
+  function first(spec){
+    if (typeof spec === 'number') return spec|0;
+    var s = String(spec||'').trim();
+    var m = s.match(/^\s*(\d+)/);
+    return m ? Math.max(1, parseInt(m[1],10)) : 1;
+  }
+
+  // "N" or "A-B" → canonical string within [1..maxDays]
+  function normalize(spec, maxDays){
+    var s = String(spec||'').trim().toLowerCase();
+    if (/^\d+$/.test(s)){ return String(clamp(s, 1, maxDays)); }
+    var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m){
+      var a = clamp(m[1], 1, maxDays), b = clamp(m[2], 1, maxDays);
+      if (a > b){ var t=a; a=b; b=t; }
+      return (a <= b) ? (a+'-'+b) : null;
+    }
+    return null;
+  }
+
+  // Expand to concrete integers, warn GM if malformed
+  function expand(spec, maxDays){
+    var s = String(spec||'').trim().toLowerCase();
+    var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m){
+      var a = clamp(m[1],1,maxDays), b = clamp(m[2],1,maxDays);
+      if (a>b){ var t=a;a=b;b=t; }
+      var out=[]; for (var d=a; d<=b; d++) out.push(d);
+      return out;
+    }
+    var n = parseInt(s,10);
+    if (isFinite(n)) return [clamp(n,1,maxDays)];
+
+    // Keep existing UX: soft warning
+    if (typeof sendChat === 'function'){
+      sendChat(script_name, '/w gm Ignored malformed day spec: <code>'+String(spec).replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];})+'</code>');
+    }
+    return [];
+  }
+
+  // Predicate for a day-of-month
+  function matches(spec){
+    if (typeof spec === 'number') {
+      var n = spec|0; return function(d){ return d === n; };
+    }
+    var s = String(spec||'').trim().toLowerCase();
+    if (s.indexOf('-') !== -1){
+      var parts = s.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
+      var a = parts[0], b = parts[1];
+      if (isFinite(a) && isFinite(b)){
+        if (a > b){ var t=a; a=b; b=t; }
+        return function(d){ return d >= a && d <= b; };
+      }
+    }
+    var n2 = parseInt(s,10);
+    if (isFinite(n2)) return function(d){ return d === n2; };
+    return function(){ return false; };
+  }
+
+  // Keep ordinal weekday specs (e.g., "first far") intact; otherwise normalize or fallback to first number.
+  function canonicalForKey(spec, maxDays){
+    var ow = Parse.ordinalWeekday.fromSpec(spec);
+    if (ow) return String(spec).toLowerCase().trim();
+    return normalize(spec, maxDays) || String(first(spec));
+  }
+
+  return {
+    first: first,
+    normalize: normalize,
+    expand: expand,
+    matches: matches,
+    canonicalForKey: canonicalForKey
+  };
+})();
+
 /* ============================================================================
  * 6) EVENTS MODEL
  * ==========================================================================*/
@@ -811,7 +1077,7 @@ function compareEvents(a, b){
   if (ya !== yb) return ya - yb;
   var am = (+a.month||1), bm = (+b.month||1);
   if (am !== bm) return am - bm;
-  return firstNumFromDaySpec(a.day) - firstNumFromDaySpec(b.day);
+  return DaySpec.first(a.day) - DaySpec.first(b.day);
 }
 
 function currentDefaultKeySet(cal){
@@ -823,7 +1089,7 @@ function currentDefaultKeySet(cal){
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
     months.forEach(function(m){
       var maxD = cal.months[m-1].days|0;
-      var norm = _canonicalDaySpecForKey(de.day, maxD);
+      var norm = DaySpec.canonicalForKey(de.day, maxD);
       out[ defaultKeyFor(m, norm, de.name) ] = 1;
     });
   });
@@ -834,7 +1100,7 @@ function isDefaultEvent(ev){
   var calLocal = getCal();
   var defaultsSet = currentDefaultKeySet(calLocal);
   var maxD = calLocal.months[ev.month-1].days|0;
-  var norm = _canonicalDaySpecForKey(ev.day, maxD);
+  var norm = DaySpec.canonicalForKey(ev.day, maxD);
   var k = defaultKeyFor(ev.month, norm, ev.name);
   return !!defaultsSet[k];
 }
@@ -844,7 +1110,7 @@ function markSuppressedIfDefault(ev){
   if (isDefaultEvent(ev)){
     var calLocal = getCal();
     var maxD = calLocal.months[ev.month-1].days|0;
-    var norm = _canonicalDaySpecForKey(ev.day, maxD);
+    var norm = DaySpec.canonicalForKey(ev.day, maxD);
     var k = defaultKeyFor(ev.month, norm, ev.name);
     state[state_name].suppressedDefaults[k] = 1;
   }
@@ -871,7 +1137,7 @@ function mergeInNewDefaultEvents(cal){
 
     monthsList.forEach(function(m){
       var maxD = cal.months[m-1].days|0;
-      var normDay = _canonicalDaySpecForKey(de.day, maxD);
+      var normDay = DaySpec.canonicalForKey(de.day, maxD);
       var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
       if (!have[key] && !suppressed[key]) {
         cal.events.push({
@@ -896,10 +1162,10 @@ function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   var maxD = cal.months[m-1].days|0;
 
   // Accept numeric, ranges, OR ordinal weekday (e.g., "first far")
-  var ows = parseOrdinalWeekdaySpec(daySpec);
+  var ows = Parse.ordinalWeekday.fromSpec(daySpec);
   var normDay = ows
     ? String(daySpec).toLowerCase().trim()
-    : normalizeDaySpec(daySpec, maxD);
+    : DaySpec.normalize(daySpec, maxD);
 
   if (!normDay) return false;
 
@@ -922,7 +1188,7 @@ function getEventsFor(monthIndex, day, year){
     var e = events[i];
     if (((parseInt(e.month,10)||1)-1) !== m) continue;
     if (e.year != null && (e.year|0) !== y) continue;
-    var ows = parseOrdinalWeekdaySpec(e.day);
+    var ows = Parse.ordinalWeekday.fromSpec(e.day);
     if (ows){
       if (ows.ord === 'every'){
         if (weekdayIndex(y, m, day) === ows.wdi) out.push(e);
@@ -930,7 +1196,7 @@ function getEventsFor(monthIndex, day, year){
         var od = dayFromOrdinalWeekday(y, m, ows);
         if (od === day) out.push(e);
       }
-    } else if (dayMatcher(e.day)(day)) {
+    } else if (DaySpec.matches(e.day)(day)) {
       out.push(e);
     }
   }
@@ -950,23 +1216,6 @@ function esc(s){
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-function dayMatcher(spec){
-  if (typeof spec === 'number') { var n = spec|0; return function(d){ return d === n; }; }
-  if (typeof spec === 'string') {
-    var s = spec.trim();
-    if (s.indexOf('-') !== -1) {
-      var parts = s.split('-').map(function(x){ return parseInt(String(x).trim(),10); });
-      var a = parts[0], b = parts[1];
-      if (isFinite(a) && isFinite(b)) {
-        if (a > b) { var t=a; a=b; b=t; }
-        return function(d){ return d >= a && d <= b; };
-      }
-    }
-    var n2 = parseInt(s,10);
-    if (isFinite(n2)) return function(d){ return d === n2; };
-  }
-  return function(){ return false; };
 }
 
 function swatchHtml(colLike){
@@ -1180,7 +1429,7 @@ function monthEventsHtml(mi, today){
   var evs = cal.events.filter(function(e){
     return ((+e.month||1)-1) === mi && (e.year == null || (e.year|0) === (curYear|0));
   }).sort(function(a,b){
-    var da = firstNumFromDaySpec(a.day), db = firstNumFromDaySpec(b.day);
+    var da = DaySpec.first(a.day), db = DaySpec.first(b.day);
     if (da !== db) return da - db;
     var ay = (a.year==null)?1:0, by = (b.year==null)?1:0;
     if (ay !== by) return ay - by;
@@ -1189,7 +1438,7 @@ function monthEventsHtml(mi, today){
 
   return evs.map(function(e){
     var isToday;
-    var ows = parseOrdinalWeekdaySpec(e.day);
+    var ows = Parse.ordinalWeekday.fromSpec(e.day);
     if (ows){
       if (ows.ord === 'every'){
         isToday = (weekdayIndex(curYear, mi, today) === ows.wdi);
@@ -1197,7 +1446,7 @@ function monthEventsHtml(mi, today){
         isToday = (dayFromOrdinalWeekday(curYear, mi, ows) === today);
       }
     } else {
-      isToday = dayMatcher(e.day)(today);
+      isToday = DaySpec.matches(e.day)(today);
     }
     var swatch = swatchHtml(getEventColor(e));
     var txt = esc(formatEventLine(e));
@@ -1218,60 +1467,8 @@ function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
 }
 
 /* ============================================================================
- * 8) DAY SPEC HELPERS
- * ==========================================================================*/
-function firstNumFromDaySpec(daySpec){ if (typeof daySpec === 'number') return daySpec|0; var s = String(daySpec||'').trim(); var m = s.match(/^\s*(\d+)/); return m ? Math.max(1, parseInt(m[1],10)) : 1; }
-function normalizeDaySpec(spec, maxDays){
-  var s = String(spec||'').trim();
-  if (/^\d+$/.test(s)){ return String(clamp(s, 1, maxDays)); }
-  var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
-  if (m){
-    var a = clamp(m[1], 1, maxDays), b = clamp(m[2], 1, maxDays);
-    if (a > b){ var t=a; a=b; b=t; }
-    return a <= b ? (a+'-'+b) : null;
-  }
-  return null;
-}
-function expandDaySpec(spec, maxDays){
-  var s = String(spec||'').trim();
-  var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
-  if (m){
-    var a = clamp(m[1],1,maxDays), b = clamp(m[2],1,maxDays);
-    if (a>b){ var t=a;a=b;b=t; }
-    var out=[]; for (var d=a; d<=b; d++) out.push(d);
-    return out;
-  }
-  var n = parseInt(s,10);
-  if (isFinite(n)) return [clamp(n,1,maxDays)];
-
-  sendChat(script_name, '/w gm Ignored malformed day spec: <code>'+esc(s)+'</code>');
-  return [];
-}
-
-/* ============================================================================
  * 9) RANGE ENGINE + NEARBY EXTENSION
  * ==========================================================================*/
-var ORDINALS = {
-  '1':'first','2':'second','3':'third','4':'fourth','5':'fifth',
-  'first':'first','second':'second','third':'third','fourth':'fourth','fifth':'fifth',
-  '1st':'first','2nd':'second','3rd':'third','4th':'fourth','5th':'fifth','last':'last'
-};
-
-function _weekdayIndexByName(tok){
-  var cal = getCal();
-  if (tok==null) return -1;
-  var s = _normAlpha(tok);
-  if (/^\d+$/.test(tok)){
-    var n = parseInt(tok,10);
-    if (n>=0 && n<cal.weekdays.length) return n;
-    if (n>=1 && n<=cal.weekdays.length) return n-1;
-  }
-  for (var i=0;i<cal.weekdays.length;i++){
-    var w = _normAlpha(cal.weekdays[i]);
-    if (s===w || w.indexOf(s)===0) return i;
-  }
-  return -1;
-}
 
 function _firstWeekdayOfMonth(year, mi, wdi){
   var first = weekdayIndex(year, mi, 1);
@@ -1300,94 +1497,6 @@ function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|la
 
 function _isYear(tok){ return /^\d{1,6}$/.test(String(tok||'')); }
 
-function parseSetDateTokens(tokens){
-  // tokens after 'set'
-  // Forms: [MM] DD [YYYY]  |  <MonthName> DD [YYYY]  |  DD
-  var cal = getCal(), months = cal.months;
-  if (!tokens || !tokens.length) return null;
-
-  // single number or ordinal → day only
-  if (tokens.length === 1){
-    if (/^\d+$/.test(tokens[0])) return { mode:'dayOnly', day:(parseInt(tokens[0],10)|0) };
-    var od = parseOrdinalDay(tokens[0]);
-    if (od != null) return { mode:'dayOnly', day:(od|0) };
-    return null;
-  }
-
-  // numeric month + day(ordinal ok) [year]
-  if (/^\d+$/.test(tokens[0])){
-    var miNum = clamp(parseInt(tokens[0],10), 1, months.length) - 1;
-    var dTok = tokens[1];
-    var dNum = (/^\d+$/.test(dTok)) ? (parseInt(dTok,10)|0) : parseOrdinalDay(dTok);
-    if (dNum == null) return null;
-    var yNum  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
-    return { mode:'mdy', mi:miNum, day:dNum, year:yNum };
-  }
-
-  // MonthName + day(ordinal ok) [year]
-  var miByName = monthIndexByName(tokens[0]);
-  if (miByName !== -1){
-    var dTok2 = tokens[1];
-    var dN  = (/^\d+$/.test(dTok2)) ? (parseInt(dTok2,10)|0) : parseOrdinalDay(dTok2);
-    if (dN == null) return null;
-    var yN  = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
-    return { mode:'mdy', mi:miByName, day:dN, year:yN };
-  }
-  return null;
-}
-function parseOrdinalDay(tok){
-  if (!tok) return null;
-  var s = String(tok).toLowerCase().trim().replace(/[.,;:!?]+$/,'');
-  var m = s.match(/^(\d+)(st|nd|rd|th)$/);
-  if (m) return parseInt(m[1],10);
-
-  var baseWords = {
-    first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9,
-    tenth:10, eleventh:11, twelfth:12, thirteenth:13, fourteenth:14, fifteenth:15, sixteenth:16,
-    seventeenth:17, eighteenth:18, nineteenth:19, twentieth:20, thirtieth:30
-  };
-  if (baseWords[s] != null) return baseWords[s];
-
-  // handle "twenty-first" .. "twenty-ninth" and "thirty-first" .. "thirty-ninth" (if needed)
-  var m2 = s.replace(/[\u2010-\u2015]/g, '-')
-            .match(/^(twenty|thirty)(?:[-\s]?)(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)$/);
-  if (m2){
-    var tens = (m2[1] === 'twenty') ? 20 : 30;
-    var unitsMap = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9 };
-    return tens + unitsMap[m2[2]];
-  }
-
-  return null;
-}
-
-function _parseOrdinalWeekday(tokens){
-  if (!tokens.length) return null;
-  var ordKey = ORDINALS[(tokens[0]||'').toLowerCase()];
-  if (!ordKey) return null;
-  var wdi = _weekdayIndexByName(tokens[1]||'');
-  if (wdi<0) return null;
-  var rest = tokens.slice(2);
-  if (rest[0] && /^of$/i.test(rest[0])) rest.shift();
-  var mi = -1, year = null;
-  if (rest.length){
-    var maybeMonth = monthIndexByName(rest[0]);
-    if (maybeMonth!==-1){ mi = maybeMonth; rest.shift(); }
-  }
-  if (rest.length && _isYear(rest[0])){ year = parseInt(rest[0],10); }
-  return { ord: ordKey, wdi: wdi, mi: mi, year: year };
-}
-
-function parseOrdinalWeekdaySpec(spec){
-  if (typeof spec !== 'string') return null;
-  var s = spec.trim().toLowerCase().replace(/[.,;:!?]+$/,''); // strip trailing punctuation
-  var m = s.match(/^(first|second|third|fourth|fifth|last|every|all)\s+([a-z0-9]+)/); // allow “2” too
-  if (!m) return null;
-  var ord = (m[1] === 'all') ? 'every' : m[1];
-  var wdi = _weekdayIndexByName(m[2]);
-  if (wdi < 0) return null;
-  return { ord: ord, wdi: wdi };
-}
-
 function dayFromOrdinalWeekday(year, mi, ow){
   if (!ow) return null;
   if (ow.ord === 'last') return _lastWeekdayOfMonth(year, mi, ow.wdi);
@@ -1402,35 +1511,6 @@ function _allWeekdaysInMonth(year, mi, wdi){
   var out = [];
   for (var d = first; d <= mdays; d += weekLength()){ out.push(d); }
   return out;
-}
-
-function _parseMonthYearLoose(tokens){
-  var cal = getCal(), cur = cal.current;
-  var mi = -1, day = null, year = null;
-  var idx = 0;
-
-  if (idx<tokens.length){
-    var maybeMi = monthIndexByName(tokens[idx]);
-    if (maybeMi !== -1){ mi = maybeMi; idx++; }
-    else if (/^\d+$/.test(tokens[idx])){
-      var n = parseInt(tokens[idx],10);
-      if (n>=1 && n<=cal.months.length){ mi = n-1; idx++; }
-    }
-  }
-
-  if (idx<tokens.length){
-    if (/^\d+$/.test(tokens[idx])){ day = parseInt(tokens[idx],10); idx++; }
-    else {
-      var od = parseOrdinalDay(tokens[idx]);
-      if (od != null){ day = od|0; idx++; }
-    }
-  }
-
-  if (idx<tokens.length && _isYear(tokens[idx])){ year = parseInt(tokens[idx],10); idx++; }
-
-  if (mi===-1 && day==null && tokens.length===1 && _isYear(tokens[0])){ year = parseInt(tokens[0],10); }
-
-  return { mi: mi, day: day, year: year };
 }
 
 function _phraseToSpec(tokens){
@@ -1475,38 +1555,47 @@ function _phraseToSpec(tokens){
 }
 
 function parseUnifiedRange(tokens){
+  // Phrase forms first (today/this month/next year/etc.)
   if (tokens.length && _isPhrase(tokens[0].toLowerCase())){
     var ps = _phraseToSpec(tokens);
     if (ps) return ps;
   }
-  var ordwd = _parseOrdinalWeekday(tokens);
-  if (ordwd){
-    var cal=getCal(), cur=cal.current;
-    var year = (typeof ordwd.year==='number') ? ordwd.year : cur.year;
-    var mi   = (ordwd.mi!==-1) ? ordwd.mi : cur.month;
+
+  var cal=getCal(), cur=cal.current, months=cal.months, dpy=daysPerYear();
+
+  // Ordinal weekday + (optional "of") month [+ optional year] → single day
+  var ow = Parse.ordinalWeekday.fromTokens(tokens);
+  if (ow){
+    var year = (typeof ow.year==='number') ? ow.year : cur.year;
+    var mi   = (ow.mi!==-1) ? ow.mi : cur.month;
     var day;
-    if (ordwd.ord==='last') day = _lastWeekdayOfMonth(year, mi, ordwd.wdi);
+    if (ow.ord==='last') day = _lastWeekdayOfMonth(year, mi, ow.wdi);
     else {
-      var nth = {first:1,second:2,third:3,fourth:4,fifth:5}[ordwd.ord]||1;
-      day = _nthWeekdayOfMonth(year, mi, ordwd.wdi, nth);
-      if (day==null){ day = _lastWeekdayOfMonth(year, mi, ordwd.wdi); }
+      var nth = {first:1,second:2,third:3,fourth:4,fifth:5}[ow.ord]||1;
+      day = _nthWeekdayOfMonth(year, mi, ow.wdi, nth);
+      if (day==null){ day = _lastWeekdayOfMonth(year, mi, ow.wdi); }
     }
     var start = toSerial(year, mi, day), end = start;
-    return { title: (ordwd.ord==='last' ? 'Last ' : '') + getCal().weekdays[ordwd.wdi] + ' — ' + formatDateLabel(year, mi, day, true),
-             start:start, end:end, months:[{y:year,mi:mi}] };
+    return {
+      title: (ow.ord==='last' ? 'Last ' : (String(ow.ord).charAt(0).toUpperCase()+String(ow.ord).slice(1)+' ')) + getCal().weekdays[ow.wdi] + ' — ' + formatDateLabel(year, mi, day, true),
+      start:start, end:end, months:[{y:year,mi:mi}]
+    };
   }
-  var md = _parseMonthYearLoose(tokens);
-  var cal=getCal(), cur=cal.current, months=cal.months, dpy=daysPerYear();
+
+  // Month/Day/Year loose (supports month alone, day-only, etc.)
+  var md = Parse.monthYearLoose(tokens);
+
   if (md.mi!==-1 && md.day!=null && md.year!=null){
-    var s = toSerial(md.year, md.mi, clamp(md.day,1,months[md.mi].days));
-    return { title:'Events — '+formatDateLabel(md.year, md.mi, clamp(md.day,1,months[md.mi].days), true),
+    var dClamp = clamp(md.day, 1, months[md.mi].days);
+    var s = toSerial(md.year, md.mi, dClamp);
+    return { title:'Events — '+formatDateLabel(md.year, md.mi, dClamp, true),
              start:s, end:s, months:[{y:md.year,mi:md.mi}] };
   }
   if (md.mi!==-1 && md.day!=null){
     var nextY = nextForMonthDay(cur, md.mi, md.day).year;
     var d2 = clamp(md.day, 1, months[md.mi].days);
-    var s2 = toSerial(nextY, md.mi, d2), e2 = s2;
-    return { title:'Next '+months[md.mi].name+' '+d2, start:s2, end:e2, months:[{y:nextY,mi:md.mi}] };
+    var s2 = toSerial(nextY, md.mi, d2);
+    return { title:'Next '+months[md.mi].name+' '+d2, start:s2, end:s2, months:[{y:nextY,mi:md.mi}] };
   }
   if (md.day!=null && md.mi===-1){
     var nextMY = nextForDayOnly(cur, md.day, months.length);
@@ -1530,9 +1619,16 @@ function parseUnifiedRange(tokens){
     return { title:'Events — Year '+md.year+' '+LABELS.era, start:sY, end:sY+dpy-1,
              months: months.map(function(_,i){return {y:md.year,mi:i};}) };
   }
-  return { title:'This Month', start: toSerial(cur.year, cur.month, 1), end: toSerial(cur.year, cur.month, getCal().months[cur.month].days),
-           months:[{y:cur.year,mi:cur.month}] };
+
+  // Default: current month
+  return {
+    title:'This Month',
+    start: toSerial(cur.year, cur.month, 1),
+    end:   toSerial(cur.year, cur.month, getCal().months[cur.month].days),
+    months:[{y:cur.year,mi:cur.month}]
+  };
 }
+
 
 /* ============================================================================
  * 10) OCCURRENCES, BOUNDARY STRIPS & LISTS
@@ -1548,7 +1644,7 @@ function occurrencesInRange(startSerial, endSerial){
     var e = cal.events[i];
     var mi = clamp(e.month,1,cal.months.length)-1;
     var maxD = cal.months[mi].days|0;
-    var ows = parseOrdinalWeekdaySpec(e.day);
+    var ows = Parse.ordinalWeekday.fromSpec(e.day);
 
     var ys = (e.year==null) ? yStart : (e.year|0);
     var ye = (e.year==null) ? yEnd   : (e.year|0);
@@ -1558,7 +1654,7 @@ function occurrencesInRange(startSerial, endSerial){
         ? (ows.ord === 'every'
             ? _allWeekdaysInMonth(y, mi, ows.wdi)
             : (function(){ var d = dayFromOrdinalWeekday(y, mi, ows); return d ? [d] : []; })())
-        : expandDaySpec(e.day, maxD);
+        : DaySpec.expand(e.day, maxD);
 
       for (var k=0;k<days.length;k++){
         var d = clamp(days[k],1,maxD);
@@ -1894,63 +1990,36 @@ function _parseSharpColorToken(tok){
 }
 
 function parseDatePrefixForAdd(tokens){
-  tokens = (tokens || []);
+  tokens = (tokens || []).filter(Boolean);
   if (!tokens.length) return null;
 
   var cal = getCal(), cur = cal.current, months = cal.months;
 
-  // MonthName <day> [YYYY]
-  var miByName = monthIndexByName(tokens[0]);
-  if (miByName !== -1){
-    var dayTok = tokens[1];
-    var dN = (dayTok && /^\d+$/.test(dayTok)) ? (parseInt(dayTok,10)|0) : parseOrdinalDay(dayTok);
-    if (dN == null) return null;
-    var yN = (tokens[2] && /^\d+$/.test(tokens[2])) ? (parseInt(tokens[2],10)|0) : null;
-    var dClamp = clamp(dN, 1, months[miByName].days|0);
-    var yPick = (yN != null) ? yN : nextForMonthDay(cur, miByName, dClamp).year;
-    return { used: (yN != null) ? 3 : 2, mHuman: miByName+1, day: dClamp, year: yPick };
-  }
-
-  // Numeric month + <day> [YYYY]  OR  single <day>
-  var mTok = tokens[0];
-
-  // Case A: starts with a numeric month (MM <day> [YYYY])
-  if (/^\d+$/.test(mTok)){
-    var mi = clamp(parseInt(mTok,10), 1, months.length) - 1;
-    var dayTok2 = tokens[1];
-    var dNum = null;
-    if (dayTok2){
-      dNum = (/^\d+$/.test(dayTok2)) ? (parseInt(dayTok2,10)|0) : parseOrdinalDay(dayTok2);
+  // Try the unified MDY/day-only parser on up to first 3 tokens
+  var r = Parse.looseMDY(tokens.slice(0,3));
+  if (r){
+    if (r.kind === 'dayOnly'){
+      var nx = nextForDayOnly(cur, r.day, months.length);
+      var d  = clamp(r.day, 1, months[nx.month].days|0);
+      return { used: 1, mHuman: nx.month+1, day: d, year: nx.year };
+    } else {
+      var d2 = clamp(r.day, 1, months[r.mi].days|0);
+      var y  = (r.year != null) ? r.year : nextForMonthDay(cur, r.mi, d2).year;
+      return { used: (r.year!=null)?3:2, mHuman: r.mi+1, day: d2, year: y };
     }
-    if (dNum != null){
-      var yTok = tokens[2];
-      var yNum = (yTok && /^\d+$/.test(yTok)) ? (parseInt(yTok,10)|0) : null;
-      var dClamp2 = clamp(dNum, 1, months[mi].days|0);
-      var yPick2 = (yNum != null) ? yNum : nextForMonthDay(cur, mi, dClamp2).year;
-      return { used: (yNum != null) ? 3 : 2, mHuman: mi+1, day: dClamp2, year: yPick2 };
-    }
-    // If no valid second token, treat the single number as "day-only"
-    var dOnly = clamp(parseInt(mTok,10)|0, 1, months[cur.month].days|0);
-    var nx = nextForDayOnly(cur, dOnly, months.length);
-    dOnly = clamp(dOnly, 1, months[nx.month].days|0);
-    return { used: 1, mHuman: nx.month+1, day: dOnly, year: nx.year };
   }
 
-  // Case B: single ordinal like "14th" or "fourteenth" → day-only
-  var dOrd = parseOrdinalDay(mTok);
-  if (dOrd != null){
-    var nx2 = nextForDayOnly(cur, dOrd, months.length);
-    var dClamp3 = clamp(dOrd, 1, months[nx2.month].days|0);
-    return { used: 1, mHuman: nx2.month+1, day: dClamp3, year: nx2.year };
+  // Fallback: treat the very first token as "day-only" (so "!cal add 14 Feast" works)
+  var t0  = tokens[0];
+  var od  = Parse.ordinalDay(t0);
+  var num = /^\d+$/.test(t0) ? (parseInt(t0,10)|0) : null;
+  var dd  = (od != null) ? od : num;
+  if (dd != null){
+    var nx2 = nextForDayOnly(cur, dd, months.length);
+    var d3  = clamp(dd, 1, months[nx2.month].days|0);
+    return { used: 1, mHuman: nx2.month+1, day: d3, year: nx2.year };
   }
-
   return null;
-}
-
-function _canonicalDaySpecForKey(spec, maxDays){
-  var ow = parseOrdinalWeekdaySpec(spec);
-  if (ow) return String(spec).toLowerCase().trim(); // keep ordinal weekday intact
-  return normalizeDaySpec(spec, maxDays) || String(firstNumFromDaySpec(spec));
 }
 
 // Smart add: !cal add [DD] NAME [#COLOR|color] | !cal add MM DD [YYYY] NAME [#COLOR|color]
@@ -1973,27 +2042,35 @@ function addEventSmart(tokens){
 function addMonthlySmart(tokens){
   tokens = (tokens || []).filter(function(t){ return String(t).trim() !== '--'; });
   if (!tokens.length){
-    return warnGM('Usage: !cal addmonthly <daySpec> NAME [#COLOR|color]\n'
-      + 'daySpec can be N, N-M, or "first|second|third|fourth|fifth|last <weekday>".');
+    return warnGM(
+      'Usage: !cal addmonthly <daySpec> NAME [#COLOR|color]\n'
+      + 'daySpec can be N, N-M, or "first|second|third|fourth|fifth|last <weekday>" (also "every <weekday>").'
+    );
   }
+
   var daySpec = null, used = 0;
+
+  // Ordinal weekday: "first far", "last zor", "every sul"
   if (tokens[1]){
     var two = (tokens[0] + ' ' + tokens[1]).toLowerCase().trim();
-    if (parseOrdinalWeekdaySpec(two)){ daySpec = two; used = 2; }
+    if (Parse.ordinalWeekday.fromSpec(two)){ daySpec = two; used = 2; }
   }
+
+  // Numeric day / range / ordinal day word
   if (!daySpec){
     var one = String(tokens[0]).toLowerCase().trim();
     if (/^\d+(-\d+)?$/.test(one)) {
       daySpec = one; used = 1;
     } else {
-      var asNum = parseOrdinalDay(one);
+      var asNum = Parse.ordinalDay(one);
       if (asNum != null) { daySpec = String(asNum); used = 1; }
     }
   }
+
   if (!daySpec){
-    return warnGM('Couldn’t parse daySpec. Try: 6  |  18-19  |  "first far"  |  "last zor".');
+    return warnGM('Couldn’t parse daySpec. Try: 6  |  18-19  |  "first far"  |  "last zor"  |  "every sul".');
   }
-  // Remaining tokens → name (with optional trailing color)
+
   var pulled = popColorIfPresent(tokens.slice(used), /*allowBareName*/true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
@@ -2018,35 +2095,48 @@ function addYearlySmart(tokens){
   var cal = getCal();
   var used = 0, mHuman = null, daySpec = null;
 
-  // (A) Ordinal weekday form: "first far [of] Barrakas ..."
-  if (tokens[1] && parseOrdinalWeekdaySpec((tokens[0]+' '+tokens[1]).toLowerCase().trim())){
-    daySpec = (tokens[0]+' '+tokens[1]).toLowerCase().trim();
-    var idx = 2;
+  // (A) Ordinal weekday with month (tokens form). Example: "first far [of] Barrakas"
+  (function tryOrdinalWeekdayWithMonth(){
+    if (daySpec != null) return;
+    var ow = Parse.ordinalWeekday.fromTokens(tokens);
+    if (!ow) return;
+
+    // Must have an explicit month for annual events
+    var idx = 2; // <ord> <weekday> ...
     if (tokens[idx] && /^of$/i.test(tokens[idx])) idx++;
 
-    var mi = monthIndexByName(tokens[idx]||'');
-    if (mi === -1 && /^\d+$/.test(tokens[idx]||'')){
-      var n = parseInt(tokens[idx],10)|0;
-      if (n>=1 && n<=cal.months.length) mi = n-1;
+    var mi = -1;
+    if (tokens[idx]){
+      mi = monthIndexByName(tokens[idx]);
+      if (mi === -1 && /^\d+$/.test(tokens[idx])){
+        var n = parseInt(tokens[idx],10)|0;
+        if (n>=1 && n<=cal.months.length) mi = n-1;
+      }
     }
-    if (mi === -1){
-      return warnGM('Expected a month after “‘'+daySpec+'’”. Try: !cal addyearly first far Barrakas EventName');
-    }
-    mHuman = mi + 1;
-    used   = idx + 1;
-  }
+    if (mi === -1) return; // no explicit month -> let other forms try
 
-  // (B) Regular yearly form: "<Month> <DD|DD-DD|ordinal-day> ..."
-  if (mHuman == null){
+    mHuman = mi + 1;
+    daySpec = (String(tokens[0]) + ' ' + String(tokens[1])).toLowerCase().trim();
+
+    // figure out how many tokens we consumed for name slice
+    used = 2; // ord + weekday
+    if (tokens[used] && /^of$/i.test(tokens[used])) used++;
+    used++; // month
+    // optional year token (ignored for annual; just skip if present)
+    if (tokens[used] && /^\d{1,6}$/.test(tokens[used])) used++;
+  })();
+
+  // (B) Regular yearly: "<Month> <DD|DD-DD|ordinal-day> ..."
+  if (daySpec == null){
     var mi2 = monthIndexByName(tokens[0]);
     if (mi2 !== -1 && tokens[1]){
       var dTok = String(tokens[1]).toLowerCase().trim();
-      if (/^\d+-\d+$/.test(dTok)){              // range like 26-28
+      if (/^\d+-\d+$/.test(dTok)){     // range like 26-28
         mHuman = mi2 + 1;
         daySpec = dTok;
         used = 2;
       } else {
-        var dNum = /^\d+$/.test(dTok) ? (parseInt(dTok,10)|0) : parseOrdinalDay(dTok);
+        var dNum = /^\d+$/.test(dTok) ? (parseInt(dTok,10)|0) : Parse.ordinalDay(dTok);
         if (dNum != null){
           mHuman = mi2 + 1;
           daySpec = String(dNum);
@@ -2056,18 +2146,16 @@ function addYearlySmart(tokens){
     }
   }
 
-  // (C) Fallback: reuse the add parser (month/day), but force year=null
-  if (mHuman == null){
-    var pref = parseDatePrefixForAdd(tokens);
-    if (!pref){
-      return warnGM(
-        'Usage: !cal addyearly <Month> <DD|DD-DD|ordinal-day> NAME [#COLOR|color]\n'
-        + '   or: !cal addyearly <first|second|third|fourth|fifth|last> <weekday> [of] <Month> NAME [#COLOR|color]'
-      );
+  // (C) Fallback: reuse add prefix parser, but only if it parsed an MDY form
+  if (daySpec == null){
+    var pref = Parse.looseMDY(tokens.slice(0,3));
+    if (!pref || pref.kind !== 'mdy') {
+      return warnGM('Usage: !cal addyearly <Month> <DD|DD-DD|ordinal-day> NAME [#COLOR|color]\n'
+        + '   or: !cal addyearly <first|second|third|fourth|fifth|last> <weekday> [of] <Month> NAME [#COLOR|color]');
     }
-    mHuman  = pref.mHuman;
-    daySpec = String(pref.day); // normalize to numeric day
-    used    = pref.used;
+    mHuman  = pref.mi+1;
+    daySpec = String(pref.day);
+    used    = (pref.year!=null)?3:2;
   }
 
   // Remaining → name (with optional trailing color)
@@ -2144,7 +2232,7 @@ function _defaultDetailsForKey(key){
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
     monthsList.forEach(function(m){
       var maxD = cal.months[m-1].days|0;
-      var norm = normalizeDaySpec(de.day, maxD) || String(firstNumFromDaySpec(de.day));
+      var norm = DaySpec.normalize(de.day, maxD) || String(DaySpec.first(de.day));
       var k = defaultKeyFor(m, norm, de.name);
       if (k === key){
         out.name   = String(de.name||out.name);
@@ -2284,7 +2372,7 @@ function suppressedDefaultsListHtml(){
     var pa=a.split('|'), pb=b.split('|');
     var ma=(+pa[0]||0), mb=(+pb[0]||0);
     if (ma!==mb) return ma-mb;
-    var da=firstNumFromDaySpec(pa[1]||'1'), db=firstNumFromDaySpec(pb[1]||'1');
+    var da=DaySpec.first(pa[1]||'1'), db=DaySpec.first(pb[1]||'1');
     if (da!==db) return da-db;
     return String(pa[3]||'').localeCompare(String(pb[3]||''));
   });
@@ -2819,19 +2907,24 @@ var commands = {
 
   advance: { gm:true, run:function(m,a){ stepDays(parseInt(a[2],10) || 1); } },
   retreat: { gm:true, run:function(m,a){ stepDays(-(parseInt(a[2],10) || 1)); } },
-  set:     { gm:true, run:function(m,a){
-    var spec = parseSetDateTokens(a.slice(2));
-    if (!spec){ return whisper(m.who, USAGE['date.set']); }
-    var cal = getCal(), months = cal.months, cur = cal.current;
-    if (spec.mode === 'dayOnly'){
-      var next = nextForDayOnly(cur, spec.day, months.length);
-      var d = clamp(spec.day, 1, months[next.month].days);
-      return setDate(next.month + 1, d, next.year);
+  set: { gm:true, run:function(m,a){
+    var r = Parse.looseMDY(a.slice(2));
+    if (!r){ return whisper(m.who, USAGE['date.set']); }
+
+    var cal = getCal(), cur = cal.current, months = cal.months;
+
+    if (r.kind === 'dayOnly'){
+      var next = nextForDayOnly(cur, r.day, months.length);
+      var d = clamp(r.day, 1, months[next.month].days|0);
+      setDate(next.month+1, d, next.year);
+      return;
     }
-    var next2 = nextForMonthDay(cur, spec.mi, spec.day);
-    var d2 = clamp(spec.day, 1, months[spec.mi].days);
-    var y = (spec.year != null) ? spec.year : next2.year;
-    return setDate(spec.mi + 1, d2, y);
+
+    // kind: 'mdy'
+    var mi = r.mi;
+    var d2 = clamp(r.day, 1, months[mi].days|0);
+    var y  = (r.year != null) ? r.year : cur.year;
+    setDate(mi+1, d2, y);
   }},
 
   // Theming & names (GM)
@@ -2952,7 +3045,7 @@ var commands = {
         var src = (e.source != null) ? String(e.source).toLowerCase() : null;
         if (src !== key) return true;
         var maxD = cal.months[e.month-1].days|0;
-        var norm = _canonicalDaySpecForKey(e.day, maxD);
+        var norm = DaySpec.canonicalForKey(e.day, maxD);
         var k = defaultKeyFor(e.month, norm, e.name);
         return !defaultsSet[k];
       });
