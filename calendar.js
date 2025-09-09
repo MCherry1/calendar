@@ -2821,11 +2821,9 @@ function helpEventsMenu(m){
     return whisper(m.who, '<div style="opacity:.7;">Only the GM can manage events.</div><div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
   }
   var rows = [
-// In helpEventsMenu(...)
-_menuBox('Lists / Manage',
-  mbP(m,'Manage Events','list')
-),
-
+    _menuBox('Lists / Manage',
+      mbP(m,'Manage Events','list')
+    ),
     _menuBox('Add (syntax only)',
       '<div style="opacity:.8">Type these in chat:</div>'+
       '<div><code>!cal add [MM DD [YYYY] | &lt;MonthName&gt; DD [YYYY] | DD] NAME [#COLOR|color]</code></div>'
@@ -3001,8 +2999,11 @@ var USAGE = {
 };
 
 var EVENT_SUB = {
-
-  add: {},
+  add: {
+    gm: true,
+    usage: 'events.add',
+    run: function(m, args){ addEventSmart(args); }
+  },
   remove: {
     gm: true,
     usage: 'events.remove',
@@ -3016,8 +3017,19 @@ var EVENT_SUB = {
       whisper(m.who, removeMatchesListHtml(args.join(' ')));
     }
   },
-  restore: {},
+  restore: {
+    gm: true,
+    usage: 'events.restore',
+    run: function(m, args){
+      if ((args[0] || '').toLowerCase() === 'list'){
+        whisper(m.who, suppressedDefaultsListHtml());
+        return;
+      }
+      restoreDefaultEvents(args.join(' '));
+    }
+  },
   list: {
+    usage: 'events.list',
     gm: true,
     run: function(m){ whisper(m.who, manageEventsListHtml()); }
   }
@@ -3082,17 +3094,18 @@ var commands = {
     whisper(m.who,'Setting updated.');
   }},
 
-  list:    { gm:true, run:function(m,a){ whisper(m.who, manageEventsListHtml()); } },
-remove:  { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'remove'); } },
-events:  { gm:true, run:function(m, a){
-  var args = a.slice(2);
-  var sub = (args.shift() || 'list').toLowerCase();
-  // route "events list" and "events remove list" to the same unified list
-  if (sub === 'list') { whisper(m.who, manageEventsListHtml()); return; }
-  var cfg = EVENT_SUB[sub] || EVENT_SUB.list;
-  return cfg.run(m, args);
-}},
+  events:  { gm:true, run:function(m, a){
+    var args = a.slice(2);
+    var sub = (args.shift() || 'list').toLowerCase();
+    if (sub === 'list') { runEventsShortcut(m, a, 'list'); return; }
+    var cfg = EVENT_SUB[sub] || EVENT_SUB.list;
+    return cfg.run(m, args);
+  }},
+
+  // Aliases
+  list:    { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'list'); } },
   add:     { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'add'); } },
+  remove:  { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'remove'); } },
   restore: { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'restore'); } },
 
   addmonthly: { gm:true, run:function(m,a){ addMonthlySmart(a.slice(2)); } },
