@@ -1935,12 +1935,17 @@ function buildRangeBundle(args){
 /* ============================================================================
  * 12) EVENTS LISTS
  * ==========================================================================*/
+function eventLineNameOnlyHtml(name, isToday, color){
+  var sw = swatchHtml(color);
+  var sty = isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"';
+  return '<div'+sty+'>'+ sw + ' ' + esc(name) + '</div>';
+}
 
 function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var st = ensureSettings();
   var today = todaySerial();
   var occ = occurrencesInRange(startSerial, endSerial);
-  var includeYear = forceYearLabel || (Math.floor(startSerial/daysPerYear()) !== Math.floor(endSerial/daysPerYear()));
+
   var out = ['<div style="margin:4px 0;"><b>'+esc(title)+'</b></div>'];
 
   if (!occ.length){
@@ -1952,7 +1957,7 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
     for (var i=0;i<occ.length;i++){
       var o = occ[i];
       var name2 = eventDisplayName(o.e); // includes (Source) when enabled
-      out.push(eventLineHtml(o.y, o.m, o.d, name2, includeYear, (o.serial===today), getEventColor(o.e)));
+      out.push(eventLineNameOnlyHtml(name2, (o.serial===today), getEventColor(o.e)));
     }
     return out.join('');
   }
@@ -1973,7 +1978,7 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
     for (var j=0;j<arr.length;j++){
       var o3 = arr[j];
       var name3 = eventDisplayName(o3.e);
-      out.push(eventLineHtml(o3.y, o3.m, o3.d, name3, includeYear, (o3.serial===today), getEventColor(o3.e)));
+      out.push(eventLineNameOnlyHtml(name3, (o3.serial===today), getEventColor(o3.e)));
     }
   }
   return out.join('');
