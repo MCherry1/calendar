@@ -1934,6 +1934,165 @@ function buildRangeBundle(args){
 /* ============================================================================
  * 12) EVENTS LISTS
  * ==========================================================================*/
+// === Chronological listing helpers (dated first, then recurring) ============
+function _dayKeyAbsolute(e){
+  var y = (e.year|0), mi = ((+e.month||1)-1);
+  var ow = Parse.ordinalWeekday.fromSpec(e.day);
+  if (ow){
+    if (ow.ord === 'every') return _firstWeekdayOfMonth(y, mi, ow.wdi) || DaySpec.first(e.day);
+    return dayFromOrdinalWeekday(y, mi, ow) || DaySpec.first(e.day);
+  }
+  return DaySpec.first(e.day);
+}
+
+function _dayKeyRecurring(e, refYear){
+  var mi = ((+e.month||1)-1);
+  var ow = Parse.ordinalWeekday.fromSpec(e.day);
+  if (ow){
+    if (ow.ord === 'every') return _firstWeekdayOfMonth(refYear, mi, ow.wdi) || DaySpec.first(e.day);
+    return dayFromOrdinalWeekday(refYear, mi, ow) || DaySpec.first(e.day);
+  }
+  return DaySpec.first(e.day);
+}
+
+function _specExactLabel(e, includeYear){
+  var cal = getCal();
+  var mi  = ((+e.month||1)-1);
+  var monthName = cal.months[mi].name;
+  var daySpec = String(e.day);
+  var ow = Parse.ordinalWeekday.fromSpec(daySpec);
+  var core = ow ? (daySpec + ' of ' + monthName) : (monthName + ' ' + daySpec);
+  if (includeYear && e.year != null) core += ', ' + (e.year|0) + ' ' + LABELS.era;
+  return core;
+}
+
+function _splitAndSortForLists(){
+  var cal = getCal(), evs = cal.events || [];
+  var refY = cal.current.year|0;
+
+  var dated = evs.filter(function(e){ return e.year != null; }).slice();
+  var recur = evs.filter(function(e){ return e.year == null; }).slice();
+
+  dated.sort(function(a,b){
+    var ya=(a.year|0), yb=(b.year|0); if (ya!==yb) return ya - yb;
+    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
+    var da=_dayKeyAbsolute(a), db=_dayKeyAbsolute(b); if (da!==db) return da - db;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+
+  recur.sort(function(a,b){
+    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
+    var da=_dayKeyRecurring(a, refY), db=_dayKeyRecurring(b, refY); if (da!==db) return da - db;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+
+  return { dated:dated, recur:recur };
+}
+function manageEventsListHtml(){
+  var split = _splitAndSortForLists();
+  var dated = split.dated, recur = split.recur;
+
+  function section(title, arr, includeYear){
+    if (!arr.length){
+      return '<div style="margin-top:6px;font-weight:bold;">'+esc(title)+'</div><div style="opacity:.7;">None.</div>';
+    }
+
+    var head = '<tr>'
+      + '<th style="'+STYLES.th+'">#</th>'
+      + '<th style="'+STYLES.th+'">Event</th>'
+      + '<th style="'+STYLES.th+'">When (exact)</th>'
+      + '<th style="'+STYLES.th+'">Action</th>'
+      + '</tr>';
+
+    var rows = arr.map(function(e, i){
+      var sw   = swatchHtml(getEventColor(e));
+      var name = esc(eventDisplayName(e)); // shows (Source) when enabled
+      var when = esc(_specExactLabel(e, /*includeYear*/includeYear));
+      var key  = eventKey(e);
+      var rm   = button('Remove', 'remove key '+_encKey(key)); // default events become suppressed automatically
+      return '<tr>'
+        + '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'
+        + '<td style="'+STYLES.td+'">'+sw+name+'</td>'
+        + '<td style="'+STYLES.td+'">'+when+'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+rm+'</td>'
+        + '</tr>';
+    }).join('');
+
+    return '<div style="margin-top:6px;font-weight:bold;">'+esc(title)+'</div>'
+         + '<table style="'+STYLES.table+'">'+head+rows+'</table>';
+  }
+
+  var out = [];
+  out.push('<div style="margin:4px 0;"><b>Manage Events (chronological)</b></div>');
+  out.push(section('Dated (explicit year)', dated, true));
+  out.push(section('Recurring (annual / monthly)', recur, false));
+  out.push('<div style="opacity:.75;margin-top:6px;">Removing a default event will <i>hide/suppress</i> it; custom events are deleted.</div>');
+
+  // Append suppressed defaults (this already has Restore buttons + Restore All)
+  out.push('<div style="margin-top:10px;"></div>');
+  out.push(suppressedDefaultsListHtml());
+
+  return out.join('');
+}
+function removeMatchesListHtml(needle){
+  var q = String(needle||'').trim().toLowerCase();
+  if (!q) return '<div style="opacity:.7;">Provide a name fragment to search.</div>';
+
+  var evs = getCal().events || [];
+  var filtered = evs.filter(function(e){
+    return String(e.name||'').toLowerCase().indexOf(q) !== -1;
+  });
+  if (!filtered.length) return '<div style="opacity:.7;">No events matched “' + esc(needle) + '”.</div>';
+
+  // Split + sort
+  var refY = getCal().current.year|0;
+  var dated = filtered.filter(function(e){ return e.year!=null; }).slice();
+  var recur = filtered.filter(function(e){ return e.year==null; }).slice();
+
+  dated.sort(function(a,b){
+    var ya=(a.year|0), yb=(b.year|0); if (ya!==yb) return ya - yb;
+    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
+    var da=_dayKeyAbsolute(a), db=_dayKeyAbsolute(b); if (da!==db) return da - db;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+  recur.sort(function(a,b){
+    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
+    var da=_dayKeyRecurring(a, refY), db=_dayKeyRecurring(b, refY); if (da!==db) return da - db;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+
+  function section(title, arr, includeYear){
+    if (!arr.length) return '';
+    var head = '<tr>'
+      + '<th style="'+STYLES.th+'">#</th>'
+      + '<th style="'+STYLES.th+'">Event</th>'
+      + '<th style="'+STYLES.th+'">When</th>'
+      + '<th style="'+STYLES.th+'">Action</th>'
+      + '</tr>';
+
+    var rows = arr.map(function(e, i){
+      var sw   = swatchHtml(getEventColor(e));
+      var name = esc(eventDisplayName(e));
+      var when = esc(_specExactLabel(e, includeYear));
+      var key  = eventKey(e);
+      var rm   = button('Remove', 'remove key '+_encKey(key));
+      return '<tr>'
+        + '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'
+        + '<td style="'+STYLES.td+'">'+sw+name+'</td>'
+        + '<td style="'+STYLES.td+'">'+when+'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+rm+'</td>'
+        + '</tr>';
+    }).join('');
+
+    return '<div style="margin-top:6px;font-weight:bold;">'+esc(title)+'</div>'
+         + '<table style="'+STYLES.table+'">'+head+rows+'</table>';
+  }
+
+  return '<div style="margin:4px 0;"><b>Manage Matches for “'+esc(needle)+'”</b></div>'
+       + section('Dated (explicit year)', dated, true)
+       + section('Recurring (annual / monthly)', recur, false)
+       + '<div style="opacity:.75;margin-top:6px;">Buttons use stable keys and remain valid after removals.</div>';
+}
 
 function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var st = ensureSettings();
@@ -2662,10 +2821,11 @@ function helpEventsMenu(m){
     return whisper(m.who, '<div style="opacity:.7;">Only the GM can manage events.</div><div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
   }
   var rows = [
-    _menuBox('Lists',
-      mbP(m,'All (meta)','list')+' '+
-      mbP(m,'Remove List','remove list')
-    ),
+// In helpEventsMenu(...)
+_menuBox('Lists / Manage',
+  mbP(m,'Manage Events','list')
+),
+
     _menuBox('Add (syntax only)',
       '<div style="opacity:.8">Type these in chat:</div>'+
       '<div><code>!cal add [MM DD [YYYY] | &lt;MonthName&gt; DD [YYYY] | DD] NAME [#COLOR|color]</code></div>'
@@ -2841,37 +3001,25 @@ var USAGE = {
 };
 
 var EVENT_SUB = {
-  add: {
-    gm: true,
-    usage: 'events.add',
-    run: function(m, args){ addEventSmart(args); }
-  },
+
+  add: {},
   remove: {
     gm: true,
     usage: 'events.remove',
     run: function(m, args){
       var sub = (args[0] || '').toLowerCase();
-      if (sub === 'list'){ whisper(m.who, removeListHtml()); return; }
-      if (sub === 'key'){ removeEvent(args.join(' ')); return; }
-      if (args.length){ whisper(m.who, removeMatchesListHtml(args.join(' '))); return; }
-      usage('events.remove', m);
-    }
-  },
-  restore: {
-    gm: true,
-    usage: 'events.restore',
-    run: function(m, args){
-      if ((args[0] || '').toLowerCase() === 'list'){
-        whisper(m.who, suppressedDefaultsListHtml());
+      if (sub === 'list' || args.length === 0){
+        whisper(m.who, manageEventsListHtml());
         return;
       }
-      restoreDefaultEvents(args.join(' '));
+      if (sub === 'key'){ removeEvent(args.join(' ')); return; }
+      whisper(m.who, removeMatchesListHtml(args.join(' ')));
     }
   },
+  restore: {},
   list: {
     gm: true,
-    usage: null,
-    run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
+    run: function(m){ whisper(m.who, manageEventsListHtml()); }
   }
 };
 
@@ -2934,18 +3082,17 @@ var commands = {
     whisper(m.who,'Setting updated.');
   }},
 
-  events: { gm:true, run:function(m, a){
-    var args = a.slice(2);
-    var sub = (args.shift() || 'list').toLowerCase();
-    var cfg = EVENT_SUB[sub] || EVENT_SUB.list;
-    if (cfg.usage && !args.length) return usage(cfg.usage, m);
-    return cfg.run(m, args);
-  }},
-
-  // Aliases
-  list:    { gm:true, run:function(m,a){ whisper(m.who, listAllEventsTableHtml()); } },
+  list:    { gm:true, run:function(m,a){ whisper(m.who, manageEventsListHtml()); } },
+remove:  { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'remove'); } },
+events:  { gm:true, run:function(m, a){
+  var args = a.slice(2);
+  var sub = (args.shift() || 'list').toLowerCase();
+  // route "events list" and "events remove list" to the same unified list
+  if (sub === 'list') { whisper(m.who, manageEventsListHtml()); return; }
+  var cfg = EVENT_SUB[sub] || EVENT_SUB.list;
+  return cfg.run(m, args);
+}},
   add:     { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'add'); } },
-  remove:  { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'remove'); } },
   restore: { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'restore'); } },
 
   addmonthly: { gm:true, run:function(m,a){ addMonthlySmart(a.slice(2)); } },
