@@ -1232,16 +1232,7 @@ function esc(s){
 function swatchHtml(colLike){
   var col = resolveColor(colLike) || '#888888';
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
-}
-
-var button_STYLE =
-  'display:inline-block;margin:0 3px 3px 0;padding:{PAD};' +
-  'border:1px solid rgba(0,0,0,.14);border-radius:4px;' +
-  'background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.06));' +
-  'background-clip:padding-box;' +
-  'box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.18);';
-
-function _buttonPad(compact){ return compact ? '1px 6px' : '4px 10px'; }
+} 
 
 function _buttonHasEmojiStart(s){
   s = String(s||'');
@@ -1268,11 +1259,9 @@ function _buttonIcon(lbl){
 function button(label, cmd, opts){
   opts = opts || {};
   var lbl = String(label||'').trim();
-  var style = button_STYLE.replace('{PAD}', _buttonPad(!!opts.compact));
-  var titleAttr = opts.title ? ' title="'+esc(opts.title)+'" aria-label="'+esc(opts.title)+'"' : '';
   var icon = (opts.icon!=null) ? String(opts.icon) : (_buttonHasEmojiStart(lbl) ? '' : _buttonIcon(lbl));
   var text = (icon ? (icon+' ') : '') + lbl;
-  return '<span role="button"'+titleAttr+' style="'+style+'">['+esc(text)+'](!cal '+cmd+')</span>';
+  return '['+esc(text)+'](!cal '+cmd+')';
 }
 
 /* === Permission-aware button wrappers (players only see allowed buttons) === */
@@ -1321,20 +1310,13 @@ function openMonthTable(mi, yearLabel){
 
 function closeMonthTable(){ return '</table>'; }
 
-function _nameWithSource(e){
-  var name = String(e && e.name || '').trim();
-  if (!name) return '';
-  var src  = (e && e.source != null) ? titleCase(String(e.source)) : null;
-  return src ? (name + ' (' + src + ')') : name;
-}
-
 function makeDayCtx(y, mi, d, dimActive){
   var ser = toSerial(y, mi, d);
   var tSer = todaySerial();
   var events = getEventsFor(mi, d, y);
 
   var label = events.length
-    ? events.map(_nameWithSource).filter(Boolean).join(', ')
+    ? events.map(eventDisplayName).filter(Boolean).join(', ')
     : '';
 
   return {
@@ -1649,7 +1631,6 @@ function parseUnifiedRange(tokens){
   };
 }
 
-
 /* ============================================================================
  * 10) OCCURRENCES, BOUNDARY STRIPS & LISTS
  * ==========================================================================*/
@@ -1685,7 +1666,9 @@ function occurrencesInRange(startSerial, endSerial){
       }
     }
   }
-  occ.sort(function(a,b){ return a.serial - b.serial || a.m - b.m || a.d - b.d; });
+  occ.sort(function(a,b){
+    return (a.serial - b.serial) || (a.m - b.m) || (a.d - b.d);
+  });
   if (capNotice){ sendChat(script_name,'/w gm Range capped at 120 years for performance.'); }
   return occ;
 }
@@ -1910,189 +1893,26 @@ function stripRangeExtensionDynamic(spec){
  * ==========================================================================*/
 
 function deliverRange(opts){
-  // opts: { who?:string, args?:string[], mode?:'bundle'|'cal', dest?:'whisper'|'broadcast' }
   opts = opts || {};
   var args = opts.args || [];
 
-  var bundle = buildRangeBundle(args);
-  var html = (opts.mode === 'cal')
-    ? bundle.calHtml
-    : bundle.calHtml + '<div style="height:8px"></div>' + bundle.listHtml;
-
-  if (opts.dest === 'broadcast') return sendToAll(html);
-  return whisper(opts.who, html);
-}
-function buildRangeBundle(args){
   var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
   var calHtml = buildCalendarsHtmlForSpec(spec);
-  var ext = stripRangeExtensionDynamic(spec) || spec;
-  var forceYear = (Math.floor(ext.start/daysPerYear()) !== Math.floor(ext.end/daysPerYear()));
-  var listHtml = eventsListHTMLForRange(spec.title, ext.start, ext.end, forceYear);
-  return { spec:spec, calHtml:calHtml, listHtml:listHtml };
+  var html = calHtml;
+
+  if (opts.mode !== 'cal'){
+    var ext = stripRangeExtensionDynamic(spec) || spec;
+    var forceYear = (Math.floor(ext.start/daysPerYear()) !== Math.floor(ext.end/daysPerYear()));
+    var listHtml = eventsListHTMLForRange(spec.title, ext.start, ext.end, forceYear);
+    html = calHtml + '<div style="height:8px"></div>' + listHtml;
+  }
+
+  return (opts.dest === 'broadcast') ? sendToAll(html) : whisper(opts.who, html);
 }
 
 /* ============================================================================
  * 12) EVENTS LISTS
  * ==========================================================================*/
-// === Chronological listing helpers (dated first, then recurring) ============
-function _dayKeyAbsolute(e){
-  var y = (e.year|0), mi = ((+e.month||1)-1);
-  var ow = Parse.ordinalWeekday.fromSpec(e.day);
-  if (ow){
-    if (ow.ord === 'every') return _firstWeekdayOfMonth(y, mi, ow.wdi) || DaySpec.first(e.day);
-    return dayFromOrdinalWeekday(y, mi, ow) || DaySpec.first(e.day);
-  }
-  return DaySpec.first(e.day);
-}
-
-function _dayKeyRecurring(e, refYear){
-  var mi = ((+e.month||1)-1);
-  var ow = Parse.ordinalWeekday.fromSpec(e.day);
-  if (ow){
-    if (ow.ord === 'every') return _firstWeekdayOfMonth(refYear, mi, ow.wdi) || DaySpec.first(e.day);
-    return dayFromOrdinalWeekday(refYear, mi, ow) || DaySpec.first(e.day);
-  }
-  return DaySpec.first(e.day);
-}
-
-function _specExactLabel(e, includeYear){
-  var cal = getCal();
-  var mi  = ((+e.month||1)-1);
-  var monthName = cal.months[mi].name;
-  var daySpec = String(e.day);
-  var ow = Parse.ordinalWeekday.fromSpec(daySpec);
-  var core = ow ? (daySpec + ' of ' + monthName) : (monthName + ' ' + daySpec);
-  if (includeYear && e.year != null) core += ', ' + (e.year|0) + ' ' + LABELS.era;
-  return core;
-}
-
-function _splitAndSortForLists(){
-  var cal = getCal(), evs = cal.events || [];
-  var refY = cal.current.year|0;
-
-  var dated = evs.filter(function(e){ return e.year != null; }).slice();
-  var recur = evs.filter(function(e){ return e.year == null; }).slice();
-
-  dated.sort(function(a,b){
-    var ya=(a.year|0), yb=(b.year|0); if (ya!==yb) return ya - yb;
-    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
-    var da=_dayKeyAbsolute(a), db=_dayKeyAbsolute(b); if (da!==db) return da - db;
-    return String(a.name||'').localeCompare(String(b.name||''));
-  });
-
-  recur.sort(function(a,b){
-    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
-    var da=_dayKeyRecurring(a, refY), db=_dayKeyRecurring(b, refY); if (da!==db) return da - db;
-    return String(a.name||'').localeCompare(String(b.name||''));
-  });
-
-  return { dated:dated, recur:recur };
-}
-function manageEventsListHtml(){
-  var split = _splitAndSortForLists();
-  var dated = split.dated, recur = split.recur;
-
-  function section(title, arr, includeYear){
-    if (!arr.length){
-      return '<div style="margin-top:6px;font-weight:bold;">'+esc(title)+'</div><div style="opacity:.7;">None.</div>';
-    }
-
-    var head = '<tr>'
-      + '<th style="'+STYLES.th+'">#</th>'
-      + '<th style="'+STYLES.th+'">Event</th>'
-      + '<th style="'+STYLES.th+'">When (exact)</th>'
-      + '<th style="'+STYLES.th+'">Action</th>'
-      + '</tr>';
-
-    var rows = arr.map(function(e, i){
-      var sw   = swatchHtml(getEventColor(e));
-      var name = esc(eventDisplayName(e)); // shows (Source) when enabled
-      var when = esc(_specExactLabel(e, /*includeYear*/includeYear));
-      var key  = eventKey(e);
-      var rm   = button('Remove', 'remove key '+_encKey(key)); // default events become suppressed automatically
-      return '<tr>'
-        + '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'
-        + '<td style="'+STYLES.td+'">'+sw+name+'</td>'
-        + '<td style="'+STYLES.td+'">'+when+'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+rm+'</td>'
-        + '</tr>';
-    }).join('');
-
-    return '<div style="margin-top:6px;font-weight:bold;">'+esc(title)+'</div>'
-         + '<table style="'+STYLES.table+'">'+head+rows+'</table>';
-  }
-
-  var out = [];
-  out.push('<div style="margin:4px 0;"><b>Manage Events (chronological)</b></div>');
-  out.push(section('Dated (explicit year)', dated, true));
-  out.push(section('Recurring (annual / monthly)', recur, false));
-  out.push('<div style="opacity:.75;margin-top:6px;">Removing a default event will <i>hide/suppress</i> it; custom events are deleted.</div>');
-
-  // Append suppressed defaults (this already has Restore buttons + Restore All)
-  out.push('<div style="margin-top:10px;"></div>');
-  out.push(suppressedDefaultsListHtml());
-
-  return out.join('');
-}
-function removeMatchesListHtml(needle){
-  var q = String(needle||'').trim().toLowerCase();
-  if (!q) return '<div style="opacity:.7;">Provide a name fragment to search.</div>';
-
-  var evs = getCal().events || [];
-  var filtered = evs.filter(function(e){
-    return String(e.name||'').toLowerCase().indexOf(q) !== -1;
-  });
-  if (!filtered.length) return '<div style="opacity:.7;">No events matched “' + esc(needle) + '”.</div>';
-
-  // Split + sort
-  var refY = getCal().current.year|0;
-  var dated = filtered.filter(function(e){ return e.year!=null; }).slice();
-  var recur = filtered.filter(function(e){ return e.year==null; }).slice();
-
-  dated.sort(function(a,b){
-    var ya=(a.year|0), yb=(b.year|0); if (ya!==yb) return ya - yb;
-    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
-    var da=_dayKeyAbsolute(a), db=_dayKeyAbsolute(b); if (da!==db) return da - db;
-    return String(a.name||'').localeCompare(String(b.name||''));
-  });
-  recur.sort(function(a,b){
-    var am=(+a.month||1), bm=(+b.month||1); if (am!==bm) return am - bm;
-    var da=_dayKeyRecurring(a, refY), db=_dayKeyRecurring(b, refY); if (da!==db) return da - db;
-    return String(a.name||'').localeCompare(String(b.name||''));
-  });
-
-  function section(title, arr, includeYear){
-    if (!arr.length) return '';
-    var head = '<tr>'
-      + '<th style="'+STYLES.th+'">#</th>'
-      + '<th style="'+STYLES.th+'">Event</th>'
-      + '<th style="'+STYLES.th+'">When</th>'
-      + '<th style="'+STYLES.th+'">Action</th>'
-      + '</tr>';
-
-    var rows = arr.map(function(e, i){
-      var sw   = swatchHtml(getEventColor(e));
-      var name = esc(eventDisplayName(e));
-      var when = esc(_specExactLabel(e, includeYear));
-      var key  = eventKey(e);
-      var rm   = button('Remove', 'remove key '+_encKey(key));
-      return '<tr>'
-        + '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'
-        + '<td style="'+STYLES.td+'">'+sw+name+'</td>'
-        + '<td style="'+STYLES.td+'">'+when+'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+rm+'</td>'
-        + '</tr>';
-    }).join('');
-
-    return '<div style="margin-top:6px;font-weight:bold;">'+esc(title)+'</div>'
-         + '<table style="'+STYLES.table+'">'+head+rows+'</table>';
-  }
-
-  return '<div style="margin:4px 0;"><b>Manage Matches for “'+esc(needle)+'”</b></div>'
-       + section('Dated (explicit year)', dated, true)
-       + section('Recurring (annual / monthly)', recur, false)
-       + '<div style="opacity:.75;margin-top:6px;">Buttons use stable keys and remain valid after removals.</div>';
-}
 
 function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var st = ensureSettings();
@@ -2119,7 +1939,8 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   var groups = {}, order = [];
   for (var k=0;k<occ.length;k++){
     var o2 = occ[k];
-    var key = (o2.e && o2.e.source!=null) ? titleCase(String(o2.e.source)) : 'Other';
+    var src = (o2.e && typeof o2.e.source === 'string') ? o2.e.source.trim() : '';
+    var key = src ? titleCase(src) : 'Other';
     if (!groups[key]){ groups[key] = []; order.push(key); }
     groups[key].push(o2);
   }
@@ -2130,7 +1951,8 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
     var arr = groups[label];
     for (var j=0;j<arr.length;j++){
       var o3 = arr[j];
-      var name3 = eventDisplayName(o3.e);
+      var name3 = st.showSourceLabels ? (o3.e && o3.e.name ? String(o3.e.name) : '(unnamed event)')
+                                      : eventDisplayName(o3.e);
       out.push(eventLineHtml(o3.y, o3.m, o3.d, name3, includeYear, (o3.serial===today), getEventColor(o3.e)));
     }
   }
@@ -2150,12 +1972,24 @@ function currentDateLabel(){
 }
 
 function nextForDayOnly(cur, day, monthsLen){
-  var mdays = getCal().months[cur.month].days;
-  var d = clamp(day, 1, mdays);
-  if (cur.day_of_the_month <= d){ return { month: cur.month, year: cur.year }; }
-  var nm = (cur.month + 1) % monthsLen;
-  var ny = cur.year + ((nm===0)?1:0);
-  return { month: nm, year: ny };
+  var months = getCal().months;
+  var want = Math.max(1, day|0);
+  var m = cur.month, y = cur.year;
+
+  // If current month has the day and it's today or later → use current month
+  if (want <= (months[m].days|0) && cur.day_of_the_month <= want) {
+    return { month: m, year: y };
+  }
+
+  // Otherwise step forward until we find a month that has the requested day
+  for (var i = 0; i < monthsLen * 2; i++){ // safety
+    m = (m + 1) % monthsLen;
+    if (m === 0) y++;
+    if (want <= (months[m].days|0)) return { month: m, year: y };
+  }
+  // Fallback (shouldn't happen): next month
+  m = (cur.month + 1) % monthsLen; y += (m === 0 ? 1 : 0);
+  return { month: m, year: y };
 }
 
 function nextForMonthDay(cur, mIndex, d){
@@ -2821,8 +2655,9 @@ function helpEventsMenu(m){
     return whisper(m.who, '<div style="opacity:.7;">Only the GM can manage events.</div><div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
   }
   var rows = [
-    _menuBox('Lists / Manage',
-      mbP(m,'Manage Events','list')
+    _menuBox('Lists',
+      mbP(m,'All (meta)','list')+' '+
+      mbP(m,'Remove List','remove list')
     ),
     _menuBox('Add (syntax only)',
       '<div style="opacity:.8">Type these in chat:</div>'+
@@ -2944,24 +2779,27 @@ function seasonSetListHtml(readOnly){
  * ==========================================================================*/
 
 // Sender helpers
-  function send(opts, html){
-    opts = opts || {};
-    var to = cleanWho(opts.to);
-    var prefix;
-    if (opts.broadcast){      prefix = '/direct ';
-    } else if (opts.gmOnly){  prefix = '/w gm ';
-    } else if (to){           prefix = '/w "' + to.replace(/"/g,'') + '" ';
-    } else {                  prefix = '/direct ';
-    }
-    sendChat(script_name, prefix + html);
-  }
+function send(opts, html){
+  opts = opts || {};
+  var to = cleanWho(opts.to);
+  var prefix;
+  if (opts.broadcast)      prefix = '/direct ';
+  else if (opts.gmOnly)    prefix = '/w gm ';
+  else if (to)             prefix = '/w "' + to + '" ';
+  else                     prefix = '/direct ';
+  sendChat(script_name, prefix + html);
+}
 
   function sendToAll(html){ send({ broadcast:true }, html); }
   function sendToGM(html){  send({ gmOnly:true }, html); }
   function whisper(to, html){ send({ to:to }, html); }
   function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
-  function cleanWho(who){ return String(who||'').replace(/\s+\(GM\)$/,'').trim(); }
-
+function cleanWho(who){
+  return String(who||'')
+    .replace(/\s+\(GM\)$/,'')
+    .replace(/["\\]/g,'')
+    .trim();
+}
 function _normalizePackedWords(q){
   return String(q||'')
     .replace(/\b(nextmonth)\b/gi, 'next month')
@@ -2982,13 +2820,11 @@ function _normalizePackedWords(q){
 }
 
 
-// Helper so top-level shortcuts and the "events" namespace share logic.
 function runEventsShortcut(m, a, sub){
   var args = a.slice(2);
-  var cfg = EVENT_SUB[sub] || EVENT_SUB.list;
-  if (cfg.usage && args.length === 0){ return usage(cfg.usage, m); }
-  return cfg.run(m, args);
+  return invokeEventSub(m, String(sub||'list').toLowerCase(), args);
 }
+
 function usage(key, m){ whisper(m.who, USAGE[key]); }
 
 var USAGE = {
@@ -2998,27 +2834,32 @@ var USAGE = {
   'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)'
 };
 
+function invokeEventSub(m, sub, args){
+  var cfg = EVENT_SUB[sub];
+  if (!cfg) return whisper(m.who, 'Unknown events subcommand. Try: add | remove | restore | list');
+  if (cfg.usage && (!args || args.length === 0)) return usage(cfg.usage, m);
+  return cfg.run(m, args || []);
+}
+
 var EVENT_SUB = {
   add: {
-    gm: true,
     usage: 'events.add',
     run: function(m, args){ addEventSmart(args); }
   },
   remove: {
-    gm: true,
     usage: 'events.remove',
     run: function(m, args){
-      var sub = (args[0] || '').toLowerCase();
-      if (sub === 'list' || args.length === 0){
-        whisper(m.who, manageEventsListHtml());
-        return;
+      if (!args || !args.length) { whisper(m.who, removeListHtml()); return; } // ← add this
+      var sub = String(args[0]||'').toLowerCase();
+      if (sub === 'list') {
+        if (args.length === 1) { whisper(m.who, removeListHtml()); return; }
+        return usage('events.remove', m);
       }
-      if (sub === 'key'){ removeEvent(args.join(' ')); return; }
+      if (sub === 'key') { removeEvent(args.join(' ')); return; }
       whisper(m.who, removeMatchesListHtml(args.join(' ')));
     }
   },
   restore: {
-    gm: true,
     usage: 'events.restore',
     run: function(m, args){
       if ((args[0] || '').toLowerCase() === 'list'){
@@ -3029,9 +2870,8 @@ var EVENT_SUB = {
     }
   },
   list: {
-    usage: 'events.list',
-    gm: true,
-    run: function(m){ whisper(m.who, manageEventsListHtml()); }
+    usage: null,
+    run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
   }
 };
 
@@ -3094,18 +2934,19 @@ var commands = {
     whisper(m.who,'Setting updated.');
   }},
 
-  events:  { gm:true, run:function(m, a){
-    var args = a.slice(2);
-    var sub = (args.shift() || 'list').toLowerCase();
-    if (sub === 'list') { runEventsShortcut(m, a, 'list'); return; }
-    var cfg = EVENT_SUB[sub] || EVENT_SUB.list;
-    return cfg.run(m, args);
+  events: { gm:true, run:function(m, a){
+  var args = a.slice(2);
+  var sub  = (args.shift() || 'list').toLowerCase();
+  return invokeEventSub(m, sub, args);
   }},
 
   // Aliases
-  list:    { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'list'); } },
   add:     { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'add'); } },
-  remove:  { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'remove'); } },
+  remove: { gm:true, run:function(m,a){
+    var args = a.slice(2);
+    if (!args.length) { whisper(m.who, removeListHtml()); return; }
+    return invokeEventSub(m,'remove', args);
+  }},
   restore: { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'restore'); } },
 
   addmonthly: { gm:true, run:function(m,a){ addMonthlySmart(a.slice(2)); } },
@@ -3238,8 +3079,8 @@ var commands = {
     var disabled = !!suppressedSources[k];
     var status = disabled ? 'Disabled' : 'Enabled';
     var actionbutton = disabled
-      ? button('Enable',  'source enable '  + label, {variant:'success'})
-      : button('Disable', 'source disable ' + label, {variant:'danger'});
+      ? button('Enable',  'source enable '  + label)
+      : button('Disable', 'source disable ' + label);
     return '<tr>'
       + '<td style="'+STYLES.td+'">'+esc(label)+'</td>'
       + '<td style="'+STYLES.td+';text-align:center;">'+status+'</td>'
@@ -3312,7 +3153,7 @@ function handleInput(msg){
   var cmd = commands[sub] || commands[''];
   if (typeof cmd === 'function'){ cmd(msg, args); return; }
   if (cmd.gm && !playerIsGM(msg.playerid)){
-    whisper((msg.who||'').replace(/\s+\(GM\)$/,''), LABELS.gmOnlyNotice);
+    whisper(cleanWho(msg.who), LABELS.gmOnlyNotice);
     return;
   }
   cmd.run(msg, args);
@@ -3342,5 +3183,4 @@ return {
   events: eventsAPI,
   colors: colorsAPI
 };
-
 })();
