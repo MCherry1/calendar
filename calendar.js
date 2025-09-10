@@ -2516,29 +2516,66 @@ sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?
  * 15) THEMES, NAMES, SOURCES
  * ==========================================================================*/
 
+
+function _applyRow(label, previewHtml, isCurrent, readOnly, cmd){
+  var cur = isCurrent ? ' <span style="opacity:.7">(current)</span>' : '';
+  var btn = (readOnly || isCurrent) ? '' : (' '+button('Apply', cmd+' '+label));
+  return '<div style="margin:4px 0;">'+previewHtml+' '+esc(label)+cur+btn+'</div>';
+}
+
+function _orderedKeys(obj, preferred){
+  var ks = Object.keys(obj), seen = {}, out = [];
+  if (preferred && preferred.length){
+    for (var i=0;i<preferred.length;i++){ var k=preferred[i]; if (ks.indexOf(k)!==-1 && !seen[k]){ out.push(k); seen[k]=1; } }
+  }
+  ks.sort().forEach(function(k){ if (!seen[k]) out.push(k); });
+  return out;
+}
+
+// Example usage:
+// var names = _orderedKeys(COLOR_THEMES, ['lunar','seasons','druidic','dwarven','halfling','birthstones']);
+// var names = _orderedKeys(MONTH_NAME_SETS, ['eberron','druidic','dwarven','halfling','gregorian']);
+
+
 function themeListHtml(readOnly){
-  var names = Object.keys(COLOR_THEMES).sort();
+  var cur = ensureSettings().colorTheme;
+  var names = Object.keys(COLOR_THEMES).sort(); // alphabetical by key; see note below to control order
   if(!names.length) return '<div style="opacity:.7;">No themes available.</div>';
+
   var rows = names.map(function(n){
+    var label = titleCase(n);
+    var head = readOnly
+      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
+      : button('Set '+label+':', 'theme '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
+
     var swatches = (COLOR_THEMES[n]||[]).slice(0,12).map(function(c){
       return '<span title="'+esc(c)+'" style="display:inline-block;width:12px;height:12px;border:1px solid #000;margin-right:2px;background:'+esc(c)+';"></span>';
     }).join('');
-    var apply = readOnly ? '' : (' '+button('Apply', 'theme '+n));
-    return '<div style="margin:4px 0;">'+swatches+' '+esc(n)+apply+'</div>';
+
+    return '<div style="margin:6px 0;">'+ head + '<br>' + swatches + '<br></div>';
   });
-  return '<div style="margin:4px 0;"><b>Color Themes</b></div>'+rows.join('');
+
+  return '<div style="margin:4px 0;"><b>Color Themes</b></div>' + rows.join('');
 }
 
 function namesListHtml(readOnly){
-  var names = Object.keys(MONTH_NAME_SETS).sort();
+  var cur = ensureSettings().monthSet;
+  var names = Object.keys(MONTH_NAME_SETS).sort(); // alphabetical by key; see note below to control order
   if(!names.length) return '<div style="opacity:.7;">No name sets available.</div>';
+
   var rows = names.map(function(n){
-    var prev = (MONTH_NAME_SETS[n]||[]).map(esc).join(', ');
-    var apply = readOnly ? '' : (' — '+button('Apply', 'names '+n));
-    return '<div style="margin:4px 0;"><div style="margin-bottom:2px;"><b>'+esc(n)+'</b>'+apply+'</div><div style="opacity:.85;">'+prev+'</div></div>';
+    var label = titleCase(n);
+    var head = readOnly
+      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
+      : button('Set '+label+':', 'names '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
+
+    var preview = (MONTH_NAME_SETS[n]||[]).map(esc).join(', ');
+    return '<div style="margin:6px 0;">'+ head + '<br><div style="opacity:.85;">'+preview+'</div><br></div>';
   });
-  return '<div style="margin:4px 0;"><b>Month Name Sets</b></div>'+rows.join('');
+
+  return '<div style="margin:4px 0;"><b>Month Name Sets</b></div>' + rows.join('');
 }
+
 
 function colorsNamedListHtml(){
   var items = Object.keys(NAMED_COLORS);
