@@ -3054,7 +3054,6 @@ var commands = {
     whisper(m.who, 'Season set applied: <b>'+esc(sub)+'</b>.');
   }},
 
-
   // Sources (GM)
   source: { gm:true, run: function(m, a){
     var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
