@@ -14,27 +14,13 @@ var Calendar = (function(){
 var script_name = 'Calendar';
 var state_name  = 'CALENDAR';
 
-var WEEKDAY_NAME_SETS = {
-  eberron:  ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
-  gregorian:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
-};
-
-var _SEASONS_NORTHERN = [
-  "Mid-winter","Late winter","Early spring","Mid-spring","Late spring","Early summer",
-  "Mid-summer","Late summer","Early autumn","Mid-autumn","Late autumn","Early winter"
-];
-
-var SEASON_SETS = {
-  northern: _SEASONS_NORTHERN.slice(),
-  southern: _SEASONS_NORTHERN.slice(6).concat(_SEASONS_NORTHERN.slice(0,6)), // rotate 6
-  tropic:   ["Dry","Dry","Dry","Dry","Rainy","Rainy","Rainy","Rainy","Rainy","Rainy","Dry","Dry"]
-};
 
 
 
 // === THEME & NAME SETS ====================================================
 
 // Eberron month names. Sets do not change month length or event dates.
+var MONTH_SET_ORDER = ['eberron','druidic','halfling','dwarven','gregorian'];
 var MONTH_NAME_SETS = {
   eberron: [
     "Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm",
@@ -46,14 +32,14 @@ var MONTH_NAME_SETS = {
     "Glitterstream","Havenwild","Stormborn","Harrowfall","Silvermoon","Windwhisper"
   ],
 
-  dwarven: [
-    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",
-    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"
-  ],
-
   halfling: [
     "Fang","Wind","Ash","Hunt","Song","Dust",
     "Claw","Blood","Horn","Heart","Spirit","Smoke"
+  ],
+
+  dwarven: [
+    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",
+    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"
   ],
 
   gregorian: [
@@ -62,22 +48,22 @@ var MONTH_NAME_SETS = {
   ]
 };
 
-var COLOR_THEMES = {
-    lunar: [ // from Dragonshards article on Moons of Eberron
-    "#F5F5FA", // pearly white
-    "#FFC68A", // pale orange
-    "#D3D3D3", // pale gray
-    "#C0C0C0", // silver-gray
-    "#E6E6FA", // pale lavender
-    "#FFD96B", // pale yellow
-    "#F5F5F5", // dull white with black slit
-    "#DCDCDC", // pale gray
-    "#9AC0FF", // pale blue
-    "#696969", // smoky gray
-    "#FF4500", // orange-red
-    "#A9A9A9"  // gray and pockmarked
-  ],
+var WEEKDAY_NAME_SETS = {
+  eberron:  ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
+  gregorian:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+};
 
+// We automatically truncate weekday names to 3 letters, so this gregorian set is technically redundant.
+// But it's here to let you know that it exists, in case you want to customize it.
+var WEEKDAY_ABBR_OVERRIDES = {
+  gregorian: {
+    Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
+    Thursday:'Thu', Friday:'Fri', Saturday:'Sat'
+  }
+};
+
+var THEME_ORDER  = ['seasons','lunar','druidic','halfling','dwarven','birthstones']; // order they appear in menu
+var COLOR_THEMES = {
   seasons: [ // generic seasonal palette
     "#FFFFFF", // snow white
     "#CBD5E1", // overcast gray
@@ -91,6 +77,21 @@ var COLOR_THEMES = {
     "#FF7518", // pumpkin orange 
     "#8B5A2B", // stick brown 
     "#475569" // storm gray
+  ],
+
+  lunar: [ // from Dragonshards article on Moons of Eberron
+    "#F5F5FA", // pearly white
+    "#FFC68A", // pale orange
+    "#D3D3D3", // pale gray
+    "#C0C0C0", // silver-gray
+    "#E6E6FA", // pale lavender
+    "#FFD96B", // pale yellow
+    "#F5F5F5", // dull white with black slit
+    "#DCDCDC", // pale gray
+    "#9AC0FF", // pale blue
+    "#696969", // smoky gray
+    "#FF4500", // orange-red
+    "#A9A9A9"  // gray and pockmarked
   ],
 
   druidic: [ // inspired by Druidic month names
@@ -108,22 +109,6 @@ var COLOR_THEMES = {
     "#E8EDF2"  // Windwhisper — wispy light gray
   ],
 
-
-  dwarven: [ // inspired by Dwarven themes
-    "#E6F7FF", // diamond
-    "#E5E4E2", // platinum
-    "#50C878", // emerald
-    "#F7CAC9", // rose quartz
-    "#9966CC", // amethyst
-    "#FFD700", // gold
-    "#149174", // jade
-    "#0F52BA", // sapphire
-    "#FF6A00", // fire opal
-    "#CD7F32", // bronze
-    "#C0C0C0", // silver
-    "#DDEAF7"  // mithril
-  ],
-
   halfling: [ // inspired by Halfling month names
     "#E8EEF3", // Fang — cold bone white
     "#BDE0FE", // Wind — airy sky blue
@@ -137,6 +122,21 @@ var COLOR_THEMES = {
     "#8E3B46", // Heart — rosewood/mahogany
     "#C7C3E3", // Spirit — moonlit violet
     "#6B7280"  // Smoke — slate/charcoal, wintering back
+  ],
+
+  dwarven: [ // story of the ages
+    "#0D0D0D", // Darkness
+    "#2F343B", // Stone
+    "#7A4E1D", // Bronze
+    "#7F8999", // Iron
+    "#C0C0C0", // Silver
+    "#FFB11B", // Gold
+    "#E5E4E2", // Platinum
+    "#0A3A8C", // Sapphire
+    "#064E3B", // Emerald
+    "#FF7518", // Mandarin Garnet (Halloween)
+    "#C21807", // Ruby
+    "#DDEAF7"  // Mithril
   ],
 
   birthstones: [ // mix of traditional and modern birthstone colors for wide palette
@@ -161,6 +161,17 @@ var NAMESET_TO_THEME = {
   dwarven:  'dwarven',
   halfling: 'halfling',
   gregorian:'birthstones'
+};
+
+var _SEASONS_NORTHERN = [
+  "Mid-winter","Late winter","Early spring","Mid-spring","Late spring","Early summer",
+  "Mid-summer","Late summer","Early autumn","Mid-autumn","Late autumn","Early winter"
+];
+
+var SEASON_SETS = { // we don't use these yet
+  northern: _SEASONS_NORTHERN.slice(),
+  southern: _SEASONS_NORTHERN.slice(6).concat(_SEASONS_NORTHERN.slice(0,6)), // rotate 6
+  tropic:   ["Dry","Dry","Dry","Dry","Rainy","Rainy","Rainy","Rainy","Rainy","Rainy","Dry","Dry"]
 };
 
 // Labels & styles
@@ -189,7 +200,7 @@ var DEFAULT_EVENT_SOURCES = {
     { name: "Tain Gala",               month: "all",  day: "first far", color: "#F7E7CE" }, // champagne 
     { name: "Crystalfall",             month: 2,      day: 9,           color: "#D7F3FF" }, // crystal blue
     { name: "Day of Ashes",            month: 5,      day: 3,           color: "#B0BEC5" }, // ash gray
-    { name: "The Race of Eight Winds", month: 7,      day: 23,          color: "#004225" }  // racing green
+    { name: "The Race of Eight Winds", month: 7,      day: 23,          color: "#006D3C" }  // racing green
   ],
 
   khorvaire: [
@@ -200,7 +211,7 @@ var DEFAULT_EVENT_SOURCES = {
 
   "sovereign host": [
     { name: "Onatar's Flame",     month: 1,  day: 7,   color: "#FF6F00" }, // forge-orange, closer to glowing metal (Onatar)
-    { name: "Turrant's Gift",     month: 2,  day: 14,  color: "#FBC02D" }, // bright coin-gold, a merchant’s shine (Kol Korran / Three Faces)
+    { name: "Turrant's Gift",     month: 2,  day: 14,  color: "#B8860B" }, // old coin-gold, (Kol Korran / Three Faces)
     { name: "Olladra's Feast",    month: 2,  day: 28,  color: "#8BC34A" }, // lucky clover green, prosperity & chance (Olladra)
     { name: "Sun's Blessing",     month: 3,  day: 15,  color: "#FFC107" }, // radiant sunlight yellow (Dol Arrah)
     { name: "Aureon's Crown",     month: 5,  day: 26,  color: "#283593" }, // deep indigo/blue, scholarly authority (Aureon)
@@ -214,7 +225,7 @@ var DEFAULT_EVENT_SOURCES = {
 
   "dark six": [
     { name: "Shargon's Bargain",       month: 4,   day: 13,       color: "#006064" }, // stormy ocean blue (The Devourer)
-    { name: "Second Skin",             month: 6,   day: 11,       color: "#AEEA00" }, // venom green (The Mockery)
+    { name: "Second Skin",             month: 6,   day: 11,       color: "#809E62" }, // venom green (The Mockery)
     { name: "Wildnight",               month: 10,  day: "18-19",  color: "#AD1457" }, // passion red (The Fury)
     { name: "Long Shadows",            month: 12,  day: "26-28",  color: "#0D0D0D" }  // abyssal black (The Shadow)
   ],
@@ -236,14 +247,13 @@ var DEFAULT_EVENT_SOURCES = {
     { name: "Khybersef",               month: 12,    day: 27,         color: "#111827" }, // deep night
     { name: "Day of Cleansing Fire",   month: "all", day: "all sul",  color: "#F2F7FF" }  // white flame
   ],
-/*
+
   stormreach: [
-    { name: "The Burning Titan",       month: "varies", day: "varies",  color: "#E53935" }, // festival red
-    { name: "Pirate's Moon",           month: "varies", day: "varies",  color: "#0D47A1" }, // deep navy
-    { name: "The Annual Games",        month: "varies", day: "varies",  color: "#43A047" }, // laurels green
-    { name: "Shacklebreak",            month: "varies", day: "varies",  color: "#607D8B" }  // chainsteel blue-gray
+    { name: "The Burning Titan",       month: 3,  day: 1,       color: "#FF5722" }, // ember red
+    { name: "Pirate's Moon",           month: 5,  day: 20,      color: "#0E7490" }, // moonlit seas
+    { name: "The Annual Games",        month: 6,  day: "1-14",  color: "#2E7D32" }, // laurels green
+    { name: "Shacklebreak",            month: 11, day: 1,       color: "#455A64" }  // steel chains
   ]
-*/
 };
 
 function _flattenSources(map){
@@ -265,7 +275,7 @@ function _flattenSources(map){
 var defaults = {
   current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 },  // starting date: 1 Zarantyr, 998 YK
   // days per month
-  // intercalery days (like Forgotten Realms' Shieldmeet) are not supported (yet)
+  // intercalary days (like Forgotten Realms' Shieldmeet) are not supported (yet)
   // leap years are not supported (yet)
   months: [   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28  ],
           //  1st,  2nd,  3rd,  4th, 5th,   6th,  7th,  8th,  9th,  10th, 11th, 12th
@@ -1288,19 +1298,37 @@ function navP(m, label, page, opts){
 }
 
 // Building blocks for month table
-function openMonthTable(mi, yearLabel){
+function weekdayAbbr(name, setName){
+  var set = String(setName || ensureSettings().weekdaySet || '').toLowerCase();
+  var map = WEEKDAY_ABBR_OVERRIDES[set];
+  if (map && map[name] != null) return map[name];
+  var s = String(name || '').trim();
+  return (s.length <= 3) ? s : s.slice(0,3); // sane default
+}
+function weekday_name_abbr(name){ return weekdayAbbr(name); }
+
+// 4) Helper to get labels for headers
+function weekdayHeaderLabels(useAbbr){
+  var cal = getCal();
+  var set = ensureSettings().weekdaySet;
+  return cal.weekdays.map(function(n){ return useAbbr ? weekdayAbbr(n, set) : n; });
+}
+
+function openMonthTable(mi, yearLabel, abbrHeaders){
   var cal = getCal(), cur = cal.current, mObj = cal.months[mi];
   var monthColor = colorForMonth(mi);
   var monthHeaderStyle = colorsAPI.styleMonthHeader(monthColor);
-  var wd = cal.weekdays;
+
+  var useAbbr = (abbrHeaders !== false); // default abbreviated
+  var wd = useAbbr ? weekdayHeaderLabels(true) : cal.weekdays;
 
   var head = [
     '<table style="'+STYLES.table+'">',
     '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">',
     '<div style="'+STYLES.monthHeaderBase+monthHeaderStyle+'">',
       esc(mObj.name),
-        '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
-      '</div>',
+      '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
+    '</div>',
     '</th></tr>',
     '<tr>'+ wd.map(function(d){ return '<th style="'+STYLES.th+'">'+esc(d)+'</th>'; }).join('') +'</tr>'
   ].join('');
@@ -1353,16 +1381,15 @@ function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
 }
 
-// opts: { year, mi, mode:'full'|'week', weekStartSerial?:number, dimPast?:boolean }
 function renderMonthTable(opts){
   var cal = getCal(), cur = cal.current;
-  var y   = (opts && typeof opts.year === 'number') ? (opts.year|0) : cur.year;
-  var mi  = (opts && typeof opts.mi   === 'number') ? (opts.mi|0)   : cur.month;
-  var mode    = (opts && opts.mode) || 'full';
-  var dimActive = !!(opts && opts.dimPast); // keep param name for minimal churn
+  var y  = (opts && typeof opts.year==='number') ? (opts.year|0) : cur.year;
+  var mi = (opts && typeof opts.mi  === 'number') ? (opts.mi|0)   : cur.month;
+  var mode = (opts && opts.mode) || 'full';
+  var dimActive = !!(opts && opts.dimPast);
 
   var mdays = cal.months[mi].days|0;
-  var parts = openMonthTable(mi, y);
+  var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false)); // default abbreviated
   var html  = [parts.html];
   var wdCnt = weekLength()|0;
 
@@ -1432,13 +1459,32 @@ function formatDateLabel(y, mi, d, includeYear){
 function monthEventsHtml(mi, today){
   var cal = getCal(), curYear = cal.current.year;
 
+  // Compute a real day key for sorting (handles ordinal weekdays + "every <weekday>")
+  function dayKey(e){
+    var ow = Parse.ordinalWeekday.fromSpec(e.day);
+    if (ow){
+      if (ow.ord === 'every'){
+        // First occurrence of that weekday in the month
+        var first = _firstWeekdayOfMonth(curYear, mi, ow.wdi);
+        return (first != null) ? first : 99;
+      }
+      var d = dayFromOrdinalWeekday(curYear, mi, ow);
+      return (d != null) ? d : 99; // fallback if a 5th doesn't exist, etc.
+    }
+    // Numeric or range like "18-19": use first day in the spec
+    return DaySpec.first(e.day);
+  }
+
   var evs = cal.events.filter(function(e){
     return ((+e.month||1)-1) === mi && (e.year == null || (e.year|0) === (curYear|0));
   }).sort(function(a,b){
-    var da = DaySpec.first(a.day), db = DaySpec.first(b.day);
+    var da = dayKey(a), db = dayKey(b);
     if (da !== db) return da - db;
+
+    // Specific-year events first, then perennial (keeps your existing behavior)
     var ay = (a.year==null)?1:0, by = (b.year==null)?1:0;
     if (ay !== by) return ay - by;
+
     return String(a.name||'').localeCompare(String(b.name||''));
   });
 
@@ -1461,7 +1507,6 @@ function monthEventsHtml(mi, today){
     return '<div'+style+'>'+swatch+' '+name+'</div>';
   }).join('');
 }
-
 
 function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
   var dateLbl = formatDateLabel(y, mi, d, includeYear);
@@ -1635,10 +1680,18 @@ function parseUnifiedRange(tokens){
  * 10) OCCURRENCES, BOUNDARY STRIPS & LISTS
  * ==========================================================================*/
 
+var RANGE_CAP_YEARS = null; // set to a number (e.g., 120) to cap; null = no cap
+
 function occurrencesInRange(startSerial, endSerial){
-  var cal=getCal(), dpy=daysPerYear(), capNotice=false;
-  var yStart=Math.floor(startSerial/dpy), yEnd=Math.floor(endSerial/dpy);
-  if (yEnd - yStart > 120){ yEnd = yStart + 120; capNotice=true; }
+  var cal = getCal(), dpy = daysPerYear();
+  var yStart = Math.floor(startSerial/dpy), yEnd = Math.floor(endSerial/dpy);
+
+  var capYears = (typeof RANGE_CAP_YEARS==='number' && RANGE_CAP_YEARS>0) ? RANGE_CAP_YEARS : null;
+  var capNotice = false;
+  if (capYears && (yEnd - yStart > capYears)){
+    yEnd = yStart + capYears;
+    capNotice = true;
+  }
 
   var occ = [];
   for (var i=0;i<cal.events.length;i++){
@@ -1669,7 +1722,7 @@ function occurrencesInRange(startSerial, endSerial){
   occ.sort(function(a,b){
     return (a.serial - b.serial) || (a.m - b.m) || (a.d - b.d);
   });
-  if (capNotice){ sendChat(script_name,'/w gm Range capped at 120 years for performance.'); }
+  if (capNotice){ sendChat(script_name,'/w gm Range capped at '+capYears+' years for performance.'); }
   return occ;
 }
 
@@ -2532,14 +2585,9 @@ function _orderedKeys(obj, preferred){
   return out;
 }
 
-// Example usage:
-// var names = _orderedKeys(COLOR_THEMES, ['lunar','seasons','druidic','dwarven','halfling','birthstones']);
-// var names = _orderedKeys(MONTH_NAME_SETS, ['eberron','druidic','dwarven','halfling','gregorian']);
-
-
 function themeListHtml(readOnly){
   var cur = ensureSettings().colorTheme;
-  var names = Object.keys(COLOR_THEMES).sort(); // alphabetical by key; see note below to control order
+  var names = _orderedKeys(COLOR_THEMES, THEME_ORDER);
   if(!names.length) return '<div style="opacity:.7;">No themes available.</div>';
 
   var rows = names.map(function(n){
@@ -2560,7 +2608,8 @@ function themeListHtml(readOnly){
 
 function namesListHtml(readOnly){
   var cur = ensureSettings().monthSet;
-  var names = Object.keys(MONTH_NAME_SETS).sort(); // alphabetical by key; see note below to control order
+  var names = _orderedKeys(MONTH_NAME_SETS, MONTH_SET_ORDER);
+
   if(!names.length) return '<div style="opacity:.7;">No name sets available.</div>';
 
   var rows = names.map(function(n){
@@ -2789,24 +2838,38 @@ function helpMaintMenu(m){
 }
 
 function weekdayListHtml(readOnly){
-  var names = Object.keys(WEEKDAY_NAME_SETS).sort();
+  var cur = ensureSettings().weekdaySet;
+  var names = _orderedKeys(WEEKDAY_NAME_SETS, ['eberron','gregorian']); // curated order
   if(!names.length) return '<div style="opacity:.7;">No weekday sets.</div>';
+
   var rows = names.map(function(n){
-    var prev = (WEEKDAY_NAME_SETS[n]||[]).map(esc).join(', ');
-    var apply = readOnly ? '' : (' — '+button('Apply','weekdays '+n));
-    return '<div style="margin:4px 0;"><div style="margin-bottom:2px;"><b>'+esc(n)+'</b>'+apply+'</div><div style="opacity:.85;">'+prev+'</div></div>';
+    var label = titleCase(n);
+    var head = readOnly
+      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
+      : button('Set '+label+':', 'weekdays '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
+
+    var preview = (WEEKDAY_NAME_SETS[n]||[]).map(esc).join(', ');
+    return '<div style="margin:6px 0;">'+ head + '<br><div style="opacity:.85;">'+preview+'</div><br></div>';
   });
+
   return '<div style="margin:4px 0;"><b>Weekday Name Sets</b></div>'+rows.join('');
 }
 
 function seasonSetListHtml(readOnly){
-  var names = Object.keys(SEASON_SETS).sort();
+  var cur = ensureSettings().seasonSet;
+  var names = _orderedKeys(SEASON_SETS, ['northern','southern','tropic']); // curated order
   if(!names.length) return '<div style="opacity:.7;">No season sets.</div>';
+
   var rows = names.map(function(n){
-    var prev = (SEASON_SETS[n]||[]).map(esc).join(', ');
-    var apply = readOnly ? '' : (' — '+button('Apply','seasons '+n));
-    return '<div style="margin:4px 0;"><div style="margin-bottom:2px;"><b>'+esc(n)+'</b>'+apply+'</div><div style="opacity:.85;">'+prev+'</div></div>';
+    var label = titleCase(n);
+    var head = readOnly
+      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
+      : button('Set '+label+':', 'seasons '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
+
+    var preview = (SEASON_SETS[n]||[]).map(esc).join(', ');
+    return '<div style="margin:6px 0;">'+ head + '<br><div style="opacity:.85;">'+preview+'</div><br></div>';
   });
+
   return '<div style="margin:4px 0;"><b>Season Sets</b></div>'+rows.join('');
 }
 
