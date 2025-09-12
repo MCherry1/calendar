@@ -2665,48 +2665,66 @@ function gmButtonsHtml(){
 function helpRootMenu(m){
   var rows = [];
   rows.push(_menuBox('Display',
-    navP(m,'Current','display')+' '+
-    navP(m,'Months','display')+' '+
-    navP(m,'Years','display')
+    mbP(m,'Current','show month')+'<br>' +
+    navP(m,'Months','display-months')+'<br>'+
+    navP(m,'Years','display-years')
   ));
 
   if (playerIsGM(m.playerid)){
     rows.push(_menuBox('Step',      navP(m,'Advance/Retreat','step')));
-    rows.push(_menuBox('Events',    navP(m,'Manage','events')+' '+navP(m,'Defaults','defaults')+' '+navP(m,'Sources','sources')));
-    rows.push(_menuBox('Themes & Names',
-      navP(m,'Themes','themes')+' '+
-      navP(m,'Month Names','names')+' '+
-      navP(m,'Weekday Names','weekdays')+' '+
-      navP(m,'Season Sets','seasons')+' '+
-      navP(m,'Colors','colors')
+    rows.push(_menuBox('Events',
+      navP(m,'Manage','events')+'<br>'+
+      navP(m,'Defaults','defaults')+'<br>'+
+      navP(m,'Sources','sources')+'<br>'+
+      navP(m,'Colors','eventcolors')
     ));
-    rows.push(_menuBox('Settings',  navP(m,'Settings','settings')));
-    rows.push(_menuBox('Maintenance', navP(m,'Maintenance','maint')));
+    rows.push(_menuBox('Themes & Names',
+      navP(m,'Themes','themes')+'<br>'+
+      navP(m,'Month Names','names')+'<br>'+
+      navP(m,'Weekday Names','weekdays')+'<br>'+
+      navP(m,'Season Sets','seasons')
+    ));
+    rows.push(_menuBox('Settings',    navP(m,'Settings','settings')));
+    rows.push(_menuBox('Admin', navP(m,'Maintenance','maint')));
   }
   whisper(m.who, rows.join(''));
 }
 
-function helpDisplayMenu(m){
-  var monthPart =
-    _menuBox('Months (show/send)',
-      mbP(m,'Show: Current','show month')+' '+
-      mbP(m,'Show: Next','show next month')+' '+
-      mbP(m,'Show: Previous','show previous month')+'<br>'+
-      mbP(m,'Send: Current','send month')+' '+
-      mbP(m,'Send: Next','send next month')+' '+
-      mbP(m,'Send: Previous','send previous month')
-    );
-  var yearPart =
-    _menuBox('Years (show/send)',
-      mbP(m,'Show: Current','show year')+' '+
-      mbP(m,'Show: Next','show next year')+' '+
-      mbP(m,'Show: Previous','show previous year')+'<br>'+
-      mbP(m,'Send: Current','send year')+' '+
-      mbP(m,'Send: Next','send next year')+' '+
-      mbP(m,'Send: Previous','send previous year')
-    );
-  var back = '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
-  whisper(m.who, monthPart + yearPart + back);
+function helpDisplayCurrent(m){
+  sendCurrentDate(m.who, false);
+  if (typeof sendGMButtons === 'function') sendGMButtons(m);
+}
+
+function helpDisplayMonthsMenu(m){
+  var box =
+    _menuBox('Months Displays',
+      '<div style="margin:2px 0;opacity:.85;">Show to Self:</div>'+
+      mbP(m,'Current','show month')+'<br>'+
+      mbP(m,'Previous','show previous month')+' '+
+      mbP(m,'Next','show next month')+'<br>'+
+      '<div style="margin:2px 0;opacity:.85;">Send to Chat:</div>'+
+      mbP(m,'Current','send month')+'<br>'+
+      mbP(m,'Previous','send previous month')+'<br>'+
+      mbP(m,'Next','send next month')
+    ) +
+    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
+  whisper(m.who, box);
+}
+
+function helpDisplayYearsMenu(m){
+  var box =
+    _menuBox('Year Views',
+      '<div style="margin:2px 0;opacity:.85;">Show (self):</div>'+
+      mbP(m,'Current','show year')+'<br>'+
+      mbP(m,'Previous','show previous year')+' '+
+      mbP(m,'Next','show next year')+'<br><br>'+
+      '<div style="margin:2px 0;opacity:.85;">Send (to chat):</div>'+
+      mbP(m,'Current','send year')+'<br>'+
+      mbP(m,'Previous','send previous year')+' '+
+      mbP(m,'Next','send next year')
+    ) +
+    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
+  whisper(m.who, box);
 }
 
 function helpStepMenu(m){
@@ -2806,9 +2824,22 @@ function helpSeasonsMenu(m){
   whisper(m.who, _menuBox(ro ? 'Season Sets (view only)' : 'Season Sets', seasonSetListHtml(ro)) + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
 }
 
-function helpColorsMenu(m){
-  whisper(m.who, _menuBox('Named Colors', colorsNamedListHtml()) + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+function helpEventColorsMenu(m){
+  var intro = [
+    '<div style="opacity:.85;margin-bottom:6px;">',
+    'These are the available <b>named colors for events</b>. ',
+    'Any hex (<code>#RRGGBB</code>) is supported, but these names can be used directly. ',
+    'Example: <code>!cal add March 14 Feast emerald</code> or ',
+    '<code>!cal add 3 14 Feast #50C878</code>.',
+    '</div>'
+  ].join('');
+
+  var body = _menuBox('Event Colors', intro + colorsNamedListHtml())
+           + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','events')+'</div>';
+
+  whisper(m.who, body);
 }
+
 
 function helpSettingsMenu(m){
   if (!playerIsGM(m.playerid)){
@@ -3000,25 +3031,32 @@ var commands = {
     sendGMButtons(m);
   },
 
-  help: function(m, a){
-    var page = String(a[2]||'').toLowerCase();
-    switch(page){
-      case 'display':  return helpDisplayMenu(m);
-      case 'step':     return helpStepMenu(m);
-      case 'events':   return helpEventsMenu(m);
-      case 'defaults': return helpDefaultsMenu(m);
-      case 'sources':  return helpSourcesMenu(m);
-      case 'themes':   return helpThemesMenu(m);
-      case 'names':    return helpNamesMenu(m);
-      case 'colors':   return helpColorsMenu(m);
-      case 'weekdays': return helpWeekdaysMenu(m);
-      case 'seasons':  return helpSeasonsMenu(m);
-      case 'settings': return helpSettingsMenu(m);
-      case 'maint':    return helpMaintMenu(m);
-      case 'root':
-      default:         return helpRootMenu(m);
-    }
-  },
+help: function(m, a) {
+  var page = String(a[2]||'').toLowerCase();
+  switch(page){
+    case 'display-current': return helpDisplayCurrent(m);
+    case 'display-months': return helpDisplayMonthsMenu(m);
+    case 'display-years':  return helpDisplayYearsMenu(m);
+
+    case 'eventcolors':    return helpEventColorsMenu(m);
+
+    case 'display':        return helpDisplayMonthsMenu(m); // optional default
+
+    case 'step':     return helpStepMenu(m);
+    case 'events':   return helpEventsMenu(m);
+    case 'defaults': return helpDefaultsMenu(m);
+    case 'sources':  return helpSourcesMenu(m);
+    case 'themes':   return helpThemesMenu(m);
+    case 'names':    return helpNamesMenu(m);
+    case 'weekdays': return helpWeekdaysMenu(m);
+    case 'seasons':  return helpSeasonsMenu(m);
+    case 'settings': return helpSettingsMenu(m);
+    case 'maint':    return helpMaintMenu(m);
+    case 'root':
+    default:         return helpRootMenu(m);
+  }
+},
+
 
   // Settings (GM)
   settings: { gm:true, run:function(m,a){
