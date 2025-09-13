@@ -2627,14 +2627,15 @@ function namesListHtml(readOnly){
 
 
 function colorsNamedListHtml(){
-  var items = Object.keys(NAMED_COLORS);
+  var items = Object.keys(NAMED_COLORS); // preserve insertion order
   if(!items.length) return '<div style="opacity:.7;">No named colors.</div>';
-  items.sort();
+
   var rows = items.map(function(k){
     var c = NAMED_COLORS[k];
     return '<div style="margin:2px 0;">'+swatchHtml(c)+' <code>'+esc(k)+'</code> — '+esc(c)+'</div>';
-  });
-  return '<div style="margin:4px 0;"><b>Named Colors</b></div>'+rows.join('');
+  }).join('');
+
+  return '<div style="margin:4px 0;"><b>Named Colors</b></div>'+rows;
 }
 
 /* ============================================================================
@@ -2661,9 +2662,55 @@ function gmButtonsHtml(){
   ].join('');
 }
 
+function helpStatusSummaryHtml(){
+  var cal = getCal();
+  var st  = ensureSettings();
+
+  // Current date (same phrasing you use elsewhere)
+  var curDate = esc(currentDateLabel());
+
+  // Weekday set (numbered)
+  var weekdaySetName = titleCase(st.weekdaySet || '');
+  var weekdayLine = cal.weekdays.map(function(w, i){
+    return (i+1) + '. ' + esc(w);
+  }).join(', ');
+
+  // Months + seasons (with month color swatch)
+  var monthSetName   = titleCase(st.monthSet   || '');
+  var seasonSetName  = titleCase(st.seasonSet  || '');
+  var monthsLines = cal.months.map(function(m, i){
+    var sw = swatchHtml(colorForMonth(i));
+    var season = esc(m.season || '');
+    return (i+1) + ': ' + sw + ' ' + esc(m.name) + (season ? ' ('+season+')' : '');
+  }).join('<br>');
+
+  // Color theme
+  var themeName = titleCase(st.colorTheme || '');
+
+  // Structure: days/month, days/year, week length
+  var mdCounts = cal.months.map(function(m){ return (m.days|0) || 0; });
+  var allSame = mdCounts.every(function(d){ return d === mdCounts[0]; });
+  var dpy = daysPerYear();
+  var wlen = weekLength();
+  var structLine = allSame
+    ? (cal.months.length + '×' + mdCounts[0] + ' days = ' + dpy + ' days/year; ' + wlen + '-day weeks')
+    : (cal.months.length + ' months, ' + dpy + ' days/year; ' + wlen + '-day weeks');
+    
+  return _menuBox('Status',
+    '<div><b>Current date:</b> ' + curDate + '</div>' +
+    '<div style="margin-top:6px;"><b>Current weekday set:</b> ' + esc(weekdaySetName) + ' (' + cal.weekdays.length + ' days)</div>' +
+    '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + weekdayLine + '</div>' +
+    '<div style="margin-top:8px;"><b>Current months and seasons:</b> ' + esc(monthSetName) + ' (months); ' + esc(seasonSetName) + ' (seasons)</div>' +
+    '<div style="opacity:.85;margin-left:8px;margin-top:2px;line-height:1.4;">' + monthsLines + '</div>' +
+    '<div style="margin-top:8px;"><b>Color theme set:</b> ' + esc(themeName) + '</div>'
+  );
+}
 
 function helpRootMenu(m){
   var rows = [];
+
+  rows.push(helpStatusSummaryHtml());
+
   rows.push(_menuBox('Display',
     mbP(m,'Current','show month')+'<br>' +
     navP(m,'Months','display-months')+'<br>'+
@@ -2685,10 +2732,11 @@ function helpRootMenu(m){
       navP(m,'Season Sets','seasons')
     ));
     rows.push(_menuBox('Settings',    navP(m,'Settings','settings')));
-    rows.push(_menuBox('Admin', navP(m,'Maintenance','maint')));
+    rows.push(_menuBox('Admin',        navP(m,'Maintenance','maint')));
   }
   whisper(m.who, rows.join(''));
 }
+
 
 function helpDisplayCurrent(m){
   sendCurrentDate(m.who, false);
