@@ -1252,35 +1252,6 @@ function swatchHtml(colLike){
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 } 
 
-function swatchSmall(hex){
-  return '<span style="display:inline-block;width:10px;height:10px;border:1px solid #000;background:'+esc(hex)+';margin-right:4px;"></span>';
-}
-
-function helpRootIntroHtml(){
-  var cal=getCal(), cur=cal.current;
-  var st=ensureSettings();
-  var out = [];
-
-  out.push('<div style="margin:6px 0;"><b>Current date:</b> '+esc(currentDateLabel())+'</div>');
-
-  out.push('<div style="margin:6px 0;"><b>Current Weekday set:</b> '
-    + esc(st.weekdaySet) + ' — '
-    + cal.weekdays.map(function(n,i){ return (i+1)+': '+esc(weekdayAbbr(n, st.weekdaySet)); }).join(', ')
-    + '</div>');
-
-  out.push('<div style="margin:6px 0;"><b>Current months & seasons</b> ('+esc(st.monthSet)+'):</div>');
-  for (var i=0;i<cal.months.length;i++){
-    out.push('<div style="margin:2px 0;">'
-      + (i+1)+': ' + swatchSmall(colorForMonth(i))
-      + esc(cal.months[i].name) + (cal.months[i].season ? ' ('+esc(cal.months[i].season)+')' : '')
-      + '</div>');
-  }
-
-  out.push('<div style="margin:6px 0;"><b>Color theme set:</b> '+esc(st.colorTheme)+'</div>');
-
-  return out.join('');
-}
-
 function _buttonHasEmojiStart(s){
   s = String(s||'');
   // if first char is non-ASCII, assume it's an icon/emoji already
@@ -1363,6 +1334,11 @@ function openMonthTable(mi, yearLabel, abbrHeaders){
 
   var yFor = (yearLabel != null ? yearLabel : cur.year);
 
+  // decide header labels first
+  var useAbbr = (abbrHeaders !== false); // default abbreviated
+  var wd = useAbbr ? weekdayHeaderLabels(true) : cal.weekdays;
+
+  // optional: year title band (needs wd.length)
   var yTitle = (ensureSettings().showYearTitles ? getYearTitleObj(yFor) : null);
   var yearBand = '';
   if (yTitle && yTitle.title){
@@ -1376,12 +1352,9 @@ function openMonthTable(mi, yearLabel, abbrHeaders){
       '</th></tr>';
   }
 
-  var useAbbr = (abbrHeaders !== false); // default abbreviated
-  var wd = useAbbr ? weekdayHeaderLabels(true) : cal.weekdays;
-
   var head = [
     '<table style="'+STYLES.table+'">',
-    yearBand, // ← inject above month header row
+    yearBand,
     '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">',
     '<div style="'+STYLES.monthHeaderBase+monthHeaderStyle+'">',
       esc(mObj.name),
@@ -1514,6 +1487,22 @@ function formatDateLabel(y, mi, d, includeYear){
   return lbl;
 }
 
+function eventOccursInMonthAfterFirst(e, year, mi){
+  var maxD = getCal().months[mi].days|0;
+  var ow = Parse.ordinalWeekday.fromSpec(e.day);
+  var days = ow
+    ? (ow.ord === 'every'
+        ? _allWeekdaysInMonth(year, mi, ow.wdi)
+        : (function(){ var d = dayFromOrdinalWeekday(year, mi, ow); return d ? [d] : []; })())
+    : DaySpec.expand(e.day, maxD);
+
+  for (var i=0;i<days.length;i++){
+    var d = clamp(days[i],1,maxD);
+    if (!occursBeforeFirst(e, year, mi, d)) return true;
+  }
+  return false;
+}
+
 function monthEventsHtml(mi, today){
   var cal = getCal(), curYear = cal.current.year;
 
@@ -1534,7 +1523,9 @@ function monthEventsHtml(mi, today){
   }
 
   var evs = cal.events.filter(function(e){
-    return ((+e.month||1)-1) === mi && (e.year == null || (e.year|0) === (curYear|0));
+    if (((+e.month||1)-1) !== mi) return false;
+    if (e.year != null && (e.year|0) !== (curYear|0)) return false;
+    return eventOccursInMonthAfterFirst(e, curYear, mi);
   }).sort(function(a,b){
     var da = dayKey(a), db = dayKey(b);
     if (da !== db) return da - db;
@@ -2784,11 +2775,11 @@ function gmButtonsHtml(){
 }
 
 function helpStatusSummaryHtml(){
+
   var cal = getCal();
   var st  = ensureSettings();
 
-  // Current date (same phrasing you use elsewhere)
-  var curDate = esc(currentDateLabel());
+  var date = esc(currentDateLabel());
 
   // Weekday set (numbered)
   var weekdaySetName = titleCase(st.weekdaySet || '');
@@ -2818,33 +2809,29 @@ function helpStatusSummaryHtml(){
     : (cal.months.length + ' months, ' + dpy + ' days/year; ' + wlen + '-day weeks');
     
   return _menuBox('Status',
-    '<div><b>Current date:</b> ' + curDate + '</div>' +
-    '<div style="margin-top:6px;"><b>Current weekday set:</b> ' + esc(weekdaySetName) + ' (' + cal.weekdays.length + ' days)</div>' +
+    '<div><b>Current date:</b> ' + date + '</div>' +
+    '<div style="margin-top:6px;">' + cal.weekdays.length + ' day week:</div>' +
     '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + weekdayLine + '</div>' +
-    '<div style="margin-top:8px;"><b>Current months and seasons:</b> ' + esc(monthSetName) + ' (months); ' + esc(seasonSetName) + ' (seasons)</div>' +
+    '<div style="margin-top:8px;"><b>Months & Seasons:</b></div>' +
     '<div style="opacity:.85;margin-left:8px;margin-top:2px;line-height:1.4;">' + monthsLines + '</div>' +
-    '<div style="margin-top:8px;"><b>Color theme set:</b> ' + esc(themeName) + '</div>'
+    '<div style="margin-top:8px;"><b>(Color Set:</b> ' + esc(themeName) + ')</div>'
   );
 }
 
 function helpRootMenu(m){
   var rows = [];
 
-    rows.push(_menuBox('Calendar Overview', helpRootIntroHtml()));  // ← NEW
-
+  rows.push(_menuBox('Calendar Overview', helpRootIntroHtml()));  // ← NEW
+  
+  rows.push(helpStatusSummaryHtml());
+  
   rows.push(_menuBox('Display',
     mbP(m,'Current','show month')+'<br>' +
     navP(m,'Months','display-months')+'<br>'+
     navP(m,'Years','display-years')
   ));
   
-  rows.push(helpStatusSummaryHtml());
 
-  rows.push(_menuBox('Display',
-    mbP(m,'Current','show month')+'<br>' +
-    navP(m,'Months','display-months')+'<br>'+
-    navP(m,'Years','display-years')
-  ));
 
   if (playerIsGM(m.playerid)){
     rows.push(_menuBox('Step',      navP(m,'Advance/Retreat','step')));
