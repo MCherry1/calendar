@@ -186,6 +186,7 @@ var STYLES = {
   head:  'border:1px solid #444;padding:0;',
   td:    'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
   monthHeaderBase: 'padding:6px;text-align:left;',
+  yearHeaderBase:  'padding:6px;text-align:center;',
   gmbuttonWrap: 'margin:2px 0;',
   today: // current day
     'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
@@ -296,7 +297,8 @@ function ensureSettings(){
     weekdaySet: 'eberron',
     seasonSet: 'northern',
     groupEventsBySource: false,
-    showSourceLabels: false
+    showSourceLabels: false,
+    showYearTitles: true
   };
   return root.settings;
 }
@@ -367,6 +369,9 @@ function checkInstall(){
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {}; // key → 1
   if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
 
+  if (!state[state_name].yearTitles) state[state_name].yearTitles = {}; // year -> {title, color}
+
+
   var cal = state[state_name].calendar;
 
   if (!Array.isArray(cal.weekdays) || !cal.weekdays.length){
@@ -395,7 +400,8 @@ function checkInstall(){
           day: e.day,
           year: null,
           color: resolveColor(e.color) || null,
-          source: (e.source != null) ? String(e.source) : null
+          source: (e.source != null) ? String(e.source) : null,
+          first: parseFirstSpec(e.first) || null
         });
       });
     });
@@ -1177,21 +1183,23 @@ function mergeInNewDefaultEvents(cal){
   cal.events.sort(compareEvents);
 }
 
-function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
+function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color, firstSpec){
   var cal = getCal();
   var m = clamp(monthHuman, 1, cal.months.length);
   var maxD = cal.months[m-1].days|0;
 
-  // Accept numeric, ranges, OR ordinal weekday (e.g., "first far")
   var ows = Parse.ordinalWeekday.fromSpec(daySpec);
-  var normDay = ows
-    ? String(daySpec).toLowerCase().trim()
-    : DaySpec.normalize(daySpec, maxD);
-
+  var normDay = ows ? String(daySpec).toLowerCase().trim() : DaySpec.normalize(daySpec, maxD);
   if (!normDay) return false;
 
   var col = resolveColor(color) || null;
-  var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
+  var e = {
+    name: String(name||''), month: m, day: normDay,
+    year: (yearOrNull==null? null : (yearOrNull|0)), color: col
+  };
+  var f = parseFirstSpec(firstSpec);
+  if (f) e.first = f;
+
   var key = eventKey(e);
   var exists = cal.events.some(function(ev){ return eventKey(ev)===key; });
   if (exists) return false;
@@ -1243,6 +1251,35 @@ function swatchHtml(colLike){
   var col = resolveColor(colLike) || '#888888';
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
 } 
+
+function swatchSmall(hex){
+  return '<span style="display:inline-block;width:10px;height:10px;border:1px solid #000;background:'+esc(hex)+';margin-right:4px;"></span>';
+}
+
+function helpRootIntroHtml(){
+  var cal=getCal(), cur=cal.current;
+  var st=ensureSettings();
+  var out = [];
+
+  out.push('<div style="margin:6px 0;"><b>Current date:</b> '+esc(currentDateLabel())+'</div>');
+
+  out.push('<div style="margin:6px 0;"><b>Current Weekday set:</b> '
+    + esc(st.weekdaySet) + ' — '
+    + cal.weekdays.map(function(n,i){ return (i+1)+': '+esc(weekdayAbbr(n, st.weekdaySet)); }).join(', ')
+    + '</div>');
+
+  out.push('<div style="margin:6px 0;"><b>Current months & seasons</b> ('+esc(st.monthSet)+'):</div>');
+  for (var i=0;i<cal.months.length;i++){
+    out.push('<div style="margin:2px 0;">'
+      + (i+1)+': ' + swatchSmall(colorForMonth(i))
+      + esc(cal.months[i].name) + (cal.months[i].season ? ' ('+esc(cal.months[i].season)+')' : '')
+      + '</div>');
+  }
+
+  out.push('<div style="margin:6px 0;"><b>Color theme set:</b> '+esc(st.colorTheme)+'</div>');
+
+  return out.join('');
+}
 
 function _buttonHasEmojiStart(s){
   s = String(s||'');
@@ -1314,20 +1351,41 @@ function weekdayHeaderLabels(useAbbr){
   return cal.weekdays.map(function(n){ return useAbbr ? weekdayAbbr(n, set) : n; });
 }
 
+function getYearTitleObj(y){
+  var map = state[state_name].yearTitles || {};
+  return map[y] || null;  // { title, color } | null
+}
+
 function openMonthTable(mi, yearLabel, abbrHeaders){
   var cal = getCal(), cur = cal.current, mObj = cal.months[mi];
   var monthColor = colorForMonth(mi);
   var monthHeaderStyle = colorsAPI.styleMonthHeader(monthColor);
+
+  var yFor = (yearLabel != null ? yearLabel : cur.year);
+
+  var yTitle = (ensureSettings().showYearTitles ? getYearTitleObj(yFor) : null);
+  var yearBand = '';
+  if (yTitle && yTitle.title){
+    var bandColor = resolveColor(yTitle.color) || monthColor;
+    var bandStyle = colorsAPI.styleMonthHeader(bandColor);
+    yearBand =
+      '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">' +
+        '<div style="'+STYLES.yearHeaderBase + bandStyle+'">' +
+          esc(String(yTitle.title)) +
+        '</div>' +
+      '</th></tr>';
+  }
 
   var useAbbr = (abbrHeaders !== false); // default abbreviated
   var wd = useAbbr ? weekdayHeaderLabels(true) : cal.weekdays;
 
   var head = [
     '<table style="'+STYLES.table+'">',
+    yearBand, // ← inject above month header row
     '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">',
     '<div style="'+STYLES.monthHeaderBase+monthHeaderStyle+'">',
       esc(mObj.name),
-      '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
+      '<span style="float:right;">'+esc(String(yFor))+' '+LABELS.era+'</span>',
     '</div>',
     '</th></tr>',
     '<tr>'+ wd.map(function(d){ return '<th style="'+STYLES.th+'">'+esc(d)+'</th>'; }).join('') +'</tr>'
@@ -1713,8 +1771,14 @@ function occurrencesInRange(startSerial, endSerial){
       for (var k=0;k<days.length;k++){
         var d = clamp(days[k],1,maxD);
         var ser = toSerial(y, mi, d);
+
+        if (occursBeforeFirst(e, y, mi, d)) continue;
+
         if (ser>=startSerial && ser<=endSerial){
-          occ.push({serial:ser, y:y, m:mi, d:d, e:e});
+          occ.push({
+            serial:ser, y:y, m:mi, d:d, e:e,
+            original: isOriginalOccurrence(e, y, mi, d)
+          });
         }
       }
     }
@@ -1983,6 +2047,7 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
     for (var i=0;i<occ.length;i++){
       var o = occ[i];
       var name2 = eventDisplayName(o.e); // includes (Source) when enabled
+      if (o.original) name2 = '★ ' + name2; // Original occurrence marker
       out.push(eventLineHtml(o.y, o.m, o.d, name2, includeYear, (o.serial===today), getEventColor(o.e)));
     }
     return out.join('');
@@ -2010,6 +2075,46 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
     }
   }
   return out.join('');
+}
+
+function parseFirstSpec(v){
+  if (v==null) return null;
+  var Y=null,M=null,D=null;
+  if (typeof v==='number'){ Y=v|0; }
+  else if (typeof v==='string'){
+    var m=v.match(/^(\d{1,6})(?:[-\/](\d{1,2})(?:[-\/](\d{1,2}))?)?$/);
+    if (m){ Y=+m[1]; M=+m[2]||null; D=+m[3]||null; }
+  } else if (typeof v==='object'){
+    if (v.year!=null) Y=v.year|0;
+    if (v.month!=null) M=v.month|0;
+    if (v.day!=null) D=v.day|0;
+  }
+  if (Y==null) return null;
+  // clamp if M/D present
+  if (M!=null){ M = clamp(M,1,getCal().months.length); }
+  if (D!=null && M!=null){ D = clamp(D,1,(getCal().months[M-1].days|0)); }
+  return { year:Y, month:M, day:D };
+}
+
+function occursBeforeFirst(e, y, mi, d){
+  var f = e.first; if (!f || f.year==null) return false;
+  if (y < f.year) return true;
+  if (y > f.year) return false;
+  if (f.month!=null){
+    var mHuman = mi+1;
+    if (mHuman < f.month) return true;
+    if (mHuman > f.month) return false;
+    if (f.day!=null) return d < f.day;
+  }
+  return false;
+}
+
+function isOriginalOccurrence(e, y, mi, d){
+  var f = e.first; if (!f || f.year==null) return false;
+  if (y !== f.year) return false;
+  if (f.month!=null && (mi+1)!==f.month) return false;
+  if (f.day!=null && d!==f.day) return false;
+  return true;
 }
 
 /* ============================================================================
@@ -2114,6 +2219,18 @@ function parseDatePrefixForAdd(tokens){
   return null;
 }
 
+function pullFirstFlag(tokens){
+  tokens = (tokens||[]).slice();
+  var i = -1;
+  for (var j=0;j<tokens.length;j++){
+    if (/^--first$/i.test(tokens[j])){ i=j; break; }
+  }
+  if (i===-1) return { first:null, tokens:tokens };
+  var val = tokens[i+1] || '';
+  tokens.splice(i, (val?2:1));
+  return { first: val, tokens: tokens };
+}
+
 // Smart add: !cal add [DD] NAME [#COLOR|color] | !cal add MM DD [YYYY] NAME [#COLOR|color]
 function addEventSmart(tokens){
   tokens = (tokens || []).filter(function(t){ return String(t).trim() !== '--'; });
@@ -2122,11 +2239,13 @@ function addEventSmart(tokens){
   if (!pref) { warnGM('Usage: !cal add [MM DD [YYYY] | <MonthName> DD [YYYY] | DD] NAME [#COLOR|color]'); return; }
 
   var rest = tokens.slice(pref.used);
+  var pf   = pullFirstFlag(rest);  rest = pf.tokens;
   var pulled = popColorIfPresent(rest, /*allowBareName*/true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
-  var ok = _addConcreteEvent(pref.mHuman, String(pref.day), pref.year, name, color);
+  var ok = _addConcreteEvent(pref.mHuman, String(pref.day), pref.year, name, color, pf.first);
+
   if (ok){ refreshAndSend(); warnGM('Added 1 event.'); }
   else   { warnGM('No event added (duplicate or invalid).'); }
 }
@@ -2162,14 +2281,15 @@ function addMonthlySmart(tokens){
   if (!daySpec){
     return warnGM('Couldn’t parse daySpec. Try: 6  |  18-19  |  "first far"  |  "last zor"  |  "every sul".');
   }
-
-  var pulled = popColorIfPresent(tokens.slice(used), /*allowBareName*/true);
+  
+  var pf = pullFirstFlag(tokens.slice(used));
+  var pulled = popColorIfPresent(pf.tokens, /*allowBareName*/true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
   var cal = getCal(), added = 0;
   for (var m = 1; m <= cal.months.length; m++){
-    if (_addConcreteEvent(m, daySpec, null, name, color)) added++;
+    if (_addConcreteEvent(m, daySpec, null, name, color, pf.first)) added++;
   }
   refreshAndSend();
   warnGM('Added '+added+' monthly event'+(added===1?'':'s')+' for "'+esc(name)+'" on '+esc(daySpec)+'.');
@@ -2251,11 +2371,12 @@ function addYearlySmart(tokens){
   }
 
   // Remaining → name (with optional trailing color)
-  var pulled = popColorIfPresent(tokens.slice(used), /*allowBareName*/true);
+  var pf = pullFirstFlag(tokens.slice(used));
+  var pulled = popColorIfPresent(pf.tokens, /*allowBareName*/true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
-  var ok = _addConcreteEvent(mHuman, daySpec, null, name, color); // year=null (annual)
+  var ok = _addConcreteEvent(mHuman, daySpec, null, name, color, pf.first); // year=null (annual)
   if (ok){ refreshAndSend(); warnGM('Added annual event “‘'+esc(name)+'” on '+esc(daySpec)+' of month '+mHuman+'.'); }
   else   { warnGM('No event added (duplicate or invalid).'); }
 }
@@ -2709,6 +2830,14 @@ function helpStatusSummaryHtml(){
 function helpRootMenu(m){
   var rows = [];
 
+    rows.push(_menuBox('Calendar Overview', helpRootIntroHtml()));  // ← NEW
+
+  rows.push(_menuBox('Display',
+    mbP(m,'Current','show month')+'<br>' +
+    navP(m,'Months','display-months')+'<br>'+
+    navP(m,'Years','display-years')
+  ));
+  
   rows.push(helpStatusSummaryHtml());
 
   rows.push(_menuBox('Display',
@@ -2731,7 +2860,10 @@ function helpRootMenu(m){
       navP(m,'Weekday Names','weekdays')+'<br>'+
       navP(m,'Season Sets','seasons')
     ));
-    rows.push(_menuBox('Settings',    navP(m,'Settings','settings')));
+    rows.push(_menuBox('Settings',    
+      navP(m,'Settings','settings')+'<br>'+
+      navP(m,'Year Titles','yeartitles')
+      ));
     rows.push(_menuBox('Admin',        navP(m,'Maintenance','maint')));
   }
   whisper(m.who, rows.join(''));
@@ -2888,17 +3020,40 @@ function helpEventColorsMenu(m){
   whisper(m.who, body);
 }
 
+function helpYearTitlesMenu(m){
+  if (!playerIsGM(m.playerid)){
+    return whisper(m.who, '<div style="opacity:.7;">GM only.</div><div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+  }
+  var body =
+    _menuBox('Year Titles',
+      mbP(m,'List Titles','yeartitle list') +
+      '<div style="margin-top:6px;opacity:.85;">' +
+      'Set: <code>!cal yeartitle set 998 Year of Rebuilding #475569</code><br>' +
+      'Remove: <code>!cal yeartitle remove 998</code><br>' +
+      'Toggle band: <code>!cal settings yeartitles on|off</code>' +
+      '</div>'
+    ) +
+    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
+  whisper(m.who, body);
+}
 
 function helpSettingsMenu(m){
   if (!playerIsGM(m.playerid)){
     return whisper(m.who, '<div style="opacity:.7;">GM only.</div>'+ '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
   }
   var st = ensureSettings();
+
   var groupbutton = mbP(m,'Group by Source: ' + (st.groupEventsBySource ? 'On' : 'Off') + ' (toggle)',
                     'settings group ' + (st.groupEventsBySource ? 'off' : 'on'));
+
   var labelsbutton = mbP(m,'Source Labels: ' + (st.showSourceLabels ? 'On' : 'Off') + ' (toggle)',
                      'settings labels ' + (st.showSourceLabels ? 'off' : 'on'));
-  var box = _menuBox('Settings', groupbutton + ' ' + labelsbutton);
+
+  var ytitlebutton = mbP(m,'Year Titles: ' + (st.showYearTitles ? 'On' : 'Off') + ' (toggle)',
+                        'settings yeartitles ' + (st.showYearTitles ? 'off' : 'on'));
+
+  var box = _menuBox('Settings', groupbutton + ' ' + labelsbutton + ' ' + ytitlebutton);
+
   whisper(m.who, box + '<div style="margin-top:8px;">' + navP(m,'⬅ Back','root') + '</div>');
 }
 
@@ -2952,6 +3107,25 @@ function seasonSetListHtml(readOnly){
   return '<div style="margin:4px 0;"><b>Season Sets</b></div>'+rows.join('');
 }
 
+function setYearTitle(y, title, color){
+  var map = state[state_name].yearTitles || (state[state_name].yearTitles = {});
+  map[y|0] = { title:String(title||'').trim(), color: resolveColor(color)||null };
+}
+function removeYearTitle(y){
+  var map = state[state_name].yearTitles || {};
+  delete map[y|0];
+}
+function yearTitleListHtml(){
+  var map = state[state_name].yearTitles || {};
+  var years = Object.keys(map).map(function(k){return k|0;}).sort(function(a,b){return a-b;});
+  if (!years.length) return '<div style="opacity:.7;">No year titles set.</div>';
+  var rows = years.map(function(y){
+    var t = map[y], sw = t.color ? swatchHtml(t.color)+' ' : '';
+    return '<div style="margin:2px 0;">'+sw+'<b>'+y+' '+LABELS.era+':</b> '+esc(t.title)+'</div>';
+  }).join('');
+  return '<div style="margin:4px 0;"><b>Year Titles</b></div>'+rows;
+}
+
 
 /* ============================================================================
  * 17) COMMANDS & ROUTING
@@ -2973,12 +3147,12 @@ function send(opts, html){
   function sendToGM(html){  send({ gmOnly:true }, html); }
   function whisper(to, html){ send({ to:to }, html); }
   function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
-function cleanWho(who){
-  return String(who||'')
-    .replace(/\s+\(GM\)$/,'')
-    .replace(/["\\]/g,'')
-    .trim();
-}
+  function cleanWho(who){
+    return String(who||'')
+      .replace(/\s+\(GM\)$/,'')
+      .replace(/["\\]/g,'')
+      .trim();
+  }
 function _normalizePackedWords(q){
   return String(q||'')
     .replace(/\b(nextmonth)\b/gi, 'next month')
@@ -3010,7 +3184,8 @@ var USAGE = {
   'events.add':     'Usage: !cal add [MM DD [YYYY] | <MonthName> DD [YYYY] | DD] NAME [#COLOR|color] (DD may be an ordinal like 1st or fourteenth)',
   'events.remove':  'Usage: !cal remove [list | key <KEY> | <name fragment>]',
   'events.restore': 'Usage: !cal restore [all] [exact] <name...> | restore key <KEY>',
-  'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)'
+  'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)',
+  'yeartitle':      'Usage: !cal yeartitle set <YYYY> <Title...> [#COLOR|color] | list | remove <YYYY>'
 };
 
 function invokeEventSub(m, sub, args){
@@ -3090,18 +3265,19 @@ help: function(m, a) {
 
     case 'display':        return helpDisplayMonthsMenu(m); // optional default
 
-    case 'step':     return helpStepMenu(m);
-    case 'events':   return helpEventsMenu(m);
-    case 'defaults': return helpDefaultsMenu(m);
-    case 'sources':  return helpSourcesMenu(m);
-    case 'themes':   return helpThemesMenu(m);
-    case 'names':    return helpNamesMenu(m);
-    case 'weekdays': return helpWeekdaysMenu(m);
-    case 'seasons':  return helpSeasonsMenu(m);
-    case 'settings': return helpSettingsMenu(m);
-    case 'maint':    return helpMaintMenu(m);
+    case 'step':        return helpStepMenu(m);
+    case 'events':      return helpEventsMenu(m);
+    case 'defaults':    return helpDefaultsMenu(m);
+    case 'sources':     return helpSourcesMenu(m);
+    case 'themes':      return helpThemesMenu(m);
+    case 'names':       return helpNamesMenu(m);
+    case 'weekdays':    return helpWeekdaysMenu(m);
+    case 'seasons':     return helpSeasonsMenu(m);
+    case 'yeartitles':  return helpYearTitlesMenu(m);
+    case 'settings':    return helpSettingsMenu(m);
+    case 'maint':       return helpMaintMenu(m);
     case 'root':
-    default:         return helpRootMenu(m);
+    default:            return helpRootMenu(m);
   }
 },
 
@@ -3110,12 +3286,14 @@ help: function(m, a) {
   settings: { gm:true, run:function(m,a){
     var key = String(a[2]||'').toLowerCase();
     var val = String(a[3]||'').toLowerCase();
-    if (!key || !/^(group|labels)$/.test(key) || !/^(on|off)$/.test(val)){
-      return whisper(m.who,'Usage: <code>!cal settings (group|labels) (on|off)</code>');
+    if (!key || !/^(group|labels|yeartitles)$/.test(key) || !/^(on|off)$/.test(val)){
+      return whisper(m.who,'Usage: <code>!cal settings (group|labels|yeartitles) (on|off)</code>');
     }
     var st = ensureSettings();
     if (key==='group')  st.groupEventsBySource = (val==='on');
     if (key==='labels') st.showSourceLabels    = (val==='on');
+    if (key==='yeartitles') st.showYearTitles      = (val==='on');
+
     refreshAndSend();
     whisper(m.who,'Setting updated.');
   }},
@@ -3240,83 +3418,109 @@ help: function(m, a) {
     whisper(m.who, 'Season set applied: <b>'+esc(sub)+'</b>.');
   }},
 
-  // Sources (GM)
-  source: { gm:true, run: function(m, a){
-    var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
-    var sub = (args[0]||'').toLowerCase();
-    var suppressedSources = state[state_name].suppressedSources || (state[state_name].suppressedSources = {});
-    function listSources(){
-  var cal = getCal(), seen = {};
-  defaults.events.forEach(function(de){ if (de.source) seen[String(de.source).toLowerCase()] = String(de.source); });
-  cal.events.forEach(function(e){ if (e.source) seen[String(e.source).toLowerCase()] = String(e.source); });
-
-  var names = Object.keys(seen).sort();
-  if (!names.length){ return whisper(m.who, '<div><b>Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
-
-  var head =  '<tr>'+
-              '<th style="'+STYLES.th+'">Source</th>' +
-              '<th style="'+STYLES.th+'">Status</th>' +
-              '<th style="'+STYLES.th+'">Action</th>' +
-              '</tr>';
-
-  var rows = names.map(function(k){
-    var label = seen[k];
-    var disabled = !!suppressedSources[k];
-    var status = disabled ? 'Disabled' : 'Enabled';
-    var actionbutton = disabled
-      ? button('Enable',  'source enable '  + label)
-      : button('Disable', 'source disable ' + label);
-    return '<tr>'
-      + '<td style="'+STYLES.td+'">'+esc(label)+'</td>'
-      + '<td style="'+STYLES.td+';text-align:center;">'+status+'</td>'
-      + '<td style="'+STYLES.td+';text-align:center;">'+actionbutton+'</td>'
-      + '</tr>';
-  }).join('');
-
-  whisper(m.who,
-    '<div style="margin:4px 0;"><b>Sources</b></div>'
-    + '<table style="'+STYLES.table+'">'+head+rows+'</table>'
-    + '<div style="opacity:.75;margin-top:4px;">(Buttons call <code>!cal source enable/disable &lt;name&gt;</code>.)</div>'
-  );
-}
-
-    function disableSource(name){
-      var key = String(name||'').toLowerCase();
-      if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
-      suppressedSources[key] = 1;
-      var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
-      cal.events = cal.events.filter(function(e){
-        var src = (e.source != null) ? String(e.source).toLowerCase() : null;
-        if (src !== key) return true;
-        var maxD = cal.months[e.month-1].days|0;
-        var norm = DaySpec.canonicalForKey(e.day, maxD);
-        var k = defaultKeyFor(e.month, norm, e.name);
-        return !defaultsSet[k];
-      });
+  yeartitle: { gm:true, run:function(m, a){
+    var sub = String(a[2]||'').toLowerCase();
+    if (!sub || sub==='list'){ return whisper(m.who, yearTitleListHtml()); }
+    if (sub==='set'){
+      var y = parseInt(a[3],10);
+      if (!isFinite(y)) return whisper(m.who, USAGE['yeartitle']);
+      var rest = a.slice(4).map(String);
+      var pulled = popColorIfPresent(rest, /*allowBareName*/true);
+      var color  = pulled.color;
+      var title  = pulled.tokens.join(' ').trim();
+      if (!title) return whisper(m.who, USAGE['yeartitle']);
+      setYearTitle(y, title, color);
+      whisper(m.who, 'Year title set for '+y+' '+LABELS.era+': '+esc(title)+(color?' '+swatchHtml(color):''));
       refreshAndSend();
-      sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.');
+      return;
     }
-
-    function enableSource(name){
-      var key = String(name||'').toLowerCase();
-      if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
-      delete suppressedSources[key];
-      // Clear per-key suppressions for this source so they "flip together"
-      var sup = state[state_name].suppressedDefaults || {};
-      Object.keys(sup).forEach(function(k){
-        var info = _defaultDetailsForKey(k);
-        var src = (info.source != null) ? String(info.source).toLowerCase() : null;
-        if (src === key) delete sup[k];
-      });
-      mergeInNewDefaultEvents(getCal());
+    if (sub==='remove'){
+      var yr = parseInt(a[3],10);
+      if (!isFinite(yr)) return whisper(m.who, USAGE['yeartitle']);
+      removeYearTitle(yr);
+      whisper(m.who, 'Removed year title for '+yr+' '+LABELS.era+'.');
       refreshAndSend();
-      sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+      return;
     }
-    if (!sub || sub==='list') return listSources();
-    if (sub==='disable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source disable &lt;name&gt;</code>'); return disableSource(args.slice(1).join(' ')); }
-    if (sub==='enable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source enable &lt;name&gt;</code>'); return enableSource(args.slice(1).join(' ')); }
-    whisper(m.who, 'Usage: <code>!cal source [list|disable|enable] [&lt;name&gt;]</code>');
+    whisper(m.who, USAGE['yeartitle']);
   }},
+
+  source: { gm:true, run: function(m, a){
+          var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
+          var sub = (args[0]||'').toLowerCase();
+          var suppressedSources = state[state_name].suppressedSources || (state[state_name].suppressedSources = {});
+          function listSources(){
+            var cal = getCal(), seen = {};
+            defaults.events.forEach(function(de){ if (de.source) seen[String(de.source).toLowerCase()] = String(de.source); });
+            cal.events.forEach(function(e){ if (e.source) seen[String(e.source).toLowerCase()] = String(e.source); });
+
+            var names = Object.keys(seen).sort();
+            if (!names.length){ return whisper(m.who, '<div><b>Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
+
+            var head =  '<tr>'+
+                        '<th style="'+STYLES.th+'">Source</th>' +
+                        '<th style="'+STYLES.th+'">Status</th>' +
+                        '<th style="'+STYLES.th+'">Action</th>' +
+                        '</tr>';
+
+            var rows = names.map(function(k){
+              var label = seen[k];
+              var disabled = !!suppressedSources[k];
+              var status = disabled ? 'Disabled' : 'Enabled';
+              var actionbutton = disabled
+                ? button('Enable',  'source enable '  + label)
+                : button('Disable', 'source disable ' + label);
+              return '<tr>'
+                + '<td style="'+STYLES.td+'">'+esc(label)+'</td>'
+                + '<td style="'+STYLES.td+';text-align:center;">'+status+'</td>'
+                + '<td style="'+STYLES.td+';text-align:center;">'+actionbutton+'</td>'
+                + '</tr>';
+            }).join('');
+
+            whisper(m.who,
+              '<div style="margin:4px 0;"><b>Sources</b></div>'
+              + '<table style="'+STYLES.table+'">'+head+rows+'</table>'
+              + '<div style="opacity:.75;margin-top:4px;">(Buttons call <code>!cal source enable/disable &lt;name&gt;</code>.)</div>'
+            );
+          }
+
+          function disableSource(name){
+            var key = String(name||'').toLowerCase();
+            if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
+            suppressedSources[key] = 1;
+            var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
+            cal.events = cal.events.filter(function(e){
+              var src = (e.source != null) ? String(e.source).toLowerCase() : null;
+              if (src !== key) return true;
+              var maxD = cal.months[e.month-1].days|0;
+              var norm = DaySpec.canonicalForKey(e.day, maxD);
+              var k = defaultKeyFor(e.month, norm, e.name);
+              return !defaultsSet[k];
+            });
+            refreshAndSend();
+            sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.');
+          }
+
+          function enableSource(name){
+            var key = String(name||'').toLowerCase();
+            if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
+            delete suppressedSources[key];
+            // Clear per-key suppressions for this source so they "flip together"
+            var sup = state[state_name].suppressedDefaults || {};
+            Object.keys(sup).forEach(function(k){
+              var info = _defaultDetailsForKey(k);
+              var src = (info.source != null) ? String(info.source).toLowerCase() : null;
+              if (src === key) delete sup[k];
+            });
+            mergeInNewDefaultEvents(getCal());
+            refreshAndSend();
+            sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+          }
+          if (!sub || sub==='list') return listSources();
+          if (sub==='disable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source disable &lt;name&gt;</code>'); return disableSource(args.slice(1).join(' ')); }
+          if (sub==='enable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source enable &lt;name&gt;</code>'); return enableSource(args.slice(1).join(' ')); }
+          whisper(m.who, 'Usage: <code>!cal source [list|disable|enable] [&lt;name&gt;]</code>');
+        }},
 
   // Maintenance (GM)
   resetcalendar:   { gm:true, run:function(){ resetToDefaults(); } }
