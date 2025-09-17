@@ -276,7 +276,11 @@ var defaults = {
   // leap years are not supported (yet)
   months: [   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28  ],
           //  1st,  2nd,  3rd,  4th, 5th,   6th,  7th,  8th,  9th,  10th, 11th, 12th
-  events: _flattenSources(DEFAULT_EVENT_SOURCES)
+  events: _flattenSources(DEFAULT_EVENT_SOURCES),
+
+  yearTitles: {
+    299: { title: "Year of Blood and Fire", color: "#8B0000" }
+  }
 };
 
 /* ============================================================================
@@ -370,8 +374,9 @@ function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaul
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
   if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
 
-  if (!state[state_name].yearTitles) state[state_name].yearTitles = {}; // year -> {title, color}
-
+  if (!state[state_name].yearTitles) {
+    state[state_name].yearTitles = deepClone(defaults.yearTitles || {});
+  }
 
   var cal = state[state_name].calendar;
 
@@ -418,7 +423,8 @@ function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaul
           day: e.day,
           year: yr,
           color: resolveColor(e.color) || null,
-          source: (e.source != null) ? String(e.source) : null
+          source: (e.source != null) ? String(e.source) : null,
+          first: e.first ? e.first : null
         };
       });
 
@@ -480,13 +486,18 @@ function refreshCalendarState(silent){ // re-parse and clean up events list
       ? String(e.day).toLowerCase().trim()
       : (DaySpec.normalize(e.day, cal.months[m-1].days) || String(DaySpec.first(e.day)));
     var yr = (e.year==null) ? null : (parseInt(e.year,10)|0);
+
+    // 🔧 Preserve first-occurrence gating
+    var first = e.first ? parseFirstSpec(e.first) : null;
+
     return {
       name: String(e.name||''),
       month: m,
       day: daySpec,
       year: yr,
       color: resolveColor(e.color) || null,
-      source: (e.source != null) ? String(e.source) : null
+      source: (e.source != null) ? String(e.source) : null,
+      first: first
     };
   });
 
@@ -504,13 +515,17 @@ function refreshCalendarState(silent){ // re-parse and clean up events list
 
 function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(null, true); } // silent refresh + redraw
 
-function resetToDefaults(){ // wipe state and start over
+function resetToDefaults(){
   delete state[state_name];
-  state[state_name] = { calendar: deepClone(defaults) };
+  state[state_name] = {
+    calendar:   deepClone(defaults),
+    yearTitles: deepClone(defaults.yearTitles || {})
+  };
   checkInstall();
   sendChat(script_name, '/w gm Calendar state wiped and reset to defaults.');
   sendCurrentDate(null, true);
 }
+
 
 /* ============================================================================
  * 3) COLOR UTILITIES
@@ -1059,6 +1074,15 @@ var DaySpec = (function(){
   };
 })();
 
+// Stable day key for suppression/default matching (independent of weekday name set)
+function canonicalDayKey(spec, maxDays){
+  var ow = Parse.ordinalWeekday.fromSpec(spec);
+  if (ow) return 'ow:'+ow.ord+':'+ow.wdi;
+  return DaySpec.normalize(spec, maxDays) || String(DaySpec.first(spec));
+}
+
+
+
 /* ============================================================================
  * 6) EVENTS MODEL
  * ==========================================================================*/
@@ -1113,8 +1137,8 @@ function currentDefaultKeySet(cal){
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
     months.forEach(function(m){
       var maxD = cal.months[m-1].days|0;
-      var norm = DaySpec.canonicalForKey(de.day, maxD);
-      out[ defaultKeyFor(m, norm, de.name) ] = 1;
+      var keyDay = canonicalDayKey(de.day, maxD);
+      out[ defaultKeyFor(m, keyDay, de.name) ] = 1;
     });
   });
   return out;
@@ -1124,8 +1148,8 @@ function isDefaultEvent(ev){
   var calLocal = getCal();
   var defaultsSet = currentDefaultKeySet(calLocal);
   var maxD = calLocal.months[ev.month-1].days|0;
-  var norm = DaySpec.canonicalForKey(ev.day, maxD);
-  var k = defaultKeyFor(ev.month, norm, ev.name);
+  var keyDay = canonicalDayKey(ev.day, maxD);
+  var k = defaultKeyFor(ev.month, keyDay, ev.name);
   return !!defaultsSet[k];
 }
 
@@ -1134,8 +1158,8 @@ function markSuppressedIfDefault(ev){
   if (isDefaultEvent(ev)){
     var calLocal = getCal();
     var maxD = calLocal.months[ev.month-1].days|0;
-    var norm = DaySpec.canonicalForKey(ev.day, maxD);
-    var k = defaultKeyFor(ev.month, norm, ev.name);
+    var keyDay = canonicalDayKey(ev.day, maxD);
+    var k = defaultKeyFor(ev.month, keyDay, ev.name);
     state[state_name].suppressedDefaults[k] = 1;
   }
 }
@@ -1160,20 +1184,22 @@ function mergeInNewDefaultEvents(cal){
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
 
     monthsList.forEach(function(m){
-      var maxD = cal.months[m-1].days|0;
-      var normDay = DaySpec.canonicalForKey(de.day, maxD);
-      var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
+      var maxD   = cal.months[m-1].days|0;
+      var keyDay = canonicalDayKey(de.day, maxD);
+      var key    = m+'|'+String(keyDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
+
       if (!have[key] && !suppressed[key]) {
         cal.events.push({
           name: String(de.name||''),
           month: m,
-          day: normDay,
+          day: DaySpec.canonicalForKey(de.day, maxD),
           year: null,
           color: resolveColor(de.color) || null,
           source: (de.source != null) ? String(de.source) : null
         });
         have[key] = 1;
       }
+
     });
   });
 
@@ -1251,9 +1277,11 @@ function swatchHtml(colLike){
 
 function _buttonHasEmojiStart(s){
   s = String(s||'');
-  // if first char is non-ASCII, assume it's an icon/emoji already
-  return !!s && s.charCodeAt(0) > 127;
+  if (!s) return false;
+  var cp = s.codePointAt ? s.codePointAt(0) : s.charCodeAt(0);
+  return (cp>=0x1F300 && cp<=0x1FAFF) || (cp>=0x2600 && cp<=0x27BF);
 }
+
 
 function _buttonIcon(lbl){
   var t = String(lbl||'').toLowerCase();
@@ -1772,7 +1800,10 @@ function occurrencesInRange(startSerial, endSerial){
     }
   }
   occ.sort(function(a,b){
-    return (a.serial - b.serial) || (a.m - b.m) || (a.d - b.d);
+    return (a.serial - b.serial)
+        || (a.m - b.m)
+        || (a.d - b.d)
+        || String(a.e && a.e.name || '').localeCompare(String(b.e && b.e.name || ''));
   });
   if (capNotice){ sendChat(script_name,'/w gm Range capped at '+capYears+' years for performance.'); }
   return occ;
@@ -2365,7 +2396,10 @@ function addYearlySmart(tokens){
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
   var ok = _addConcreteEvent(mHuman, daySpec, null, name, color, pf.first); // year=null (annual)
-  if (ok){ refreshAndSend(); warnGM('Added annual event “‘'+esc(name)+'” on '+esc(daySpec)+' of month '+mHuman+'.'); }
+  if (ok){
+    refreshAndSend();
+    warnGM('Added annual event "'+esc(name)+'" on '+esc(daySpec)+' of month '+mHuman+'.');
+  }
   else   { warnGM('No event added (duplicate or invalid).'); }
 }
 
@@ -2444,6 +2478,80 @@ function _defaultDetailsForKey(key){
   });
   return out;
 }
+// Build a single logical group key for a default row (one per line in DEFAULT_EVENT_SOURCES)
+function _groupKeyForDefault(def){
+  var src  = (def.source != null) ? String(def.source).toLowerCase().trim() : '';
+  var name = String(def.name||'').trim().toLowerCase();
+  var moSpec = (String(def.month).toLowerCase()==='all')
+              ? 'all'
+              : String(clamp(parseInt(def.month,10)||1, 1, getCal().months.length));
+  // Choose a representative month to compute a numeric day key if needed
+  var repMi = (moSpec==='all' ? 0 : (parseInt(moSpec,10)-1));
+  var maxD  = getCal().months[repMi].days|0;
+  var dKey  = canonicalDayKey(def.day, maxD);
+  return src+'|'+name+'|'+dKey+'|'+moSpec;
+}
+
+// Suppress all default instances covered by the group key (e.g., Tain Gala -> all 12 months)
+function suppressDefaultsByGroupKey(groupKey){
+  var parts = String(groupKey||'').split('|');
+  if (parts.length < 4) return;
+  var src     = parts[0]; // not in suppression key, informational only
+  var nameLow = parts[1];
+  var dayKey  = parts[2];
+  var moSpec  = parts[3];
+
+  var cal = getCal();
+  var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
+  var months = (moSpec==='all')
+    ? (function(){var a=[]; for (var m=1;m<=cal.months.length;m++) a.push(m); return a;})()
+    : [ clamp(parseInt(moSpec,10)||1, 1, cal.months.length) ];
+
+  // Mark every month’s default as suppressed
+  months.forEach(function(mHuman){
+    var k = defaultKeyFor(mHuman, dayKey, nameLow);
+    sup[k] = 1;
+  });
+
+  // Drop any already-present default events that match the new suppressions
+  var defaultsSet = currentDefaultKeySet(cal);
+  cal.events = (cal.events||[]).filter(function(e){
+    if (!isDefaultEvent(e)) return true;
+    var maxD  = cal.months[e.month-1].days|0;
+    var dKey2 = canonicalDayKey(e.day, maxD);
+    var k2    = defaultKeyFor(e.month, dKey2, e.name);
+    return !sup[k2]; // keep only those NOT suppressed
+  });
+
+  refreshAndSend();
+  sendChat(script_name, '/w gm Suppressed "'+esc(titleCase(nameLow))+'" '+(moSpec==='all'?'(all months)':'(month '+moSpec+')')+'.');
+}
+
+// Restore all default instances covered by the group key
+function restoreDefaultsByGroupKey(groupKey){
+  var parts = String(groupKey||'').split('|');
+  if (parts.length < 4) return;
+  var /*src*/ _unused = parts[0];
+  var nameLow = parts[1];
+  var dayKey  = parts[2];
+  var moSpec  = parts[3];
+
+  var cal = getCal();
+  var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
+  var months = (moSpec==='all')
+    ? (function(){ var a=[]; for (var m=1;m<=cal.months.length;m++) a.push(m); return a; })()
+    : [ clamp(parseInt(moSpec,10)||1, 1, cal.months.length) ];
+
+  // Clear all matching suppressions
+  months.forEach(function(mHuman){
+    delete sup[ defaultKeyFor(mHuman, dayKey, nameLow) ];
+  });
+
+  mergeInNewDefaultEvents(cal);
+  refreshAndSend();
+  sendChat(script_name, '/w gm Restored "'+esc(titleCase(nameLow))+'" '+(moSpec==='all'?'(all months)':'(month '+moSpec+')')+'.');
+}
+
 
 /* ============================================================================
  * 14) BUTTONED TABLES / LISTS
@@ -2486,39 +2594,88 @@ function listAllEventsTableHtml(){
 }
 
 function removeListHtml(){
-  var cal = getCal(), evs = cal.events || [];
-  if(!evs.length) return '<div style="opacity:.7;">No events to remove.</div>';
+  var cal = getCal();
 
-  var rows = evs.map(function(e, i){
-    var mi = (e.month|0) - 1, mm = (mi+1);
-    var dd = esc(String(e.day));
-    var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-    var name = eventDisplayName(e);
-    var sw = swatchHtml(getEventColor(e));
-    var key = eventKey(e); // stable
-    var rm = button('Remove', 'remove key '+_encKey(key));
-    return '<tr>' +
-      '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>' +
-      '<td style="'+STYLES.td+'">'+ sw + esc(name) +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ rm +'</td>' +
-    '</tr>';
+  // ===== DEFAULTS (grouped, one per code line) =====
+  var defRowsBySource = {};
+  (defaults.events || []).forEach(function(def){
+    var srcTitle = def.source ? titleCase(def.source) : 'Other';
+    defRowsBySource[srcTitle] = defRowsBySource[srcTitle] || [];
+    var moTxt = (String(def.month).toLowerCase()==='all') ? 'all months' : ('month '+clamp(parseInt(def.month,10)||1,1,cal.months.length));
+    var repMi = (String(def.month).toLowerCase()==='all') ? 0 : (clamp(parseInt(def.month,10)||1,1,cal.months.length)-1);
+    var maxD  = cal.months[repMi].days|0;
+
+    var displayDay =
+      (Parse.ordinalWeekday.fromSpec(def.day) ? String(def.day).toLowerCase().trim()
+                                              : (DaySpec.normalize(def.day, maxD) || String(DaySpec.first(def.day))));
+
+    var gkey = _encKey(_groupKeyForDefault(def));
+    var btn  = button('🗑️ Suppress', 'remove dkey '+gkey);
+
+    defRowsBySource[srcTitle].push(
+      '<tr>'
+        + '<td style="'+STYLES.td+'">'+ swatchHtml(resolveColor(def.color)||autoColorForEvent({name:def.name})) +' '+esc(def.name)+'</td>'
+        + '<td style="'+STYLES.td+'">'+ esc(displayDay) +'</td>'
+        + '<td style="'+STYLES.td+'">'+ esc(moTxt) +'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+ btn +'</td>'
+      + '</tr>'
+    );
   });
 
-  var head = '<tr>'+
-    '<th style="'+STYLES.th+'">Index</th>'+
-    '<th style="'+STYLES.th+'">Event</th>'+
-    '<th style="'+STYLES.th+'">MM</th>'+
-    '<th style="'+STYLES.th+'">DD</th>'+
-    '<th style="'+STYLES.th+'">YYYY</th>'+
-    '<th style="'+STYLES.th+'">Action</th>'+
-  '</tr>';
+  var defSections = Object.keys(defRowsBySource).sort().map(function(src){
+    var rows = defRowsBySource[src].join('');
+    var head = '<tr>'
+      + '<th style="'+STYLES.th+'">Event</th>'
+      + '<th style="'+STYLES.th+'">Day</th>'
+      + '<th style="'+STYLES.th+'">Scope</th>'
+      + '<th style="'+STYLES.th+'">Action</th>'
+      + '</tr>';
+    return '<div style="margin:6px 0;"><b>'+esc(src)+'</b></div>'
+         + '<table style="'+STYLES.table+'">'+ head + rows +'</table>';
+  }).join('<div style="height:8px;"></div>');
 
-  return '<div style="margin:4px 0;"><b>Remove Events</b></div>'+
-         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>'+
-         '<div style="opacity:.75;margin-top:4px;">Note: indexes are reassigned after each removal. Buttons use stable keys and remain valid.</div>';
+  if (!defSections) defSections = '<div style="opacity:.7;">No default events.</div>';
+
+  // ===== CUSTOM (non-default) events (per-instance) =====
+  var custom = (cal.events||[]).filter(function(e){ return !isDefaultEvent(e); });
+  var customHtml;
+  if (!custom.length){
+    customHtml = '<div style="opacity:.7;">No custom events.</div>';
+  } else {
+    var rows = custom.map(function(e, i){
+      var mi = (e.month|0)-1, mm = mi+1;
+      var dd = esc(String(e.day));
+      var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
+      var sw = swatchHtml(getEventColor(e));
+      var name = eventDisplayName(e);
+      var key = eventKey(e);
+      var rm = button('Remove', 'remove key '+_encKey(key));
+      return '<tr>'
+        + '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'
+        + '<td style="'+STYLES.td+'">'+sw+esc(name)+'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+mm+'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+dd+'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+yyyy+'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+rm+'</td>'
+        + '</tr>';
+    }).join('');
+    var head = '<tr>'
+      + '<th style="'+STYLES.th+'">Index</th>'
+      + '<th style="'+STYLES.th+'">Event</th>'
+      + '<th style="'+STYLES.th+'">MM</th>'
+      + '<th style="'+STYLES.th+'">DD</th>'
+      + '<th style="'+STYLES.th+'">YYYY</th>'
+      + '<th style="'+STYLES.th+'">Action</th>'
+      + '</tr>';
+    customHtml = '<table style="'+STYLES.table+'">'+head+rows+'</table>';
+  }
+
+  return '<div style="margin:4px 0;"><b>Remove Defaults (grouped)</b></div>'
+       + defSections
+       + '<div style="height:10px;"></div>'
+       + '<div style="margin:4px 0;"><b>Remove Custom Events</b></div>'
+       + customHtml
+       + '<div style="opacity:.75;margin-top:4px;">Default rows remove <i>all</i> their instances (e.g., Tain Gala removes all 12 months).</div>';
 }
 
 function removeMatchesListHtml(needle){
@@ -2565,63 +2722,126 @@ function removeMatchesListHtml(needle){
          '<div style="opacity:.75;margin-top:4px;">Indexes may change after removal; key-based buttons stay valid.</div>';
 }
 
-// Suppressed defaults list
 function suppressedDefaultsListHtml(){
-  var sup = state[state_name].suppressedDefaults || {};
-  var keys = Object.keys(sup);
-  if (!keys.length){ return '<div style="opacity:.7;">No suppressed default events.</div>'; }
-
-  keys.sort(function(a,b){
-    var pa=a.split('|'), pb=b.split('|');
-    var ma=(+pa[0]||0), mb=(+pb[0]||0);
-    if (ma!==mb) return ma-mb;
-    var da=DaySpec.first(pa[1]||'1'), db=DaySpec.first(pb[1]||'1');
-    if (da!==db) return da-db;
-    return String(pa[3]||'').localeCompare(String(pb[3]||''));
-  });
-
   var cal = getCal();
+  var sup = state[state_name].suppressedDefaults || {};
+  var suppressedKeys = Object.keys(sup);
+  if (!suppressedKeys.length){ return '<div style="opacity:.7;">No suppressed default events.</div>'; }
 
-  var rows = keys.map(function(k){
-    var info = _defaultDetailsForKey(k);
-    var mi = (info.month|0)-1;
-    var mm = (mi+1);
-    var dd = esc(String(info.day));
-    var sw = swatchHtml(info.color || autoColorForEvent({name:info.name}));
-    var src = info.source ? ' <span style="opacity:.7">('+esc(titleCase(info.source))+')</span>' : '';
-    var restorebutton = button('Restore', 'restore key '+_encKey(k));
-    return '<tr>'+
-      '<td style="'+STYLES.td+'">'+sw+esc(info.name)+src+'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">ALL</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ restorebutton +'</td>'+
-    '</tr>';
+  // Pre-index by default-line group
+  var grouped = {}; // groupKey -> { def, monthsSuppressed: {mHuman:1,...} }
+  (defaults.events || []).forEach(function(def){
+    grouped[_groupKeyForDefault(def)] = { def:def, monthsSuppressed:{} };
   });
 
-  var head = '<tr>'+
-    '<th style="'+STYLES.th+'">Event</th>'+
-    '<th style="'+STYLES.th+'">MM</th>'+
-    '<th style="'+STYLES.th+'">DD</th>'+
-    '<th style="'+STYLES.th+'">YYYY</th>'+
-    '<th style="'+STYLES.th+'">Action</th>'+
-  '</tr>';
+  // Map each suppressed key back to its default-line group
+  suppressedKeys.forEach(function(k){
+    // k: "month|dayKey|ALL|nameLower"
+    var parts   = String(k).split('|');
+    var mHuman  = parseInt(parts[0],10)|0;
+    var dayKey  = parts[1]||'';
+    var nameLow = (parts[3]||'').toLowerCase();
 
-  return '<div style="margin:4px 0;"><b>Suppressed Default Events</b></div>'+
-         '<div style="margin:2px 0;">'+button('Restore All', 'restore all')+'</div>'+
-         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>';
+    (defaults.events || []).forEach(function(def){
+      if (String(def.name||'').trim().toLowerCase() !== nameLow) return;
+
+      // Match by canonical dayKey under a representative month
+      var repMi = (String(def.month).toLowerCase()==='all')
+        ? (mHuman-1)
+        : ((clamp(parseInt(def.month,10)||1,1,cal.months.length))-1);
+      var maxD  = cal.months[repMi].days|0;
+      var dKey2 = canonicalDayKey(def.day, maxD);
+      if (dKey2 !== dayKey) return;
+
+      var gk = _groupKeyForDefault(def);
+      (grouped[gk] || (grouped[gk] = { def:def, monthsSuppressed:{} })).monthsSuppressed[mHuman] = 1;
+    });
+  });
+
+  // Build rows only for groups with any suppression
+  var defRowsBySource = {};
+  Object.keys(grouped).forEach(function(gk){
+    var info = grouped[gk];
+    var suppressedMonths = Object.keys(info.monthsSuppressed);
+    if (!suppressedMonths.length) return;
+
+    var def = info.def;
+    var srcTitle = def.source ? titleCase(def.source) : 'Other';
+    defRowsBySource[srcTitle] = defRowsBySource[srcTitle] || [];
+
+    var moSpec = (String(def.month).toLowerCase()==='all')
+      ? 'all'
+      : String(clamp(parseInt(def.month,10)||1,1,cal.months.length));
+
+    var scopeTxt = (moSpec==='all')
+      ? (suppressedMonths.length===cal.months.length ? 'all months' : (suppressedMonths.length+' / '+cal.months.length+' months'))
+      : ('month '+moSpec);
+
+    var repMi = (moSpec==='all' ? 0 : (parseInt(moSpec,10)-1));
+    var maxD  = cal.months[repMi].days|0;
+    var displayDay = Parse.ordinalWeekday.fromSpec(def.day)
+      ? String(def.day).toLowerCase().trim()
+      : (DaySpec.normalize(def.day, maxD) || String(DaySpec.first(def.day)));
+
+    var btn = button('↩️ Restore', 'restore dkey '+_encKey(gk));
+
+    defRowsBySource[srcTitle].push(
+      '<tr>'
+        + '<td style="'+STYLES.td+'">'+ swatchHtml(resolveColor(def.color)||autoColorForEvent({name:def.name})) +' '+esc(def.name)+'</td>'
+        + '<td style="'+STYLES.td+'">'+ esc(displayDay) +'</td>'
+        + '<td style="'+STYLES.td+'">'+ esc(scopeTxt) +'</td>'
+        + '<td style="'+STYLES.td+';text-align:center;">'+ btn +'</td>'
+      + '</tr>'
+    );
+  });
+
+  var defSections = Object.keys(defRowsBySource).sort().map(function(src){
+    var rows = defRowsBySource[src].join('');
+    var head = '<tr>'
+      + '<th style="'+STYLES.th+'">Event</th>'
+      + '<th style="'+STYLES.th+'">Day</th>'
+      + '<th style="'+STYLES.th+'">Scope</th>'
+      + '<th style="'+STYLES.th+'">Action</th>'
+      + '</tr>';
+    return '<div style="margin:6px 0;"><b>'+esc(src)+'</b></div>'
+         + '<table style="'+STYLES.table+'">'+ head + rows +'</table>';
+  }).join('<div style="height:8px;"></div>');
+
+  if (!defSections) defSections = '<div style="opacity:.7;">No suppressed default events.</div>';
+
+  return '<div style="margin:4px 0;"><b>Suppressed Defaults (grouped)</b></div>'
+       + '<div style="margin:2px 0;">'+button('Restore All', 'restore all')+'</div>'
+       + defSections;
 }
+
 function restoreDefaultEvents(query){
   var cal = getCal();
   var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
   var q = String(query||'').trim();
   if (!q){
-    sendChat(script_name, '/w gm Usage: <code>!cal restore [all] [exact] &lt;name...&gt; | restore key &lt;KEY&gt; | restore list</code>');
+    sendChat(script_name, '/w gm Usage: <code>!cal restore [all] [exact] &lt;name...&gt; | restore key &lt;KEY&gt; | restore dkey &lt;GROUP_KEY&gt; | restore list</code>');
     return;
   }
 
   var parts = q.split(/\s+/);
   var sub = (parts[0]||'').toLowerCase();
+
+  // grouped restore by default-line (all instances for that default)
+  if (sub === 'dkey'){
+    var gk = _decKey(parts.slice(1).join(' ').trim());
+    if (!gk){
+      sendChat(script_name, '/w gm Usage: <code>!cal restore dkey &lt;GROUP_KEY&gt;</code>');
+      return;
+    }
+    restoreDefaultsByGroupKey(gk);
+    return;
+  }
+
+  // grouped list view (one row per default code-line)
+  if (sub === 'list'){
+    sendChat(script_name, '/w gm ' + suppressedDefaultsListHtml());
+    return;
+  }
 
   // restore all defaults previously suppressed (respecting source disables)
   if (sub === 'all'){
@@ -2632,7 +2852,7 @@ function restoreDefaultEvents(query){
     return;
   }
 
-  // restore by exact key
+  // restore by exact suppression key (single instance)
   if (sub === 'key'){
     var key = _decKey(parts.slice(1).join(' ').trim());
     if (!key){
@@ -2671,7 +2891,7 @@ function restoreDefaultEvents(query){
 
   mergeInNewDefaultEvents(cal);
   refreshAndSend();
-sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching “'+esc(needle)+'”.');
+  sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching “'+esc(needle)+'”.');
 }
 
 /* ============================================================================
@@ -2809,8 +3029,6 @@ function helpStatusSummaryHtml(){
 function helpRootMenu(m){
   var rows = [];
 
-  rows.push(_menuBox('Calendar Overview', helpRootIntroHtml()));  // ← NEW
-  
   rows.push(helpStatusSummaryHtml());
   
   rows.push(_menuBox('Display',
@@ -3158,7 +3376,7 @@ function usage(key, m){ whisper(m.who, USAGE[key]); }
 var USAGE = {
   'events.add':     'Usage: !cal add [MM DD [YYYY] | <MonthName> DD [YYYY] | DD] NAME [#COLOR|color] (DD may be an ordinal like 1st or fourteenth)',
   'events.remove':  'Usage: !cal remove [list | key <KEY> | <name fragment>]',
-  'events.restore': 'Usage: !cal restore [all] [exact] <name...> | restore key <KEY>',
+  'events.restore': 'Usage: !cal restore [all | key <KEY> | dkey <GROUP_KEY> | [exact] <name…> | list]',
   'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)',
   'yeartitle':      'Usage: !cal yeartitle set <YYYY> <Title...> [#COLOR|color] | list | remove <YYYY>'
 };
@@ -3180,24 +3398,42 @@ var EVENT_SUB = {
     run: function(m, args){
       if (!args || !args.length) { whisper(m.who, removeListHtml()); return; } // ← add this
       var sub = String(args[0]||'').toLowerCase();
+      if (sub === 'dkey') {
+        suppressDefaultsByGroupKey(_decKey(args.slice(1).join(' '))); return;
+      }
       if (sub === 'list') {
         if (args.length === 1) { whisper(m.who, removeListHtml()); return; }
         return usage('events.remove', m);
       }
-      if (sub === 'key') { removeEvent(args.join(' ')); return; }
+      if (sub === 'key') {
+        removeEvent(args.join(' ')); return;
+      }
       whisper(m.who, removeMatchesListHtml(args.join(' ')));
     }
   },
-  restore: {
-    usage: 'events.restore',
-    run: function(m, args){
-      if ((args[0] || '').toLowerCase() === 'list'){
-        whisper(m.who, suppressedDefaultsListHtml());
+
+restore: {
+  usage: 'events.restore',
+  run: function(m, args){
+    var sub = (args && args[0]) ? String(args[0]).toLowerCase() : '';
+    if (!sub || sub === 'list'){
+      whisper(m.who, suppressedDefaultsListHtml());
+      return;
+    }
+    if (sub === 'dkey'){
+      var gk = _decKey(args.slice(1).join(' ').trim());
+      if (!gk){
+        whisper(m.who, 'Usage: <code>!cal restore dkey &lt;GROUP_KEY&gt;</code>');
         return;
       }
-      restoreDefaultEvents(args.join(' '));
+      restoreDefaultsByGroupKey(gk);
+      return;
     }
-  },
+    restoreDefaultEvents(args.join(' '));
+  }
+},
+
+
   list: {
     usage: null,
     run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
