@@ -6,51 +6,47 @@
 
 var Calendar = (function(){
 
-'use strict';
+'use strict'; // treat undefined variables as errors
+
+var script_name = 'Calendar'; // for chat messages
+var state_name  = 'CALENDAR'; // key in state{}
 
 /* ============================================================================
- * 1) CONSTANTS & DEFAULTS
- * ==========================================================================*/
-var script_name = 'Calendar';
-var state_name  = 'CALENDAR';
-
-
-
-
-// === THEME & NAME SETS ====================================================
+* 1) CONSTANTS & DEFAULTS
+============================================================================*/
 
 // Eberron month names. Sets do not change month length or event dates.
 var MONTH_SET_ORDER = ['eberron','druidic','halfling','dwarven','gregorian'];
 var MONTH_NAME_SETS = {
   eberron: [
-    "Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm",
-    "Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"
+    "Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm", // 1-6
+    "Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"   // 7-12
   ],
 
   druidic: [
-    "Frostmantle","Thornrise","Treeborn","Rainsong","Arrowfar","Sunstride",
-    "Glitterstream","Havenwild","Stormborn","Harrowfall","Silvermoon","Windwhisper"
+    "Frostmantle","Thornrise","Treeborn","Rainsong","Arrowfar","Sunstride",         // 1-6
+    "Glitterstream","Havenwild","Stormborn","Harrowfall","Silvermoon","Windwhisper" // 7-12
   ],
 
   halfling: [
-    "Fang","Wind","Ash","Hunt","Song","Dust",
-    "Claw","Blood","Horn","Heart","Spirit","Smoke"
+    "Fang","Wind","Ash","Hunt","Song","Dust",       // 1-6
+    "Claw","Blood","Horn","Heart","Spirit","Smoke"  // 7-12
   ],
 
   dwarven: [
-    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",
-    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"
+    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",      // 1-6
+    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"  // 7-12
   ],
 
   gregorian: [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
+    "January","February","March","April","May","June",          // 1-6
+    "July","August","September","October","November","December" // 7-12
   ]
 };
 
 var WEEKDAY_NAME_SETS = {
-  eberron:  ["Sul","Mol","Zol","Wir","Zor","Far","Sar"],
-  gregorian:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+  eberron:  ["Sul",    "Mol",    "Zol",     "Wir",       "Zor",      "Far",    "Sar"],
+  gregorian:["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 };
 
 // We automatically truncate weekday names to 3 letters, so this gregorian set is technically redundant.
@@ -311,13 +307,13 @@ function titleCase(s){
     .join(' ');
 }
 
-function weekLength(){
+function weekLength(){ // number of days in a week
   var cal = getCal();
   var n = (cal && cal.weekdays && cal.weekdays.length) | 0;
   return n > 0 ? n : 7;
 }
 
-function colorForMonth(mi){
+function colorForMonth(mi){ // month header background color
   var st = ensureSettings();
   var pal = COLOR_THEMES[String(st.colorTheme||'').toLowerCase()];
   var themeCol = pal && pal[mi] ? pal[mi] : null;
@@ -325,7 +321,7 @@ function colorForMonth(mi){
   return resolveColor(themeCol || monthCol) || '#EEE';
 }
 
-function applyMonthSet(setName){
+function applyMonthSet(setName){ // month names
   var cal = getCal();
   var set = MONTH_NAME_SETS[String(setName||'').toLowerCase()];
   if (!set || set.length !== cal.months.length) return false;
@@ -333,7 +329,7 @@ function applyMonthSet(setName){
   return true;
 }
 
-function applyWeekdaySet(setName){
+function applyWeekdaySet(setName){ // weekday names
   var cal = getCal();
   var set = WEEKDAY_NAME_SETS[String(setName||'').toLowerCase()];
   if (!set || !set.length) return false;
@@ -346,7 +342,7 @@ function applyWeekdaySet(setName){
   return true;
 }
 
-function applySeasonSet(setName){
+function applySeasonSet(setName){ // season names
   var cal = getCal();
   var set = SEASON_SETS[String(setName||'').toLowerCase()];
   if (!set || set.length !== cal.months.length) return false;
@@ -356,7 +352,12 @@ function applySeasonSet(setName){
   return true;
 }
 
-function checkInstall(){
+/* ============================================================================
+                          * STATE MANAGEMENT *
+=============================================================================*/
+
+
+function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaults if not.
   if(!state[state_name]) state[state_name] = {};
   ensureSettings();
 
@@ -366,7 +367,7 @@ function checkInstall(){
     state[state_name].calendar = deepClone(defaults);
   }
 
-  if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {}; // key → 1
+  if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
   if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
 
   if (!state[state_name].yearTitles) state[state_name].yearTitles = {}; // year -> {title, color}
@@ -382,7 +383,7 @@ function checkInstall(){
 
   if (!cal.current) cal.current = deepClone(defaults.current);
 
-  if(!Array.isArray(cal.events)){
+  if(!Array.isArray(cal.events)){ // initialize from defaults
     var lim = Math.max(1, cal.months.length);
     var out = [];
     deepClone(defaults.events).forEach(function(e){
@@ -421,7 +422,6 @@ function checkInstall(){
         };
       });
 
-      // backfill colors from defaults if missing
       var defColorByKey = {};
       var lim2 = Math.max(1, cal.months.length);
       defaults.events.forEach(function(de){
@@ -454,7 +454,6 @@ function checkInstall(){
     }
   }
 
-  // apply sets (names, weekdays, seasons)
   var s = ensureSettings();
   applyMonthSet(s.monthSet || 'eberron');      // writes month names
   applyWeekdaySet(s.weekdaySet || 'eberron');  // writes weekdays
@@ -462,17 +461,15 @@ function checkInstall(){
 
   mergeInNewDefaultEvents(cal);
 
-  // rebuild caches after any changes
   _rebuildSerialCache();
 
-  // clamp current date
   var mdays = cal.months[cal.current.month].days;
   if (cal.current.day_of_the_month > mdays){
     cal.current.day_of_the_month = mdays;
   }
 }
 
-function refreshCalendarState(silent){
+function refreshCalendarState(silent){ // re-parse and clean up events list
   checkInstall();
   var cal = getCal();
 
@@ -505,9 +502,9 @@ function refreshCalendarState(silent){
   if (!silent) sendChat(script_name, '/w gm Calendar state refreshed ('+cal.events.length+' events).');
 }
 
-function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(null, true); }
+function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(null, true); } // silent refresh + redraw
 
-function resetToDefaults(){
+function resetToDefaults(){ // wipe state and start over
   delete state[state_name];
   state[state_name] = { calendar: deepClone(defaults) };
   checkInstall();
@@ -2753,6 +2750,7 @@ function colorsNamedListHtml(){
 /* ============================================================================
  * 16) GM BUTTONS & NESTED HELP MENUS
  * ==========================================================================*/
+
 function mb(label, cmd){ return button(label, cmd); } // menu button
 function nav(label, page){ return button(label, 'help '+page); }
 function _menuBox(title, innerHtml){
@@ -2767,8 +2765,8 @@ function _menuBox(title, innerHtml){
 function gmButtonsHtml(){
   var wrap = STYLES.gmbuttonWrap;
   return [
-    '<div style="'+wrap+'">'+ nav('⏮️ Retreat','step') +'</div>',
-    '<div style="'+wrap+'">'+ nav('⏭️ Advance','step') +'</div>',
+    '<div style="'+wrap+'">'+ nav('⏮️ Retreat Date','step') +'</div>',
+    '<div style="'+wrap+'">'+ nav('⏭️ Advance Day','step') +'</div>',
     '<div style="'+wrap+'">'+ mb('📣 Send','send')     +'</div>',
     '<div style="'+wrap+'">'+ nav('❔ Help','root')    +'</div>'
   ].join('');
@@ -2781,40 +2779,30 @@ function helpStatusSummaryHtml(){
 
   var date = esc(currentDateLabel());
 
-  // Weekday set (numbered)
-  var weekdaySetName = titleCase(st.weekdaySet || '');
-  var weekdayLine = cal.weekdays.map(function(w, i){
+  var weekdays = cal.weekdays.map(function(w, i){
     return (i+1) + '. ' + esc(w);
   }).join(', ');
 
-  // Months + seasons (with month color swatch)
-  var monthSetName   = titleCase(st.monthSet   || '');
-  var seasonSetName  = titleCase(st.seasonSet  || '');
-  var monthsLines = cal.months.map(function(m, i){
+  var months = cal.months.map(function(m, i){
     var sw = swatchHtml(colorForMonth(i));
     var season = esc(m.season || '');
-    return (i+1) + ': ' + sw + ' ' + esc(m.name) + (season ? ' ('+season+')' : '');
+    return (i+1) + '. ' + sw + ' ' + esc(m.name) + (season ? ' ('+season+')' : '');
   }).join('<br>');
 
-  // Color theme
   var themeName = titleCase(st.colorTheme || '');
 
-  // Structure: days/month, days/year, week length
-  var mdCounts = cal.months.map(function(m){ return (m.days|0) || 0; });
-  var allSame = mdCounts.every(function(d){ return d === mdCounts[0]; });
-  var dpy = daysPerYear();
-  var wlen = weekLength();
-  var structLine = allSame
-    ? (cal.months.length + '×' + mdCounts[0] + ' days = ' + dpy + ' days/year; ' + wlen + '-day weeks')
-    : (cal.months.length + ' months, ' + dpy + ' days/year; ' + wlen + '-day weeks');
-    
+  // Date
+  // Numbered & named weekday list
+  // Numbered, named & colored month list with seasons
+  // Current month-header-bar color scheme name
   return _menuBox('Status',
-    '<div><b>Current date:</b> ' + date + '</div>' +
-    '<div style="margin-top:6px;">' + cal.weekdays.length + ' day week:</div>' +
-    '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + weekdayLine + '</div>' +
+    '<div><b>Current date:</b></div>' +
+        '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + date + '</div>' +
+    '<div style="margin-top:8px;"><b>Weekdays:</b></div>' +
+      '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + weekdays + '</div>' +
     '<div style="margin-top:8px;"><b>Months & Seasons:</b></div>' +
-    '<div style="opacity:.85;margin-left:8px;margin-top:2px;line-height:1.4;">' + monthsLines + '</div>' +
-    '<div style="margin-top:8px;"><b>(Color Set:</b> ' + esc(themeName) + ')</div>'
+      '<div style="opacity:.85;margin-left:8px;margin-top:2px;line-height:1.4;">' + months + '</div>' +
+    '<div style="margin-top:8px;"><b>(Current Color Set:</b> ' + esc(themeName) + ')</div>'
   );
 }
 
