@@ -2,256 +2,508 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // Roll20 API script
 // Call `!cal` to start. Add macro for easy access.
-// Version: 2.0
+// Version: 2.1
 
 var Calendar = (function(){
 
-'use strict'; // treat undefined variables as errors
-
-var script_name = 'Calendar'; // for chat messages
-var state_name  = 'CALENDAR'; // key in state{}
+'use strict';
 
 /* ============================================================================
-* 1) CONSTANTS & DEFAULTS
-============================================================================*/
+ * ★ USER CONFIGURATION ★
+ * Edit the values in this section to set up your campaign calendar.
+ * ==========================================================================*/
 
-// Eberron month names. Sets do not change month length or event dates.
-var MONTH_SET_ORDER = ['eberron','druidic','halfling','dwarven','gregorian'];
-var MONTH_NAME_SETS = {
-  eberron: [
-    "Zarantyr","Olarune","Therendor","Eyre","Dravago","Nymm", // 1-6
-    "Lharvion","Barrakas","Rhaan","Sypheros","Aryth","Vult"   // 7-12
-  ],
+/* --- Era label ------------------------------------------------------------*/
+// Appended after the year number everywhere it appears, e.g. "998 YK".
+// Change to match your campaign's dating system.
+var CONFIG_ERA_LABEL = 'YK';
 
-  druidic: [
-    "Frostmantle","Thornrise","Treeborn","Rainsong","Arrowfar","Sunstride",         // 1-6
-    "Glitterstream","Havenwild","Stormborn","Harrowfall","Silvermoon","Windwhisper" // 7-12
-  ],
-
-  halfling: [
-    "Fang","Wind","Ash","Hunt","Song","Dust",       // 1-6
-    "Claw","Blood","Horn","Heart","Spirit","Smoke"  // 7-12
-  ],
-
-  dwarven: [
-    "Aruk","Lurn","Ulbar","Kharn","Ziir","Dwarhuun",      // 1-6
-    "Jond","Sylar","Razagul","Thazm","Drakhadur","Uarth"  // 7-12
-  ],
-
-  gregorian: [
-    "January","February","March","April","May","June",          // 1-6
-    "July","August","September","October","November","December" // 7-12
-  ]
+/* --- Starting Date --------------------------------------------------------*/
+// month: 0-based (0 = first month). day_of_the_week: 0-based (0 = first weekday).
+var CONFIG_START_DATE = {
+  month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998
 };
 
-var WEEKDAY_NAME_SETS = {
-  eberron:  ["Sul",    "Mol",    "Zol",     "Wir",       "Zor",      "Far",    "Sar"],
-  gregorian:["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+/* --- Calendar Structure ---------------------------------------------------*/
+// One number per month = days in that month. All 28 for standard Eberron.
+// Gregorian example: [31,28,31,30,31,30,31,31,30,31,30,31]
+// Month lengths drive everything: serial math, grid layout, event clamping.
+// Note: DEFAULT_EVENTS uses specific day numbers — check events on days 29-31
+// if switching to a calendar with shorter months.
+var CONFIG_MONTH_LENGTHS = [
+  28, 28, 28, 28, 28, 28,
+  28, 28, 28, 28, 28, 28
+];
+
+/* --- Default settings -----------------------------------------------------*/
+// Applied on first install and after a full reset (!cal resetcalendar).
+// These are the starting-point choices for name sets, seasons, and color theme.
+// All are changeable live via !cal calendar / !cal seasons / !cal theme.
+// Available values are defined in Section 1 in CALENDAR_SYSTEMS, SEASON_SETS,
+// and COLOR_THEMES. Use Ctrl+F / Cmd+F to find those blocks.
+var CONFIG_DEFAULTS = {
+  calendarSystem:  'eberron',   // key in CALENDAR_SYSTEMS
+  calendarVariant: 'standard',  // key in CALENDAR_SYSTEMS[x].variants
+  seasonVariant:   'eberron',   // key in SEASON_SETS; can be overridden per campaign
+  hemisphere:      'north',     // 'north' or 'south'; only affects faerun and gregorian sets
+  colorTheme:      null,        // null = use variant default; set to override
+  moonsEnabled:    true,        // false = moon system fully disabled
+  weatherEnabled:  true,        // false = weather system fully disabled
+  planesEnabled:   true,        // false = planar system disabled
+  uiDensity:       'normal',    // 'compact' or 'normal'
+  autoButtons:     false        // false = suppress auto action buttons on !cal
 };
 
-// We automatically truncate weekday names to 3 letters, so this gregorian set is technically redundant.
-// But it's here to let you know that it exists, in case you want to customize it.
-var WEEKDAY_ABBR_OVERRIDES = {
+/* --- Calendar systems --------------------------------------------------------*/
+// Each system is a complete, self-contained calendar definition.
+// Variants within a system share structure, weekdays, and month lengths,
+// but differ in month names and default color theme.
+// To add a custom system or variant, add an entry here — that's the only place.
+var CALENDAR_SYSTEMS = {
+  eberron: {
+    label:          'Galifar',
+    description:    '12 months of 28 days. 7-day week. Moons share month names.',
+    weekdays:       ['Sul','Mol','Zol','Wir','Zor','Far','Sar'],
+    monthDays:      [28,28,28,28,28,28,28,28,28,28,28,28],
+    structure:      null,
+    defaultSeason:  'eberron',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Standard (Galifar)',
+        monthNames: ['Zarantyr','Olarune','Therendor','Eyre','Dravago','Nymm',
+                     'Lharvion','Barrakas','Rhaan','Sypheros','Aryth','Vult'],
+        colorTheme: 'lunar'
+      },
+      druidic: {
+        label:      'Druidic',
+        monthNames: ['Frostmantle','Thornrise','Treeborn','Rainsong','Arrowfar','Sunstride',
+                     'Glitterstream','Havenwild','Stormborn','Harrowfall','Silvermoon','Windwhisper'],
+        colorTheme: 'druidic'
+      },
+      halfling: {
+        label:      'Halfling',
+        monthNames: ['Fang','Wind','Ash','Hunt','Song','Dust',
+                     'Claw','Blood','Horn','Heart','Spirit','Smoke'],
+        colorTheme: 'halfling'
+      },
+      dwarven: {
+        label:      'Dwarven',
+        monthNames: ['Aruk','Lurn','Ulbar','Kharn','Ziir','Dwarhuun',
+                     'Jond','Sylar','Razagul','Thazm','Drakhadur','Uarth'],
+        colorTheme: 'dwarven'
+      }
+    }
+  },
+  faerunian: {
+    label:          'Harptos',
+    description:    '12 months of 30 days, 5 festival days, Shieldmeet every 4 years.',
+    weekdays:       ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    weekdayAbbr:    { Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
+                      Thursday:'Thu', Friday:'Fri', Saturday:'Sat' },
+    monthDays:      [30,30,30,30,30,30,30,30,30,30,30,30],
+    structure:      'harptos',
+    defaultSeason:  'faerun',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Standard (Dalereckoning)',
+        monthNames: ['Hammer','Alturiak','Ches','Tarsakh','Mirtul','Kythorn',
+                     'Flamerule','Eleasis','Eleint','Marpenoth','Uktar','Nightal'],
+        colorTheme: 'seasons'
+      }
+    }
+  },
   gregorian: {
-    Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
-    Thursday:'Thu', Friday:'Fri', Saturday:'Sat'
+    label:          'Gregorian',
+    description:    '12 months of varying length. Standard Earth calendar.',
+    weekdays:       ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    weekdayAbbr:    { Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
+                      Thursday:'Thu', Friday:'Fri', Saturday:'Sat' },
+    monthDays:      [31,28,31,30,31,30,31,31,30,31,30,31],
+    structure:      null,
+    defaultSeason:  'gregorian',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Standard',
+        monthNames: ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'],
+        colorTheme: 'birthstones'
+      }
+    }
   }
 };
+var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','gregorian'];
 
-var THEME_ORDER  = ['seasons','lunar','druidic','halfling','dwarven','birthstones']; // order they appear in menu
-var COLOR_THEMES = {
-  seasons: [ // generic seasonal palette
-    "#FFFFFF", // snow white
-    "#CBD5E1", // overcast gray
-    "#D8F3DC", // mint green
-    "#FFB7C5", // cherry blossom 
-    "#E6E6FA", // lavender 
-    "#FFC54D", // topaz yellow
-    "#50C878", // emerald green 
-    "#64B5F6", // sky blue
-    "#B38E3C", // autumn gold
-    "#FF7518", // pumpkin orange 
-    "#8B5A2B", // stick brown 
-    "#475569" // storm gray
-  ],
+/* --- Display tuning -------------------------------------------------------*/
+// How many days before/after the displayed month boundary trigger an adjacent
+// strip of context days. 0 = no strip ever. 7 = always show a full border row.
+var CONFIG_NEARBY_DAYS = 5;
 
-  lunar: [ // from Dragonshards article on Moons of Eberron
-    "#F5F5FA", // pearly white
-    "#FFC68A", // pale orange
-    "#D3D3D3", // pale gray
-    "#C0C0C0", // silver-gray
-    "#E6E6FA", // pale lavender
-    "#FFD96B", // pale yellow
-    "#F5F5F5", // dull white with black slit
-    "#DCDCDC", // pale gray
-    "#9AC0FF", // pale blue
-    "#696969", // smoky gray
-    "#FF4500", // orange-red
-    "#A9A9A9"  // gray and pockmarked
-  ],
+/* --- Weather tuning -------------------------------------------------------*/
+// How many days ahead the GM forecast pre-generates (players see at most 10).
+var CONFIG_WEATHER_FORECAST_DAYS = 20;
 
-  druidic: [ // inspired by Druidic month names
-    "#F2F7FF", // Frostmantle — snow white with icy blue
-    "#C9D6C3", // Thornrise — pale sage green
-    "#D8F3DC", // Treeborn — mint green
-    "#D8CFEA", // Rainsong — periwinkle with a pink note
-    "#9EC5E8", // Arrowfar — distant sky blue
-    "#FFC54D", // Sunstride — topaz yellow
-    "#63D2FF", // Glitterstream — bright aqua
-    "#50C878", // Havenwild — emerald sanctuary
-    "#2E3A8C", // Stormborn — electric storm blue
-    "#FF7518", // Harrowfall — pumpkin harvest
-    "#E6E6FA", // Silvermoon — silver lavender
-    "#E8EDF2"  // Windwhisper — wispy light gray
-  ],
+// How many days of locked weather history to keep.
+var CONFIG_WEATHER_HISTORY_DAYS = 60;
 
-  halfling: [ // inspired by Halfling month names
-    "#E8EEF3", // Fang — cold bone white
-    "#BDE0FE", // Wind — airy sky blue
-    "#C7CBD1", // Ash — soft ash-gray
-    "#2F855A", // Hunt — forest green
-    "#F48FB1", // Song — wildflower pink
-    "#BF946A", // Dust — earth brown
-    "#D6C151", // Claw — plains grass
-    "#8B0000", // Blood — deep crimson
-    "#F3ECDB", // Horn — horn/antler brown
-    "#8E3B46", // Heart — rosewood/mahogany
-    "#C7C3E3", // Spirit — moonlit violet
-    "#6B7280"  // Smoke — slate/charcoal, wintering back
-  ],
+// How strongly yesterday's weather pulls today's roll toward it (0 = none, 2 = strong).
+// 0 = pure fresh roll each day. 1 = gentle continuity. 2 = significant persistence.
+var CONFIG_WEATHER_SEED_STRENGTH = 1;
 
-  dwarven: [ // story of the ages
-    "#0D0D0D", // Darkness
-    "#2F343B", // Stone
-    "#7A4E1D", // Bronze
-    "#7F8999", // Iron
-    "#C0C0C0", // Silver
-    "#FFB11B", // Gold
-    "#E5E4E2", // Platinum
-    "#0A3A8C", // Sapphire
-    "#064E3B", // Emerald
-    "#FF7518", // Mandarin Garnet (Halloween)
-    "#C21807", // Ruby
-    "#DDEAF7"  // Mithril
-  ],
+/* --- Weather: climate / geography / terrain tables -----------------------*/
+// The detailed probability tables that drive the weather engine live in Section 18.
+// Use Ctrl+F / Cmd+F to search for:
+//   WEATHER_CLIMATE_BASE  — base temp/wind/precip ranges per climate × month
+//   WEATHER_GEO_MOD       — geographic modifiers (coast, valley, plains, etc.)
+//   WEATHER_TERRAIN_MOD   — terrain modifiers (forest, swamp, desert, etc.)
+// Advanced: you can add new climates, geographies, or terrains by adding entries
+// to those tables. The wizard UI reads keys automatically.
 
-  birthstones: [ // mix of traditional and modern birthstone colors for wide palette
-    "#7A1E2C", // Jan Garnet
-    "#8E5AC8", // Feb Amethyst
-    "#66E5D9", // Mar Aquamarine
-    "#F2FBFF", // Apr Diamond
-    "#00A86B", // May Emerald
-    "#F7F3EE", // Jun Pearl
-    "#D0002A", // Jul Ruby
-    "#A8E100", // Aug Peridot
-    "#0A4AA6", // Sep Sapphire
-    "#E83E8C", // Oct Tourmaline
-    "#FFA726", // Nov Topaz
-    "#00B8D4"  // Dec Turquoise
-  ]};
-
-// Auto-apply a color theme when a name set is chosen
-var NAMESET_TO_THEME = {
-  eberron:  'lunar',
-  druidic:  'druidic',
-  dwarven:  'dwarven',
-  halfling: 'halfling',
-  gregorian:'birthstones'
+/* --- Weather Mechanics ----------------------------------------------------*/
+// Temperature mechanics per stage (0-10).
+var CONFIG_WEATHER_MECHANICS = {
+  temp: {
+    0:  'DC 25 Con save or exhaustion. Dex checks/saves/attacks at disadvantage. Heavy armor required.',
+    1:  'DC 20 Con save or exhaustion. Dex checks and saves at disadvantage. Medium or heavy armor required.',
+    2:  'DC 15 Con save or exhaustion. Dex checks at disadvantage.',
+    3:  'DC 10 Con save or exhaustion.',
+    4:  null, 5: null, 6: null,
+    7:  'DC 10 Con save or exhaustion.',
+    8:  'DC 15 Con save or exhaustion. Heavy armor wearers at disadvantage.',
+    9:  'DC 20 Con save or exhaustion. Medium and heavy armor wearers at disadvantage.',
+    10: 'DC 25 Con save or exhaustion. All armor wearers at disadvantage.'
+  },
+  wind: {
+    0: null,
+    1: null,
+    2: 'Ranged attacks at disadvantage. Long range auto-miss. Fogs and gases dispersed.',
+    3: 'All ranged attacks auto-miss. Flying creatures: DC 15 Str or half speed and must land. Open flames extinguished.'
+  }
+  // Precip mechanics are now fully derived per-condition by _deriveConditions.
+  // See CONFIG_WEATHER_FLAVOR for narrative and that function for visibility rules.
 };
 
-var _SEASONS_NORTHERN = [
+/* --- Weather Labels -------------------------------------------------------*/
+// Player-facing stage names. Precip labels are now condition names (see _deriveConditions).
+var CONFIG_WEATHER_LABELS = {
+  temp: [
+    'Extreme Cold','Frigid','Freezing','Cold','Chilly',
+    'Mild','Warm','Hot','Sweltering','Blistering','Extreme Heat'
+  ],
+  wind:   ['Calm','Breezy','Windy','Storm'],
+  precip: ['Clear','Overcast','Precipitation','Severe']
+};
+
+/* --- Weather Flavor Text --------------------------------------------------*/
+// Keyed as tempBand|precipStage. precipStage 0-3 on the new scale.
+// tempBand: cold(0-3) = ≤20F, cool(4) = 35F, mild(5-6) = 50-65F,
+//           warm(7) = 80F, hot(8-10) = 95F+
+// Fog is a derived condition (morning, low wind, swamp/valley/forest) and
+// handled separately in _deriveConditions — not represented here.
+var CONFIG_WEATHER_FLAVOR = {
+  'cold|0':  'Bitterly cold and clear.',
+  'cold|1':  'Cold and overcast.',
+  'cold|2':  'Cold with light snow.',
+  'cold|3':  'Blizzard. Dangerous to be outside.',
+  'cool|0':  'Crisp and clear.',
+  'cool|1':  'Cool and cloudy.',
+  'cool|2':  'Sleet and freezing rain.',
+  'cool|3':  'Ice storm. Roads are treacherous.',
+  'mild|0':  'Clear skies.',
+  'mild|1':  'Partly to mostly cloudy.',
+  'mild|2':  'Light rain.',
+  'mild|3':  'Heavy rain and reduced visibility.',
+  'warm|0':  'Warm and sunny.',
+  'warm|1':  'Warm with clouds building.',
+  'warm|2':  'Warm with light rain. Humid.',
+  'warm|3':  'Heavy rain. Hot and muggy.',
+  'hot|0':   'Hot and dry. The sun is punishing.',
+  'hot|1':   'Hot and hazy.',
+  'hot|2':   'Hot with light rain. Steam rises from the ground.',
+  'hot|3':   'Intense heat and driving rain.'
+};
+
+/* ============================================================================
+ * END USER CONFIGURATION
+ * ==========================================================================*/
+
+/* ============================================================================
+ * 1) CONSTANTS
+ * Hard-coded world and system values. Edit here to tune behaviour; these are
+ * not exposed in menus. See README.md for guidance on each value.
+ * ==========================================================================*/
+
+var script_name = 'Calendar';
+var state_name  = 'CALENDAR';
+
+/* --- Calendar name sets ---------------------------------------------------*/
+// All sets switchable live via the Appearance menu or !cal names / weekdays / seasons / etc.
+// To add a custom set, add an entry to the object and to its ORDER array below it.
+
+var _SEASONS_EBERRON = [
   "Mid-winter","Late winter","Early spring","Mid-spring","Late spring","Early summer",
   "Mid-summer","Late summer","Early autumn","Mid-autumn","Late autumn","Early winter"
 ];
-
-var SEASON_SETS = { // we don't use these yet
-  northern: _SEASONS_NORTHERN.slice(),
-  southern: _SEASONS_NORTHERN.slice(6).concat(_SEASONS_NORTHERN.slice(0,6)), // rotate 6
-  tropic:   ["Dry","Dry","Dry","Dry","Rainy","Rainy","Rainy","Rainy","Rainy","Rainy","Dry","Dry"]
+// Each entry: { names[12], hemisphereAware?, transitions?, transitionsSouth? }
+// hemisphereAware: if true, hemisphere setting (north/south) flips weather offset and
+//   season names by 6 months (faerun) or uses alternate transitions (gregorian).
+// Eberron and tropical sets are not hemisphere-aware — they are planar or equatorial.
+var SEASON_SETS = {
+  // Eberron planar seasons — defined by the Draconic Prophecy, not geography.
+  // These names are canon from the Eberron Campaign Setting.
+  eberron: {
+    names: _SEASONS_EBERRON.slice(),
+    hemisphereAware: false
+  },
+  // Faerunian / generic geographic seasons — plain four-season names at month boundaries.
+  // Hemisphere-aware: hemisphere south shifts all names by 6 months.
+  faerun: {
+    names: ['Winter','Winter','Spring','Spring','Spring',
+            'Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: true
+  },
+  // Gregorian mid-month transitions — season flips on the solstice/equinox day.
+  // Northern transitions are standard astronomical dates.
+  // Southern transitions are the same dates offset by 6 months.
+  gregorian: {
+    names: ['Winter','Winter','Spring','Spring','Spring',
+            'Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: true,
+    transitions: [
+      { mi:  2, day: 20, season: 'Spring' },   // March 20
+      { mi:  5, day: 21, season: 'Summer' },   // June 21
+      { mi:  8, day: 22, season: 'Autumn' },   // September 22
+      { mi: 11, day: 21, season: 'Winter' }    // December 21
+    ],
+    transitionsSouth: [
+      { mi:  2, day: 20, season: 'Autumn' },   // March 20
+      { mi:  5, day: 21, season: 'Winter' },   // June 21
+      { mi:  8, day: 22, season: 'Spring' },   // September 22
+      { mi: 11, day: 21, season: 'Summer' }    // December 21
+    ]
+  },
+  // Tropical monsoon — three-phase cycle: cool → hot → rainy, 4 months each.
+  // Not hemisphere-aware: equatorial climates don't have meaningful hemispheres.
+  tropical: {
+    names: [
+      'Early Cool Season','Early-Mid Cool Season','Mid-Late Cool Season','Late Cool Season',
+      'Early Hot Season','Early-Mid Hot Season','Mid-Late Hot Season','Late Hot Season',
+      'Early Rainy Season','Early-Mid Rainy Season','Mid-Late Rainy Season','Late Rainy Season'
+    ],
+    hemisphereAware: false
+  }
 };
 
-// Labels & styles
-var LABELS = {
-  era: 'YK', // post-script to year number
-  gmOnlyNotice: 'Only the GM can use that calendar command.' // you must gather your party before venturing forth
-};
-var STYLES = {
-  wrap: 'display:inline-block;vertical-align:top;margin:4px;',
-  table: 'border-collapse:collapse;margin:4px;',
-  th:    'border:1px solid #444;padding:2px;width:2em;text-align:center;',
-  head:  'border:1px solid #444;padding:0;',
-  td:    'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
-  monthHeaderBase: 'padding:6px;text-align:left;',
-  yearHeaderBase:  'padding:6px;text-align:center;',
-  gmbuttonWrap: 'margin:2px 0;',
-  today: // current day
-    'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
-  past: // past days
-    'opacity:0.65;',
-  future: // future days
-    'opacity:0.95;'
-};
-
-var DEFAULT_EVENT_SOURCES = {
-  sharn: [
-    { name: "Tain Gala",               month: "all",  day: "first far", color: "#F7E7CE" }, // champagne 
-    { name: "Crystalfall",             month: 2,      day: 9,           color: "#D7F3FF" }, // crystal blue
-    { name: "Day of Ashes",            month: 5,      day: 3,           color: "#B0BEC5" }, // ash gray
-    { name: "The Race of Eight Winds", month: 7,      day: 23,          color: "#006D3C" }  // racing green
-  ],
-
-  khorvaire: [
-    { name: "Day of Mourning",         month: 2,   day: 20,  color: "#9E9E9E" }, // dead gray mists
-    { name: "Galifar's Throne",        month: 6,   day: 5,   color: "#D4AF37" }, // crown gold
-    { name: "Thronehold",              month: 11,  day: 11,  color: "#E80001" }  // poppy red
-  ],
-
-  "sovereign host": [
-    { name: "Onatar's Flame",     month: 1,  day: 7,   color: "#FF6F00" }, // forge-orange, closer to glowing metal (Onatar)
-    { name: "Turrant's Gift",     month: 2,  day: 14,  color: "#B8860B" }, // old coin-gold, (Kol Korran / Three Faces)
-    { name: "Olladra's Feast",    month: 2,  day: 28,  color: "#8BC34A" }, // lucky clover green, prosperity & chance (Olladra)
-    { name: "Sun's Blessing",     month: 3,  day: 15,  color: "#FFC107" }, // radiant sunlight yellow (Dol Arrah)
-    { name: "Aureon's Crown",     month: 5,  day: 26,  color: "#283593" }, // deep indigo/blue, scholarly authority (Aureon)
-    { name: "Brightblade",        month: 6,  day: 12,  color: "#B71C1C" }, // bold crimson, martial vigor (Dol Dorn)
-    { name: "Bounty's Blessing",  month: 7,  day: 14,  color: "#388E3C" }, // lush harvest green, fertility & growth (Arawai)
-    { name: "The Hunt",           month: 8,  day: 4,   color: "#1B5E20" }, // dark forest green, wilderness mastery (Balinor)
-    { name: "Boldrei's Feast",    month: 9,  day: 9,   color: "#F57C00" }, // warm hearth orange, home & community (Boldrei)
-    { name: "Market Day",         month: 11, day: 20,  color: "#FFD54F" }  // bright gold, trade & exchange (Kol Korran)
-
-  ],
-
-  "dark six": [
-    { name: "Shargon's Bargain",       month: 4,   day: 13,       color: "#006064" }, // stormy ocean blue (The Devourer)
-    { name: "Second Skin",             month: 6,   day: 11,       color: "#809E62" }, // venom green (The Mockery)
-    { name: "Wildnight",               month: 10,  day: "18-19",  color: "#AD1457" }, // passion red (The Fury)
-    { name: "Long Shadows",            month: 12,  day: "26-28",  color: "#0D0D0D" }  // abyssal black (The Shadow)
-  ],
-
-  "silver flame": [
-    { name: "Rebirth Eve",             month: 1,     day: 14,         color: "#EAF2FF" }, // argent halo
-    { name: "Bright Souls' Day",       month: 2,     day: 18,         color: "#FFF2C6" }, // candle vigil
-    { name: "Tirasday",                month: 3,     day: 5,          color: "#DCEBFF" }, // pale silver-blue
-    { name: "Initiation Day",          month: 4,     day: 11,         color: "#C7E3FF" }, // serene blue
-    { name: "Baker's Night",           month: 5,     day: 6,          color: "#D8B98F" }, // warm bread
-    { name: "Promisetide",             month: 5,     day: 28,         color: "#BDE3FF" }, // vow azure
-    { name: "First Dawn",              month: 6,     day: 21,         color: "#FFD1A6" }, // sunrise peach
-    { name: "Silvertide",              month: 7,     day: 14,         color: "#F2F7FF" }, // highest holy day
-    { name: "Victory Day",             month: 8,     day: 9,          color: "#B3E5FC" }, // cool triumph
-    { name: "Fathen's Fall",           month: 8,     day: 25,         color: "#E7ECF5" }, // solemn slate-blue
-    { name: "The Ascension",           month: 10,    day: 1,          color: "#E6F0FF" }, // radiant argent
-    { name: "Saint Valtros's Day",     month: 10,    day: 25,         color: "#E8ECFF" }, // saintly pale
-    { name: "Rampartide",              month: 11,    day: 24,         color: "#D6F5D6" }, // warding green
-    { name: "Khybersef",               month: 12,    day: 27,         color: "#111827" }, // deep night
-    { name: "Day of Cleansing Fire",   month: "all", day: "all sul",  color: "#F2F7FF" }  // white flame
-  ],
-
-  stormreach: [
-    { name: "The Burning Titan",       month: 3,  day: 1,       color: "#FF5722" }, // ember red
-    { name: "Pirate's Moon",           month: 5,  day: 20,      color: "#0E7490" }, // moonlit seas
-    { name: "The Annual Games",        month: 6,  day: "1-14",  color: "#2E7D32" }, // laurels green
-    { name: "Shacklebreak",            month: 11, day: 1,       color: "#455A64" }  // steel chains
+/* --- Calendar structure sets ----------------------------------------------*/
+// A structure set defines intercalary (festival/leap) days and their positions.
+// Applying one rebuilds the month array with intercalary slots inserted.
+// Non-intercalary slots receive their names and lengths from the active name/length sets.
+// Each entry in the array is either:
+//   { regularIndex: N }          → placeholder for regular month N (0-based)
+//   { isIntercalary:true, name, days, leapEvery? }  → fixed festival day
+// leapEvery: if set, this slot only exists in years where year % leapEvery === 0.
+var CALENDAR_STRUCTURE_SETS = {
+  // Harptos calendar (Forgotten Realms / Forgotten Realms Dalereckoning).
+  // 12 regular months × 30 days, 5 fixed festival days, Shieldmeet every 4 years.
+  // Leap years: year % 4 === 0 in Dalereckoning (e.g. 1372 DR, 1376 DR).
+  // Total: 365 days non-leap, 366 days leap.
+  harptos: [
+    { regularIndex: 0 },
+    { isIntercalary:true, name:'Midwinter',       days:1 },
+    { regularIndex: 1 },
+    { regularIndex: 2 },
+    { regularIndex: 3 },
+    { isIntercalary:true, name:'Greengrass',      days:1 },
+    { regularIndex: 4 },
+    { regularIndex: 5 },
+    { regularIndex: 6 },
+    { isIntercalary:true, name:'Midsummer',       days:1 },
+    { isIntercalary:true, name:'Shieldmeet',      days:1, leapEvery:4 },
+    { regularIndex: 7 },
+    { regularIndex: 8 },
+    { regularIndex: 9 },
+    { regularIndex:10 },
+    { isIntercalary:true, name:'Highharvestide',  days:1 },
+    { regularIndex:11 },
+    { isIntercalary:true, name:'Feast of the Moon', days:1 }
   ]
 };
+/* --- Color themes ---------------------------------------------------------*/
+// Switchable live via !cal theme. One hex color per month.
+var COLOR_THEMES = {
+  seasons: [
+    "#FFFFFF","#CBD5E1","#D8F3DC","#FFB7C5","#E6E6FA","#FFC54D",
+    "#50C878","#64B5F6","#B38E3C","#FF7518","#8B5A2B","#475569"
+  ],
+  lunar: [
+    "#F5F5FA","#FFC68A","#D3D3D3","#C0C0C0","#E6E6FA","#FFD96B",
+    "#F5F5F5","#DCDCDC","#9AC0FF","#696969","#FF4500","#A9A9A9"
+  ],
+  druidic: [
+    "#F2F7FF","#C9D6C3","#D8F3DC","#D8CFEA","#9EC5E8","#FFC54D",
+    "#63D2FF","#50C878","#2E3A8C","#FF7518","#E6E6FA","#E8EDF2"
+  ],
+  halfling: [
+    "#E8EEF3","#BDE0FE","#C7CBD1","#2F855A","#F48FB1","#BF946A",
+    "#D6C151","#8B0000","#F3ECDB","#8E3B46","#C7C3E3","#6B7280"
+  ],
+  dwarven: [
+    "#0D0D0D","#2F343B","#7A4E1D","#7F8999","#C0C0C0","#FFB11B",
+    "#E5E4E2","#0A3A8C","#064E3B","#FF7518","#C21807","#DDEAF7"
+  ],
+  birthstones: [
+    "#7A1E2C","#8E5AC8","#66E5D9","#F2FBFF","#00A86B","#F7F3EE",
+    "#D0002A","#A8E100","#0A4AA6","#E83E8C","#FFA726","#00B8D4"
+  ]
+};
+var THEME_ORDER      = ['seasons','lunar','druidic','halfling','dwarven','birthstones'];
+/* --- Named colors for events ----------------------------------------------*/
+// Use by name in event commands: !cal add March 14 Feast emerald
+var NAMED_COLORS = {
+  red:    '#E53935', apple:  '#D32F2F', garnet: '#9B111E', pink:      '#EC407A',
+  orange: '#F4511E', brown:  '#6D4C41', copper: '#B87333',
+  yellow: '#FDD835', lemon:  '#FBC02D', gold:   '#D4AF37', topaz:     '#FFC54D',
+  green:  '#43A047', lime:   '#7CB342', forest: '#228B22', emerald:   '#50C878', teal: '#00897B',
+  blue:   '#1E88E5', royal:  '#3949AB', sky:    '#29B6F6', sapphire:  '#0F52BA', aqua: '#7FFFD4',
+  indigo: '#3949AB', navy:   '#283593',
+  violet: '#7E57C2', purple: '#5E35B1', grape:  '#8E24AA', amethyst:  '#9966CC',
+  black:  '#000000', obsidian:'#0D0D0D', onyx:  '#353839', gray:      '#9E9E9E',
+  silver: '#C0C0C0', platinum:'#E5E4E2', white: '#FFFFFF', snow:      '#FFFAFA', diamond: '#E6F7FF'
+};
+NAMED_COLORS.grey       = NAMED_COLORS.gray;
+NAMED_COLORS.forestgreen= NAMED_COLORS.forest;
+NAMED_COLORS.skyblue    = NAMED_COLORS.sky;
+NAMED_COLORS.charcoal   = NAMED_COLORS.onyx;
+NAMED_COLORS.snowwhite  = NAMED_COLORS.snow;
+
+/* --- Default events -------------------------------------------------------*/
+// Canon Eberron calendar observances, grouped by source.
+// Sources can be enabled/disabled live via !cal source enable/disable <name>.
+// Individual events can be hidden via the Active Events menu.
+// Fields: name, month (1-based or "all"), day (number, "N-M", or ordinal weekday),
+//         color (hex or named color), source (must match the key below).
+var DEFAULT_EVENTS = {
+  sharn: [
+    { name: "Tain Gala",               month: "all", day: "first far", color: "#F7E7CE" },
+    { name: "Crystalfall",             month: 2,     day: 9,           color: "#D7F3FF" },
+    { name: "Day of Ashes",            month: 5,     day: 3,           color: "#B0BEC5" },
+    { name: "The Race of Eight Winds", month: 7,     day: 23,          color: "#006D3C" }
+  ],
+  khorvaire: [
+    { name: "Day of Mourning",  month: 2,  day: 20, color: "#9E9E9E" },
+    { name: "Galifar's Throne", month: 6,  day: 5,  color: "#D4AF37" },
+    { name: "Thronehold",       month: 11, day: 11, color: "#E80001" }
+  ],
+  "sovereign host": [
+    { name: "Onatar's Flame",    month: 1,  day: 7,  color: "#FF6F00" },
+    { name: "Turrant's Gift",    month: 2,  day: 14, color: "#B8860B" },
+    { name: "Olladra's Feast",   month: 2,  day: 28, color: "#8BC34A" },
+    { name: "Sun's Blessing",    month: 3,  day: 15, color: "#FFC107" },
+    { name: "Aureon's Crown",    month: 5,  day: 26, color: "#283593" },
+    { name: "Brightblade",       month: 6,  day: 12, color: "#B71C1C" },
+    { name: "Bounty's Blessing", month: 7,  day: 14, color: "#388E3C" },
+    { name: "The Hunt",          month: 8,  day: 4,  color: "#1B5E20" },
+    { name: "Boldrei's Feast",   month: 9,  day: 9,  color: "#F57C00" },
+    { name: "Market Day",        month: 11, day: 20, color: "#FFD54F" }
+  ],
+  "dark six": [
+    { name: "Shargon's Bargain", month: 4,  day: 13,      color: "#006064" },
+    { name: "Second Skin",       month: 6,  day: 11,      color: "#809E62" },
+    { name: "Wildnight",         month: 10, day: "18-19", color: "#AD1457" },
+    { name: "Long Shadows",      month: 12, day: "26-28", color: "#0D0D0D" }
+  ],
+  "silver flame": [
+    { name: "Rebirth Eve",           month: 1,     day: 14,        color: "#EAF2FF" },
+    { name: "Bright Souls' Day",     month: 2,     day: 18,        color: "#FFF2C6" },
+    { name: "Tirasday",              month: 3,     day: 5,         color: "#DCEBFF" },
+    { name: "Initiation Day",        month: 4,     day: 11,        color: "#C7E3FF" },
+    { name: "Baker's Night",         month: 5,     day: 6,         color: "#D8B98F" },
+    { name: "Promisetide",           month: 5,     day: 28,        color: "#BDE3FF" },
+    { name: "First Dawn",            month: 6,     day: 21,        color: "#FFD1A6" },
+    { name: "Silvertide",            month: 7,     day: 14,        color: "#F2F7FF" },
+    { name: "Victory Day",           month: 8,     day: 9,         color: "#B3E5FC" },
+    { name: "Fathen's Fall",         month: 8,     day: 25,        color: "#E7ECF5" },
+    { name: "The Ascension",         month: 10,    day: 1,         color: "#E6F0FF" },
+    { name: "Saint Valtros's Day",   month: 10,    day: 25,        color: "#E8ECFF" },
+    { name: "Rampartide",            month: 11,    day: 24,        color: "#D6F5D6" },
+    { name: "Khybersef",             month: 12,    day: 27,        color: "#111827" },
+    { name: "Day of Cleansing Fire", month: "all", day: "all sul", color: "#F2F7FF" }
+  ],
+  stormreach: [
+    { name: "The Burning Titan",  month: 3,  day: 1,      color: "#FF5722" },
+    { name: "Pirate’s Moon",      month: 5,  day: 20,     color: "#0E7490" },
+    { name: "The Annual Games",   month: 6,  day: "1-14", color: "#2E7D32" },
+    { name: "Shacklebreak",       month: 11, day: 1,      color: "#455A64" }
+  ],
+  // Standard astronomical + calendrical season markers for Gregorian campaigns.
+  // Each day carries both the solstice/equinox name and the "First Day of X" label
+  // so GMs can use whichever fits their world’s flavor.
+  // Dates are the standard modern astronomical dates (northern hemisphere).
+  gregorian_seasons: [
+    { name: "First Day of Winter",month: 12, day: 21, color: "#A8DADC" },
+    { name: "Winter Solstice",    month: 12, day: 21, color: "#A8DADC" },
+    { name: "First Day of Spring",month: 3,  day: 20, color: "#A8E6A3" },
+    { name: "Spring Equinox",     month: 3,  day: 20, color: "#A8E6A3" },
+    { name: "First Day of Summer",month: 6,  day: 21, color: "#FFD166" },
+    { name: "Summer Solstice",    month: 6,  day: 21, color: "#FFD166" },
+    { name: "First Day of Autumn",month: 9,  day: 22, color: "#F4A261" },
+    { name: "Autumn Equinox",     month: 9,  day: 22, color: "#F4A261" }
+  ]
+};
+
+// Optional source-to-calendar scoping for default events.
+// If a source key appears here, its events only load for listed calendar systems.
+var DEFAULT_EVENT_SOURCE_CALENDARS = {
+  sharn:             ['eberron'],
+  khorvaire:         ['eberron'],
+  'sovereign host':  ['eberron'],
+  'dark six':        ['eberron'],
+  'silver flame':    ['eberron'],
+  stormreach:        ['eberron'],
+  gregorian_seasons: ['gregorian']
+};
+
+/* --- Rendering constants --------------------------------------------------*/
+var RANGE_CAP_YEARS     = null; // max years occurrencesInRange scans; null = unlimited
+var CONTRAST_MIN_HEADER = 4.5;  // WCAG AA for normal text
+var CONTRAST_MIN_CELL   = 7.0;  // tighter for small calendar numerals
+
+/* --- UI labels and CSS ----------------------------------------------------*/
+var LABELS = {
+  era:         CONFIG_ERA_LABEL,
+  gmOnlyNotice:'Only the GM can use that calendar command.'
+};
+
+var STYLES = {
+  wrap:            'display:inline-block;vertical-align:top;margin:4px;',
+  table:           'border-collapse:collapse;margin:4px;',
+  th:              'border:1px solid #444;padding:2px;width:2em;text-align:center;',
+  head:            'border:1px solid #444;padding:0;',
+  td:              'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
+  monthHeaderBase: 'padding:6px;text-align:left;',
+  gmbuttonWrap:    'display:inline-block;margin:2px 4px 2px 0;',
+  today:  'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
+  past:   'opacity:0.65;',
+  future: 'opacity:0.95;'
+};
+
+// Auto-assign colors to events that have none (stable pseudo-random by name hash)
+var PALETTE = [
+  '#E53935','#EF5350','#FF7043','#F4511E',
+  '#FFB300','#F6BF26','#FDD835','#C0CA33',
+  '#7CB342','#66BB6A','#43A047','#228B22',
+  '#26A69A','#00897B','#00ACC1','#29B6F6',
+  '#039BE5','#1E88E5','#3949AB','#0D47A1',
+  '#5E35B1','#7E57C2','#8E24AA','#AB47BC',
+  '#D81B60','#EC407A','#6D4C41','#8D6E63',
+  '#795548','#5D4037','#607D8B','#78909C'
+];
+
+/* ============================================================================
+ * 2) DEFAULT STATE FACTORY
+ * ==========================================================================*/
 
 function _flattenSources(map){
   var out = [];
@@ -269,38 +521,89 @@ function _flattenSources(map){
   return out;
 }
 
-var defaults = {
-  current: { month: 0, day_of_the_month: 1, day_of_the_week: 0, year: 998 },  // starting date: 1 Zarantyr, 998 YK
-  // days per month
-  // intercalary days (like Forgotten Realms' Shieldmeet) are not supported (yet)
-  // leap years are not supported (yet)
-  months: [   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28,   28  ],
-          //  1st,  2nd,  3rd,  4th, 5th,   6th,  7th,  8th,  9th,  10th, 11th, 12th
-  events: _flattenSources(DEFAULT_EVENT_SOURCES),
-
-  yearTitles: {
-    299: { title: "Year of Blood and Fire", color: "#8B0000" }
+function _sourceAllowedForCalendar(sourceKey, calendarSystem){
+  var src = String(sourceKey || '').toLowerCase();
+  var sys = String(calendarSystem || '').toLowerCase();
+  var allow = DEFAULT_EVENT_SOURCE_CALENDARS[src];
+  if (!allow || !allow.length) return true;
+  for (var i = 0; i < allow.length; i++){
+    if (String(allow[i] || '').toLowerCase() === sys) return true;
   }
+  return false;
+}
+
+var defaults = {
+  current: {
+    month:              CONFIG_START_DATE.month,
+    day_of_the_month:   CONFIG_START_DATE.day_of_the_month,
+    day_of_the_week:    CONFIG_START_DATE.day_of_the_week,
+    year:               CONFIG_START_DATE.year
+  },
+  months: CONFIG_MONTH_LENGTHS.slice(),
+  events: _flattenSources(DEFAULT_EVENTS)
 };
 
 /* ============================================================================
- * 2) STATE & SETTINGS
+ * 3) STATE & SETTINGS
  * ==========================================================================*/
 
 function deepClone(obj){ return JSON.parse(JSON.stringify(obj)); }
 
 function ensureSettings(){
   var root = state[state_name];
-  root.settings = root.settings || {
-    colorTheme: 'lunar',
-    monthSet: 'eberron',
-    weekdaySet: 'eberron',
-    seasonSet: 'northern',
-    groupEventsBySource: false,
-    showSourceLabels: false,
-    showYearTitles: true
-  };
-  return root.settings;
+  if (!root.settings){
+    root.settings = {
+      calendarSystem:      CONFIG_DEFAULTS.calendarSystem,
+      calendarVariant:     CONFIG_DEFAULTS.calendarVariant,
+      seasonVariant:       CONFIG_DEFAULTS.seasonVariant,
+      colorTheme:          CONFIG_DEFAULTS.colorTheme,
+      groupEventsBySource: false,
+      showSourceLabels:    false,
+      uiDensity:           CONFIG_DEFAULTS.uiDensity,
+      autoButtons:         CONFIG_DEFAULTS.autoButtons,
+      eventSourcePriority: []
+    };
+  }
+  var s = root.settings;
+  // Migration: old format used monthSet/weekdaySet/etc. Convert to new system.
+  if (!s.calendarSystem && (s.monthSet || s.weekdaySet)){
+    var oldSet = (s.monthSet || '').toLowerCase();
+    var sysMap = { druidic:'eberron', halfling:'eberron', dwarven:'eberron',
+                   faerunian:'faerunian', gregorian:'gregorian' };
+    var varMap = { druidic:'druidic', halfling:'halfling', dwarven:'dwarven',
+                   faerunian:'standard', gregorian:'standard' };
+    s.calendarSystem  = sysMap[oldSet]  || 'eberron';
+    s.calendarVariant = varMap[oldSet]  || 'standard';
+    s.seasonVariant   = s.seasonSet || CONFIG_DEFAULTS.seasonVariant;
+    if (!s.colorTheme) s.colorTheme = null;
+    // Remove old fields to avoid confusion.
+    delete s.monthSet; delete s.weekdaySet; delete s.seasonSet;
+    delete s.monthLengthSet; delete s.structureSet;
+  }
+  // Migrate renamed season variants.
+  var _svMig = s.seasonVariant;
+  if (_svMig === 'northern'){
+    s.seasonVariant = (s.calendarSystem === 'gregorian') ? 'gregorian'
+                    : (s.calendarSystem === 'faerunian') ? 'faerun'
+                    : 'eberron';
+  } else if (_svMig === 'southern'){
+    s.seasonVariant = (s.calendarSystem === 'gregorian') ? 'gregorian' : 'faerun';
+    s.hemisphere = 'south';
+  } else if (_svMig === 'tropic' || _svMig === 'tropical_monsoon'){
+    s.seasonVariant = 'tropical';
+  }
+  // Backfill for any missing fields.
+  if (!s.calendarSystem)      s.calendarSystem      = CONFIG_DEFAULTS.calendarSystem;
+  if (!s.calendarVariant)     s.calendarVariant     = CONFIG_DEFAULTS.calendarVariant;
+  if (!s.seasonVariant)       s.seasonVariant       = CONFIG_DEFAULTS.seasonVariant;
+  if (!s.hemisphere)          s.hemisphere          = CONFIG_DEFAULTS.hemisphere;
+  if (!s.eventSourcePriority) s.eventSourcePriority = [];
+  if (s.uiDensity !== 'compact' && s.uiDensity !== 'normal') s.uiDensity = CONFIG_DEFAULTS.uiDensity;
+  if (s.autoButtons   === undefined) s.autoButtons   = CONFIG_DEFAULTS.autoButtons;
+  if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
+  if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
+  if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
+  return s;
 }
 
 function getCal(){ return state[state_name].calendar; }
@@ -311,57 +614,235 @@ function titleCase(s){
     .join(' ');
 }
 
-function weekLength(){ // number of days in a week
+function weekLength(){
   var cal = getCal();
   var n = (cal && cal.weekdays && cal.weekdays.length) | 0;
   return n > 0 ? n : 7;
 }
 
-function colorForMonth(mi){ // month header background color
-  var st = ensureSettings();
-  var pal = COLOR_THEMES[String(st.colorTheme||'').toLowerCase()];
-  var themeCol = pal && pal[mi] ? pal[mi] : null;
-  var monthCol = (getCal().months[mi] && getCal().months[mi].color) || null;
+function colorForMonth(mi){
+  var st  = ensureSettings();
+  var cal = getCal();
+  var pal = COLOR_THEMES[effectiveColorTheme()];
+
+  // For intercalary months, find the nearest preceding regular month for theming.
+  // This keeps festival days visually anchored to their adjacent month.
+  var themeIdx = mi;
+  if (cal.months[mi] && cal.months[mi].isIntercalary){
+    for (var k = mi - 1; k >= 0; k--){
+      if (!cal.months[k].isIntercalary){ themeIdx = k; break; }
+    }
+  }
+  // Use regularIndex to look up the theme color so themes stay consistent
+  // regardless of how many intercalary slots exist before this month.
+  var m = cal.months[themeIdx];
+  var palIdx = (m && typeof m.regularIndex === 'number') ? m.regularIndex : themeIdx;
+  var themeCol = pal && pal[palIdx] ? pal[palIdx] : null;
+  var monthCol = (cal.months[mi] && cal.months[mi].color) || null;
   return resolveColor(themeCol || monthCol) || '#EEE';
 }
 
-function applyMonthSet(setName){ // month names
-  var cal = getCal();
-  var set = MONTH_NAME_SETS[String(setName||'').toLowerCase()];
-  if (!set || set.length !== cal.months.length) return false;
-  for (var i=0;i<cal.months.length;i++) cal.months[i].name = set[i];
-  return true;
+// Rebuild the months array from a CALENDAR_STRUCTURE_SETS template,
+// populating regular slots with names/lengths from current settings.
+// Intercalary slots keep their own names and days.
+// Internal helpers — called by applyCalendarSystem and the seasons command.
+// These operate directly on cal.months and cal.weekdays.
+
+function _seasonNames(setName){
+  // Returns the names array for a season set key, or null if not found.
+  var entry = SEASON_SETS[String(setName||'').toLowerCase()];
+  if (!entry) return null;
+  return Array.isArray(entry) ? entry : (entry.names || null);
 }
 
-function applyWeekdaySet(setName){ // weekday names
-  var cal = getCal();
-  var set = WEEKDAY_NAME_SETS[String(setName||'').toLowerCase()];
-  if (!set || !set.length) return false;
-  cal.weekdays = set.slice();
-  // keep current DOW in-range
-  if (!isFinite(cal.current.day_of_the_week)) cal.current.day_of_the_week = 0;
-  if (cal.current.day_of_the_week >= cal.weekdays.length){
-    cal.current.day_of_the_week = cal.weekdays.length - 1;
+function applySeasonSet(setName){
+  var cal   = getCal();
+  var entry = SEASON_SETS[String(setName||'').toLowerCase()];
+  if (!entry) return false;
+  var names = Array.isArray(entry) ? entry : (entry.names || null);
+  if (!names) return false;
+  var regular = cal.months.filter(function(m){ return !m.isIntercalary; });
+  if (names.length !== regular.length) return false;
+
+  // Hemisphere-aware sets (faerun) shift season names by 6 for southern campaigns.
+  // Transition-based sets (gregorian) don't need name shifting — _getSeasonLabel
+  // picks the right transition array at display time.
+  var hem = ensureSettings().hemisphere || CONFIG_DEFAULTS.hemisphere;
+  var shift = (entry.hemisphereAware && !entry.transitions && hem === 'south') ? 6 : 0;
+
+  var ri = 0;
+  for (var i = 0; i < cal.months.length; i++){
+    if (!cal.months[i].isIntercalary){
+      cal.months[i].season = names[(ri + shift) % names.length];
+      ri++;
+    } else if (i > 0){
+      cal.months[i].season = cal.months[i-1].season || null;
+    }
   }
   return true;
 }
 
-function applySeasonSet(setName){ // season names
+function applyStructureSet(setName){
+  if (!setName) return false;
+  var template = CALENDAR_STRUCTURE_SETS[String(setName).toLowerCase()];
+  if (!template) return false;
   var cal = getCal();
-  var set = SEASON_SETS[String(setName||'').toLowerCase()];
-  if (!set || set.length !== cal.months.length) return false;
-  for (var i=0;i<cal.months.length;i++){
-    cal.months[i].season = set[i];
-  }
+  var st = ensureSettings();
+  // Build a baseline lengths array for regular months.
+  var sys2 = CALENDAR_SYSTEMS[st.calendarSystem] || {};
+  var lengthSet = sys2.monthDays ? sys2.monthDays.slice() : CONFIG_MONTH_LENGTHS.slice();
+  // Collect existing regular month names so we can re-apply names after rebuild.
+  // (The name set will be re-applied afterward via applyMonthSet.)
+  cal.months = template.map(function(slot){
+    if (slot.isIntercalary){
+      return { name: slot.name, days: slot.days|0, isIntercalary: true,
+               leapEvery: slot.leapEvery || null, season: null };
+    }
+    var ri = slot.regularIndex|0;
+    return { name: '', days: (ri < lengthSet.length ? lengthSet[ri] : 28),
+             regularIndex: ri, season: null };
+  });
+  _invalidateSerialCache();
   return true;
 }
 
-/* ============================================================================
-                          * STATE MANAGEMENT *
-=============================================================================*/
+// Suppress or restore a named default event source without going through the
+// !cal source command. Used by applyCalendarSystem for calendar-paired sources.
+function _autoToggleCalendarSource(sourceKey, enable){
+  var root = state[state_name];
+  if (!root.suppressedSources) root.suppressedSources = {};
+  var suppressedSources = root.suppressedSources;
+  var sup = root.suppressedDefaults || (root.suppressedDefaults = {});
 
+  if (enable){
+    delete suppressedSources[sourceKey];
+    // Lift per-event suppression keys belonging to this source.
+    Object.keys(sup).forEach(function(k){
+      var info = _defaultDetailsForKey(k);
+      if (info && String(info.source||'').toLowerCase() === sourceKey) delete sup[k];
+    });
+    mergeInNewDefaultEvents(getCal());
+  } else {
+    suppressedSources[sourceKey] = 1;
+    var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
+    cal.events = cal.events.filter(function(e){
+      var src = (e.source != null) ? String(e.source).toLowerCase() : null;
+      if (src !== sourceKey) return true;
+      var mobj = cal.months[e.month - 1];
+      var maxD = mobj ? (mobj.days|0) : 28;
+      var norm = DaySpec.canonicalForKey(e.day, maxD);
+      var k    = defaultKeyFor(e.month, norm, e.name);
+      return !defaultsSet[k];
+    });
+  }
+}
 
-function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaults if not.
+// Apply a complete calendar system (and variant) in one call.
+// This is the single public entry point for switching calendars.
+// Season and color-theme can be overridden afterward by the user.
+function applyCalendarSystem(sysKey, varKey){
+  var sys = CALENDAR_SYSTEMS[String(sysKey||'').toLowerCase()];
+  if (!sys) return false;
+
+  var vk = String(varKey || sys.defaultVariant || 'standard').toLowerCase();
+  var variant = sys.variants && sys.variants[vk];
+  if (!variant){
+    // Fall back to the first variant if the requested one doesn't exist.
+    var first = sys.variants && Object.keys(sys.variants)[0];
+    variant = first ? sys.variants[first] : null;
+    vk = first || 'standard';
+  }
+  if (!variant) return false;
+
+  var st = ensureSettings();
+  var cal = getCal();
+
+  // --- Structure (intercalary days) -----------------------------------------
+  if (sys.structure){
+    st.structureSet = sys.structure;
+    applyStructureSet(sys.structure);
+  } else {
+    st.structureSet = null;
+    cal.months = sys.monthDays.map(function(d, i){ return { days: d, regularIndex: i }; });
+  }
+
+  // --- Month lengths ---------------------------------------------------------
+  // Apply directly from system definition (no named set lookup needed).
+  var ri = 0;
+  for (var i = 0; i < cal.months.length; i++){
+    var mo = cal.months[i];
+    if (!mo.isIntercalary){
+      var idx = (typeof mo.regularIndex === 'number') ? mo.regularIndex : ri;
+      if (idx < sys.monthDays.length) mo.days = sys.monthDays[idx];
+      ri++;
+    }
+  }
+
+  // --- Month names ----------------------------------------------------------
+  var names = variant.monthNames;
+  ri = 0;
+  for (var j = 0; j < cal.months.length; j++){
+    if (!cal.months[j].isIntercalary) cal.months[j].name = names[ri++] || ('Month '+(ri));
+  }
+
+  // --- Weekdays -------------------------------------------------------------
+  cal.weekdays = sys.weekdays.slice();
+
+  // --- Seasons --------------------------------------------------------------
+  // If the user has never explicitly set a season variant, or is switching to a new
+  // calendar family, adopt the new calendar's default season set.
+  var _prevSeason = st.seasonVariant;
+  var _prevSys2   = st.calendarSystem || '';
+  var _isNewSys   = _prevSys2 !== sysKey;
+  if (!_prevSeason || _isNewSys){
+    st.seasonVariant = sys.defaultSeason || CONFIG_DEFAULTS.seasonVariant;
+  }
+  var seasonKey = st.seasonVariant;
+  applySeasonSet(seasonKey);
+
+  // --- Color theme ----------------------------------------------------------
+  // colorForMonth() calls effectiveColorTheme() which reads st.colorTheme
+  // (manual override) or falls back to variant.colorTheme automatically.
+  // Nothing to do here — just reset the colorsAPI cache so it recomputes.
+  colorsAPI.reset();
+
+  // Record in settings before event-source reconciliation.
+  var _prevSys = st.calendarSystem || '';
+  st.calendarSystem  = sysKey;
+  st.calendarVariant = vk;
+
+  // Enforce source calendar scopes so calendar-specific defaults only appear
+  // on their matching calendar systems.
+  Object.keys(DEFAULT_EVENT_SOURCE_CALENDARS).forEach(function(srcKey){
+    if (!_sourceAllowedForCalendar(srcKey, sysKey)){
+      _autoToggleCalendarSource(srcKey, false);
+    }
+  });
+
+  // Auto-suppress/restore calendar-paired event sources.
+  // gregorian_seasons belongs to the Gregorian calendar; suppress it for other systems.
+  var _paired  = { gregorian: 'gregorian_seasons' };
+  // Restore sources for the calendar we're entering.
+  if (_paired[sysKey] && sysKey !== _prevSys){
+    _autoToggleCalendarSource(_paired[sysKey], true);
+  }
+
+  _invalidateSerialCache();
+  return true;
+}
+
+// Returns the effective color theme key for the current calendar state.
+// If the user has manually set a theme (st.colorTheme non-null), that wins.
+// Otherwise falls back to the variant default.
+function effectiveColorTheme(){
+  var st = ensureSettings();
+  if (st.colorTheme && COLOR_THEMES[st.colorTheme]) return st.colorTheme;
+  var sys = CALENDAR_SYSTEMS[st.calendarSystem];
+  var variant = sys && sys.variants && sys.variants[st.calendarVariant];
+  return (variant && variant.colorTheme) || 'lunar';
+}
+
+function checkInstall(){
   if(!state[state_name]) state[state_name] = {};
   ensureSettings();
 
@@ -374,21 +855,17 @@ function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaul
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
   if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
 
-  if (!state[state_name].yearTitles) {
-    state[state_name].yearTitles = deepClone(defaults.yearTitles || {});
-  }
-
   var cal = state[state_name].calendar;
 
   if (!Array.isArray(cal.weekdays) || !cal.weekdays.length){
     var st = ensureSettings();
-    var set = WEEKDAY_NAME_SETS[String(st.weekdaySet || 'eberron').toLowerCase()] || WEEKDAY_NAME_SETS.eberron;
-    cal.weekdays = set.slice();
+    var sys3 = CALENDAR_SYSTEMS[st.calendarSystem || CONFIG_DEFAULTS.calendarSystem] || CALENDAR_SYSTEMS.eberron;
+    cal.weekdays = (sys3.weekdays || []).slice();
   }
 
   if (!cal.current) cal.current = deepClone(defaults.current);
 
-  if(!Array.isArray(cal.events)){ // initialize from defaults
+  if(!Array.isArray(cal.events)){
     var lim = Math.max(1, cal.months.length);
     var out = [];
     deepClone(defaults.events).forEach(function(e){
@@ -406,49 +883,48 @@ function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaul
           day: e.day,
           year: null,
           color: resolveColor(e.color) || null,
-          source: (e.source != null) ? String(e.source) : null,
-          first: parseFirstSpec(e.first) || null
+          source: (e.source != null) ? String(e.source) : null
         });
       });
     });
     cal.events = out;
   } else {
-      cal.events = cal.events.map(function(e){
-        var lim = Math.max(1, cal.months.length);
-        var m = clamp(parseInt(e.month,10)||1, 1, lim);
-        var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
-        return {
-          name: String(e.name||''),
-          month: m,
-          day: e.day,
-          year: yr,
-          color: resolveColor(e.color) || null,
-          source: (e.source != null) ? String(e.source) : null,
-          first: e.first ? e.first : null
-        };
-      });
+    cal.events = cal.events.map(function(e){
+      var lim = Math.max(1, cal.months.length);
+      var m = clamp(parseInt(e.month,10)||1, 1, lim);
+      var yr = (isFinite(parseInt(e.year,10)) ? (parseInt(e.year,10)|0) : null);
+      return {
+        name: String(e.name||''),
+        month: m,
+        day: e.day,
+        year: yr,
+        color: resolveColor(e.color) || null,
+        source: (e.source != null) ? String(e.source) : null
+      };
+    });
 
-      var defColorByKey = {};
-      var lim2 = Math.max(1, cal.months.length);
-      defaults.events.forEach(function(de){
-        var col = resolveColor(de.color) || null;
-        if (String(de.month).toLowerCase() === 'all') {
-          for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
-        } else {
-          var m = clamp(parseInt(de.month,10)||1, 1, lim2);
-          defColorByKey[m + '|' + String(de.day)] = col;
-        }
-      });
-      cal.events.forEach(function(e){
-        if (!e.color){
-          var key = e.month + '|' + String(e.day);
-          var col = defColorByKey[key];
-          if (col) e.color = col;
-        }
-      });
-    }
+    // backfill colors from defaults if missing
+    var defColorByKey = {};
+    var lim2 = Math.max(1, cal.months.length);
+    defaults.events.forEach(function(de){
+      var col = resolveColor(de.color) || null;
+      if (String(de.month).toLowerCase() === 'all') {
+        for (var i=1; i<=lim2; i++) defColorByKey[i + '|' + String(de.day)] = col;
+      } else {
+        var m = clamp(parseInt(de.month,10)||1, 1, lim2);
+        defColorByKey[m + '|' + String(de.day)] = col;
+      }
+    });
+    cal.events.forEach(function(e){
+      if (!e.color){
+        var key = e.month + '|' + String(e.day);
+        var col = defColorByKey[key];
+        if (col) e.color = col;
+      }
+    });
+  }
 
-  // normalize months (support numbers = days-only)
+  // normalize months (support numbers = days-only) and stamp regularIndex
   for (var i = 0; i < cal.months.length; i++){
     var m = cal.months[i];
     if (typeof m === 'number'){
@@ -456,26 +932,51 @@ function checkInstall(){ // Ensures the state in Roll20 is valid, setting defaul
     } else {
       cal.months[i] = cal.months[i] || {};
       if (!cal.months[i].days) cal.months[i].days = 28;
-      // name/season will be applied by sets below
+    }
+    // Backfill regularIndex for non-intercalary months so length sets work.
+    if (!cal.months[i].isIntercalary && typeof cal.months[i].regularIndex !== 'number'){
+      cal.months[i].regularIndex = i;
     }
   }
 
+  // Apply the active calendar system (rebuilds months, weekdays, seasons, names).
   var s = ensureSettings();
-  applyMonthSet(s.monthSet || 'eberron');      // writes month names
-  applyWeekdaySet(s.weekdaySet || 'eberron');  // writes weekdays
-  applySeasonSet(s.seasonSet || 'northern');   // writes month seasons
+  applyCalendarSystem(s.calendarSystem || CONFIG_DEFAULTS.calendarSystem,
+                      s.calendarVariant || CONFIG_DEFAULTS.calendarVariant);
 
   mergeInNewDefaultEvents(cal);
+  _invalidateSerialCache();
 
-  _rebuildSerialCache();
-
+  // clamp current date within the month it landed on
   var mdays = cal.months[cal.current.month].days;
   if (cal.current.day_of_the_month > mdays){
     cal.current.day_of_the_month = mdays;
   }
+
+  // ── CONFIG sanity checks ───────────────────────────────────────────
+  // Warn if user-editable arrays have mismatched lengths.
+  (function(){
+    var warnings = [];
+    var sys = CALENDAR_SYSTEMS[s.calendarSystem || CONFIG_DEFAULTS.calendarSystem];
+    if (sys){
+      var vk = s.calendarVariant || sys.defaultVariant || 'standard';
+      var variant = sys.variants && sys.variants[vk];
+      if (variant && variant.monthNames && sys.monthDays &&
+          variant.monthNames.length !== sys.monthDays.length){
+        warnings.push('Month names ('+variant.monthNames.length+') vs month days ('+sys.monthDays.length+') mismatch in calendar system "'+
+          (s.calendarSystem||CONFIG_DEFAULTS.calendarSystem)+'" variant "'+vk+'".');
+      }
+    }
+    if (CONFIG_MONTH_LENGTHS.length !== cal.months.length){
+      warnings.push('CONFIG_MONTH_LENGTHS ('+CONFIG_MONTH_LENGTHS.length+') does not match active calendar month count ('+cal.months.length+').');
+    }
+    for (var w=0; w<warnings.length; w++){
+      log('[Galifar Calendar] ⚠ CONFIG WARNING: '+warnings[w]);
+    }
+  }());
 }
 
-function refreshCalendarState(silent){ // re-parse and clean up events list
+function refreshCalendarState(silent){
   checkInstall();
   var cal = getCal();
 
@@ -486,21 +987,17 @@ function refreshCalendarState(silent){ // re-parse and clean up events list
       ? String(e.day).toLowerCase().trim()
       : (DaySpec.normalize(e.day, cal.months[m-1].days) || String(DaySpec.first(e.day)));
     var yr = (e.year==null) ? null : (parseInt(e.year,10)|0);
-
-    // 🔧 Preserve first-occurrence gating
-    var first = e.first ? parseFirstSpec(e.first) : null;
-
     return {
       name: String(e.name||''),
       month: m,
       day: daySpec,
       year: yr,
       color: resolveColor(e.color) || null,
-      source: (e.source != null) ? String(e.source) : null,
-      first: first
+      source: (e.source != null) ? String(e.source) : null
     };
   });
 
+  // deduplicate
   var seen = {};
   cal.events = cal.events.filter(function(e){
     var y = (e.year==null) ? 'ALL' : (e.year|0);
@@ -513,48 +1010,35 @@ function refreshCalendarState(silent){ // re-parse and clean up events list
   if (!silent) sendChat(script_name, '/w gm Calendar state refreshed ('+cal.events.length+' events).');
 }
 
-function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(null, true); } // silent refresh + redraw
+function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(null, true); }
 
 function resetToDefaults(){
   delete state[state_name];
-  state[state_name] = {
-    calendar:   deepClone(defaults),
-    yearTitles: deepClone(defaults.yearTitles || {})
-  };
+  state[state_name] = { calendar: deepClone(defaults) };
   checkInstall();
   sendChat(script_name, '/w gm Calendar state wiped and reset to defaults.');
   sendCurrentDate(null, true);
 }
 
-
 /* ============================================================================
- * 3) COLOR UTILITIES
+ * 4) COLOR UTILITIES
  * ==========================================================================*/
 
-// Light memo caches for contrast/header styles
-var _contrastCache = Object.create(null);
+var _contrastCache  = Object.create(null);
 var _headerStyleCache = Object.create(null);
 
 function _cullCacheIfLarge(obj, max){
   var limit = max || 256;
   if (Object.keys(obj).length > limit){
-    // simple reset; small and safe
     for (var k in obj){ if (Object.prototype.hasOwnProperty.call(obj,k)) delete obj[k]; }
   }
 }
 
 function _resetColorCaches(){
-  _contrastCache = Object.create(null);
+  _contrastCache    = Object.create(null);
   _headerStyleCache = Object.create(null);
 }
 
-// Contrast targets
-var GRADIENT_ANGLE = '45deg';
-var CONTRAST_MIN_HEADER = 4.5; // AA for normal text
-var CONTRAST_MIN_CELL   = 7.0; // tighter target for tiny numerals
-var NEARBY_THRESHOLD    = 5;   // days from start/end that trigger boundary strips
-
-// Parse a token like "#abc" or "#a1b2c3" into a sanitized hex color
 function sanitizeHexColor(s){
   if(!s) return null;
   var hex = String(s).trim().replace(/^#/, '');
@@ -562,42 +1046,6 @@ function sanitizeHexColor(s){
   if(/^[0-9a-f]{6}$/i.test(hex)) return '#'+hex.toUpperCase();
   return null;
 }
-
-// list of accepted named colors
-var NAMED_COLORS = {
-  red:    '#E53935', apple:  '#D32F2F', garnet: '#9B111E', pink:      '#EC407A',
-  orange: '#F4511E', brown:  '#6D4C41', copper: '#B87333',
-  yellow: '#FDD835', lemon:  '#FBC02D', gold:   '#D4AF37', topaz:     '#FFC54D',
-  green:  '#43A047', lime:   '#7CB342', forest: '#228B22', emerald:   '#50C878', teal:    '#00897B',
-  blue:   '#1E88E5', royal:  '#3949AB', sky:    '#29B6F6', sapphire:  '#0F52BA', aqua:    '#7FFFD4',
-  indigo: '#3949AB', navy:   '#283593',
-  violet: '#7E57C2', purple: '#5E35B1', grape:  '#8E24AA', amethyst:  '#9966CC',
-
-  black:  '#000000', obsidian:'#0D0D0D', onyx:  '#353839', gray:      '#9E9E9E',
-  silver: '#C0C0C0', platinum:'#E5E4E2', white: '#FFFFFF', snow:      '#FFFAFA', diamond: '#E6F7FF'
-};
-
-  // Aliases
-  NAMED_COLORS.grey = NAMED_COLORS.gray;
-  NAMED_COLORS.forestgreen = NAMED_COLORS.forest;
-  NAMED_COLORS.skyblue = NAMED_COLORS.sky;
-  NAMED_COLORS.charcoal = NAMED_COLORS.onyx;
-  NAMED_COLORS.snowwhite = NAMED_COLORS.snow;
-
-var PALETTE = [ // used for events without colors. technically not random, but functionally so. both arbitrary and stable
-  '#E53935','#EF5350','#FF7043','#F4511E',
-  '#FFB300','#F6BF26','#FDD835','#C0CA33',
-  '#7CB342','#66BB6A','#43A047','#228B22',
-  '#26A69A','#00897B','#00ACC1','#29B6F6',
-  '#039BE5','#1E88E5','#3949AB','#0D47A1',
-  '#5E35B1','#7E57C2','#8E24AA','#AB47BC',
-  '#D81B60','#EC407A','#6D4C41','#8D6E63',
-  '#795548','#5D4037','#607D8B','#78909C'
-];
-
-function autoColorForEvent(e){ return PALETTE[_stableHash(e && e.name) % PALETTE.length]; }
-
-function getEventColor(e){ return resolveColor(e && e.color) || autoColorForEvent(e) || '#FF00DD'; }
 
 function resolveColor(s){
   if (!s) return null;
@@ -632,27 +1080,16 @@ function _stableHash(str){
   return Math.abs(h);
 }
 
-function _normalizeCols(cols){
-  cols = (cols || []).map(resolveColor).filter(Boolean);
-  if (!cols.length) cols = ['#888888'];
-  if (cols.length > 3) cols = cols.slice(0, 3);
-  return cols;
-}
-
-function _uniqueCols(cols){
-  var seen = {}, out = [];
-  for (var i=0;i<cols.length;i++){ var c = cols[i]; if (!seen[c]){ seen[c]=1; out.push(c); } }
-  return out;
-}
-
-function _gradientFor(cols){
-  var n = cols.length, parts = [];
-  for (var i = 0; i < n; i++){
-    var start = (i * 100 / n).toFixed(3) + '%';
-    var end   = ((i + 1) * 100 / n).toFixed(3) + '%';
-    parts.push(cols[i] + ' ' + start + ',' + cols[i] + ' ' + end);
-  }
-  return 'linear-gradient(' + GRADIENT_ANGLE + ',' + parts.join(',') + ')';
+// Render small colored dots for secondary events on a multi-event day.
+// First event owns the cell background; events 2 and 3 appear as dots below
+// the numeral. Each dot's color is set explicitly to override cell text color.
+function _eventDotsHtml(events){
+  if (!events || events.length <= 1) return '';
+  var dots = events.slice(1, 3).map(function(e){
+    var col = getEventColor(e);
+    return '<span style="color:'+col+';line-height:1;">&#9679;</span>';
+  });
+  return '<div style="font-size:.45em;line-height:1;margin-top:1px;">'+dots.join('&thinsp;')+'</div>';
 }
 
 function _relLum(hex){
@@ -675,10 +1112,10 @@ function textColor(bgHex){
   return v;
 }
 
-function textOutline(textColor, bgHex, minTarget){
-  var ratio = _contrast(bgHex, textColor);
+function textOutline(tc, bgHex, minTarget){
+  var ratio = _contrast(bgHex, tc);
   if (ratio >= (minTarget||CONTRAST_MIN_HEADER)) return '';
-  if (textColor === '#fff'){
+  if (tc === '#fff'){
     var off = 1;
     return 'text-shadow:'+(-off)+'px '+(-off)+'px 0 rgba(0,0,0,.95),'+(off)+'px '+(-off)+'px 0 rgba(0,0,0,.95),'+(-off)+'px '+(off)+'px 0 rgba(0,0,0,.95),'+(off)+'px '+(off)+'px 0 rgba(0,0,0,.95);';
   } else {
@@ -696,67 +1133,125 @@ function applyBg(style, bgHex, minTarget){
   return style;
 }
 
-function styleGradient(style, cols, minTarget){
-  cols = _normalizeCols(cols);
-  var uniq = _uniqueCols(cols);
-  if (uniq.length === 1){ return applyBg(style, uniq[0], (minTarget||CONTRAST_MIN_CELL)); }
-  var pickText = (function(){
-    var minB=Infinity,minW=Infinity,worstB=0,worstW=0;
-    for (var i=0;i<cols.length;i++){
-      var cB=_contrast(cols[i],'#000'); if (cB<minB){minB=cB;worstB=i;}
-      var cW=_contrast(cols[i],'#fff'); if (cW<minW){minW=cW;worstW=i;}
-    }
-    return (minB>=minW) ? { text:'#000', worst:cols[worstB], min:minB } : { text:'#fff', worst:cols[worstW], min:minW };
-  })();
-  style += 'background-color:'+cols[0]+';';
-  style += 'background-image:'+_gradientFor(cols)+';';
-  style += 'background-repeat:no-repeat;background-size:100% 100%;';
-  style += 'background-clip:padding-box;';
-  style += 'color:'+pickText.text+';';
-  style += textOutline(pickText.text, pickText.worst, (minTarget||CONTRAST_MIN_CELL));
-  return style;
-}
-
-// Public colors surface
 var colorsAPI = {
   textColor: textColor,
   applyBg: applyBg,
-  styleGradient: styleGradient,
-  styleMonthHeader:
-    function(monthHex){
-      var k = 'hdr:'+monthHex;
-      if (_headerStyleCache[k]) return _headerStyleCache[k];
-      var t = textColor(monthHex);
-      var v = 'background-color:'+monthHex+';color:'+t+';'+textOutline(t, monthHex, CONTRAST_MIN_HEADER);
-      _headerStyleCache[k] = v;
-      _cullCacheIfLarge(_headerStyleCache);
-      return v;
-    },
+  styleMonthHeader: function(monthHex){
+    var k = 'hdr:'+monthHex;
+    if (_headerStyleCache[k]) return _headerStyleCache[k];
+    var t = textColor(monthHex);
+    var v = 'background-color:'+monthHex+';color:'+t+';'+textOutline(t, monthHex, CONTRAST_MIN_HEADER);
+    _headerStyleCache[k] = v;
+    _cullCacheIfLarge(_headerStyleCache);
+    return v;
+  },
   reset: _resetColorCaches
 };
 
-colorsAPI.paint = function(style, cols, min){ cols = Array.isArray(cols)?cols:(cols?[cols]:[]); return styleGradient(style, cols, min||CONTRAST_MIN_CELL); };
-
-colorsAPI.textOn = function(bgHex, min){ var t=textColor(bgHex); return 'color:'+t+';'+textOutline(t,bgHex,min||CONTRAST_MIN_HEADER); };
-
 /* ============================================================================
- * 4) DATE / SERIAL MATH  (with caching)
+ * 5) DATE / SERIAL MATH  (with caching)
  * ==========================================================================*/
 
-var _serialCache = { dpy:null, prefix:[] };
+// ---------------------------------------------------------------------------
+// Serial math — leap-aware
+//
+// A "serial" is a globally unique integer day count used for all date
+// arithmetic. With leap months (e.g. Shieldmeet), year length varies, so we
+// cannot use y × daysPerYear() as the year-base. Instead:
+//
+//   toSerial(y,mi,d) = _daysBeforeYear(y) + _daysBeforeMonthInYear(y,mi) + (d-1)
+//
+// For calendars with no leap months, _daysBeforeYear reduces to y × baseDpy,
+// producing identical results to the old code.
+// ---------------------------------------------------------------------------
 
-function _rebuildSerialCache(){
-  var months = getCal().months, run=0;
-  _serialCache.prefix = [];
-  for (var i=0;i<months.length;i++){ _serialCache.prefix[i]=run; run += (parseInt(months[i].days,10)||0); }
-  _serialCache.dpy = run;
+// Returns true if month object m is a leap-only month active in year y.
+function _isLeapMonth(m, y){
+  return !!(m.leapEvery && (y % m.leapEvery === 0));
 }
 
-function daysPerYear(){ if(_serialCache.dpy==null) _rebuildSerialCache(); return _serialCache.dpy|0; }
+// Base days per year: sum of all non-leap month days.
+// Cached — recompute if months array changes (via _invalidateSerialCache).
+var _serialCache = { baseDpy: null, hasLeap: null, avgDpy: null };
 
-function daysBeforeMonth(mi){ if(_serialCache.dpy==null) _rebuildSerialCache(); return _serialCache.prefix[mi]|0; }
+function _invalidateSerialCache(){
+  _serialCache.baseDpy = null;
+  _serialCache.hasLeap = null;
+  _serialCache.avgDpy  = null;
+}
 
-function toSerial(y, mi, d){ return (y * daysPerYear()) + daysBeforeMonth(mi) + ((parseInt(d,10)||1) - 1); }
+function _buildSerialCache(){
+  var months = getCal().months;
+  var base = 0, leapFrac = 0, hasLeap = false;
+  for (var i=0; i<months.length; i++){
+    var m = months[i];
+    if (m.leapEvery){ hasLeap = true; leapFrac += (m.days|0) / m.leapEvery; }
+    else             { base += (m.days|0); }
+  }
+  _serialCache.baseDpy = base;
+  _serialCache.hasLeap = hasLeap;
+  _serialCache.avgDpy  = base + leapFrac; // average including leap contribution
+}
+
+function _baseDaysPerYear(){
+  if (_serialCache.baseDpy === null) _buildSerialCache();
+  return _serialCache.baseDpy;
+}
+
+// Count of years in [0, y-1] divisible by `every` (includes year 0).
+function _leapsBefore(y, every){
+  if (y <= 0 || !every) return 0;
+  return Math.floor((y - 1) / every) + 1;
+}
+
+// Total elapsed days from the epoch to the start of year y.
+function _daysBeforeYear(y){
+  if (_serialCache.baseDpy === null) _buildSerialCache();
+  var months = getCal().months;
+  var total = y * _serialCache.baseDpy;
+  if (_serialCache.hasLeap){
+    for (var i=0; i<months.length; i++){
+      var m = months[i];
+      if (m.leapEvery) total += _leapsBefore(y, m.leapEvery) * (m.days|0);
+    }
+  }
+  return total;
+}
+
+// Total elapsed days from start of year y to start of month mi within that year.
+// Leap months that are inactive this year contribute 0 days.
+function _daysBeforeMonthInYear(y, mi){
+  var months = getCal().months;
+  var total = 0;
+  for (var i=0; i<mi; i++){
+    var m = months[i];
+    if (m.leapEvery){
+      if (_isLeapMonth(m, y)) total += (m.days|0);
+    } else {
+      total += (m.days|0);
+    }
+  }
+  return total;
+}
+
+// daysPerYear kept for any call sites that only need a representative count.
+// Returns days in the CURRENT year using today's year from state.
+function daysPerYear(){
+  if (_serialCache.baseDpy === null) _buildSerialCache();
+  if (!_serialCache.hasLeap) return _serialCache.baseDpy;
+  var cal = getCal();
+  var y = cal && cal.current ? cal.current.year : 0;
+  var months = cal.months;
+  var total = _serialCache.baseDpy;
+  for (var i=0; i<months.length; i++){
+    if (months[i].leapEvery && _isLeapMonth(months[i], y)) total += (months[i].days|0);
+  }
+  return total;
+}
+
+function toSerial(y, mi, d){
+  return _daysBeforeYear(y) + _daysBeforeMonthInYear(y, mi) + ((parseInt(d,10)||1) - 1);
+}
 
 function weekdayIndex(y, mi, d){
   var cal=getCal(), cur=cal.current, wdlen=cal.weekdays.length;
@@ -765,29 +1260,89 @@ function weekdayIndex(y, mi, d){
 }
 
 function weekStartSerial(y, mi, d){
-  var wd = weekdayIndex(y, mi, d); // 0..(len-1)
-  var s = toSerial(y, mi, d);
-  return s - wd;
+  var wd = weekdayIndex(y, mi, d);
+  return toSerial(y, mi, d) - wd;
 }
 
 function fromSerial(s){
-  var dpy = daysPerYear();
-  var y = Math.floor(s/dpy);
-  var rem = s - y*dpy;
+  if (_serialCache.baseDpy === null) _buildSerialCache();
   var months = getCal().months;
+
+  if (!_serialCache.hasLeap){
+    // Fast path: no leap months — simple linear division.
+    var dpy = _serialCache.baseDpy;
+    var y = Math.floor(s / dpy);
+    var rem = s - y * dpy;
+    var mi = 0;
+    while (mi < months.length - 1 && rem >= (months[mi].days|0)){ rem -= (months[mi].days|0); mi++; }
+    rem = Math.min(rem, (months[mi].days|0) - 1);
+    return { year:y, mi:mi, day:(rem|0)+1 };
+  }
+
+  // Leap-aware path: estimate year from average dpy, then adjust ±2.
+  var yEst = Math.max(0, Math.floor(s / _serialCache.avgDpy) - 1);
+  while (_daysBeforeYear(yEst + 1) <= s) yEst++;
+  var y = yEst;
+  var rem = s - _daysBeforeYear(y);
+
+  // Walk months of year y, skipping inactive leap months.
   var mi = 0;
-  while (mi < months.length - 1 && rem >= (months[mi].days|0)) { rem -= (months[mi].days|0); mi++; }
+  while (mi < months.length){
+    var m = months[mi];
+    if (m.leapEvery && !_isLeapMonth(m, y)){ mi++; continue; } // inactive leap slot
+    var mdays = m.days|0;
+    if (rem < mdays) break;
+    rem -= mdays;
+    mi++;
+  }
+  // Safety clamp
+  if (mi >= months.length) mi = months.length - 1;
+  // Skip any trailing inactive leap month we may have landed on
+  while (mi < months.length && months[mi].leapEvery && !_isLeapMonth(months[mi], y)) mi++;
+  if (mi >= months.length) mi = months.length - 1;
+  var maxDay = months[mi].days|0;
+  rem = Math.min(rem, maxDay - 1);
   return { year:y, mi:mi, day:(rem|0)+1 };
 }
 
 function todaySerial(){ var c = getCal().current; return toSerial(c.year, c.month, c.day_of_the_month); }
 
+// Returns the next month index (and year) after mi that is active in that year,
+// skipping inactive leap-only slots. Wraps year boundary correctly.
+function _nextActiveMi(mi, y){
+  var months = getCal().months;
+  var len = months.length;
+  var nmi = (mi + 1) % len;
+  var ny  = y + (nmi === 0 ? 1 : 0);
+  var safety = 0;
+  while (safety++ < len){
+    if (!months[nmi].leapEvery || _isLeapMonth(months[nmi], ny)) return { mi: nmi, y: ny };
+    nmi = (nmi + 1) % len;
+    if (nmi === 0) ny++;
+  }
+  return { mi: (mi + 1) % len, y: ny }; // fallback
+}
+
+// Returns the previous month index (and year) before mi that is active in that year.
+function _prevActiveMi(mi, y){
+  var months = getCal().months;
+  var len = months.length;
+  var pmi = (mi + len - 1) % len;
+  var py  = y - (mi === 0 ? 1 : 0);
+  var safety = 0;
+  while (safety++ < len){
+    if (!months[pmi].leapEvery || _isLeapMonth(months[pmi], py)) return { mi: pmi, y: py };
+    pmi = (pmi + len - 1) % len;
+    if (pmi === len - 1) py--;
+  }
+  return { mi: (mi + len - 1) % len, y: py }; // fallback
+}
+
 /* ============================================================================
- * 5) PARSING & FUZZY MATCHING
+ * 6) PARSING & FUZZY MATCHING
  * ==========================================================================*/
 
 function _asciiFold(s){ var str = String(s || ''); return (typeof str.normalize==='function') ? str.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : str; }
-
 function _normAlpha(s){ return _asciiFold(String(s||'').toLowerCase()).replace(/[^a-z]/g,''); }
 
 function monthIndexByName(tok){
@@ -795,10 +1350,9 @@ function monthIndexByName(tok){
   if (!tok) return -1;
   var s = _normAlpha(tok);
   var best = -1, bestLen = 0;
-
   for (var i=0;i<cal.months.length;i++){
     var n = _normAlpha(cal.months[i].name);
-    if (s === n) return i; // exact
+    if (s === n) return i;
     if (s.length >= 3 && n.indexOf(s) === 0 && s.length > bestLen){ best = i; bestLen = s.length; }
   }
   return best;
@@ -807,7 +1361,6 @@ function monthIndexByName(tok){
 var Parse = (function(){
   'use strict';
 
-  // Local ordinal maps (kept inside to avoid cross-file ordering issues)
   var ORD_MAP_TOK = {
     '1':'first','2':'second','3':'third','4':'fourth','5':'fifth','last':'last',
     '1st':'first','2nd':'second','3rd':'third','4th':'fourth','5th':'fifth',
@@ -815,12 +1368,8 @@ var Parse = (function(){
   };
   var UNITS = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9 };
 
-  // Normalize trailing punctuation (e.g., "12th," -> "12th")
   function _stripTrailPunct(s){ return String(s||'').trim().toLowerCase().replace(/[.,;:!?]+$/,''); }
 
-  // Weekday name/number → index (0-based). Accepts:
-  //  - exact or prefix of a weekday name
-  //  - "0..len-1" or "1..len" numerals
   function weekdayIndexByName(tok){
     var cal = getCal();
     if (tok==null) return -1;
@@ -839,7 +1388,6 @@ var Parse = (function(){
     return -1;
   }
 
-  // "14th" | "fourteenth" | "twenty-first" → 14 / 21, etc.
   function ordinalDay(tok){
     if (!tok) return null;
     var s = _stripTrailPunct(tok);
@@ -863,7 +1411,6 @@ var Parse = (function(){
     return null;
   }
 
-  // "first far [of] March [999]" (tokens) → { ord, wdi, mi, year }
   function ordinalWeekdayFromTokens(tokens){
     tokens = (tokens||[]).map(function(t){ return String(t||''); }).filter(Boolean);
     if (!tokens.length) return null;
@@ -881,7 +1428,7 @@ var Parse = (function(){
     if (rest.length){
       var maybeMi = monthIndexByName(rest[0]);
       if (maybeMi !== -1){ mi = maybeMi; rest.shift(); }
-      else if (/^\d+$/.test(rest[0])){ // allow numeric month
+      else if (/^\d+$/.test(rest[0])){
         var n = parseInt(rest[0],10)|0, lim = getCal().months.length;
         if (n>=1 && n<=lim){ mi = n-1; rest.shift(); }
       }
@@ -891,7 +1438,6 @@ var Parse = (function(){
     return { ord:ordKey, wdi:wdi, mi:mi, year:year };
   }
 
-  // "first far" | "last zor" | "every sul" → { ord, wdi }
   function ordinalWeekdayFromSpec(spec){
     if (typeof spec !== 'string') return null;
     var s = _stripTrailPunct(spec);
@@ -903,21 +1449,11 @@ var Parse = (function(){
     return { ord:ord, wdi:wdi };
   }
 
-  // Month + day + optional year, or day-only (numeric or ordinal).
-  // Forms:
-  //   [MM] DD [YYYY]
-  //   <MonthName> DD [YYYY]
-  //   DD
-  //   (DD may be ordinal: "14th", "fourteenth")
-  // Returns:
-  //   { kind:'dayOnly', day }
-  //   { kind:'mdy', mi:<0-based>, day:<int>, year:<int|null> }
   function looseMDY(tokens){
     var cal = getCal(), months = cal.months;
     tokens = (tokens||[]).map(function(t){return String(t).trim();}).filter(Boolean);
     if (!tokens.length) return null;
 
-    // Day-only (number or ordinal)
     if (tokens.length === 1){
       if (/^\d+$/.test(tokens[0])) return { kind:'dayOnly', day:(parseInt(tokens[0],10)|0) };
       var od = ordinalDay(tokens[0]);
@@ -925,7 +1461,6 @@ var Parse = (function(){
       return null;
     }
 
-    // Numeric month
     if (/^\d+$/.test(tokens[0])){
       var miNum = clamp(parseInt(tokens[0],10), 1, months.length) - 1;
       var dTok  = tokens[1];
@@ -935,7 +1470,6 @@ var Parse = (function(){
       return { kind:'mdy', mi:miNum, day:dNum, year:yNum };
     }
 
-    // Month name
     var miByName = monthIndexByName(tokens[0]);
     if (miByName !== -1){
       var dTok2 = tokens[1];
@@ -945,12 +1479,9 @@ var Parse = (function(){
       return { kind:'mdy', mi:miByName, day:dN, year:yN };
     }
 
-    // Fallback: if first token is an ordinal word like "fourteenth" but there
-    // were extra tokens (bad form), reject to avoid guessing.
     return null;
   }
 
-  // Month/Day/Year loose (used by unified range; mirrors old _parseMonthYearLoose)
   function monthYearLoose(tokens){
     var cal = getCal(), cur = cal.current;
     var mi = -1, day = null, year = null, idx = 0;
@@ -1006,7 +1537,6 @@ var DaySpec = (function(){
     return m ? Math.max(1, parseInt(m[1],10)) : 1;
   }
 
-  // "N" or "A-B" → canonical string within [1..maxDays]
   function normalize(spec, maxDays){
     var s = String(spec||'').trim().toLowerCase();
     if (/^\d+$/.test(s)){ return String(clamp(s, 1, maxDays)); }
@@ -1019,7 +1549,6 @@ var DaySpec = (function(){
     return null;
   }
 
-  // Expand to concrete integers, warn GM if malformed
   function expand(spec, maxDays){
     var s = String(spec||'').trim().toLowerCase();
     var m = s.match(/^(\d+)\s*-\s*(\d+)$/);
@@ -1032,14 +1561,12 @@ var DaySpec = (function(){
     var n = parseInt(s,10);
     if (isFinite(n)) return [clamp(n,1,maxDays)];
 
-    // Keep existing UX: soft warning
     if (typeof sendChat === 'function'){
       sendChat(script_name, '/w gm Ignored malformed day spec: <code>'+String(spec).replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];})+'</code>');
     }
     return [];
   }
 
-  // Predicate for a day-of-month
   function matches(spec){
     if (typeof spec === 'number') {
       var n = spec|0; return function(d){ return d === n; };
@@ -1058,34 +1585,19 @@ var DaySpec = (function(){
     return function(){ return false; };
   }
 
-  // Keep ordinal weekday specs (e.g., "first far") intact; otherwise normalize or fallback to first number.
   function canonicalForKey(spec, maxDays){
     var ow = Parse.ordinalWeekday.fromSpec(spec);
     if (ow) return String(spec).toLowerCase().trim();
     return normalize(spec, maxDays) || String(first(spec));
   }
 
-  return {
-    first: first,
-    normalize: normalize,
-    expand: expand,
-    matches: matches,
-    canonicalForKey: canonicalForKey
-  };
+  return { first:first, normalize:normalize, expand:expand, matches:matches, canonicalForKey:canonicalForKey };
 })();
 
-// Stable day key for suppression/default matching (independent of weekday name set)
-function canonicalDayKey(spec, maxDays){
-  var ow = Parse.ordinalWeekday.fromSpec(spec);
-  if (ow) return 'ow:'+ow.ord+':'+ow.wdi;
-  return DaySpec.normalize(spec, maxDays) || String(DaySpec.first(spec));
-}
-
-
-
 /* ============================================================================
- * 6) EVENTS MODEL
+ * 7) EVENTS MODEL
  * ==========================================================================*/
+
 function eventDisplayName(e){
   var base = String(e && e.name || '').trim();
   if (!base) return '';
@@ -1093,27 +1605,32 @@ function eventDisplayName(e){
   var src = (e && e.source!=null) ? titleCase(String(e.source)) : null;
   return (src && st.showSourceLabels) ? (base + ' (' + src + ')') : base;
 }
+
 function eventKey(e){ var y = (e.year==null)?'ALL':String(e.year|0); return (e.month|0)+'|'+String(e.day)+'|'+y+'|'+String(e.name||'').trim().toLowerCase(); }
+
 function eventIndexByKey(key){
   key = String(key||'').trim().toLowerCase();
   var evs = getCal().events || [];
-  for (var i=0;i<evs.length;i++){ if (eventKey(evs[i]) === key) return i; }
+  for (var i=0;i<evs.length;i++){
+    if (eventKey(evs[i]).toLowerCase() === key) return i;
+  }
   return -1;
 }
+
 function defaultKeyFor(monthHuman, daySpec, name){ return (monthHuman|0)+'|'+String(daySpec)+'|ALL|'+String(name||'').trim().toLowerCase(); }
 
 var eventsAPI = {
-  forDay: function(monthIndex, day, year){ return getEventsFor(monthIndex, day, year); },
+  forDay:   function(monthIndex, day, year){ return getEventsFor(monthIndex, day, year); },
   forRange: function(startSerial, endSerial){ return occurrencesInRange(startSerial, endSerial); },
   colorFor: getEventColor,
   isDefault: isDefaultEvent
 };
 
 var renderAPI = {
-  month: function(opts){ return renderMonthTable(opts); },
-  monthGrid: function(mi, yearLabel, dimPast){ return renderMiniCal(mi, yearLabel, dimPast); },
-  year: function(y, dimPast){ return yearHTMLFor(y, dimPast); },
-  range: function(spec){ return buildCalendarsHtmlForSpec(spec); },
+  month:        function(opts){ return renderMonthTable(opts); },
+  monthGrid:    function(mi, yearLabel, dimPast){ return renderMiniCal(mi, yearLabel, dimPast); },
+  year:         function(y, dimPast){ return yearHTMLFor(y, dimPast); },
+  range:        function(spec){ return buildCalendarsHtmlForSpec(spec); },
   eventListForRange: function(title, startSerial, endSerial, forceYearLabel){
     return eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel);
   }
@@ -1128,17 +1645,35 @@ function compareEvents(a, b){
   return DaySpec.first(a.day) - DaySpec.first(b.day);
 }
 
+// Sort an events array so that user events (source=null) come first,
+// then sources in their configured priority order, then unranked sources.
+// Stable: equal-ranked events preserve their incoming order.
+function sortEventsByPriority(events){
+  var pList = (ensureSettings().eventSourcePriority || []).map(function(s){
+    return String(s).toLowerCase();
+  });
+  function rank(e){
+    if (!e.source) return 0;                          // user events always first
+    var idx = pList.indexOf(String(e.source).toLowerCase());
+    return idx >= 0 ? idx + 1 : pList.length + 1;    // unranked → tied last
+  }
+  return events.slice().sort(function(a, b){ return rank(a) - rank(b); });
+}
+
 function currentDefaultKeySet(cal){
+  var sysKey = ensureSettings().calendarSystem || CONFIG_DEFAULTS.calendarSystem;
   var lim = Math.max(1, cal.months.length);
   var out = {};
   deepClone(defaults.events).forEach(function(de){
+    var src = (de.source != null) ? String(de.source).toLowerCase() : null;
+    if (src && !_sourceAllowedForCalendar(src, sysKey)) return;
     var months = (String(de.month).toLowerCase()==='all')
       ? (function(){ var a=[]; for (var i=1;i<=lim;i++) a.push(i); return a; })()
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
     months.forEach(function(m){
       var maxD = cal.months[m-1].days|0;
-      var keyDay = canonicalDayKey(de.day, maxD);
-      out[ defaultKeyFor(m, keyDay, de.name) ] = 1;
+      var norm = DaySpec.canonicalForKey(de.day, maxD);
+      out[ defaultKeyFor(m, norm, de.name) ] = 1;
     });
   });
   return out;
@@ -1148,8 +1683,8 @@ function isDefaultEvent(ev){
   var calLocal = getCal();
   var defaultsSet = currentDefaultKeySet(calLocal);
   var maxD = calLocal.months[ev.month-1].days|0;
-  var keyDay = canonicalDayKey(ev.day, maxD);
-  var k = defaultKeyFor(ev.month, keyDay, ev.name);
+  var norm = DaySpec.canonicalForKey(ev.day, maxD);
+  var k = defaultKeyFor(ev.month, norm, ev.name);
   return !!defaultsSet[k];
 }
 
@@ -1158,16 +1693,23 @@ function markSuppressedIfDefault(ev){
   if (isDefaultEvent(ev)){
     var calLocal = getCal();
     var maxD = calLocal.months[ev.month-1].days|0;
-    var keyDay = canonicalDayKey(ev.day, maxD);
-    var k = defaultKeyFor(ev.month, keyDay, ev.name);
+    var norm = DaySpec.canonicalForKey(ev.day, maxD);
+    var k = defaultKeyFor(ev.month, norm, ev.name);
     state[state_name].suppressedDefaults[k] = 1;
   }
 }
 
 function mergeInNewDefaultEvents(cal){
+  var sysKey = ensureSettings().calendarSystem || CONFIG_DEFAULTS.calendarSystem;
   var lim = Math.max(1, cal.months.length);
   var suppressed = state[state_name].suppressedDefaults || {};
   var suppressedSources = state[state_name].suppressedSources || {};
+
+  // Remove out-of-scope default-source events for the active calendar.
+  cal.events = (cal.events || []).filter(function(e){
+    var src = (e && e.source != null) ? String(e.source).toLowerCase() : null;
+    return !src || _sourceAllowedForCalendar(src, sysKey);
+  });
 
   var have = {};
   cal.events.forEach(function(e){
@@ -1177,6 +1719,7 @@ function mergeInNewDefaultEvents(cal){
 
   deepClone(defaults.events).forEach(function(de){
     var src = (de.source != null) ? String(de.source).toLowerCase() : null;
+    if (src && !_sourceAllowedForCalendar(src, sysKey)) return;
     if (src && suppressedSources[src]) return;
 
     var monthsList = (String(de.month).toLowerCase() === 'all')
@@ -1184,45 +1727,43 @@ function mergeInNewDefaultEvents(cal){
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
 
     monthsList.forEach(function(m){
-      var maxD   = cal.months[m-1].days|0;
-      var keyDay = canonicalDayKey(de.day, maxD);
-      var key    = m+'|'+String(keyDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
-
+      var maxD = cal.months[m-1].days|0;
+      var normDay = DaySpec.canonicalForKey(de.day, maxD);
+      var key = m+'|'+String(normDay)+'|ALL|'+String(de.name||'').trim().toLowerCase();
       if (!have[key] && !suppressed[key]) {
         cal.events.push({
           name: String(de.name||''),
           month: m,
-          day: DaySpec.canonicalForKey(de.day, maxD),
+          day: normDay,
           year: null,
           color: resolveColor(de.color) || null,
           source: (de.source != null) ? String(de.source) : null
         });
         have[key] = 1;
       }
-
     });
   });
 
   cal.events.sort(compareEvents);
 }
 
-function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color, firstSpec){
+function autoColorForEvent(e){ return PALETTE[_stableHash(e && e.name) % PALETTE.length]; }
+function getEventColor(e){ return resolveColor(e && e.color) || autoColorForEvent(e) || '#FF00DD'; }
+
+function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color){
   var cal = getCal();
   var m = clamp(monthHuman, 1, cal.months.length);
   var maxD = cal.months[m-1].days|0;
 
   var ows = Parse.ordinalWeekday.fromSpec(daySpec);
-  var normDay = ows ? String(daySpec).toLowerCase().trim() : DaySpec.normalize(daySpec, maxD);
+  var normDay = ows
+    ? String(daySpec).toLowerCase().trim()
+    : DaySpec.normalize(daySpec, maxD);
+
   if (!normDay) return false;
 
   var col = resolveColor(color) || null;
-  var e = {
-    name: String(name||''), month: m, day: normDay,
-    year: (yearOrNull==null? null : (yearOrNull|0)), color: col
-  };
-  var f = parseFirstSpec(firstSpec);
-  if (f) e.first = f;
-
+  var e = { name: String(name||''), month: m, day: normDay, year: (yearOrNull==null? null : (yearOrNull|0)), color: col };
   var key = eventKey(e);
   var exists = cal.events.some(function(ev){ return eventKey(ev)===key; });
   if (exists) return false;
@@ -1256,8 +1797,9 @@ function getEventsFor(monthIndex, day, year){
 }
 
 /* ============================================================================
- * 7) RENDERING
+ * 8) RENDERING
  * ==========================================================================*/
+
 function clamp(n, min, max){ n = parseInt(n,10); if (!isFinite(n)) n = min; return n < min ? min : (n > max ? max : n); }
 function int(v, fallback){ var n = parseInt(v,10); return isFinite(n) ? n : fallback; }
 function esc(s){
@@ -1273,15 +1815,12 @@ function esc(s){
 function swatchHtml(colLike){
   var col = resolveColor(colLike) || '#888888';
   return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:'+esc(col)+';" title="'+esc(col)+'"></span>';
-} 
+}
 
 function _buttonHasEmojiStart(s){
   s = String(s||'');
-  if (!s) return false;
-  var cp = s.codePointAt ? s.codePointAt(0) : s.charCodeAt(0);
-  return (cp>=0x1F300 && cp<=0x1FAFF) || (cp>=0x2600 && cp<=0x27BF);
+  return !!s && s.charCodeAt(0) > 127;
 }
-
 
 function _buttonIcon(lbl){
   var t = String(lbl||'').toLowerCase();
@@ -1307,12 +1846,11 @@ function button(label, cmd, opts){
   return '['+esc(text)+'](!cal '+cmd+')';
 }
 
-/* === Permission-aware button wrappers (players only see allowed buttons) === */
 function _firstTok(s){ return String(s||'').trim().split(/\s+/)[0].toLowerCase(); }
 
 function _canRunTop(playerid, tok){
   var cfg = commands[tok];
-  if (!cfg) return true;            // Unknown top-level -> render; handleInput still gates.
+  if (!cfg) return true;
   return !cfg.gm || playerIsGM(playerid);
 }
 
@@ -1320,36 +1858,26 @@ function canRunCommand(playerid, cmdStr){
   return _canRunTop(playerid, _firstTok(cmdStr));
 }
 
-// Permissioned menu button: returns '' if the user can't run it
 function mbP(m, label, cmd, opts){
   return canRunCommand(m.playerid, cmd) ? button(label, cmd, opts) : '';
 }
 
-// Permissioned help nav (help itself is public; inner pages gate their buttons)
 function navP(m, label, page, opts){
   return button(label, 'help '+page, opts);
 }
 
-// Building blocks for month table
-function weekdayAbbr(name, setName){
-  var set = String(setName || ensureSettings().weekdaySet || '').toLowerCase();
-  var map = WEEKDAY_ABBR_OVERRIDES[set];
-  if (map && map[name] != null) return map[name];
+function weekdayAbbr(name){
+  var st  = ensureSettings();
+  var sys = CALENDAR_SYSTEMS[st.calendarSystem];
+  var map = (sys && sys.weekdayAbbr) || {};
+  if (map[name] != null) return map[name];
   var s = String(name || '').trim();
-  return (s.length <= 3) ? s : s.slice(0,3); // sane default
+  return (s.length <= 3) ? s : s.slice(0,3);
 }
-function weekday_name_abbr(name){ return weekdayAbbr(name); }
 
-// 4) Helper to get labels for headers
 function weekdayHeaderLabels(useAbbr){
   var cal = getCal();
-  var set = ensureSettings().weekdaySet;
-  return cal.weekdays.map(function(n){ return useAbbr ? weekdayAbbr(n, set) : n; });
-}
-
-function getYearTitleObj(y){
-  var map = state[state_name].yearTitles || {};
-  return map[y] || null;  // { title, color } | null
+  return cal.weekdays.map(function(n){ return useAbbr ? weekdayAbbr(n) : n; });
 }
 
 function openMonthTable(mi, yearLabel, abbrHeaders){
@@ -1357,33 +1885,15 @@ function openMonthTable(mi, yearLabel, abbrHeaders){
   var monthColor = colorForMonth(mi);
   var monthHeaderStyle = colorsAPI.styleMonthHeader(monthColor);
 
-  var yFor = (yearLabel != null ? yearLabel : cur.year);
-
-  // decide header labels first
-  var useAbbr = (abbrHeaders !== false); // default abbreviated
+  var useAbbr = (abbrHeaders !== false);
   var wd = useAbbr ? weekdayHeaderLabels(true) : cal.weekdays;
-
-  // optional: year title band (needs wd.length)
-  var yTitle = (ensureSettings().showYearTitles ? getYearTitleObj(yFor) : null);
-  var yearBand = '';
-  if (yTitle && yTitle.title){
-    var bandColor = resolveColor(yTitle.color) || monthColor;
-    var bandStyle = colorsAPI.styleMonthHeader(bandColor);
-    yearBand =
-      '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">' +
-        '<div style="'+STYLES.yearHeaderBase + bandStyle+'">' +
-          esc(String(yTitle.title)) +
-        '</div>' +
-      '</th></tr>';
-  }
 
   var head = [
     '<table style="'+STYLES.table+'">',
-    yearBand,
     '<tr><th colspan="'+wd.length+'" style="'+STYLES.head+'">',
     '<div style="'+STYLES.monthHeaderBase+monthHeaderStyle+'">',
       esc(mObj.name),
-      '<span style="float:right;">'+esc(String(yFor))+' '+LABELS.era+'</span>',
+      '<span style="float:right;">'+esc(String(yearLabel!=null?yearLabel:cur.year))+' '+LABELS.era+'</span>',
     '</div>',
     '</th></tr>',
     '<tr>'+ wd.map(function(d){ return '<th style="'+STYLES.th+'">'+esc(d)+'</th>'; }).join('') +'</tr>'
@@ -1397,12 +1907,8 @@ function closeMonthTable(){ return '</table>'; }
 function makeDayCtx(y, mi, d, dimActive){
   var ser = toSerial(y, mi, d);
   var tSer = todaySerial();
-  var events = getEventsFor(mi, d, y);
-
-  var label = events.length
-    ? events.map(eventDisplayName).filter(Boolean).join(', ')
-    : '';
-
+  var events = sortEventsByPriority(getEventsFor(mi, d, y));
+  var label = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
   return {
     y:y, mi:mi, d:d, serial:ser,
     isToday:  (ser === tSer),
@@ -1413,20 +1919,18 @@ function makeDayCtx(y, mi, d, dimActive){
   };
 }
 
-function styleForDayCell(baseStyle, eventsToday, isToday, monthColor, isPast, isFuture){
+function styleForDayCell(baseStyle, events, isToday, monthColor, isPast, isFuture){
+  // Primary event (or today) sets the solid background color.
+  // Secondary events are rendered as dots by _eventDotsHtml — not styled here.
   var style = baseStyle;
-
-  if (eventsToday.length >= 1){
-    style = colorsAPI.paint(style, eventsToday.slice(0,3).map(getEventColor), CONTRAST_MIN_CELL);
+  if (events.length >= 1){
+    style = applyBg(style, getEventColor(events[0]), CONTRAST_MIN_CELL);
   } else if (isToday){
-    style += 'background-color:'+monthColor+';';
-    style += colorsAPI.textOn(monthColor, CONTRAST_MIN_CELL);
+    style = applyBg(style, monthColor, CONTRAST_MIN_CELL);
   }
-
   if (isPast)   style += STYLES.past;
   if (isFuture) style += STYLES.future;
   if (isToday)  style += STYLES.today;
-
   return style;
 }
 
@@ -1434,7 +1938,42 @@ function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture);
   var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"' : '';
   var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
-  return '<td'+titleAttr+' style="'+style+'">'+numWrap+'</td>';
+  var dots = _eventDotsHtml(ctx.events);
+  return '<td'+titleAttr+' style="'+style+'">'+numWrap+dots+'</td>';
+}
+
+// Render a single full-width banner row for an intercalary (festival) day.
+// Used instead of a grid for 1-day months like Midwinter or Shieldmeet.
+function renderIntercalaryBanner(y, mi, mobj, dimActive){
+  var ser    = toSerial(y, mi, 1);
+  var tSer   = todaySerial();
+  var events = sortEventsByPriority(getEventsFor(mi, 1, y));
+  var title  = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
+  var ctx = { y:y, mi:mi, d:1, serial:ser,
+    isToday: ser === tSer,
+    isPast:  !!dimActive && ser < tSer,
+    isFuture:!!dimActive && ser > tSer,
+    events: events, title: title };
+  var mColor  = colorForMonth(mi);
+  var hdrStyle = colorsAPI.styleMonthHeader(mColor);
+  var cellStyle = styleForDayCell(STYLES.td, ctx.events, ctx.isToday, mColor, ctx.isPast, ctx.isFuture);
+  cellStyle += 'text-align:center;font-style:italic;';
+  var titleAttr = title ? ' title="'+esc(title)+'" aria-label="'+esc(title)+'"' : '';
+  var dots = _eventDotsHtml(ctx.events);
+  var wdCnt = weekLength()|0;
+  return [
+    '<table style="'+STYLES.table+'">',
+    '<tr><th colspan="'+wdCnt+'" style="'+STYLES.head+'">',
+    '<div style="'+STYLES.monthHeaderBase+hdrStyle+'">',
+      esc(mobj.name),
+      (mobj.leapEvery ? ' <span style="font-size:.75em;opacity:.75;">(every '+mobj.leapEvery+' yrs)</span>' : ''),
+    '</div>',
+    '</th></tr>',
+    '<tr'+titleAttr+'><td colspan="'+wdCnt+'" style="'+cellStyle+'">',
+    '<div style="font-size:.9em;line-height:1.5;">'+esc(mobj.name)+'</div>'+dots,
+    '</td></tr>',
+    '</table>'
+  ].join('');
 }
 
 function renderMonthTable(opts){
@@ -1444,14 +1983,22 @@ function renderMonthTable(opts){
   var mode = (opts && opts.mode) || 'full';
   var dimActive = !!(opts && opts.dimPast);
 
-  var mdays = cal.months[mi].days|0;
-  var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false)); // default abbreviated
+  var mobj  = cal.months[mi];
+
+  // Leap month not active this year: render nothing.
+  if (mobj.leapEvery && !_isLeapMonth(mobj, y)) return '';
+
+  // Intercalary day: banner row instead of a grid.
+  if (mobj.isIntercalary) return renderIntercalaryBanner(y, mi, mobj, dimActive);
+
+  var mdays = mobj.days|0;
+  var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false));
   var html  = [parts.html];
   var wdCnt = weekLength()|0;
 
   if (mode === 'full'){
-    var gridStart     = weekStartSerial(y, mi, 1);
-    var lastRowStart  = weekStartSerial(y, mi, mdays);
+    var gridStart    = weekStartSerial(y, mi, 1);
+    var lastRowStart = weekStartSerial(y, mi, mdays);
     for (var rowStart = gridStart; rowStart <= lastRowStart; rowStart += wdCnt){
       html.push('<tr>');
       for (var c=0; c<wdCnt; c++){
@@ -1461,7 +2008,10 @@ function renderMonthTable(opts){
           var ctx = makeDayCtx(y, mi, d.day, dimActive);
           html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
         } else {
-          html.push('<td style="'+STYLES.td+'"></td>');
+          // Overflow cell: adjacent month's day, tinted with that month's color.
+          var ovColor = colorForMonth(d.mi);
+          var ovStyle = STYLES.td + 'background-color:'+ovColor+';opacity:.22;';
+          html.push('<td style="'+ovStyle+'"><div style="opacity:.55;">'+d.day+'</div></td>');
         }
       }
       html.push('</tr>');
@@ -1492,18 +2042,19 @@ function renderMiniCal(mi, yearLabel, dimActive){
   return renderMonthTable({ year:y, mi:mi, mode:'full', dimPast: !!dimActive });
 }
 
-function renderCurrentMonth(){ return renderMiniCal(getCal().current.month, null, true); }
 
 function yearHTMLFor(targetYear, dimActive){
   var months = getCal().months;
   var html = ['<div style="text-align:left;">'];
   for (var i=0; i<months.length; i++){
-    html.push('<div style="'+STYLES.wrap+'">' + renderMiniCal(i, targetYear, !!dimActive) + '</div>');
+    // Skip leap months that don't occur this year.
+    if (months[i].leapEvery && !_isLeapMonth(months[i], targetYear)) continue;
+    var rendered = renderMiniCal(i, targetYear, !!dimActive);
+    if (rendered) html.push('<div style="'+STYLES.wrap+'">'+rendered+'</div>');
   }
   html.push('</div>');
   return html.join('');
 }
-
 
 function formatDateLabel(y, mi, d, includeYear){
   var cal=getCal();
@@ -1512,53 +2063,29 @@ function formatDateLabel(y, mi, d, includeYear){
   return lbl;
 }
 
-function eventOccursInMonthAfterFirst(e, year, mi){
-  var maxD = getCal().months[mi].days|0;
-  var ow = Parse.ordinalWeekday.fromSpec(e.day);
-  var days = ow
-    ? (ow.ord === 'every'
-        ? _allWeekdaysInMonth(year, mi, ow.wdi)
-        : (function(){ var d = dayFromOrdinalWeekday(year, mi, ow); return d ? [d] : []; })())
-    : DaySpec.expand(e.day, maxD);
-
-  for (var i=0;i<days.length;i++){
-    var d = clamp(days[i],1,maxD);
-    if (!occursBeforeFirst(e, year, mi, d)) return true;
-  }
-  return false;
-}
-
 function monthEventsHtml(mi, today){
   var cal = getCal(), curYear = cal.current.year;
 
-  // Compute a real day key for sorting (handles ordinal weekdays + "every <weekday>")
   function dayKey(e){
     var ow = Parse.ordinalWeekday.fromSpec(e.day);
     if (ow){
       if (ow.ord === 'every'){
-        // First occurrence of that weekday in the month
         var first = _firstWeekdayOfMonth(curYear, mi, ow.wdi);
         return (first != null) ? first : 99;
       }
       var d = dayFromOrdinalWeekday(curYear, mi, ow);
-      return (d != null) ? d : 99; // fallback if a 5th doesn't exist, etc.
+      return (d != null) ? d : 99;
     }
-    // Numeric or range like "18-19": use first day in the spec
     return DaySpec.first(e.day);
   }
 
   var evs = cal.events.filter(function(e){
-    if (((+e.month||1)-1) !== mi) return false;
-    if (e.year != null && (e.year|0) !== (curYear|0)) return false;
-    return eventOccursInMonthAfterFirst(e, curYear, mi);
+    return ((+e.month||1)-1) === mi && (e.year == null || (e.year|0) === (curYear|0));
   }).sort(function(a,b){
     var da = dayKey(a), db = dayKey(b);
     if (da !== db) return da - db;
-
-    // Specific-year events first, then perennial (keeps your existing behavior)
     var ay = (a.year==null)?1:0, by = (b.year==null)?1:0;
     if (ay !== by) return ay - by;
-
     return String(a.name||'').localeCompare(String(b.name||''));
   });
 
@@ -1576,7 +2103,7 @@ function monthEventsHtml(mi, today){
     }
 
     var swatch = swatchHtml(getEventColor(e));
-    var name = esc(eventDisplayName(e)); // includes (Source) when enabled
+    var name = esc(eventDisplayName(e));
     var style = isToday ? ' style="font-weight:bold;margin:2px 0;"' : ' style="margin:2px 0;"';
     return '<div'+style+'>'+swatch+' '+name+'</div>';
   }).join('');
@@ -1623,7 +2150,7 @@ function dayFromOrdinalWeekday(year, mi, ow){
   if (ow.ord === 'last') return _lastWeekdayOfMonth(year, mi, ow.wdi);
   var nth = {first:1, second:2, third:3, fourth:4, fifth:5}[ow.ord] || 1;
   var d = _nthWeekdayOfMonth(year, mi, ow.wdi, nth);
-  return (d==null) ? _lastWeekdayOfMonth(year, mi, ow.wdi) : d; // fall back if “5th” doesn’t exist
+  return (d==null) ? _lastWeekdayOfMonth(year, mi, ow.wdi) : d;
 }
 
 function _allWeekdaysInMonth(year, mi, wdi){
@@ -1643,27 +2170,40 @@ function _phraseToSpec(tokens){
     return { title:title, start: toSerial(y, mi, 1), end: toSerial(y, mi, md), months:[{y:y,mi:mi}] };
   }
   function yearRange(y, title){
-    var s = toSerial(y,0,1); return { title:title, start:s, end:s+dpy-1, months:months.map(function(_,i){return {y:y,mi:i};}) };
+    var s   = toSerial(y, 0, 1);
+    var end = toSerial(y + 1, 0, 1) - 1; // exact year boundary regardless of leap
+    // Filter out inactive leap months for this specific year.
+    var mList = months.map(function(_, i){ return {y:y, mi:i}; })
+                      .filter(function(e){ var m=months[e.mi]; return !m.leapEvery || _isLeapMonth(m, y); });
+    return { title:title, start:s, end:end, months:mList };
   }
   if (t0==='today' || t0==='now'){ return monthRange(cur.year, cur.month, 'Today — '+currentDateLabel()); }
-  if (t0==='month' || (t0==='this'||t0==='current') && (t1==='month'||!t1)){ return monthRange(cur.year, cur.month, 'This Month'); }
-  if (t0==='year'  || (t0==='this'||t0==='current') && (t1==='year'||!t1)){ return yearRange(cur.year, 'This Year '+cur.year+' '+LABELS.era); }
-  if (t0==='next' && (!t1 || t1==='month')){ var mi=(cur.month+1)%months.length, y=cur.year+(mi===0?1:0); return monthRange(y, mi, 'Next Month ('+months[mi].name+')'); }
+  if (t0==='month' || ((t0==='this'||t0==='current') && (t1==='month'||!t1))){ return monthRange(cur.year, cur.month, 'This Month'); }
+  if (t0==='year'  || ((t0==='this'||t0==='current') && (t1==='year'||!t1))){ return yearRange(cur.year, 'This Year '+cur.year+' '+LABELS.era); }
+  if (t0==='next' && (!t1 || t1==='month')){ var _nm=_nextActiveMi(cur.month,cur.year); return monthRange(_nm.y, _nm.mi, 'Next Month ('+months[_nm.mi].name+')'); }
   if (t0==='next' && t1==='year'){ return yearRange(cur.year+1, 'Next Year '+(cur.year+1)+' '+LABELS.era); }
   if ((t0==='last'||t0==='previous'||t0==='prev') && (!t1 || t1==='month')){
-    var pmi=(cur.month+months.length-1)%months.length, py=cur.year-(cur.month===0?1:0);
-    return monthRange(py, pmi, 'Last Month ('+months[pmi].name+')');
+    var _pm=_prevActiveMi(cur.month,cur.year);
+    return monthRange(_pm.y, _pm.mi, 'Last Month ('+months[_pm.mi].name+')');
   }
   if ((t0==='last'||t0==='previous'||t0==='prev') && t1==='year'){ return yearRange(cur.year-1, 'Last Year '+(cur.year-1)+' '+LABELS.era); }
   if (t0==='upcoming'){
     if (t1==='year'){
       var s = toSerial(cur.year, cur.month, 1);
-      return { title:'Upcoming Year (rolling from this month)', start:s, end:s+dpy-1,
-               months: (function(){ var out=[]; for (var off=0; off<12; off++){ var mi=(cur.month+off)%months.length; var y=cur.year+Math.floor((cur.month+off)/months.length); out.push({y:y,mi:mi}); } return out; })() };
+      var _upEnd = toSerial(cur.year + 1, cur.month, 1) - 1;
+      return { title:'Upcoming Year (rolling from this month)', start:s, end:_upEnd,
+               months: (function(){
+                 var out=[], off=0, mi=cur.month, y=cur.year, seen=0;
+                 while (seen < months.length){
+                   if (!months[mi].leapEvery || _isLeapMonth(months[mi], y)) out.push({y:y,mi:mi});
+                   mi = (mi+1) % months.length; if (mi===0) y++; seen++;
+                 }
+                 return out;
+               })() };
     }
     if (t1==='month' || !t1){
       var miU=cur.month, yU=cur.year;
-      if (cur.day_of_the_month>=15){ miU=(cur.month+1)%months.length; yU=cur.year+(miU===0?1:0); }
+      if (cur.day_of_the_month>=15){ var _um=_nextActiveMi(cur.month,cur.year); miU=_um.mi; yU=_um.y; }
       return monthRange(yU, miU, 'Upcoming Month');
     }
     if (/^\d+$/.test(t1)){
@@ -1676,7 +2216,6 @@ function _phraseToSpec(tokens){
 }
 
 function parseUnifiedRange(tokens){
-  // Phrase forms first (today/this month/next year/etc.)
   if (tokens.length && _isPhrase(tokens[0].toLowerCase())){
     var ps = _phraseToSpec(tokens);
     if (ps) return ps;
@@ -1684,7 +2223,6 @@ function parseUnifiedRange(tokens){
 
   var cal=getCal(), cur=cal.current, months=cal.months, dpy=daysPerYear();
 
-  // Ordinal weekday + (optional "of") month [+ optional year] → single day
   var ow = Parse.ordinalWeekday.fromTokens(tokens);
   if (ow){
     var year = (typeof ow.year==='number') ? ow.year : cur.year;
@@ -1703,7 +2241,6 @@ function parseUnifiedRange(tokens){
     };
   }
 
-  // Month/Day/Year loose (supports month alone, day-only, etc.)
   var md = Parse.monthYearLoose(tokens);
 
   if (md.mi!==-1 && md.day!=null && md.year!=null){
@@ -1754,11 +2291,9 @@ function parseUnifiedRange(tokens){
  * 10) OCCURRENCES, BOUNDARY STRIPS & LISTS
  * ==========================================================================*/
 
-var RANGE_CAP_YEARS = null; // set to a number (e.g., 120) to cap; null = no cap
-
 function occurrencesInRange(startSerial, endSerial){
-  var cal = getCal(), dpy = daysPerYear();
-  var yStart = Math.floor(startSerial/dpy), yEnd = Math.floor(endSerial/dpy);
+  var cal = getCal();
+  var yStart = fromSerial(startSerial).y, yEnd = fromSerial(endSerial).y;
 
   var capYears = (typeof RANGE_CAP_YEARS==='number' && RANGE_CAP_YEARS>0) ? RANGE_CAP_YEARS : null;
   var capNotice = false;
@@ -1787,29 +2322,19 @@ function occurrencesInRange(startSerial, endSerial){
       for (var k=0;k<days.length;k++){
         var d = clamp(days[k],1,maxD);
         var ser = toSerial(y, mi, d);
-
-        if (occursBeforeFirst(e, y, mi, d)) continue;
-
         if (ser>=startSerial && ser<=endSerial){
-          occ.push({
-            serial:ser, y:y, m:mi, d:d, e:e,
-            original: isOriginalOccurrence(e, y, mi, d)
-          });
+          occ.push({serial:ser, y:y, m:mi, d:d, e:e});
         }
       }
     }
   }
   occ.sort(function(a,b){
-    return (a.serial - b.serial)
-        || (a.m - b.m)
-        || (a.d - b.d)
-        || String(a.e && a.e.name || '').localeCompare(String(b.e && b.e.name || ''));
+    return (a.serial - b.serial) || (a.m - b.m) || (a.d - b.d);
   });
   if (capNotice){ sendChat(script_name,'/w gm Range capped at '+capYears+' years for performance.'); }
   return occ;
 }
 
-// Want-strip logic for automatic "nearby" extension
 function _rowDaysInMonth(y, mi, rowStart){
   var cal = getCal(), wdCount = cal.weekdays.length|0, out = [];
   for (var c=0; c<wdCount; c++){
@@ -1818,6 +2343,7 @@ function _rowDaysInMonth(y, mi, rowStart){
   }
   return out;
 }
+
 function _setAddAll(setObj, arr){ for (var i=0;i<arr.length;i++) setObj[arr[i]] = 1; }
 function _setCount(setObj){ return Object.keys(setObj).length; }
 function _setMin(setObj){ var keys = Object.keys(setObj).map(function(k){return +k;}); return keys.length ? Math.min.apply(null, keys) : null; }
@@ -1868,11 +2394,12 @@ function adjacentPartialMonths(spec){
     return wanted;
   }
 
-  // PREPEND: if today is within 5 days BEFORE start → show tail of previous month strip
-  if (today < spec.start && (spec.start - today) <= NEARBY_THRESHOLD){
+  // ── Case A: today is BEFORE the range but nearby ─────────────────────────
+  // Show the tail of the previous month so the current date has context.
+  if (today < spec.start && (spec.start - today) <= CONFIG_NEARBY_DAYS){
     var startD = fromSerial(spec.start);
-    var prevMi = (startD.mi + cal.months.length - 1) % cal.months.length;
-    var prevY  = startD.year - (startD.mi === 0 ? 1 : 0);
+    var _adjP = _prevActiveMi(startD.mi, startD.year);
+    var prevMi = _adjP.mi, prevY = _adjP.y;
     var prevMD = cal.months[prevMi].days|0;
 
     var tD = fromSerial(today);
@@ -1893,11 +2420,12 @@ function adjacentPartialMonths(spec){
     res.prev = { y:prevY, mi:prevMi, wanted:wanted };
   }
 
-  // APPEND: if today is within 5 days AFTER end → show head of next month strip
-  if (today > spec.end && (today - spec.end) <= NEARBY_THRESHOLD){
+  // ── Case B: today is AFTER the range but nearby ──────────────────────────
+  // Show the head of the next month so the current date has context.
+  if (today > spec.end && (today - spec.end) <= CONFIG_NEARBY_DAYS){
     var endD = fromSerial(spec.end);
-    var nextMi = (endD.mi + 1) % cal.months.length;
-    var nextY  = endD.year + (nextMi === 0 ? 1 : 0);
+    var _adjN = _nextActiveMi(endD.mi, endD.year);
+    var nextMi = _adjN.mi, nextY = _adjN.y;
 
     var firstRow = weekStartSerial(nextY, nextMi, 1);
 
@@ -1918,15 +2446,58 @@ function adjacentPartialMonths(spec){
     res.next = { y:nextY, mi:nextMi, wanted:wanted2 };
   }
 
+  // ── Case C: today is INSIDE the range, in the first calendar row ─────────
+  // Show the last row of the previous month so the week boundary has context.
+  if (!res.prev && today >= spec.start && today <= spec.end){
+    var sd = fromSerial(spec.start);
+    var firstRowStart = weekStartSerial(sd.year, sd.mi, 1);
+    if (today >= firstRowStart && today < firstRowStart + wdCnt){
+      var pMi = (sd.mi + cal.months.length - 1) % cal.months.length;
+      var pY  = sd.year - (sd.mi === 0 ? 1 : 0);
+      var pMD = cal.months[pMi].days|0;
+      var pLastRow = weekStartSerial(pY, pMi, pMD);
+      var wantedP = {};
+      _setAddAll(wantedP, _rowDaysInMonth(pY, pMi, pLastRow));
+      if (_setCount(wantedP)) res.prev = { y:pY, mi:pMi, wanted:wantedP };
+    }
+  }
+
+  // ── Case D: today is INSIDE the range, in the last calendar row ──────────
+  // Show the first row of the next month so the week boundary has context.
+  if (!res.next && today >= spec.start && today <= spec.end){
+    var ed = fromSerial(spec.end);
+    var edMD = cal.months[ed.mi].days|0;
+    var lastRowStart = weekStartSerial(ed.year, ed.mi, edMD);
+    if (today >= lastRowStart && today < lastRowStart + wdCnt){
+      var nMi = (ed.mi + 1) % cal.months.length;
+      var nY  = ed.year + (nMi === 0 ? 1 : 0);
+      var nFirstRow = weekStartSerial(nY, nMi, 1);
+      var wantedN = {};
+      _setAddAll(wantedN, _rowDaysInMonth(nY, nMi, nFirstRow));
+      if (_setCount(wantedN)) res.next = { y:nY, mi:nMi, wanted:wantedN };
+    }
+  }
+
   return res;
 }
 
 function _monthsFromRangeSpec(spec){
   if (spec.months && spec.months.length) return spec.months.slice();
-  var months = [], dpy=daysPerYear(), cal=getCal(), firstY=Math.floor(spec.start/dpy), lastY=Math.floor(spec.end/dpy);
+  var months = [], cal=getCal();
+  // Estimate bounding years using _daysBeforeYear inverse (subtract 1 for safety).
+  var avgDpy = _serialCache.avgDpy || daysPerYear();
+  var firstY = Math.max(0, Math.floor(spec.start / avgDpy) - 1);
+  var lastY  = Math.floor(spec.end   / avgDpy) + 1;
+  // Walk backwards from estimate until _daysBeforeYear(firstY) <= spec.start.
+  while (firstY > 0 && _daysBeforeYear(firstY) > spec.start) firstY--;
+  while (_daysBeforeYear(firstY + 1) <= spec.start) firstY++;
   for (var y=firstY; y<=lastY; y++){
+    var yearStart = _daysBeforeYear(y);
+    if (yearStart > spec.end) break;
     for (var mi=0; mi<cal.months.length; mi++){
-      var s = toSerial(y, mi, 1), e = toSerial(y, mi, cal.months[mi].days);
+      var m = cal.months[mi];
+      if (m.leapEvery && !_isLeapMonth(m, y)) continue; // inactive leap slot
+      var s = toSerial(y, mi, 1), e = toSerial(y, mi, m.days|0);
       if (e < spec.start) continue;
       if (s > spec.end) break;
       months.push({y:y, mi:mi});
@@ -1956,35 +2527,22 @@ function buildCalendarsHtmlForSpec(spec){
   var prevKey = boundary.prev ? (boundary.prev.y + '|' + boundary.prev.mi) : null;
   var nextKey = boundary.next ? (boundary.next.y + '|' + boundary.next.mi) : null;
 
-  // Global “are we rendering the Today cell anywhere?”
   var dimActiveAll =
     isTodayVisibleInRange(spec.start, spec.end) ||
     (!!boundary.prev && !present[prevKey] && stripHasToday(boundary.prev)) ||
     (!!boundary.next && !present[nextKey] && stripHasToday(boundary.next));
 
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
-    out.push(
-      '<div style="'+STYLES.wrap+'">' +
-        renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, dimActiveAll) +
-      '</div>'
-    );
+    out.push('<div style="'+STYLES.wrap+'">'+renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, dimActiveAll)+'</div>');
   }
 
   for (var k=0; k<months.length; k++){
     var m = months[k];
-    out.push(
-      '<div style="'+STYLES.wrap+'">' +
-        renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimActiveAll }) +
-      '</div>'
-    );
+    out.push('<div style="'+STYLES.wrap+'">'+renderMonthTable({ year:m.y, mi:m.mi, mode:'full', dimPast: dimActiveAll })+'</div>');
   }
 
   if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
-    out.push(
-      '<div style="'+STYLES.wrap+'">' +
-        renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, dimActiveAll) +
-      '</div>'
-    );
+    out.push('<div style="'+STYLES.wrap+'">'+renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, dimActiveAll)+'</div>');
   }
 
   out.push('</div>');
@@ -2003,20 +2561,16 @@ function stripRangeExtensionDynamic(spec){
     var minPrev = _setMin(boundary.prev.wanted);
     var maxPrev = _setMax(boundary.prev.wanted);
     if (minPrev != null && maxPrev != null){
-      var sPrev = toSerial(boundary.prev.y, boundary.prev.mi, minPrev);
-      var ePrev = toSerial(boundary.prev.y, boundary.prev.mi, maxPrev);
-      start = Math.min(start, sPrev);
-      end   = Math.max(end,   ePrev);
+      start = Math.min(start, toSerial(boundary.prev.y, boundary.prev.mi, minPrev));
+      end   = Math.max(end,   toSerial(boundary.prev.y, boundary.prev.mi, maxPrev));
     }
   }
   if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
     var minNext = _setMin(boundary.next.wanted);
     var maxNext = _setMax(boundary.next.wanted);
     if (minNext != null && maxNext != null){
-      var sNext = toSerial(boundary.next.y, boundary.next.mi, minNext);
-      var eNext = toSerial(boundary.next.y, boundary.next.mi, maxNext);
-      start = Math.min(start, sNext);
-      end   = Math.max(end,   eNext);
+      start = Math.min(start, toSerial(boundary.next.y, boundary.next.mi, minNext));
+      end   = Math.max(end,   toSerial(boundary.next.y, boundary.next.mi, maxNext));
     }
   }
 
@@ -2065,14 +2619,12 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   if (!st.groupEventsBySource){
     for (var i=0;i<occ.length;i++){
       var o = occ[i];
-      var name2 = eventDisplayName(o.e); // includes (Source) when enabled
-      if (o.original) name2 = '★ ' + name2; // Original occurrence marker
+      var name2 = eventDisplayName(o.e);
       out.push(eventLineHtml(o.y, o.m, o.d, name2, includeYear, (o.serial===today), getEventColor(o.e)));
     }
     return out.join('');
   }
 
-  // (feature still exists if someone enables it in settings)
   var groups = {}, order = [];
   for (var k=0;k<occ.length;k++){
     var o2 = occ[k];
@@ -2096,46 +2648,6 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
   return out.join('');
 }
 
-function parseFirstSpec(v){
-  if (v==null) return null;
-  var Y=null,M=null,D=null;
-  if (typeof v==='number'){ Y=v|0; }
-  else if (typeof v==='string'){
-    var m=v.match(/^(\d{1,6})(?:[-\/](\d{1,2})(?:[-\/](\d{1,2}))?)?$/);
-    if (m){ Y=+m[1]; M=+m[2]||null; D=+m[3]||null; }
-  } else if (typeof v==='object'){
-    if (v.year!=null) Y=v.year|0;
-    if (v.month!=null) M=v.month|0;
-    if (v.day!=null) D=v.day|0;
-  }
-  if (Y==null) return null;
-  // clamp if M/D present
-  if (M!=null){ M = clamp(M,1,getCal().months.length); }
-  if (D!=null && M!=null){ D = clamp(D,1,(getCal().months[M-1].days|0)); }
-  return { year:Y, month:M, day:D };
-}
-
-function occursBeforeFirst(e, y, mi, d){
-  var f = e.first; if (!f || f.year==null) return false;
-  if (y < f.year) return true;
-  if (y > f.year) return false;
-  if (f.month!=null){
-    var mHuman = mi+1;
-    if (mHuman < f.month) return true;
-    if (mHuman > f.month) return false;
-    if (f.day!=null) return d < f.day;
-  }
-  return false;
-}
-
-function isOriginalOccurrence(e, y, mi, d){
-  var f = e.first; if (!f || f.year==null) return false;
-  if (y !== f.year) return false;
-  if (f.month!=null && (mi+1)!==f.month) return false;
-  if (f.day!=null && d!==f.day) return false;
-  return true;
-}
-
 /* ============================================================================
  * 13) Roll20 State Interaction & UI
  * ==========================================================================*/
@@ -2148,25 +2660,32 @@ function currentDateLabel(){
          cur.year + " " + LABELS.era;
 }
 
+function dateLabelFromSerial(serial){
+  var cal = getCal();
+  var d = fromSerial(serial);
+  var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
+  return wd + ", " + d.day + " " + cal.months[d.mi].name + ", " + d.year + " " + LABELS.era;
+}
+
 function nextForDayOnly(cur, day, monthsLen){
   var months = getCal().months;
   var want = Math.max(1, day|0);
   var m = cur.month, y = cur.year;
 
-  // If current month has the day and it's today or later → use current month
-  if (want <= (months[m].days|0) && cur.day_of_the_month <= want) {
+  if (want <= (months[m].days|0) && cur.day_of_the_month <= want &&
+      (!months[m].leapEvery || _isLeapMonth(months[m], y))) {
     return { month: m, year: y };
   }
 
-  // Otherwise step forward until we find a month that has the requested day
-  for (var i = 0; i < monthsLen * 2; i++){ // safety
+  for (var i = 0; i < monthsLen * 2; i++){
     m = (m + 1) % monthsLen;
     if (m === 0) y++;
+    // Skip inactive leap-only months (e.g. Shieldmeet in a non-leap year).
+    if (months[m].leapEvery && !_isLeapMonth(months[m], y)) continue;
     if (want <= (months[m].days|0)) return { month: m, year: y };
   }
-  // Fallback (shouldn't happen): next month
-  m = (cur.month + 1) % monthsLen; y += (m === 0 ? 1 : 0);
-  return { month: m, year: y };
+  var _nxt = _nextActiveMi(cur.month, cur.year);
+  return { month: _nxt.mi, year: _nxt.y };
 }
 
 function nextForMonthDay(cur, mIndex, d){
@@ -2178,22 +2697,258 @@ function nextForMonthDay(cur, mIndex, d){
   return { year: cur.year + 1 };
 }
 
-function sendCurrentDate(to, gmOnly){
-  var cal=getCal(), c=cal.current;
-  var m=cal.months[c.month], wd=cal.weekdays[c.day_of_the_week];
-  var mName = esc(m.name), mSeason = esc(m.season);
-  var wdName = esc(wd);
-  var publicMsg = [
-    renderCurrentMonth(),
-    '<div style="font-weight:bold;margin:2px 0;">' + wdName + ', ' + mName+' ' + c.day_of_the_month + ', ' + esc(String(c.year)) + ' ' + LABELS.era +'</div>'
-  ];
-  publicMsg.push(monthEventsHtml(c.month, c.day_of_the_month));
-  publicMsg.push('<div style="margin-top:8px;"></div>');
-  publicMsg.push('<div>Month: '+(c.month+1)+' of '+cal.months.length+', '+mSeason+'</div>');
-  if (gmOnly){ sendToGM(publicMsg.join('')); }
-  else if (to){ whisper(to, publicMsg.join('')); }
-  else { sendToAll(publicMsg.join('')); }
-  if (gmOnly || !to) { sendToGM(gmButtonsHtml()); }
+// Returns the display-facing season label for a given calendar position.
+// For season sets with transitions (e.g. gregorian), computes the season from
+// the exact day rather than just the month. For all others, returns month.season.
+function _getSeasonLabel(mi, day){
+  var st    = ensureSettings();
+  var sv    = st.seasonVariant || CONFIG_DEFAULTS.seasonVariant;
+  var entry = SEASON_SETS[sv] || {};
+  if (!entry.transitions){
+    // No transition table — read from month.season (set by applySeasonSet, hemisphere-shifted).
+    return getCal().months[mi].season || null;
+  }
+  // Gregorian-style: pick the right transition array based on hemisphere.
+  var hem = st.hemisphere || CONFIG_DEFAULTS.hemisphere;
+  var tr  = (hem === 'south' && entry.transitionsSouth) ? entry.transitionsSouth : entry.transitions;
+  var rmi = regularMonthIndex(mi);
+  var cur = rmi * 1000 + (day|0);
+  var best = null, bestScore = -1;
+  for (var i = 0; i < tr.length; i++){
+    var score = tr[i].mi * 1000 + tr[i].day;
+    if (score <= cur && score > bestScore){ bestScore = score; best = tr[i].season; }
+  }
+  // Before the first transition of the year: wrap to the last.
+  return best || (tr.length ? tr[tr.length - 1].season : null);
+}
+
+function _uiDensityValue(explicit){
+  var d = String(explicit || ensureSettings().uiDensity || CONFIG_DEFAULTS.uiDensity || 'compact').toLowerCase();
+  return (d === 'normal') ? 'normal' : 'compact';
+}
+
+function _playerButtonsHtml(){
+  var out = [];
+  var st = ensureSettings();
+  if (st.weatherEnabled !== false) out.push(button('📋 Forecast','forecast'));
+  if (st.moonsEnabled   !== false) out.push(button('🌙 Moons','moon'));
+  return out.join(' ');
+}
+
+function sendCurrentDate(to, gmOnly, opts){
+  opts = opts || {};
+  var st = ensureSettings();
+  var density = _uiDensityValue(opts.density);
+  var dashboard = !!opts.dashboard;
+  var compact = !!opts.compact || (!dashboard && density === 'compact');
+  var includeButtons = (opts.includeButtons === undefined) ? (st.autoButtons !== false) : !!opts.includeButtons;
+  var audienceIsGM = !!gmOnly;
+  if (!audienceIsGM && to && opts.playerid) audienceIsGM = !!playerIsGM(opts.playerid);
+  if (!audienceIsGM && opts.audienceIsGM === true) audienceIsGM = true;
+
+  var cal = getCal(), c = cal.current;
+  var m   = cal.months[c.month];
+  var wd  = cal.weekdays[c.day_of_the_week];
+  var todaySer = toSerial(c.year, c.month, c.day_of_the_month);
+  var calHtml = '';
+  if (!compact || dashboard){
+    // Build a spec for the current month so buildCalendarsHtmlForSpec can
+    // attach adjacent strips when today is in the first or last calendar row.
+    var monthStart = toSerial(c.year, c.month, 1);
+    var monthEnd   = toSerial(c.year, c.month, m.days|0);
+    var spec = {
+      start:  monthStart,
+      end:    monthEnd,
+      months: [{ y: c.year, mi: c.month }],
+      title:  m.name + ' ' + c.year + ' ' + LABELS.era
+    };
+    calHtml = buildCalendarsHtmlForSpec(spec);
+  }
+
+  // Date headline: weekday, date, year, season
+  var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
+  var dateLine = compact
+    ? '<div style="font-weight:bold;margin:2px 0 3px 0;">' +
+      esc(wd) + ', ' + esc(m.name) + ' ' + c.day_of_the_month + ', ' +
+      esc(String(c.year)) + ' ' + LABELS.era +
+      (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;">— ' + esc(_seasonLabel) + '</span>' : '') +
+      '</div>'
+    : '<div style="font-weight:bold;margin:3px 0;">' +
+      esc(wd) + ', ' + esc(m.name) + ' ' + c.day_of_the_month + ', ' +
+      esc(String(c.year)) + ' ' + LABELS.era +
+      (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;font-size:.9em;">— ' + esc(_seasonLabel) + '</span>' : '') +
+      '</div>';
+
+  // Events this month (labeled only when events exist)
+  var eventsBlock = (function(){
+    if (compact || dashboard) return '';
+    var inner = monthEventsHtml(c.month, c.day_of_the_month);
+    if (!inner) return '';
+    return '<div style="margin-top:5px;font-size:.85em;opacity:.7;">Events this month:</div>' + inner;
+  }());
+
+  // Moon highlights — only show moons at notable phases (Full/New today, or arriving within 2 days)
+  var moonLine = '';
+  if (ensureSettings().moonsEnabled !== false){
+    try {
+      moonEnsureSequences();
+      var _st = ensureSettings();
+      var _sys = MOON_SYSTEMS[_st.calendarSystem] || MOON_SYSTEMS.eberron;
+      if (_sys && _sys.moons){
+        var _notable = [];
+
+        _sys.moons.forEach(function(moon){
+          var ph = moonPhaseAt(moon.name, todaySer);
+          var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+          var _thisNotable = false;
+
+          // Full or New right now?
+          if (ph.illum >= 0.97){
+            _notable.push(emoji + ' <b>' + esc(moon.name) + '</b> is Full');
+            _thisNotable = true;
+            return;
+          }
+          if (ph.illum <= 0.03){
+            var newLabel = ph.longShadows
+              ? emoji + ' <b>' + esc(moon.name) + '</b> goes dark (Long Shadows)'
+              : emoji + ' <b>' + esc(moon.name) + '</b> is New';
+            _notable.push(newLabel);
+            _thisNotable = true;
+            return;
+          }
+
+          // Full or New arriving within 2 days?
+          var nFull = _moonNextEvent(moon.name, todaySer, 'full');
+          var nNew  = _moonNextEvent(moon.name, todaySer, 'new');
+          var dFull = nFull ? Math.ceil(nFull - todaySer) : 999;
+          var dNew  = nNew  ? Math.ceil(nNew  - todaySer) : 999;
+
+          if (dFull <= 2){
+            var fEmoji = '\uD83C\uDF15'; // 🌕
+            _notable.push(fEmoji + ' <b>' + esc(moon.name) + '</b> Full ' + (dFull === 1 ? 'tomorrow' : 'in 2 days'));
+            _thisNotable = true;
+          } else if (dNew <= 2){
+            var nEmoji = '\uD83C\uDF11'; // 🌑
+            _notable.push(nEmoji + ' <b>' + esc(moon.name) + '</b> New ' + (dNew === 1 ? 'tomorrow' : 'in 2 days'));
+            _thisNotable = true;
+          }
+
+          // Ascendant: moon's plane is coterminous (skip if already notable for phase)
+          if (audienceIsGM && !_thisNotable && moon.plane && ensureSettings().planesEnabled !== false){
+            try {
+              var _aPs = getPlanarState(moon.plane, todaySer);
+              if (_aPs && _aPs.phase === 'coterminous')
+                _notable.push('\u2728 <b>' + esc(moon.name) + '</b> ascendant');
+            } catch(e2){}
+          }
+        });
+
+        if (_notable.length){
+          moonLine = '<div style="font-size:.82em;opacity:.7;margin-top:3px;">' +
+            _notable.join(' &nbsp;&middot;&nbsp; ') +
+            '</div>';
+        }
+
+        // Eclipse highlights
+        try {
+          var _eclNotes = _eclipseNotableToday(todaySer);
+          if (_eclNotes.length){
+            moonLine += '<div style="' +
+              applyBg('font-size:.82em;opacity:.9;margin-top:2px;display:inline-block;padding:1px 4px;border-radius:3px;',
+                      '#FFE8A3', CONTRAST_MIN_HEADER) +
+              '">' +
+              _eclNotes.join(' &nbsp;&middot;&nbsp; ') +
+              '</div>';
+          }
+        } catch(e3){ /* eclipse engine not ready */ }
+      }
+    } catch(e){ /* moon system not ready yet — skip silently */ }
+  }
+
+  // Compact weather line (abridged tier — what anyone can see looking at the sky)
+  var weatherLine = '';
+  if (ensureSettings().weatherEnabled !== false){
+    try {
+      var _ws = getWeatherState();
+      // Only show weather if a location has been configured
+      if (_ws.location){
+        weatherEnsureForecast();
+        var _wxRec    = _forecastRecord(todaySer);
+        if (_wxRec && _wxRec.final){
+          var _f  = _wxRec.final;
+          var _tL = CONFIG_WEATHER_LABELS.temp[Math.min(_f.temp, 10)] || _tempBand(_f.temp);
+          var _wxLoc   = _wxRec.location || {};
+          var _wxCond  = _deriveConditions(_f, _wxLoc, 'afternoon', _wxRec.snowAccumulated, _wxRec.fog && _wxRec.fog.afternoon);
+          var _pL = _wxCond.precipType !== 'none'
+            ? titleCase(_wxCond.precipType.replace(/_/g,' '))
+            : (CONFIG_WEATHER_LABELS.precip[_f.precip] || 'Clear');
+          weatherLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
+            '\u2601\uFE0F ' + esc(_tL) + ', ' + esc(_pL) +
+            '</div>';
+          // Auto-record abridged common-knowledge reveal for today
+          _recordReveal(_ws, todaySer, 'abridged', 'common');
+        }
+      }
+    } catch(e){ /* weather not ready — skip silently */ }
+  }
+
+  // Planar highlights — only show planes with notable current state
+  var planesLine = '';
+  if (audienceIsGM && ensureSettings().planesEnabled !== false){
+    try {
+      var _plNotes = _planarNotableToday(todaySer);
+      if (_plNotes.length){
+        planesLine = '<div style="font-size:.82em;opacity:.7;margin-top:2px;">' +
+          _plNotes.join(' &nbsp;&middot;&nbsp; ') +
+          '</div>';
+      }
+    } catch(e){ /* planes not ready — skip silently */ }
+  }
+
+  var todayEventsLine = '';
+  try {
+    var occ = occurrencesInRange(todaySer, todaySer);
+    if (occ.length){
+      var seenNames = {};
+      var names = [];
+      for (var oi = 0; oi < occ.length; oi++){
+        var nm = eventDisplayName(occ[oi].e);
+        var keyNm = String(nm || '').toLowerCase();
+        if (!seenNames[keyNm]){
+          seenNames[keyNm] = 1;
+          names.push(nm);
+        }
+      }
+      var shown = names.slice(0, 3).map(esc).join(', ');
+      var more = names.length > 3 ? (' <span style="opacity:.65;">+' + (names.length - 3) + ' more</span>') : '';
+      todayEventsLine = '<div style="font-size:.82em;opacity:.75;margin-top:2px;">🎉 ' + shown + more + '</div>';
+    } else if (dashboard) {
+      todayEventsLine = '<div style="font-size:.82em;opacity:.6;margin-top:2px;">🎉 No calendar events today.</div>';
+    }
+  } catch(e4){}
+
+  var msgCore;
+  if (dashboard){
+    msgCore = calHtml + dateLine + todayEventsLine + moonLine + weatherLine + planesLine;
+  } else if (compact){
+    msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
+      dateLine + todayEventsLine + moonLine + weatherLine + planesLine +
+      '</div>';
+  } else {
+    msgCore = calHtml + dateLine + moonLine + weatherLine + planesLine + eventsBlock;
+  }
+
+  var controls = '';
+  if (includeButtons && (gmOnly || to)){
+    var isGmRecipient = !!gmOnly || !!(opts.playerid && playerIsGM(opts.playerid));
+    var controlsHtml = isGmRecipient ? gmButtonsHtml() : _playerButtonsHtml();
+    if (controlsHtml) controls = '<div style="margin-top:2px;">' + controlsHtml + '</div>';
+  }
+  var publicMsg = msgCore + controls;
+
+  if (gmOnly)    { sendToGM(publicMsg); }
+  else if (to)   { whisper(to, publicMsg); }
+  else           { sendToAll(publicMsg); }
 }
 
 function _parseSharpColorToken(tok){
@@ -2211,7 +2966,6 @@ function parseDatePrefixForAdd(tokens){
 
   var cal = getCal(), cur = cal.current, months = cal.months;
 
-  // Try the unified MDY/day-only parser on up to first 3 tokens
   var r = Parse.looseMDY(tokens.slice(0,3));
   if (r){
     if (r.kind === 'dayOnly'){
@@ -2225,7 +2979,6 @@ function parseDatePrefixForAdd(tokens){
     }
   }
 
-  // Fallback: treat the very first token as "day-only" (so "!cal add 14 Feast" works)
   var t0  = tokens[0];
   var od  = Parse.ordinalDay(t0);
   var num = /^\d+$/.test(t0) ? (parseInt(t0,10)|0) : null;
@@ -2238,19 +2991,6 @@ function parseDatePrefixForAdd(tokens){
   return null;
 }
 
-function pullFirstFlag(tokens){
-  tokens = (tokens||[]).slice();
-  var i = -1;
-  for (var j=0;j<tokens.length;j++){
-    if (/^--first$/i.test(tokens[j])){ i=j; break; }
-  }
-  if (i===-1) return { first:null, tokens:tokens };
-  var val = tokens[i+1] || '';
-  tokens.splice(i, (val?2:1));
-  return { first: val, tokens: tokens };
-}
-
-// Smart add: !cal add [DD] NAME [#COLOR|color] | !cal add MM DD [YYYY] NAME [#COLOR|color]
 function addEventSmart(tokens){
   tokens = (tokens || []).filter(function(t){ return String(t).trim() !== '--'; });
 
@@ -2258,13 +2998,11 @@ function addEventSmart(tokens){
   if (!pref) { warnGM('Usage: !cal add [MM DD [YYYY] | <MonthName> DD [YYYY] | DD] NAME [#COLOR|color]'); return; }
 
   var rest = tokens.slice(pref.used);
-  var pf   = pullFirstFlag(rest);  rest = pf.tokens;
-  var pulled = popColorIfPresent(rest, /*allowBareName*/true);
+  var pulled = popColorIfPresent(rest, true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
-  var ok = _addConcreteEvent(pref.mHuman, String(pref.day), pref.year, name, color, pf.first);
-
+  var ok = _addConcreteEvent(pref.mHuman, String(pref.day), pref.year, name, color);
   if (ok){ refreshAndSend(); warnGM('Added 1 event.'); }
   else   { warnGM('No event added (duplicate or invalid).'); }
 }
@@ -2272,21 +3010,17 @@ function addEventSmart(tokens){
 function addMonthlySmart(tokens){
   tokens = (tokens || []).filter(function(t){ return String(t).trim() !== '--'; });
   if (!tokens.length){
-    return warnGM(
-      'Usage: !cal addmonthly <daySpec> NAME [#COLOR|color]\n'
-      + 'daySpec can be N, N-M, or "first|second|third|fourth|fifth|last <weekday>" (also "every <weekday>").'
-    );
+    return warnGM('Usage: !cal addmonthly <daySpec> NAME [#COLOR|color]\n'
+      + 'daySpec can be N, N-M, or "first|second|third|fourth|fifth|last <weekday>" (also "every <weekday>").');
   }
 
   var daySpec = null, used = 0;
 
-  // Ordinal weekday: "first far", "last zor", "every sul"
   if (tokens[1]){
     var two = (tokens[0] + ' ' + tokens[1]).toLowerCase().trim();
     if (Parse.ordinalWeekday.fromSpec(two)){ daySpec = two; used = 2; }
   }
 
-  // Numeric day / range / ordinal day word
   if (!daySpec){
     var one = String(tokens[0]).toLowerCase().trim();
     if (/^\d+(-\d+)?$/.test(one)) {
@@ -2298,17 +3032,16 @@ function addMonthlySmart(tokens){
   }
 
   if (!daySpec){
-    return warnGM('Couldn’t parse daySpec. Try: 6  |  18-19  |  "first far"  |  "last zor"  |  "every sul".');
+    return warnGM('Couldn\u2019t parse daySpec. Try: 6  |  18-19  |  "first far"  |  "last zor"  |  "every sul".');
   }
-  
-  var pf = pullFirstFlag(tokens.slice(used));
-  var pulled = popColorIfPresent(pf.tokens, /*allowBareName*/true);
+
+  var pulled = popColorIfPresent(tokens.slice(used), true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
   var cal = getCal(), added = 0;
   for (var m = 1; m <= cal.months.length; m++){
-    if (_addConcreteEvent(m, daySpec, null, name, color, pf.first)) added++;
+    if (_addConcreteEvent(m, daySpec, null, name, color)) added++;
   }
   refreshAndSend();
   warnGM('Added '+added+' monthly event'+(added===1?'':'s')+' for "'+esc(name)+'" on '+esc(daySpec)+'.');
@@ -2317,23 +3050,20 @@ function addMonthlySmart(tokens){
 function addYearlySmart(tokens){
   tokens = (tokens || []).filter(function(t){ return String(t).trim() !== '--'; });
   if (!tokens.length){
-    return warnGM(
-      'Usage: !cal addyearly <Month> <DD|DD-DD|ordinal-day> NAME [#COLOR|color]\n'
-      + '   or: !cal addyearly <first|second|third|fourth|fifth|last> <weekday> [of] <Month> NAME [#COLOR|color]'
-    );
+    return warnGM('Usage: !cal addyearly <Month> <DD|DD-DD|ordinal-day> NAME [#COLOR|color]\n'
+      + '   or: !cal addyearly <first|second|third|fourth|fifth|last> <weekday> [of] <Month> NAME [#COLOR|color]');
   }
 
   var cal = getCal();
   var used = 0, mHuman = null, daySpec = null;
 
-  // (A) Ordinal weekday with month (tokens form). Example: "first far [of] Barrakas"
+  // (A) Ordinal weekday with explicit month
   (function tryOrdinalWeekdayWithMonth(){
     if (daySpec != null) return;
     var ow = Parse.ordinalWeekday.fromTokens(tokens);
     if (!ow) return;
 
-    // Must have an explicit month for annual events
-    var idx = 2; // <ord> <weekday> ...
+    var idx = 2;
     if (tokens[idx] && /^of$/i.test(tokens[idx])) idx++;
 
     var mi = -1;
@@ -2344,16 +3074,14 @@ function addYearlySmart(tokens){
         if (n>=1 && n<=cal.months.length) mi = n-1;
       }
     }
-    if (mi === -1) return; // no explicit month -> let other forms try
+    if (mi === -1) return;
 
-    mHuman = mi + 1;
+    mHuman  = mi + 1;
     daySpec = (String(tokens[0]) + ' ' + String(tokens[1])).toLowerCase().trim();
 
-    // figure out how many tokens we consumed for name slice
-    used = 2; // ord + weekday
+    used = 2;
     if (tokens[used] && /^of$/i.test(tokens[used])) used++;
-    used++; // month
-    // optional year token (ignored for annual; just skip if present)
+    used++;
     if (tokens[used] && /^\d{1,6}$/.test(tokens[used])) used++;
   })();
 
@@ -2362,7 +3090,7 @@ function addYearlySmart(tokens){
     var mi2 = monthIndexByName(tokens[0]);
     if (mi2 !== -1 && tokens[1]){
       var dTok = String(tokens[1]).toLowerCase().trim();
-      if (/^\d+-\d+$/.test(dTok)){     // range like 26-28
+      if (/^\d+-\d+$/.test(dTok)){
         mHuman = mi2 + 1;
         daySpec = dTok;
         used = 2;
@@ -2377,7 +3105,7 @@ function addYearlySmart(tokens){
     }
   }
 
-  // (C) Fallback: reuse add prefix parser, but only if it parsed an MDY form
+  // (C) Fallback: MDY parser
   if (daySpec == null){
     var pref = Parse.looseMDY(tokens.slice(0,3));
     if (!pref || pref.kind !== 'mdy') {
@@ -2389,17 +3117,12 @@ function addYearlySmart(tokens){
     used    = (pref.year!=null)?3:2;
   }
 
-  // Remaining → name (with optional trailing color)
-  var pf = pullFirstFlag(tokens.slice(used));
-  var pulled = popColorIfPresent(pf.tokens, /*allowBareName*/true);
+  var pulled = popColorIfPresent(tokens.slice(used), true);
   var color  = pulled.color;
   var name   = (pulled.tokens.join(' ').trim() || 'Untitled Event');
 
-  var ok = _addConcreteEvent(mHuman, daySpec, null, name, color, pf.first); // year=null (annual)
-  if (ok){
-    refreshAndSend();
-    warnGM('Added annual event "'+esc(name)+'" on '+esc(daySpec)+' of month '+mHuman+'.');
-  }
+  var ok = _addConcreteEvent(mHuman, daySpec, null, name, color);
+  if (ok){ refreshAndSend(); warnGM('Added annual event "'+esc(name)+'" on '+esc(daySpec)+' of month '+mHuman+'.'); }
   else   { warnGM('No event added (duplicate or invalid).'); }
 }
 
@@ -2411,7 +3134,20 @@ function stepDays(n){
   var d = fromSerial(dest);
   cur.day_of_the_week = (cur.day_of_the_week + ((n % wdlen) + wdlen)) % wdlen;
   cur.year = d.year; cur.month = d.mi; cur.day_of_the_month = d.day;
-  sendCurrentDate(null,true);
+  // Slide the forecast window forward and lock past days
+  if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
+
+  var direction = n >= 0 ? 'Forward' : 'Back';
+  var dateStr = esc(currentDateLabel());
+  var stepButtons =
+    mb('\u23ee\ufe0f Back','retreat 1')+'\u00a0'+
+    mb('\u23ed\ufe0f Forward','advance 1')+'\u00a0'+
+    mb('\ud83d\udce3 Send','send')+'\u00a0'+
+    nav('\u2754 Help','root');
+  sendToGM(
+    '<div><b>Stepped '+direction+'</b> \u2014 '+dateStr+'</div>'+
+    '<div style="margin-top:4px;">'+stepButtons+'</div>'
+  );
 }
 
 function setDate(m, d, y){
@@ -2424,6 +3160,8 @@ function setDate(m, d, y){
   cur.month = mi; cur.day_of_the_month = di; cur.year = yi;
   var wdlen = cal.weekdays.length;
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
+  // Slide the forecast window forward and lock past days, same as stepDays
+  if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   sendCurrentDate(null, true);
 }
 
@@ -2448,11 +3186,31 @@ function removeEvent(query){
     return;
   }
 
-  sendChat(script_name, '/w gm Usage: <code>!cal remove [list | key &lt;KEY&gt; | &lt;name fragment&gt;]</code>');
+  if (sub === 'series'){
+    var sk = _decKey(toks.slice(1).join(' ').trim());
+    if (!sk){ sendChat(script_name, '/w gm Usage: <code>!cal remove series &lt;KEY&gt;</code>'); return; }
+    var removedCount = 0;
+    for (var i = events.length - 1; i >= 0; i--){
+      if (_eventSeriesKey(events[i]) !== sk) continue;
+      var removedSeries = events.splice(i, 1)[0];
+      markSuppressedIfDefault(removedSeries);
+      removedCount++;
+    }
+    if (!removedCount){
+      sendChat(script_name, '/w gm No event series found for key: <code>'+esc(sk)+'</code>');
+      return;
+    }
+    refreshAndSend();
+    sendChat(script_name, '/w gm Removed '+removedCount+' recurring event'+(removedCount===1?'':'s')+'.');
+    return;
+  }
+
+  sendChat(script_name, '/w gm Usage: <code>!cal remove [list | key &lt;KEY&gt; | series &lt;KEY&gt; | &lt;name fragment&gt;]</code>');
 }
 
 function _defaultDetailsForKey(key){
   var cal = getCal();
+  var sysKey = ensureSettings().calendarSystem || CONFIG_DEFAULTS.calendarSystem;
   var parts = String(key||'').split('|');
   var mHuman = parseInt(parts[0],10)|0;
   var daySpec = parts[1]||'';
@@ -2462,6 +3220,8 @@ function _defaultDetailsForKey(key){
   var out = { name: titleCase(nameLower), month: mHuman, day: daySpec, color: null, source: null };
 
   deepClone(defaults.events).forEach(function(de){
+    var srcKey = (de.source != null) ? String(de.source).toLowerCase() : null;
+    if (srcKey && !_sourceAllowedForCalendar(srcKey, sysKey)) return;
     var monthsList = (String(de.month).toLowerCase() === 'all')
       ? (function(){ var a=[]; for(var i=1;i<=lim;i++) a.push(i); return a; })()
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
@@ -2478,106 +3238,85 @@ function _defaultDetailsForKey(key){
   });
   return out;
 }
-// Build a single logical group key for a default row (one per line in DEFAULT_EVENT_SOURCES)
-function _groupKeyForDefault(def){
-  var src  = (def.source != null) ? String(def.source).toLowerCase().trim() : '';
-  var name = String(def.name||'').trim().toLowerCase();
-  var moSpec = (String(def.month).toLowerCase()==='all')
-              ? 'all'
-              : String(clamp(parseInt(def.month,10)||1, 1, getCal().months.length));
-  // Choose a representative month to compute a numeric day key if needed
-  var repMi = (moSpec==='all' ? 0 : (parseInt(moSpec,10)-1));
-  var maxD  = getCal().months[repMi].days|0;
-  var dKey  = canonicalDayKey(def.day, maxD);
-  return src+'|'+name+'|'+dKey+'|'+moSpec;
-}
-
-// Suppress all default instances covered by the group key (e.g., Tain Gala -> all 12 months)
-function suppressDefaultsByGroupKey(groupKey){
-  var parts = String(groupKey||'').split('|');
-  if (parts.length < 4) return;
-  var src     = parts[0]; // not in suppression key, informational only
-  var nameLow = parts[1];
-  var dayKey  = parts[2];
-  var moSpec  = parts[3];
-
-  var cal = getCal();
-  var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
-  var months = (moSpec==='all')
-    ? (function(){var a=[]; for (var m=1;m<=cal.months.length;m++) a.push(m); return a;})()
-    : [ clamp(parseInt(moSpec,10)||1, 1, cal.months.length) ];
-
-  // Mark every month’s default as suppressed
-  months.forEach(function(mHuman){
-    var k = defaultKeyFor(mHuman, dayKey, nameLow);
-    sup[k] = 1;
-  });
-
-  // Drop any already-present default events that match the new suppressions
-  var defaultsSet = currentDefaultKeySet(cal);
-  cal.events = (cal.events||[]).filter(function(e){
-    if (!isDefaultEvent(e)) return true;
-    var maxD  = cal.months[e.month-1].days|0;
-    var dKey2 = canonicalDayKey(e.day, maxD);
-    var k2    = defaultKeyFor(e.month, dKey2, e.name);
-    return !sup[k2]; // keep only those NOT suppressed
-  });
-
-  refreshAndSend();
-  sendChat(script_name, '/w gm Suppressed "'+esc(titleCase(nameLow))+'" '+(moSpec==='all'?'(all months)':'(month '+moSpec+')')+'.');
-}
-
-// Restore all default instances covered by the group key
-function restoreDefaultsByGroupKey(groupKey){
-  var parts = String(groupKey||'').split('|');
-  if (parts.length < 4) return;
-  var /*src*/ _unused = parts[0];
-  var nameLow = parts[1];
-  var dayKey  = parts[2];
-  var moSpec  = parts[3];
-
-  var cal = getCal();
-  var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
-  var months = (moSpec==='all')
-    ? (function(){ var a=[]; for (var m=1;m<=cal.months.length;m++) a.push(m); return a; })()
-    : [ clamp(parseInt(moSpec,10)||1, 1, cal.months.length) ];
-
-  // Clear all matching suppressions
-  months.forEach(function(mHuman){
-    delete sup[ defaultKeyFor(mHuman, dayKey, nameLow) ];
-  });
-
-  mergeInNewDefaultEvents(cal);
-  refreshAndSend();
-  sendChat(script_name, '/w gm Restored "'+esc(titleCase(nameLow))+'" '+(moSpec==='all'?'(all months)':'(month '+moSpec+')')+'.');
-}
-
 
 /* ============================================================================
  * 14) BUTTONED TABLES / LISTS
  * ==========================================================================*/
 
 function _encKey(k){ return encodeURIComponent(String(k)); }
-
 function _decKey(k){ try { return decodeURIComponent(String(k)); } catch(e){ return String(k||''); } }
+
+function _eventSeriesKey(e){
+  var y   = (e.year==null) ? 'ALL' : String(e.year|0);
+  var day = String(e.day||'').trim().toLowerCase();
+  var nm  = String(e.name||'').trim().toLowerCase();
+  var src = (e.source!=null) ? String(e.source).trim().toLowerCase() : '';
+  return y + '|' + day + '|' + nm + '|' + src;
+}
+
+function _eventRowsForTables(evs){
+  var cal = getCal();
+  var monthCount = Math.max(1, cal.months.length);
+  var groups = {};
+  var order = [];
+
+  (evs || []).forEach(function(e){
+    var sk = _eventSeriesKey(e);
+    if (!groups[sk]){
+      groups[sk] = { key: sk, months: {}, entries: [] };
+      order.push(sk);
+    }
+    groups[sk].entries.push(e);
+    groups[sk].months[e.month|0] = 1;
+  });
+
+  var rows = [];
+  order.forEach(function(sk){
+    var g = groups[sk];
+    var months = Object.keys(g.months);
+    var collapseAllMonths = (g.entries.length > 1 && months.length === monthCount);
+
+    if (collapseAllMonths){
+      var lead = g.entries[0];
+      rows.push({
+        event: lead,
+        mmLabel: 'ALL',
+        removeCmd: 'remove series ' + _encKey(sk),
+        groupedCount: g.entries.length
+      });
+      return;
+    }
+
+    g.entries.forEach(function(e){
+      rows.push({
+        event: e,
+        mmLabel: String(e.month|0),
+        removeCmd: 'remove key ' + _encKey(eventKey(e)),
+        groupedCount: 1
+      });
+    });
+  });
+
+  return rows;
+}
 
 function listAllEventsTableHtml(){
   var cal = getCal(), evs = cal.events || [];
   if(!evs.length) return '<div style="opacity:.7;">No events.</div>';
 
-  var rows = evs.map(function(e, i){
-    var mi = (e.month|0) - 1;
-    var mm = (mi+1);
+  var listRows = _eventRowsForTables(evs);
+  var rows = listRows.map(function(row, i){
+    var e = row.event;
     var dd = esc(String(e.day));
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-    var name = eventDisplayName(e);
+    var name = esc(eventDisplayName(e)) + (row.groupedCount > 1 ? ' <span style="opacity:.65;">(' + row.groupedCount + 'x)</span>' : '');
     var sw = swatchHtml(getEventColor(e));
-    return '<tr>' +
-      '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>' +
-      '<td style="'+STYLES.td+'">'+ sw + esc(name) +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>' +
-      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>' +
+    return '<tr>'+
+      '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
+      '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ esc(row.mmLabel) +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>'+
     '</tr>';
   });
 
@@ -2590,105 +3329,31 @@ function listAllEventsTableHtml(){
   '</tr>';
 
   return '<div style="margin:4px 0;"><b>All Events (meta view)</b></div>'+
-         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>';
+         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>'+
+         '<div style="opacity:.7;margin-top:4px;">Recurring events that span every month are grouped as one row.</div>';
 }
 
 function removeListHtml(){
-  var cal = getCal();
-
-  // ===== DEFAULTS (grouped, one per code line) =====
-  var defRowsBySource = {};
-  (defaults.events || []).forEach(function(def){
-    var srcTitle = def.source ? titleCase(def.source) : 'Other';
-    defRowsBySource[srcTitle] = defRowsBySource[srcTitle] || [];
-    var moTxt = (String(def.month).toLowerCase()==='all') ? 'all months' : ('month '+clamp(parseInt(def.month,10)||1,1,cal.months.length));
-    var repMi = (String(def.month).toLowerCase()==='all') ? 0 : (clamp(parseInt(def.month,10)||1,1,cal.months.length)-1);
-    var maxD  = cal.months[repMi].days|0;
-
-    var displayDay =
-      (Parse.ordinalWeekday.fromSpec(def.day) ? String(def.day).toLowerCase().trim()
-                                              : (DaySpec.normalize(def.day, maxD) || String(DaySpec.first(def.day))));
-
-    var gkey = _encKey(_groupKeyForDefault(def));
-    var btn  = button('🗑️ Suppress', 'remove dkey '+gkey);
-
-    defRowsBySource[srcTitle].push(
-      '<tr>'
-        + '<td style="'+STYLES.td+'">'+ swatchHtml(resolveColor(def.color)||autoColorForEvent({name:def.name})) +' '+esc(def.name)+'</td>'
-        + '<td style="'+STYLES.td+'">'+ esc(displayDay) +'</td>'
-        + '<td style="'+STYLES.td+'">'+ esc(moTxt) +'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+ btn +'</td>'
-      + '</tr>'
-    );
-  });
-
-  var defSections = Object.keys(defRowsBySource).sort().map(function(src){
-    var rows = defRowsBySource[src].join('');
-    var head = '<tr>'
-      + '<th style="'+STYLES.th+'">Event</th>'
-      + '<th style="'+STYLES.th+'">Day</th>'
-      + '<th style="'+STYLES.th+'">Scope</th>'
-      + '<th style="'+STYLES.th+'">Action</th>'
-      + '</tr>';
-    return '<div style="margin:6px 0;"><b>'+esc(src)+'</b></div>'
-         + '<table style="'+STYLES.table+'">'+ head + rows +'</table>';
-  }).join('<div style="height:8px;"></div>');
-
-  if (!defSections) defSections = '<div style="opacity:.7;">No default events.</div>';
-
-  // ===== CUSTOM (non-default) events (per-instance) =====
-  var custom = (cal.events||[]).filter(function(e){ return !isDefaultEvent(e); });
-  var customHtml;
-  if (!custom.length){
-    customHtml = '<div style="opacity:.7;">No custom events.</div>';
-  } else {
-    var rows = custom.map(function(e, i){
-      var mi = (e.month|0)-1, mm = mi+1;
-      var dd = esc(String(e.day));
-      var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-      var sw = swatchHtml(getEventColor(e));
-      var name = eventDisplayName(e);
-      var key = eventKey(e);
-      var rm = button('Remove', 'remove key '+_encKey(key));
-      return '<tr>'
-        + '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'
-        + '<td style="'+STYLES.td+'">'+sw+esc(name)+'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+mm+'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+dd+'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+yyyy+'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+rm+'</td>'
-        + '</tr>';
-    }).join('');
-    var head = '<tr>'
-      + '<th style="'+STYLES.th+'">Index</th>'
-      + '<th style="'+STYLES.th+'">Event</th>'
-      + '<th style="'+STYLES.th+'">MM</th>'
-      + '<th style="'+STYLES.th+'">DD</th>'
-      + '<th style="'+STYLES.th+'">YYYY</th>'
-      + '<th style="'+STYLES.th+'">Action</th>'
-      + '</tr>';
-    customHtml = '<table style="'+STYLES.table+'">'+head+rows+'</table>';
-  }
-
-  return '<div style="margin:4px 0;"><b>Remove Defaults (grouped)</b></div>'
-       + defSections
-       + '<div style="height:10px;"></div>'
-       + '<div style="margin:4px 0;"><b>Remove Custom Events</b></div>'
-       + customHtml
-       + '<div style="opacity:.75;margin-top:4px;">Default rows remove <i>all</i> their instances (e.g., Tain Gala removes all 12 months).</div>';
-}
-
-function removeMatchesListHtml(needle){
   var cal = getCal(), evs = cal.events || [];
-  var q = String(needle||'').trim().toLowerCase();
-  if (!q) return '<div style="opacity:.7;">Provide a name fragment to search.</div>';
+  if(!evs.length) return '<div style="opacity:.7;">No events to remove.</div>';
 
-  var matches = [];
-  for (var i=0; i<evs.length; i++){
-    var nm = String(evs[i].name||'').toLowerCase();
-    if (nm.indexOf(q) !== -1) matches.push(i);
-  }
-  if (!matches.length){ return '<div style="opacity:.7;">No events matched “' + esc(needle) + '”.</div>'; }
+  var listRows = _eventRowsForTables(evs);
+  var rows = listRows.map(function(row, i){
+    var e = row.event;
+    var dd = esc(String(e.day));
+    var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
+    var name = esc(eventDisplayName(e)) + (row.groupedCount > 1 ? ' <span style="opacity:.65;">(' + row.groupedCount + 'x)</span>' : '');
+    var sw = swatchHtml(getEventColor(e));
+    var rm = button('Remove', row.removeCmd);
+    return '<tr>'+
+      '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
+      '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ esc(row.mmLabel) +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ rm +'</td>'+
+    '</tr>';
+  });
 
   var head = '<tr>'+
     '<th style="'+STYLES.th+'">Index</th>'+
@@ -2699,119 +3364,93 @@ function removeMatchesListHtml(needle){
     '<th style="'+STYLES.th+'">Action</th>'+
   '</tr>';
 
-  var rows = matches.map(function(i){
-    var e = evs[i], mi = (e.month|0) - 1, mm = mi+1;
+  return '<div style="margin:4px 0;"><b>Remove Events</b></div>'+
+         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>'+
+         '<div style="opacity:.7;margin-top:4px;">Recurring events that span every month are grouped into one remove button.</div>';
+}
+
+function removeMatchesListHtml(needle){
+  var cal = getCal(), evs = cal.events || [];
+  var q = String(needle||'').trim().toLowerCase();
+  if (!q) return '<div style="opacity:.7;">Provide a name fragment to search.</div>';
+
+  var listRows = _eventRowsForTables(evs).filter(function(row){
+    return String((row.event && row.event.name) || '').toLowerCase().indexOf(q) !== -1;
+  });
+  if (!listRows.length){ return '<div style="opacity:.7;">No events matched "' + esc(needle) + '".</div>'; }
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Index</th>'+
+    '<th style="'+STYLES.th+'">Event</th>'+
+    '<th style="'+STYLES.th+'">MM</th>'+
+    '<th style="'+STYLES.th+'">DD</th>'+
+    '<th style="'+STYLES.th+'">YYYY</th>'+
+    '<th style="'+STYLES.th+'">Action</th>'+
+  '</tr>';
+
+  var rows = listRows.map(function(row, i){
+    var e = row.event;
     var dd = esc(String(e.day));
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-    var name = eventDisplayName(e);
+    var name = esc(eventDisplayName(e)) + (row.groupedCount > 1 ? ' <span style="opacity:.65;">(' + row.groupedCount + 'x)</span>' : '');
     var sw = swatchHtml(getEventColor(e));
-    var key = eventKey(e);
-    var rm = button('Remove', 'remove key '+_encKey(key));
+    var rm = button('Remove', row.removeCmd);
     return '<tr>'+
       '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
-      '<td style="'+STYLES.td+'">'+ sw + esc(name) +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>'+
+      '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ esc(row.mmLabel) +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ rm +'</td>'+
     '</tr>';
   }).join('');
 
-  return '<div style="margin:4px 0;"><b>Remove Matches for “' + esc(needle) + '”</b></div>' +
-         '<table style="'+STYLES.table+'">' + head + rows + '</table>' +
-         '<div style="opacity:.75;margin-top:4px;">Indexes may change after removal; key-based buttons stay valid.</div>';
+  return '<div style="margin:4px 0;"><b>Remove Matches for "' + esc(needle) + '"</b></div>'+
+         '<table style="'+STYLES.table+'">'+ head + rows +'</table>'+
+         '<div style="opacity:.7;margin-top:4px;">Recurring all-month events are grouped into one remove button.</div>';
 }
 
 function suppressedDefaultsListHtml(){
-  var cal = getCal();
   var sup = state[state_name].suppressedDefaults || {};
-  var suppressedKeys = Object.keys(sup);
-  if (!suppressedKeys.length){ return '<div style="opacity:.7;">No suppressed default events.</div>'; }
+  var keys = Object.keys(sup);
+  if (!keys.length){ return '<div style="opacity:.7;">No suppressed default events.</div>'; }
 
-  // Pre-index by default-line group
-  var grouped = {}; // groupKey -> { def, monthsSuppressed: {mHuman:1,...} }
-  (defaults.events || []).forEach(function(def){
-    grouped[_groupKeyForDefault(def)] = { def:def, monthsSuppressed:{} };
+  keys.sort(function(a,b){
+    var pa=a.split('|'), pb=b.split('|');
+    var ma=(+pa[0]||0), mb=(+pb[0]||0);
+    if (ma!==mb) return ma-mb;
+    var da=DaySpec.first(pa[1]||'1'), db=DaySpec.first(pb[1]||'1');
+    if (da!==db) return da-db;
+    return String(pa[3]||'').localeCompare(String(pb[3]||''));
   });
 
-  // Map each suppressed key back to its default-line group
-  suppressedKeys.forEach(function(k){
-    // k: "month|dayKey|ALL|nameLower"
-    var parts   = String(k).split('|');
-    var mHuman  = parseInt(parts[0],10)|0;
-    var dayKey  = parts[1]||'';
-    var nameLow = (parts[3]||'').toLowerCase();
-
-    (defaults.events || []).forEach(function(def){
-      if (String(def.name||'').trim().toLowerCase() !== nameLow) return;
-
-      // Match by canonical dayKey under a representative month
-      var repMi = (String(def.month).toLowerCase()==='all')
-        ? (mHuman-1)
-        : ((clamp(parseInt(def.month,10)||1,1,cal.months.length))-1);
-      var maxD  = cal.months[repMi].days|0;
-      var dKey2 = canonicalDayKey(def.day, maxD);
-      if (dKey2 !== dayKey) return;
-
-      var gk = _groupKeyForDefault(def);
-      (grouped[gk] || (grouped[gk] = { def:def, monthsSuppressed:{} })).monthsSuppressed[mHuman] = 1;
-    });
+  var rows = keys.map(function(k){
+    var info = _defaultDetailsForKey(k);
+    var mi = (info.month|0)-1, mm = (mi+1);
+    var dd = esc(String(info.day));
+    var sw = swatchHtml(info.color || autoColorForEvent({name:info.name}));
+    var src = info.source ? ' <span style="opacity:.7">('+esc(titleCase(info.source))+')</span>' : '';
+    var restorebutton = button('Restore', 'restore key '+_encKey(k));
+    return '<tr>'+
+      '<td style="'+STYLES.td+'">'+sw+esc(info.name)+src+'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">ALL</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+ restorebutton +'</td>'+
+    '</tr>';
   });
 
-  // Build rows only for groups with any suppression
-  var defRowsBySource = {};
-  Object.keys(grouped).forEach(function(gk){
-    var info = grouped[gk];
-    var suppressedMonths = Object.keys(info.monthsSuppressed);
-    if (!suppressedMonths.length) return;
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Event</th>'+
+    '<th style="'+STYLES.th+'">MM</th>'+
+    '<th style="'+STYLES.th+'">DD</th>'+
+    '<th style="'+STYLES.th+'">YYYY</th>'+
+    '<th style="'+STYLES.th+'">Action</th>'+
+  '</tr>';
 
-    var def = info.def;
-    var srcTitle = def.source ? titleCase(def.source) : 'Other';
-    defRowsBySource[srcTitle] = defRowsBySource[srcTitle] || [];
-
-    var moSpec = (String(def.month).toLowerCase()==='all')
-      ? 'all'
-      : String(clamp(parseInt(def.month,10)||1,1,cal.months.length));
-
-    var scopeTxt = (moSpec==='all')
-      ? (suppressedMonths.length===cal.months.length ? 'all months' : (suppressedMonths.length+' / '+cal.months.length+' months'))
-      : ('month '+moSpec);
-
-    var repMi = (moSpec==='all' ? 0 : (parseInt(moSpec,10)-1));
-    var maxD  = cal.months[repMi].days|0;
-    var displayDay = Parse.ordinalWeekday.fromSpec(def.day)
-      ? String(def.day).toLowerCase().trim()
-      : (DaySpec.normalize(def.day, maxD) || String(DaySpec.first(def.day)));
-
-    var btn = button('↩️ Restore', 'restore dkey '+_encKey(gk));
-
-    defRowsBySource[srcTitle].push(
-      '<tr>'
-        + '<td style="'+STYLES.td+'">'+ swatchHtml(resolveColor(def.color)||autoColorForEvent({name:def.name})) +' '+esc(def.name)+'</td>'
-        + '<td style="'+STYLES.td+'">'+ esc(displayDay) +'</td>'
-        + '<td style="'+STYLES.td+'">'+ esc(scopeTxt) +'</td>'
-        + '<td style="'+STYLES.td+';text-align:center;">'+ btn +'</td>'
-      + '</tr>'
-    );
-  });
-
-  var defSections = Object.keys(defRowsBySource).sort().map(function(src){
-    var rows = defRowsBySource[src].join('');
-    var head = '<tr>'
-      + '<th style="'+STYLES.th+'">Event</th>'
-      + '<th style="'+STYLES.th+'">Day</th>'
-      + '<th style="'+STYLES.th+'">Scope</th>'
-      + '<th style="'+STYLES.th+'">Action</th>'
-      + '</tr>';
-    return '<div style="margin:6px 0;"><b>'+esc(src)+'</b></div>'
-         + '<table style="'+STYLES.table+'">'+ head + rows +'</table>';
-  }).join('<div style="height:8px;"></div>');
-
-  if (!defSections) defSections = '<div style="opacity:.7;">No suppressed default events.</div>';
-
-  return '<div style="margin:4px 0;"><b>Suppressed Defaults (grouped)</b></div>'
-       + '<div style="margin:2px 0;">'+button('Restore All', 'restore all')+'</div>'
-       + defSections;
+  return '<div style="margin:4px 0;"><b>Suppressed Default Events</b></div>'+
+         '<div style="margin:2px 0;">'+button('Restore All', 'restore all')+'</div>'+
+         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>';
 }
 
 function restoreDefaultEvents(query){
@@ -2819,31 +3458,13 @@ function restoreDefaultEvents(query){
   var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
   var q = String(query||'').trim();
   if (!q){
-    sendChat(script_name, '/w gm Usage: <code>!cal restore [all] [exact] &lt;name...&gt; | restore key &lt;KEY&gt; | restore dkey &lt;GROUP_KEY&gt; | restore list</code>');
+    sendChat(script_name, '/w gm Usage: <code>!cal restore [all] [exact] &lt;name...&gt; | restore key &lt;KEY&gt; | restore list</code>');
     return;
   }
 
   var parts = q.split(/\s+/);
   var sub = (parts[0]||'').toLowerCase();
 
-  // grouped restore by default-line (all instances for that default)
-  if (sub === 'dkey'){
-    var gk = _decKey(parts.slice(1).join(' ').trim());
-    if (!gk){
-      sendChat(script_name, '/w gm Usage: <code>!cal restore dkey &lt;GROUP_KEY&gt;</code>');
-      return;
-    }
-    restoreDefaultsByGroupKey(gk);
-    return;
-  }
-
-  // grouped list view (one row per default code-line)
-  if (sub === 'list'){
-    sendChat(script_name, '/w gm ' + suppressedDefaultsListHtml());
-    return;
-  }
-
-  // restore all defaults previously suppressed (respecting source disables)
   if (sub === 'all'){
     state[state_name].suppressedDefaults = {};
     mergeInNewDefaultEvents(cal);
@@ -2852,13 +3473,9 @@ function restoreDefaultEvents(query){
     return;
   }
 
-  // restore by exact suppression key (single instance)
   if (sub === 'key'){
     var key = _decKey(parts.slice(1).join(' ').trim());
-    if (!key){
-      sendChat(script_name, '/w gm Usage: <code>!cal restore key &lt;KEY&gt;</code>');
-      return;
-    }
+    if (!key){ sendChat(script_name, '/w gm Usage: <code>!cal restore key &lt;KEY&gt;</code>'); return; }
     delete sup[key];
     mergeInNewDefaultEvents(cal);
     refreshAndSend();
@@ -2866,17 +3483,10 @@ function restoreDefaultEvents(query){
     return;
   }
 
-  // restore by name (fragment) with optional "exact"
   var exact = false;
-  if (sub === 'exact'){
-    exact = true;
-    parts.shift();
-  }
+  if (sub === 'exact'){ exact = true; parts.shift(); }
   var needle = parts.join(' ').trim().toLowerCase();
-  if (!needle){
-    sendChat(script_name, '/w gm Usage: <code>!cal restore [exact] &lt;name...&gt;</code>');
-    return;
-  }
+  if (!needle){ sendChat(script_name, '/w gm Usage: <code>!cal restore [exact] &lt;name...&gt;</code>'); return; }
 
   var keys = Object.keys(sup);
   var restored = 0;
@@ -2891,19 +3501,12 @@ function restoreDefaultEvents(query){
 
   mergeInNewDefaultEvents(cal);
   refreshAndSend();
-  sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching “'+esc(needle)+'”.');
+  sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".');
 }
 
 /* ============================================================================
  * 15) THEMES, NAMES, SOURCES
  * ==========================================================================*/
-
-
-function _applyRow(label, previewHtml, isCurrent, readOnly, cmd){
-  var cur = isCurrent ? ' <span style="opacity:.7">(current)</span>' : '';
-  var btn = (readOnly || isCurrent) ? '' : (' '+button('Apply', cmd+' '+label));
-  return '<div style="margin:4px 0;">'+previewHtml+' '+esc(label)+cur+btn+'</div>';
-}
 
 function _orderedKeys(obj, preferred){
   var ks = Object.keys(obj), seen = {}, out = [];
@@ -2924,39 +3527,17 @@ function themeListHtml(readOnly){
     var head = readOnly
       ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
       : button('Set '+label+':', 'theme '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
-
     var swatches = (COLOR_THEMES[n]||[]).slice(0,12).map(function(c){
       return '<span title="'+esc(c)+'" style="display:inline-block;width:12px;height:12px;border:1px solid #000;margin-right:2px;background:'+esc(c)+';"></span>';
     }).join('');
-
     return '<div style="margin:6px 0;">'+ head + '<br>' + swatches + '<br></div>';
   });
 
   return '<div style="margin:4px 0;"><b>Color Themes</b></div>' + rows.join('');
 }
 
-function namesListHtml(readOnly){
-  var cur = ensureSettings().monthSet;
-  var names = _orderedKeys(MONTH_NAME_SETS, MONTH_SET_ORDER);
-
-  if(!names.length) return '<div style="opacity:.7;">No name sets available.</div>';
-
-  var rows = names.map(function(n){
-    var label = titleCase(n);
-    var head = readOnly
-      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
-      : button('Set '+label+':', 'names '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
-
-    var preview = (MONTH_NAME_SETS[n]||[]).map(esc).join(', ');
-    return '<div style="margin:6px 0;">'+ head + '<br><div style="opacity:.85;">'+preview+'</div><br></div>';
-  });
-
-  return '<div style="margin:4px 0;"><b>Month Name Sets</b></div>' + rows.join('');
-}
-
-
 function colorsNamedListHtml(){
-  var items = Object.keys(NAMED_COLORS); // preserve insertion order
+  var items = Object.keys(NAMED_COLORS);
   if(!items.length) return '<div style="opacity:.7;">No named colors.</div>';
 
   var rows = items.map(function(k){
@@ -2971,8 +3552,9 @@ function colorsNamedListHtml(){
  * 16) GM BUTTONS & NESTED HELP MENUS
  * ==========================================================================*/
 
-function mb(label, cmd){ return button(label, cmd); } // menu button
+function mb(label, cmd){ return button(label, cmd); }
 function nav(label, page){ return button(label, 'help '+page); }
+
 function _menuBox(title, innerHtml){
   return [
     '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:6px 0;">',
@@ -2984,217 +3566,321 @@ function _menuBox(title, innerHtml){
 
 function gmButtonsHtml(){
   var wrap = STYLES.gmbuttonWrap;
-  return [
-    '<div style="'+wrap+'">'+ nav('⏮️ Retreat Date','step') +'</div>',
-    '<div style="'+wrap+'">'+ nav('⏭️ Advance Day','step') +'</div>',
-    '<div style="'+wrap+'">'+ mb('📣 Send','send')     +'</div>',
-    '<div style="'+wrap+'">'+ nav('❔ Help','root')    +'</div>'
-  ].join('');
+  var st = ensureSettings();
+  var btns = [
+    '<div style="'+wrap+'">'+ mb('⏮️ Back','retreat 1')   +'</div>',
+    '<div style="'+wrap+'">'+ mb('⏭️ Forward','advance 1') +'</div>',
+    '<div style="'+wrap+'">'+ mb('📣 Send','send')         +'</div>'
+  ];
+  if (st.moonsEnabled   !== false) btns.push('<div style="'+wrap+'">'+ mb('🌙 Moons','moon')     +'</div>');
+  if (st.weatherEnabled !== false) btns.push('<div style="'+wrap+'">'+ mb('🌤️ Weather','weather') +'</div>');
+  btns.push('<div style="'+wrap+'">'+ nav('❔ Help','root') +'</div>');
+  return btns.join('');
+}
+
+function _activePlanarWeatherShiftLines(serial){
+  var out = [];
+  try {
+    var eff = getActivePlanarEffects(serial);
+    for (var i = 0; i < eff.length; i++){
+      var e = eff[i];
+      if (e.plane === 'Fernia' && e.phase === 'coterminous') out.push('Fernia coterminous: temperature +2');
+      if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -1');
+      if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -2');
+      if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +1');
+      if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: precipitation -1, wind -1');
+      if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: precipitation +1');
+      if (e.plane === 'Mabar'  && e.phase === 'coterminous') out.push('Mabar coterminous: temperature -1');
+      if (e.plane === 'Irian'  && e.phase === 'coterminous') out.push('Irian coterminous: temperature +1');
+      if (e.plane === 'Lamannia'&& e.phase === 'coterminous')out.push('Lamannia coterminous: precipitation +1');
+      if (e.plane === 'Shavarath'&& e.phase === 'coterminous')out.push('Shavarath coterminous: wind +1');
+    }
+  } catch(e2){}
+  return out;
+}
+
+function activeEffectsPanelHtml(){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var sections = [];
+
+  // Weather mechanics (today, current location only)
+  if (st.weatherEnabled !== false){
+    var wx = '';
+    try {
+      var ws = getWeatherState();
+      if (!ws.location){
+        wx = '<div style="opacity:.7;">No weather location set.</div>';
+      } else {
+        weatherEnsureForecast();
+        var rec = _forecastRecord(today);
+        if (!rec || !rec.final){
+          wx = '<div style="opacity:.7;">No weather generated for today.</div>';
+        } else {
+          var loc = rec.location || ws.location || {};
+          var locLine = esc(titleCase(loc.climate||'')) + ' / ' +
+            esc(titleCase(String(loc.geography||'inland').replace(/_/g,' '))) + ' / ' +
+            esc(titleCase(loc.terrain||'open'));
+          if (loc.manifestZone && loc.manifestZone.name){
+            locLine += ' <span style="color:#E65100;">['+esc(loc.manifestZone.name)+']</span>';
+          }
+          var cond = _deriveConditions(
+            rec.final,
+            loc,
+            'afternoon',
+            rec.snowAccumulated,
+            rec.fog && rec.fog.afternoon
+          );
+          var narr = _conditionsNarrative(rec.final, cond, 'afternoon');
+          wx += '<div style="font-size:.85em;opacity:.75;">'+locLine+'</div>';
+          wx += '<div style="margin:3px 0;">' +
+            _weatherTraitBadge('temp',   rec.final.temp)+'&nbsp;' +
+            _weatherTraitBadge('wind',   rec.final.wind)+'&nbsp;' +
+            _weatherTraitBadge('precip', rec.final.precip) +
+            '</div>';
+          wx += '<div style="font-size:.85em;opacity:.85;">'+esc(narr)+'</div>';
+          wx += _conditionsMechHtml(cond);
+
+          var shifts = _activePlanarWeatherShiftLines(today);
+          if (shifts.length){
+            wx += '<div style="font-size:.82em;opacity:.85;margin-top:4px;"><b>Planar weather shifts:</b><br>' +
+              shifts.map(esc).join('<br>') + '</div>';
+          }
+
+          var geo = String((loc.geography || 'inland')).toLowerCase();
+          if (geo === 'coastal' || geo === 'island' || geo === 'coastal_bluff'){
+            try {
+              var tidx = getTidalIndex(today);
+              wx += '<div style="font-size:.82em;opacity:.8;margin-top:4px;">🌊 <b>Tides:</b> '+esc(tidalLabel(tidx))+' ('+tidx+'/10)</div>';
+            } catch(e3){}
+          }
+        }
+      }
+    } catch(e4){
+      wx = '<div style="opacity:.7;">Weather data unavailable.</div>';
+    }
+    sections.push(_menuBox('🌤️ Active Weather Effects', wx));
+  }
+
+  // Planar mechanics (active coterminous/remote, filtered for non-routine signal)
+  if (st.planesEnabled !== false){
+    var pl = '';
+    try {
+      var planes = _getAllPlaneData();
+      var ypd = _planarYearDays();
+      var rows = [];
+      for (var i = 0; i < planes.length; i++){
+        var ps = getPlanarState(planes[i].name, today);
+        if (!ps) continue;
+        if (ps.phase !== 'coterminous' && ps.phase !== 'remote') continue;
+
+        // Skip permanently fixed routine states (e.g., Dal Quor/Xoriat) unless flickering.
+        var isFlicker = !!(ps.note && /flicker/i.test(ps.note));
+        if (planes[i].type === 'fixed' && !isFlicker) continue;
+
+        // Skip extremely long routine phases unless forced or flickering.
+        if (ps.phaseDuration != null && ps.phaseDuration > ypd && !ps.overridden && !isFlicker) continue;
+
+        var emoji = PLANE_PHASE_EMOJI[ps.phase] || '⚪';
+        var lbl = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
+        var next = (ps.daysUntilNextPhase != null && ps.nextPhase)
+          ? ' <span style="opacity:.55;font-size:.82em;">(' + esc(PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase) + ' in ' + ps.daysUntilNextPhase + 'd)</span>'
+          : '';
+        var row = '<div style="margin:3px 0;">'+emoji+' <b>'+esc(ps.plane.name)+'</b> — '+esc(lbl)+next+'</div>';
+        var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || '';
+        if (eff){
+          row += '<div style="font-size:.82em;opacity:.78;margin-left:14px;">'+esc(eff)+'</div>';
+        }
+        rows.push(row);
+      }
+
+      if (!rows.length){
+        pl = '<div style="opacity:.7;">No notable coterminous/remote planar effects are active today.</div>';
+      } else {
+        pl = rows.join('');
+      }
+
+      // Long Shadows spotlight
+      try {
+        var mabar = getPlanarState('Mabar', today);
+        if (mabar && mabar.phase === 'coterminous'){
+          var cc = getCal().current;
+          var ls = getLongShadowsMoons(cc.year);
+          if (ls.length){
+            var names = [];
+            for (var li = 0; li < ls.length; li++) names.push(ls[li].name);
+            pl += '<div style="font-size:.82em;margin-top:4px;padding:4px;background:rgba(60,0,80,.15);border-radius:3px;border:1px solid rgba(100,50,120,.3);">🌑 <b>Long Shadows:</b> '+esc(names.join(', '))+' dark tonight.</div>';
+          }
+        }
+      } catch(e5){}
+    } catch(e6){
+      pl = '<div style="opacity:.7;">Planar data unavailable.</div>';
+    }
+    sections.push(_menuBox('🌀 Active Planar Effects', pl));
+  }
+
+  if (!sections.length){
+    sections.push('<div style="opacity:.7;">No active effect systems are enabled.</div>');
+  }
+
+  return _menuBox('✨ Active Effects — ' + esc(currentDateLabel()),
+    sections.join('') + '<div style="margin-top:7px;">'+button('⬅️ Back','help root')+'</div>'
+  );
 }
 
 function helpStatusSummaryHtml(){
+  var st      = ensureSettings();
+  var curDate = esc(currentDateLabel());
 
-  var cal = getCal();
-  var st  = ensureSettings();
+  // Build system/variant label.
+  var sys     = CALENDAR_SYSTEMS[st.calendarSystem] || {};
+  var variant = (sys.variants && sys.variants[st.calendarVariant]) || {};
+  var sysLabel = esc(sys.label || titleCase(st.calendarSystem || ''));
+  var varLabel = esc(variant.label || titleCase(st.calendarVariant || ''));
+  // Show variant only when the system has more than one.
+  var varCount = sys.variants ? Object.keys(sys.variants).length : 1;
+  var calLine  = varCount > 1 ? sysLabel + ' &mdash; ' + varLabel : sysLabel;
 
-  var date = esc(currentDateLabel());
+  // Overrides: only show if they deviate from the variant/system defaults.
+  var overrides = [];
+  var defTheme  = variant.colorTheme || '';
+  var curTheme  = st.colorTheme || '';
+  if (curTheme && curTheme !== defTheme) overrides.push(esc(titleCase(curTheme)) + ' theme');
+  var defSeason = sys.defaultSeason || CONFIG_DEFAULTS.seasonVariant;
+  if (st.seasonVariant && st.seasonVariant !== defSeason) overrides.push(esc(titleCase(st.seasonVariant)) + ' seasons');
 
-  var weekdays = cal.weekdays.map(function(w, i){
-    return (i+1) + '. ' + esc(w);
-  }).join(', ');
+  var configLine = overrides.length ? overrides.join(' &nbsp;·&nbsp; ') : '';
 
-  var months = cal.months.map(function(m, i){
-    var sw = swatchHtml(colorForMonth(i));
-    var season = esc(m.season || '');
-    return (i+1) + '. ' + sw + ' ' + esc(m.name) + (season ? ' ('+season+')' : '');
-  }).join('<br>');
-
-  var themeName = titleCase(st.colorTheme || '');
-
-  // Date
-  // Numbered & named weekday list
-  // Numbered, named & colored month list with seasons
-  // Current month-header-bar color scheme name
   return _menuBox('Status',
-    '<div><b>Current date:</b></div>' +
-        '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + date + '</div>' +
-    '<div style="margin-top:8px;"><b>Weekdays:</b></div>' +
-      '<div style="opacity:.85;margin-left:8px;margin-top:2px;">' + weekdays + '</div>' +
-    '<div style="margin-top:8px;"><b>Months & Seasons:</b></div>' +
-      '<div style="opacity:.85;margin-left:8px;margin-top:2px;line-height:1.4;">' + months + '</div>' +
-    '<div style="margin-top:8px;"><b>(Current Color Set:</b> ' + esc(themeName) + ')</div>'
+    '<div style="font-size:1.1em;font-weight:bold;">' + curDate + '</div>' +
+    '<div style="font-size:.85em;opacity:.8;margin-top:2px;">' + calLine + '</div>' +
+    (configLine ? '<div style="font-size:.75em;opacity:.6;margin-top:2px;">' + configLine + '</div>' : '')
   );
 }
 
 function helpRootMenu(m){
   var rows = [];
-
   rows.push(helpStatusSummaryHtml());
-  
-  rows.push(_menuBox('Display',
-    mbP(m,'Current','show month')+'<br>' +
-    navP(m,'Months','display-months')+'<br>'+
-    navP(m,'Years','display-years')
-  ));
-  
 
+  // ── Display: all show/send buttons inline — no sub-nav ──────────────────
+  rows.push(_menuBox('Display',
+    '<div style="font-size:.8em;opacity:.7;margin-bottom:2px;">Quick snapshot:</div>'+
+    mbP(m,'Now','now')+'<br>'+
+    '<div style="font-size:.8em;opacity:.7;margin-bottom:2px;">Month — show self:</div>'+
+    mbP(m,'◀ Prev','show previous month')+' '+
+    mbP(m,'Current','show month')+' '+
+    mbP(m,'Next ▶','show next month')+'<br>'+
+    '<div style="font-size:.8em;opacity:.7;margin-top:4px;margin-bottom:2px;">Month — send to chat:</div>'+
+    mbP(m,'◀ Prev','send previous month')+' '+
+    mbP(m,'Current','send month')+' '+
+    mbP(m,'Next ▶','send next month')+'<br>'+
+    '<div style="font-size:.8em;opacity:.7;margin-top:4px;margin-bottom:2px;">Year — show self:</div>'+
+    mbP(m,'◀ Prev','show previous year')+' '+
+    mbP(m,'Current','show year')+' '+
+    mbP(m,'Next ▶','show next year')+'<br>'+
+    '<div style="font-size:.8em;opacity:.7;margin-top:4px;margin-bottom:2px;">Year — send to chat:</div>'+
+    mbP(m,'◀ Prev','send previous year')+' '+
+    mbP(m,'Current','send year')+' '+
+    mbP(m,'Next ▶','send next year')
+  ));
 
   if (playerIsGM(m.playerid)){
-    rows.push(_menuBox('Step',      navP(m,'Advance/Retreat','step')));
+    // ── Events: lists, sources, colors, add syntax ───────────────────────
     rows.push(_menuBox('Events',
-      navP(m,'Manage','events')+'<br>'+
-      navP(m,'Defaults','defaults')+'<br>'+
-      navP(m,'Sources','sources')+'<br>'+
-      navP(m,'Colors','eventcolors')
+      mbP(m,'List All','list')+' '+
+      mbP(m,'Remove List','remove list')+' '+
+      mbP(m,'Restore List','restore list')+' '+
+      mbP(m,'Source List','source list')+' '+
+      navP(m,'Colors','eventcolors')+'<br>'+
+      '<div style="font-size:.8em;opacity:.7;margin-top:5px;">Add: <code>!cal add [MM DD [YYYY] | MonthName DD | DD] NAME [#COLOR]</code></div>'+
+      '<div style="font-size:.8em;opacity:.7;">Enable/disable source: <code>!cal source enable &lt;name&gt;</code></div>'
     ));
-    rows.push(_menuBox('Themes & Names',
-      navP(m,'Themes','themes')+'<br>'+
-      navP(m,'Month Names','names')+'<br>'+
-      navP(m,'Weekday Names','weekdays')+'<br>'+
-      navP(m,'Season Sets','seasons')
+
+    // ── Appearance: nav-to-list pages (content too long to inline) ────────
+    rows.push(_menuBox('Appearance',
+      navP(m,'Calendar System','calendar')+'<br>'+
+      navP(m,'Color Theme','themes')+'<br>'+
+      navP(m,'Season Variant','seasons')
     ));
-    rows.push(_menuBox('Settings',    
-      navP(m,'Settings','settings')+'<br>'+
-      navP(m,'Year Titles','yeartitles')
-      ));
-    rows.push(_menuBox('Admin',        navP(m,'Maintenance','maint')));
-  }
-  whisper(m.who, rows.join(''));
-}
 
-
-function helpDisplayCurrent(m){
-  sendCurrentDate(m.who, false);
-  if (typeof sendGMButtons === 'function') sendGMButtons(m);
-}
-
-function helpDisplayMonthsMenu(m){
-  var box =
-    _menuBox('Months Displays',
-      '<div style="margin:2px 0;opacity:.85;">Show to Self:</div>'+
-      mbP(m,'Current','show month')+'<br>'+
-      mbP(m,'Previous','show previous month')+' '+
-      mbP(m,'Next','show next month')+'<br>'+
-      '<div style="margin:2px 0;opacity:.85;">Send to Chat:</div>'+
-      mbP(m,'Current','send month')+'<br>'+
-      mbP(m,'Previous','send previous month')+'<br>'+
-      mbP(m,'Next','send next month')
-    ) +
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
-  whisper(m.who, box);
-}
-
-function helpDisplayYearsMenu(m){
-  var box =
-    _menuBox('Year Views',
-      '<div style="margin:2px 0;opacity:.85;">Show (self):</div>'+
-      mbP(m,'Current','show year')+'<br>'+
-      mbP(m,'Previous','show previous year')+' '+
-      mbP(m,'Next','show next year')+'<br><br>'+
-      '<div style="margin:2px 0;opacity:.85;">Send (to chat):</div>'+
-      mbP(m,'Current','send year')+'<br>'+
-      mbP(m,'Previous','send previous year')+' '+
-      mbP(m,'Next','send next year')
-    ) +
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
-  whisper(m.who, box);
-}
-
-function helpStepMenu(m){
-  if (!playerIsGM(m.playerid)){
-    return whisper(m.who, '<div style="opacity:.7;">GM only.</div>'+ '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-  }
-  var cal = getCal(), cur = cal.current;
-  var monthLen = cal.months[cur.month].days | 0;
-  var yearLen  = daysPerYear();
-  var wLen     = weekLength();
-
-  var rows = [
-    _menuBox('Advance',
-      mbP(m,'Day','advance 1')       + ' ' +
-      mbP(m,'Week','advance ' + wLen) + ' ' +
-      mbP(m,'Month','advance ' + monthLen) + ' ' +
-      mbP(m,'Year','advance ' + yearLen)
-    ),
-    _menuBox('Retreat',
-      mbP(m,'Day','retreat 1')       + ' ' +
-      mbP(m,'Week','retreat ' + wLen) + ' ' +
-      mbP(m,'Month','retreat ' + monthLen) + ' ' +
-      mbP(m,'Year','retreat ' + yearLen)
-    ),
-    '<div style="margin-top:8px;">' + navP(m,'⬅ Back','root') + '</div>'
-  ];
-  whisper(m.who, rows.join(''));
-}
-
-function helpEventsMenu(m){
-  if (!playerIsGM(m.playerid)){
-    return whisper(m.who, '<div style="opacity:.7;">Only the GM can manage events.</div><div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-  }
-  var rows = [
-    _menuBox('Lists',
-      mbP(m,'All (meta)','list')+' '+
-      mbP(m,'Remove List','remove list')
-    ),
-    _menuBox('Add (syntax only)',
-      '<div style="opacity:.8">Type these in chat:</div>'+
-      '<div><code>!cal add [MM DD [YYYY] | &lt;MonthName&gt; DD [YYYY] | DD] NAME [#COLOR|color]</code></div>'
-    ),
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
-  ];
-  whisper(m.who, rows.join(''));
-}
-
-function helpDefaultsMenu(m){
-  if (!playerIsGM(m.playerid)){
-    return whisper(m.who, '<div style="opacity:.7;">GM only.</div>'+ '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-  }
-  var rows = [
-    _menuBox('Suppressed Defaults',
-      mbP(m,'View & Restore','restore list')
-    ),
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
-  ];
-  whisper(m.who, rows.join(''));
-}
-
-function helpSourcesMenu(m){
-  if (!playerIsGM(m.playerid)){
-    var ro = _menuBox('Sources',
-      '<div style="opacity:.8;">Only the GM can enable/disable sources.</div>'
+    // ── Settings: toggles + reset note inline — no sub-nav ───────────────
+    var st = ensureSettings();
+    var grpBtn = mbP(m,
+      'Group by Source: '+(st.groupEventsBySource ? 'On ✓' : 'Off'),
+      'settings group '+(st.groupEventsBySource ? 'off' : 'on')
     );
-    return whisper(m.who, ro + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+    var lblBtn = mbP(m,
+      'Source Labels: '+(st.showSourceLabels ? 'On ✓' : 'Off'),
+      'settings labels '+(st.showSourceLabels ? 'off' : 'on')
+    );
+    var moonBtn = mbP(m,
+      '🌙 Moons: '+(st.moonsEnabled ? 'On ✓' : 'Off'),
+      'settings moons '+(st.moonsEnabled ? 'off' : 'on')
+    );
+    var wxBtn = mbP(m,
+      '🌤️ Weather: '+(st.weatherEnabled ? 'On ✓' : 'Off'),
+      'settings weather '+(st.weatherEnabled ? 'off' : 'on')
+    );
+    var plBtn = mbP(m,
+      '🌀 Planes: '+(st.planesEnabled ? 'On ✓' : 'Off'),
+      'settings planes '+(st.planesEnabled ? 'off' : 'on')
+    );
+    var denBtn = mbP(m,
+      'Density: '+(_uiDensityValue(st.uiDensity) === 'compact' ? 'Compact ✓' : 'Normal'),
+      'settings density '+(_uiDensityValue(st.uiDensity) === 'compact' ? 'normal' : 'compact')
+    );
+    var autoBtn = mbP(m,
+      'Auto Buttons: '+(st.autoButtons ? 'On ✓' : 'Off'),
+      'settings buttons '+(st.autoButtons ? 'off' : 'on')
+    );
+    rows.push(_menuBox('Settings',
+      grpBtn+' '+lblBtn+' '+moonBtn+' '+wxBtn+' '+plBtn+' '+denBtn+' '+autoBtn+
+      '<div style="font-size:.8em;opacity:.6;margin-top:5px;">Reset everything: <code>!cal resetcalendar</code></div>'
+    ));
+
+    // ── Moon & Weather & Planes quick-access ─────────────────────────────
+    var featureLinks = [];
+    featureLinks.push(mbP(m,'✨ Active Effects','effects'));
+    if (st.moonsEnabled   !== false) featureLinks.push(mbP(m,'🌙 Moons','moon'));
+    if (st.weatherEnabled !== false) featureLinks.push(mbP(m,'🌤️ Weather','weather'));
+    if (st.planesEnabled  !== false) featureLinks.push(mbP(m,'🌀 Planes','planes'));
+    if (featureLinks.length){
+      rows.push(_menuBox('Systems',
+        featureLinks.join(' ')+
+        '<div style="font-size:.75em;opacity:.55;margin-top:5px;">Moon query: <code>!cal moon on &lt;dateSpec&gt;</code><br>Plane query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code></div>'
+      ));
+    }
   }
-  var rows = [
-    _menuBox('Sources',
-      '<div>'+mbP(m,'List Sources','source list')+'</div>'+
-      '<div style="opacity:.8;margin-top:4px;">Enable/disable requires a name: <code>!cal source enable &lt;name&gt;</code> / <code>!cal source disable &lt;name&gt;</code></div>'
-    ),
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
-  ];
+
+  // ── Player-visible system links (outside GM block) ──────────────────
+  if (!playerIsGM(m.playerid)){
+    var st2 = ensureSettings();
+    var pLinks = [];
+    if (st2.moonsEnabled   !== false) pLinks.push(mbP(m,'🌙 Moons','moon'));
+    if (st2.weatherEnabled !== false) pLinks.push(mbP(m,'🌤️ Weather','weather')+' '+mbP(m,'📋 Forecast','forecast'));
+    if (st2.planesEnabled  !== false) pLinks.push(mbP(m,'🌀 Planes','planes'));
+    if (pLinks.length){
+      rows.push(_menuBox('Systems',
+        pLinks.join(' ')+
+        '<div style="font-size:.75em;opacity:.55;margin-top:5px;">Moon query: <code>!cal moon on &lt;dateSpec&gt;</code><br>Plane query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code></div>'
+      ));
+    }
+  }
+
   whisper(m.who, rows.join(''));
 }
 
 function helpThemesMenu(m){
   var ro = !playerIsGM(m.playerid);
-  var box = _menuBox(ro ? 'Themes (view only)' : 'Themes', themeListHtml(ro));
-  whisper(m.who, box + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+  whisper(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
 }
 
-function helpNamesMenu(m){
+function helpCalendarSystemMenu(m){
   var ro = !playerIsGM(m.playerid);
-  var box = _menuBox(ro ? 'Month Names (view only)' : 'Month Names', namesListHtml(ro));
-  whisper(m.who, box + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-}
-
-function helpWeekdaysMenu(m){
-  var ro = !playerIsGM(m.playerid);
-  whisper(m.who, _menuBox(ro ? 'Weekday Names (view only)' : 'Weekday Names', weekdayListHtml(ro)) + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-}
-
-function helpSeasonsMenu(m){
-  var ro = !playerIsGM(m.playerid);
-  whisper(m.who, _menuBox(ro ? 'Season Sets (view only)' : 'Season Sets', seasonSetListHtml(ro)) + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+  whisper(m.who,
+    _menuBox(ro ? 'Calendar Systems (view only)' : 'Calendar Systems', calendarSystemListHtml(ro))+
+    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+  );
 }
 
 function helpEventColorsMenu(m){
@@ -3206,146 +3892,83 @@ function helpEventColorsMenu(m){
     '<code>!cal add 3 14 Feast #50C878</code>.',
     '</div>'
   ].join('');
-
-  var body = _menuBox('Event Colors', intro + colorsNamedListHtml())
-           + '<div style="margin-top:8px;">'+navP(m,'⬅ Back','events')+'</div>';
-
-  whisper(m.who, body);
-}
-
-function helpYearTitlesMenu(m){
-  if (!playerIsGM(m.playerid)){
-    return whisper(m.who, '<div style="opacity:.7;">GM only.</div><div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-  }
-  var body =
-    _menuBox('Year Titles',
-      mbP(m,'List Titles','yeartitle list') +
-      '<div style="margin-top:6px;opacity:.85;">' +
-      'Set: <code>!cal yeartitle set 998 Year of Rebuilding #475569</code><br>' +
-      'Remove: <code>!cal yeartitle remove 998</code><br>' +
-      'Toggle band: <code>!cal settings yeartitles on|off</code>' +
-      '</div>'
-    ) +
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>';
-  whisper(m.who, body);
-}
-
-function helpSettingsMenu(m){
-  if (!playerIsGM(m.playerid)){
-    return whisper(m.who, '<div style="opacity:.7;">GM only.</div>'+ '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
-  }
-  var st = ensureSettings();
-
-  var groupbutton = mbP(m,'Group by Source: ' + (st.groupEventsBySource ? 'On' : 'Off') + ' (toggle)',
-                    'settings group ' + (st.groupEventsBySource ? 'off' : 'on'));
-
-  var labelsbutton = mbP(m,'Source Labels: ' + (st.showSourceLabels ? 'On' : 'Off') + ' (toggle)',
-                     'settings labels ' + (st.showSourceLabels ? 'off' : 'on'));
-
-  var ytitlebutton = mbP(m,'Year Titles: ' + (st.showYearTitles ? 'On' : 'Off') + ' (toggle)',
-                        'settings yeartitles ' + (st.showYearTitles ? 'off' : 'on'));
-
-  var box = _menuBox('Settings', groupbutton + ' ' + labelsbutton + ' ' + ytitlebutton);
-
-  whisper(m.who, box + '<div style="margin-top:8px;">' + navP(m,'⬅ Back','root') + '</div>');
-}
-
-function helpMaintMenu(m){
-  if (!playerIsGM(m.playerid)){
-    return whisper(m.who, '<div style="opacity:.7;">GM only.</div>'+nav('⬅ Back','root'));
-  }
-  var rows = [
-    _menuBox('Maintenance',
-      '<div style="margin-top:6px;opacity:.85;">Reset to defaults. This will nuke all custom events and current date.</div>' +
-      '<div style="margin-top:6px;opacity:.85;"><code>!cal resetcalendar</code></div>'
-    ),
+  whisper(m.who,
+    _menuBox('Event Colors', intro + colorsNamedListHtml())+
     '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
-  ];
-  whisper(m.who, rows.join(''));
-}
-
-function weekdayListHtml(readOnly){
-  var cur = ensureSettings().weekdaySet;
-  var names = _orderedKeys(WEEKDAY_NAME_SETS, ['eberron','gregorian']); // curated order
-  if(!names.length) return '<div style="opacity:.7;">No weekday sets.</div>';
-
-  var rows = names.map(function(n){
-    var label = titleCase(n);
-    var head = readOnly
-      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
-      : button('Set '+label+':', 'weekdays '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
-
-    var preview = (WEEKDAY_NAME_SETS[n]||[]).map(esc).join(', ');
-    return '<div style="margin:6px 0;">'+ head + '<br><div style="opacity:.85;">'+preview+'</div><br></div>';
-  });
-
-  return '<div style="margin:4px 0;"><b>Weekday Name Sets</b></div>'+rows.join('');
+  );
 }
 
 function seasonSetListHtml(readOnly){
-  var cur = ensureSettings().seasonSet;
-  var names = _orderedKeys(SEASON_SETS, ['northern','southern','tropic']); // curated order
+  var st  = ensureSettings();
+  var cur = st.seasonVariant || (CALENDAR_SYSTEMS[st.calendarSystem] || {}).defaultSeason || CONFIG_DEFAULTS.seasonVariant;
+  var names = _orderedKeys(SEASON_SETS, ['eberron','faerun','gregorian','tropical']);
   if(!names.length) return '<div style="opacity:.7;">No season sets.</div>';
 
   var rows = names.map(function(n){
     var label = titleCase(n);
     var head = readOnly
-      ? '<b>'+esc(label)+':</b>' + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '')
-      : button('Set '+label+':', 'seasons '+n) + (n===cur ? ' <span style="opacity:.7">(current)</span>' : '');
-
-    var preview = (SEASON_SETS[n]||[]).map(esc).join(', ');
+      ? '<b>'+esc(label)+':</b>'+(n===cur?' <span style="opacity:.7">(current)</span>':'')
+      : button('Set '+label+':', 'seasons '+n)+(n===cur?' <span style="opacity:.7">(current)</span>':'');
+    var preview = (_seasonNames(n)||[]).map(esc).join(', ');
     return '<div style="margin:6px 0;">'+ head + '<br><div style="opacity:.85;">'+preview+'</div><br></div>';
   });
 
   return '<div style="margin:4px 0;"><b>Season Sets</b></div>'+rows.join('');
 }
 
-function setYearTitle(y, title, color){
-  var map = state[state_name].yearTitles || (state[state_name].yearTitles = {});
-  map[y|0] = { title:String(title||'').trim(), color: resolveColor(color)||null };
-}
-function removeYearTitle(y){
-  var map = state[state_name].yearTitles || {};
-  delete map[y|0];
-}
-function yearTitleListHtml(){
-  var map = state[state_name].yearTitles || {};
-  var years = Object.keys(map).map(function(k){return k|0;}).sort(function(a,b){return a-b;});
-  if (!years.length) return '<div style="opacity:.7;">No year titles set.</div>';
-  var rows = years.map(function(y){
-    var t = map[y], sw = t.color ? swatchHtml(t.color)+' ' : '';
-    return '<div style="margin:2px 0;">'+sw+'<b>'+y+' '+LABELS.era+':</b> '+esc(t.title)+'</div>';
-  }).join('');
-  return '<div style="margin:4px 0;"><b>Year Titles</b></div>'+rows;
-}
+function calendarSystemListHtml(readOnly){
+  var st   = ensureSettings();
+  var keys = _orderedKeys(CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER);
+  if (!keys.length) return '<div style="opacity:.7;">No calendar systems defined.</div>';
 
+  var rows = keys.map(function(sysKey){
+    var sys   = CALENDAR_SYSTEMS[sysKey];
+    var sLabel = esc(sys.label || titleCase(sysKey));
+    var desc   = sys.description ? '<div style="font-size:.82em;opacity:.65;margin-bottom:4px;">'+esc(sys.description)+'</div>' : '';
+    var varKeys = sys.variants ? Object.keys(sys.variants) : [];
+    var varRows = varKeys.map(function(vk){
+      var v     = sys.variants[vk];
+      var vLabel = esc(v.label || titleCase(vk));
+      var isCur  = st.calendarSystem === sysKey && st.calendarVariant === vk;
+      var head   = readOnly
+        ? '<b>'+vLabel+'</b>'+(isCur?' <span style="opacity:.7">(current)</span>':'')
+        : button(vLabel, 'calendar '+sysKey+' '+vk)+(isCur?' <span style="opacity:.7">(current)</span>':'');
+      var preview = (v.monthNames||[]).slice(0,4).map(esc).join(', ')+(v.monthNames&&v.monthNames.length>4?' …':'');
+      return '<div style="margin:3px 0 3px 8px;">'+head+'<br><div style="font-size:.82em;opacity:.7;">'+preview+'</div></div>';
+    });
+    return '<div style="margin:8px 0;">'+
+      '<div style="font-weight:bold;margin-bottom:2px;">'+sLabel+'</div>'+
+      desc + varRows.join('') +
+      '</div>';
+  });
+
+  return '<div style="margin:4px 0;"><b>Calendar Systems</b></div>'+rows.join('<hr style="border:none;border-top:1px solid #444;margin:4px 0;">');
+}
 
 /* ============================================================================
  * 17) COMMANDS & ROUTING
  * ==========================================================================*/
 
-// Sender helpers
 function send(opts, html){
   opts = opts || {};
   var to = cleanWho(opts.to);
   var prefix;
-  if (opts.broadcast)      prefix = '/direct ';
-  else if (opts.gmOnly)    prefix = '/w gm ';
-  else if (to)             prefix = '/w "' + to + '" ';
-  else                     prefix = '/direct ';
+  if (opts.broadcast)   prefix = '/direct ';
+  else if (opts.gmOnly) prefix = '/w gm ';
+  else if (to)          prefix = '/w "' + to + '" ';
+  else                  prefix = '/direct ';
   sendChat(script_name, prefix + html);
 }
 
-  function sendToAll(html){ send({ broadcast:true }, html); }
-  function sendToGM(html){  send({ gmOnly:true }, html); }
-  function whisper(to, html){ send({ to:to }, html); }
-  function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
-  function cleanWho(who){
-    return String(who||'')
-      .replace(/\s+\(GM\)$/,'')
-      .replace(/["\\]/g,'')
-      .trim();
-  }
+function sendToAll(html){ send({ broadcast:true }, html); }
+function sendToGM(html){  send({ gmOnly:true }, html); }
+function whisper(to, html){ send({ to:to }, html); }
+function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
+
+function cleanWho(who){
+  return String(who||'').replace(/\s+\(GM\)$/,'').replace(/["\\]/g,'').trim();
+}
+
 function _normalizePackedWords(q){
   return String(q||'')
     .replace(/\b(nextmonth)\b/gi, 'next month')
@@ -3365,21 +3988,19 @@ function _normalizePackedWords(q){
     .trim();
 }
 
-
 function runEventsShortcut(m, a, sub){
   var args = a.slice(2);
   return invokeEventSub(m, String(sub||'list').toLowerCase(), args);
 }
 
-function usage(key, m){ whisper(m.who, USAGE[key]); }
-
 var USAGE = {
   'events.add':     'Usage: !cal add [MM DD [YYYY] | <MonthName> DD [YYYY] | DD] NAME [#COLOR|color] (DD may be an ordinal like 1st or fourteenth)',
-  'events.remove':  'Usage: !cal remove [list | key <KEY> | <name fragment>]',
-  'events.restore': 'Usage: !cal restore [all | key <KEY> | dkey <GROUP_KEY> | [exact] <name…> | list]',
-  'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)',
-  'yeartitle':      'Usage: !cal yeartitle set <YYYY> <Title...> [#COLOR|color] | list | remove <YYYY>'
+  'events.remove':  'Usage: !cal remove [list | key <KEY> | series <KEY> | <name fragment>]',
+  'events.restore': 'Usage: !cal restore [all] [exact] <name...> | restore key <KEY>',
+  'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)'
 };
+
+function usage(key, m){ whisper(m.who, USAGE[key]); }
 
 function invokeEventSub(m, sub, args){
   var cfg = EVENT_SUB[sub];
@@ -3396,44 +4017,26 @@ var EVENT_SUB = {
   remove: {
     usage: 'events.remove',
     run: function(m, args){
-      if (!args || !args.length) { whisper(m.who, removeListHtml()); return; } // ← add this
+      if (!args || !args.length) { whisper(m.who, removeListHtml()); return; }
       var sub = String(args[0]||'').toLowerCase();
-      if (sub === 'dkey') {
-        suppressDefaultsByGroupKey(_decKey(args.slice(1).join(' '))); return;
-      }
       if (sub === 'list') {
         if (args.length === 1) { whisper(m.who, removeListHtml()); return; }
         return usage('events.remove', m);
       }
-      if (sub === 'key') {
-        removeEvent(args.join(' ')); return;
-      }
+      if (sub === 'key' || sub === 'series') { removeEvent(args.join(' ')); return; }
       whisper(m.who, removeMatchesListHtml(args.join(' ')));
     }
   },
-
-restore: {
-  usage: 'events.restore',
-  run: function(m, args){
-    var sub = (args && args[0]) ? String(args[0]).toLowerCase() : '';
-    if (!sub || sub === 'list'){
-      whisper(m.who, suppressedDefaultsListHtml());
-      return;
-    }
-    if (sub === 'dkey'){
-      var gk = _decKey(args.slice(1).join(' ').trim());
-      if (!gk){
-        whisper(m.who, 'Usage: <code>!cal restore dkey &lt;GROUP_KEY&gt;</code>');
+  restore: {
+    usage: 'events.restore',
+    run: function(m, args){
+      if ((args[0] || '').toLowerCase() === 'list'){
+        whisper(m.who, suppressedDefaultsListHtml());
         return;
       }
-      restoreDefaultsByGroupKey(gk);
-      return;
+      restoreDefaultEvents(args.join(' '));
     }
-    restoreDefaultEvents(args.join(' '));
-  }
-},
-
-
+  },
   list: {
     usage: null,
     run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
@@ -3442,82 +4045,98 @@ restore: {
 
 var commands = {
 
-// Everyone (self-whisper)
-  '': function (m, a) { // bare !cal
+  // ── Public ────────────────────────────────────────────────────────────────
+
+  '': function(m, a){
     var restTokens = _normalizePackedWords(a.slice(1).join(' ')).split(/\s+/).filter(Boolean);
-    if (!restTokens.length) { // no args
-      sendCurrentDate(m.who, false);
-      sendGMButtons(m);
+    if (!restTokens.length){
+      sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
       return;
     }
-    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' }); // has args
-    sendGMButtons(m);
+    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' });
   },
 
-  show: function (m, a) { // !cal show [...]
+  show: function(m, a){
     var restTokens = _normalizePackedWords(a.slice(2).join(' ')).split(/\s+/).filter(Boolean);
-    if (!restTokens.length) { // no args
-      sendCurrentDate(m.who, false);
-      sendGMButtons(m);
+    if (!restTokens.length){
+      sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
       return;
     }
-    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' }); // has args
-    sendGMButtons(m);
+    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' });
   },
 
-help: function(m, a) {
-  var page = String(a[2]||'').toLowerCase();
-  switch(page){
-    case 'display-current': return helpDisplayCurrent(m);
-    case 'display-months': return helpDisplayMonthsMenu(m);
-    case 'display-years':  return helpDisplayYearsMenu(m);
+  now: function(m){
+    sendCurrentDate(m.who, false, { playerid:m.playerid, compact:true, includeButtons:false });
+  },
 
-    case 'eventcolors':    return helpEventColorsMenu(m);
+  // FIX: top-level !cal list now works
+  list: function(m){ whisper(m.who, listAllEventsTableHtml()); },
 
-    case 'display':        return helpDisplayMonthsMenu(m); // optional default
+  // Player shortcut: !cal forecast shows their revealed weather forecast
+  forecast: function(m){
+    if (ensureSettings().weatherEnabled === false){
+      whisper(cleanWho(m.who), _menuBox('Weather Forecast', '<div style="opacity:.7;">Weather system is not active.</div>'));
+      return;
+    }
+    playerForecastWhisper(m);
+  },
 
-    case 'step':        return helpStepMenu(m);
-    case 'events':      return helpEventsMenu(m);
-    case 'defaults':    return helpDefaultsMenu(m);
-    case 'sources':     return helpSourcesMenu(m);
-    case 'themes':      return helpThemesMenu(m);
-    case 'names':       return helpNamesMenu(m);
-    case 'weekdays':    return helpWeekdaysMenu(m);
-    case 'seasons':     return helpSeasonsMenu(m);
-    case 'yeartitles':  return helpYearTitlesMenu(m);
-    case 'settings':    return helpSettingsMenu(m);
-    case 'maint':       return helpMaintMenu(m);
-    case 'root':
-    default:            return helpRootMenu(m);
-  }
-},
+  effects: { gm:true, run:function(m){
+    whisper(m.who, activeEffectsPanelHtml());
+  }},
 
+  help: function(m, a){
+    var page = String(a[2]||'').toLowerCase();
+    switch(page){
+      case 'eventcolors': return helpEventColorsMenu(m);
+      case 'calendar':    return helpCalendarSystemMenu(m);
+      case 'themes':      return helpThemesMenu(m);
+      case 'seasons':     return helpSeasonsMenu(m);
+      case 'root':
+      default:            return helpRootMenu(m);
+    }
+  },
 
-  // Settings (GM)
+  // ── GM Only ───────────────────────────────────────────────────────────────
+
   settings: { gm:true, run:function(m,a){
     var key = String(a[2]||'').toLowerCase();
     var val = String(a[3]||'').toLowerCase();
-    if (!key || !/^(group|labels|yeartitles)$/.test(key) || !/^(on|off)$/.test(val)){
-      return whisper(m.who,'Usage: <code>!cal settings (group|labels|yeartitles) (on|off)</code>');
-    }
     var st = ensureSettings();
-    if (key==='group')  st.groupEventsBySource = (val==='on');
-    if (key==='labels') st.showSourceLabels    = (val==='on');
-    if (key==='yeartitles') st.showYearTitles      = (val==='on');
-
+    if (!key){
+      return whisper(m.who,'Usage: <code>!cal settings (group|labels|moons|weather|planes|buttons) (on|off)</code><br>'+
+                          'or <code>!cal settings density (compact|normal)</code>');
+    }
+    if (key === 'density'){
+      if (!/^(compact|normal)$/.test(val)){
+        return whisper(m.who,'Usage: <code>!cal settings density (compact|normal)</code>');
+      }
+      st.uiDensity = val;
+      refreshAndSend();
+      return whisper(m.who,'UI density set to <b>'+esc(val)+'</b>.');
+    }
+    if (!/^(group|labels|moons|weather|planes|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+      return whisper(m.who,'Usage: <code>!cal settings (group|labels|moons|weather|planes|buttons) (on|off)</code><br>'+
+                          'or <code>!cal settings density (compact|normal)</code>');
+    }
+    if (key==='group')   st.groupEventsBySource = (val==='on');
+    if (key==='labels')  st.showSourceLabels    = (val==='on');
+    if (key==='moons')   st.moonsEnabled        = (val==='on');
+    if (key==='weather') st.weatherEnabled      = (val==='on');
+    if (key==='planes')  st.planesEnabled       = (val==='on');
+    if (key==='buttons') st.autoButtons         = (val==='on');
     refreshAndSend();
     whisper(m.who,'Setting updated.');
   }},
 
   events: { gm:true, run:function(m, a){
-  var args = a.slice(2);
-  var sub  = (args.shift() || 'list').toLowerCase();
-  return invokeEventSub(m, sub, args);
+    var args = a.slice(2);
+    var sub  = (args.shift() || 'list').toLowerCase();
+    return invokeEventSub(m, sub, args);
   }},
 
-  // Aliases
   add:     { gm:true, run:function(m,a){ runEventsShortcut(m, a, 'add'); } },
-  remove: { gm:true, run:function(m,a){
+  remove:  { gm:true, run:function(m,a){
     var args = a.slice(2);
     if (!args.length) { whisper(m.who, removeListHtml()); return; }
     return invokeEventSub(m,'remove', args);
@@ -3528,222 +4147,2375 @@ help: function(m, a) {
   addyearly:  { gm:true, run:function(m,a){ addYearlySmart(a.slice(2)); } },
   addannual:  { gm:true, run:function(m,a){ addYearlySmart(a.slice(2)); } },
 
-
-  // GM: Send (broadcast)
-  send: { gm:true, run:function (m, a) { // !cal send [...]
+  send: { gm:true, run:function(m, a){
     var restTokens = _normalizePackedWords(a.slice(2).join(' ')).split(/\s+/).filter(Boolean);
-    if (!restTokens.length) { // no args
-      sendCurrentDate(null, false);
-      return;
-    }
-    deliverRange({ args:restTokens, mode:'cal', dest:'broadcast' }); // has args
+    if (!restTokens.length){ sendCurrentDate(null, false, { playerid:m.playerid, includeButtons:false }); return; }
+    deliverRange({ args:restTokens, mode:'cal', dest:'broadcast' });
   }},
 
-  advance: { gm:true, run:function(m,a){ stepDays(parseInt(a[2],10) || 1); } },
+  advance: { gm:true, run:function(m,a){ stepDays( parseInt(a[2],10) || 1); } },
   retreat: { gm:true, run:function(m,a){ stepDays(-(parseInt(a[2],10) || 1)); } },
+
   set: { gm:true, run:function(m,a){
     var r = Parse.looseMDY(a.slice(2));
     if (!r){ return whisper(m.who, USAGE['date.set']); }
-
     var cal = getCal(), cur = cal.current, months = cal.months;
-
     if (r.kind === 'dayOnly'){
       var next = nextForDayOnly(cur, r.day, months.length);
       var d = clamp(r.day, 1, months[next.month].days|0);
       setDate(next.month+1, d, next.year);
       return;
     }
-
-    // kind: 'mdy'
-    var mi = r.mi;
-    var d2 = clamp(r.day, 1, months[mi].days|0);
     var y  = (r.year != null) ? r.year : cur.year;
-    setDate(mi+1, d2, y);
+    // Guard: block setting the date to an inactive leap month.
+    if (months[r.mi] && months[r.mi].leapEvery && !_isLeapMonth(months[r.mi], y)){
+      return whisper(m.who,
+        '<b>'+esc(months[r.mi].name)+'</b> only exists in leap years (every '+
+        months[r.mi].leapEvery+' years). Year '+y+' is not a leap year.');
+    }
+    var d2 = clamp(r.day, 1, months[r.mi].days|0);
+    setDate(r.mi+1, d2, y);
   }},
 
-  // Theming & names (GM)
   theme: { gm:true, run:function(m, a){
     var sub = String(a[2]||'').toLowerCase();
     if (!sub || sub==='list'){ return whisper(m.who, themeListHtml()); }
+    if (sub === 'reset' || sub === 'default'){
+      ensureSettings().colorTheme = null;
+      colorsAPI.reset();
+      refreshAndSend();
+      return whisper(m.who, 'Color theme reset to calendar default.');
+    }
     if (!COLOR_THEMES[sub]) return whisper(m.who, 'Unknown theme. Try <code>!cal theme list</code>.');
     ensureSettings().colorTheme = sub;
     colorsAPI.reset();
     refreshAndSend();
-    whisper(m.who, 'Color theme set to <b>'+esc(sub)+'</b>.');
+    whisper(m.who, 'Color theme set to <b>'+esc(sub)+'</b>. Use <code>!cal theme reset</code> to return to calendar default.');
   }},
 
-  names: { gm:true, run:function(m, a){
-    var sub = String(a[2]||'').toLowerCase();
-    if (!sub || sub==='list'){ return whisper(m.who, namesListHtml()); }
-    if (!MONTH_NAME_SETS[sub]) return whisper(m.who, 'Unknown set. Try <code>!cal names list</code>.');
-
-    // Only persist if apply succeeds
-    if (!applyMonthSet(sub)) {
-      return whisper(m.who, 'That set doesn’t fit this calendar.');
+  calendar: { gm:true, run: function(m, a){
+    var sysKey = (a[2]||'').toLowerCase();
+    var varKey = (a[3]||'').toLowerCase();
+    if (!sysKey || !CALENDAR_SYSTEMS[sysKey]){
+      return whisper(m.who, calendarSystemListHtml());
     }
-
-    var st = ensureSettings();
-
-    // Auto-apply a matching theme (can be changed later)
-    var autoTheme = NAMESET_TO_THEME[sub];
-    st.monthSet = sub;
-    if (autoTheme && COLOR_THEMES[autoTheme]) st.colorTheme = autoTheme;
-    colorsAPI.reset();
-
-    refreshAndSend();
-    whisper(m.who, 'Month names set to <b>'+esc(sub)+'</b>'+ (autoTheme ? ' (auto theme: <b>'+esc(autoTheme)+'</b>)' : '') +'.');
-  }},
-
-
-  weekdays: { gm:true, run:function(m, a){
-    var sub = String(a[2]||'').toLowerCase();
-    if (!sub || sub==='list'){ return whisper(m.who, weekdayListHtml()); }
-    if (!WEEKDAY_NAME_SETS[sub]) return whisper(m.who, 'Unknown set. Try <code>!cal weekdays list</code>.');
-
-    // Only persist if apply succeeds
-    if (!applyWeekdaySet(sub)) {
-      return whisper(m.who, 'That set doesn’t fit this calendar.');
+    var sys = CALENDAR_SYSTEMS[sysKey];
+    if (varKey && !(sys.variants && sys.variants[varKey])){
+      return whisper(m.who,
+        'Unknown variant <b>'+esc(varKey)+'</b> for '+esc(sys.label||sysKey)+'. '+
+        'Available: '+Object.keys(sys.variants||{}).join(', ')+'.');
     }
-
-    var st = ensureSettings();
-    st.weekdaySet = sub;
-
+    var vk = varKey || sys.defaultVariant || 'standard';
+    var variant = sys.variants && sys.variants[vk];
+    // Reset manual theme override so variant default takes effect.
+    ensureSettings().colorTheme = null;
+    applyCalendarSystem(sysKey, vk);
+    _invalidateSerialCache();
     refreshAndSend();
-    whisper(m.who, 'Weekday names set to <b>'+esc(sub)+'</b>.');
+    var msg = 'Calendar: <b>'+esc(sys.label||titleCase(sysKey))+'</b>';
+    if (Object.keys(sys.variants||{}).length > 1) msg += ' — '+esc(variant.label||titleCase(vk));
+    whisper(m.who, msg+'.');
   }},
 
   seasons: { gm:true, run:function(m, a){
     var sub = String(a[2]||'').toLowerCase();
     if (!sub || sub==='list'){ return whisper(m.who, seasonSetListHtml()); }
-    if (!SEASON_SETS[sub]) return whisper(m.who, 'Unknown set. Try <code>!cal seasons list</code>.');
-
-    // Only persist if apply succeeds
-    if (!applySeasonSet(sub)) {
-      return whisper(m.who, 'That set doesn’t fit this calendar.');
-    }
-
-    var st = ensureSettings();
-    st.seasonSet = sub;
-
+    if (!SEASON_SETS[sub]) return whisper(m.who, 'Unknown variant. Options: '+Object.keys(SEASON_SETS).join(', ')+'.');
+    if (!applySeasonSet(sub)){ return whisper(m.who, 'That season set doesn’t fit this calendar.'); }
+    ensureSettings().seasonVariant = sub;
     refreshAndSend();
-    whisper(m.who, 'Season set applied: <b>'+esc(sub)+'</b>.');
+    whisper(m.who, 'Season variant: <b>'+esc(sub)+'</b>.');
   }},
 
-  yeartitle: { gm:true, run:function(m, a){
+  hemisphere: { gm:true, run:function(m, a){
     var sub = String(a[2]||'').toLowerCase();
-    if (!sub || sub==='list'){ return whisper(m.who, yearTitleListHtml()); }
-    if (sub==='set'){
-      var y = parseInt(a[3],10);
-      if (!isFinite(y)) return whisper(m.who, USAGE['yeartitle']);
-      var rest = a.slice(4).map(String);
-      var pulled = popColorIfPresent(rest, /*allowBareName*/true);
-      var color  = pulled.color;
-      var title  = pulled.tokens.join(' ').trim();
-      if (!title) return whisper(m.who, USAGE['yeartitle']);
-      setYearTitle(y, title, color);
-      whisper(m.who, 'Year title set for '+y+' '+LABELS.era+': '+esc(title)+(color?' '+swatchHtml(color):''));
-      refreshAndSend();
-      return;
+    if (sub !== 'north' && sub !== 'south'){
+      var st3 = ensureSettings();
+      var cur = st3.hemisphere || CONFIG_DEFAULTS.hemisphere;
+      var sv3 = st3.seasonVariant || CONFIG_DEFAULTS.seasonVariant;
+      var entry3 = SEASON_SETS[sv3] || {};
+      var aware = entry3.hemisphereAware ? 'yes' : 'no (current season set is not hemisphere-aware)';
+      return whisper(m.who,
+        'Current hemisphere: <b>'+esc(cur)+'</b>. Hemisphere-aware: '+aware+'.<br>'+
+        button('North','hemisphere north')+' '+button('South','hemisphere south')
+      );
     }
-    if (sub==='remove'){
-      var yr = parseInt(a[3],10);
-      if (!isFinite(yr)) return whisper(m.who, USAGE['yeartitle']);
-      removeYearTitle(yr);
-      whisper(m.who, 'Removed year title for '+yr+' '+LABELS.era+'.');
-      refreshAndSend();
-      return;
-    }
-    whisper(m.who, USAGE['yeartitle']);
+    var st4 = ensureSettings();
+    st4.hemisphere = sub;
+    // Re-apply the current season set so name arrays are shifted correctly.
+    applySeasonSet(st4.seasonVariant || CONFIG_DEFAULTS.seasonVariant);
+    refreshAndSend();
+    whisper(m.who, 'Hemisphere: <b>'+esc(sub)+'</b>.');
   }},
 
   source: { gm:true, run: function(m, a){
-          var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
-          var sub = (args[0]||'').toLowerCase();
-          var suppressedSources = state[state_name].suppressedSources || (state[state_name].suppressedSources = {});
-          function listSources(){
-            var cal = getCal(), seen = {};
-            defaults.events.forEach(function(de){ if (de.source) seen[String(de.source).toLowerCase()] = String(de.source); });
-            cal.events.forEach(function(e){ if (e.source) seen[String(e.source).toLowerCase()] = String(e.source); });
+    var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
+    var sub = (args[0]||'').toLowerCase();
+    var suppressedSources = state[state_name].suppressedSources || (state[state_name].suppressedSources = {});
 
-            var names = Object.keys(seen).sort();
-            if (!names.length){ return whisper(m.who, '<div><b>Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
+    // Collect all known source keys → canonical display names.
+    function allSources(){
+      var cal = getCal(), seen = {};
+      defaults.events.forEach(function(de){ if (de.source) seen[String(de.source).toLowerCase()] = String(de.source); });
+      cal.events.forEach(function(e){ if (e.source) seen[String(e.source).toLowerCase()] = String(e.source); });
+      return seen;
+    }
 
-            var head =  '<tr>'+
-                        '<th style="'+STYLES.th+'">Source</th>' +
-                        '<th style="'+STYLES.th+'">Status</th>' +
-                        '<th style="'+STYLES.th+'">Action</th>' +
-                        '</tr>';
+    function listSources(){
+      var seen  = allSources();
+      var keys  = Object.keys(seen);
+      if (!keys.length){ return whisper(m.who, '<div><b>Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
 
-            var rows = names.map(function(k){
-              var label = seen[k];
-              var disabled = !!suppressedSources[k];
-              var status = disabled ? 'Disabled' : 'Enabled';
-              var actionbutton = disabled
-                ? button('Enable',  'source enable '  + label)
-                : button('Disable', 'source disable ' + label);
-              return '<tr>'
-                + '<td style="'+STYLES.td+'">'+esc(label)+'</td>'
-                + '<td style="'+STYLES.td+';text-align:center;">'+status+'</td>'
-                + '<td style="'+STYLES.td+';text-align:center;">'+actionbutton+'</td>'
-                + '</tr>';
-            }).join('');
+      var pList = ensureSettings().eventSourcePriority;
 
-            whisper(m.who,
-              '<div style="margin:4px 0;"><b>Sources</b></div>'
-              + '<table style="'+STYLES.table+'">'+head+rows+'</table>'
-              + '<div style="opacity:.75;margin-top:4px;">(Buttons call <code>!cal source enable/disable &lt;name&gt;</code>.)</div>'
-            );
-          }
+      // Build display rows sorted by current priority rank, then alphabetically.
+      function pRank(k){ var i=pList.indexOf(k); return i>=0 ? i : pList.length; }
+      keys.sort(function(a,b){
+        var rd = pRank(a) - pRank(b);
+        return rd !== 0 ? rd : a.localeCompare(b);
+      });
 
-          function disableSource(name){
-            var key = String(name||'').toLowerCase();
-            if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
-            suppressedSources[key] = 1;
-            var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
-            cal.events = cal.events.filter(function(e){
-              var src = (e.source != null) ? String(e.source).toLowerCase() : null;
-              if (src !== key) return true;
-              var maxD = cal.months[e.month-1].days|0;
-              var norm = DaySpec.canonicalForKey(e.day, maxD);
-              var k = defaultKeyFor(e.month, norm, e.name);
-              return !defaultsSet[k];
-            });
-            refreshAndSend();
-            sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.');
-          }
+      var head = '<tr>'+
+        '<th style="'+STYLES.th+'">Priority</th>'+
+        '<th style="'+STYLES.th+'">Source</th>'+
+        '<th style="'+STYLES.th+'">Status</th>'+
+        '<th style="'+STYLES.th+'">Move</th>'+
+        '<th style="'+STYLES.th+'">Enable/Disable</th>'+
+        '</tr>';
 
-          function enableSource(name){
-            var key = String(name||'').toLowerCase();
-            if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
-            delete suppressedSources[key];
-            // Clear per-key suppressions for this source so they "flip together"
-            var sup = state[state_name].suppressedDefaults || {};
-            Object.keys(sup).forEach(function(k){
-              var info = _defaultDetailsForKey(k);
-              var src = (info.source != null) ? String(info.source).toLowerCase() : null;
-              if (src === key) delete sup[k];
-            });
-            mergeInNewDefaultEvents(getCal());
-            refreshAndSend();
-            sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
-          }
-          if (!sub || sub==='list') return listSources();
-          if (sub==='disable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source disable &lt;name&gt;</code>'); return disableSource(args.slice(1).join(' ')); }
-          if (sub==='enable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source enable &lt;name&gt;</code>'); return enableSource(args.slice(1).join(' ')); }
-          whisper(m.who, 'Usage: <code>!cal source [list|disable|enable] [&lt;name&gt;]</code>');
-        }},
+      var rows = keys.map(function(k, i){
+        var label    = seen[k];
+        var rank     = pList.indexOf(k);
+        var rankCell = rank >= 0
+          ? String(rank + 1)
+          : '<span style="opacity:.5;">—</span>';
+        var disabled = !!suppressedSources[k];
+        var upBtn    = i > 0
+          ? button('↑', 'source up '   + label, {icon:''})
+          : '<span style="opacity:.25;">↑</span>';
+        var downBtn  = i < keys.length - 1
+          ? button('↓', 'source down ' + label, {icon:''})
+          : '<span style="opacity:.25;">↓</span>';
+        var togBtn   = disabled
+          ? button('Enable',  'source enable '  + label)
+          : button('Disable', 'source disable ' + label);
+        return '<tr>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+rankCell+'</td>'+
+          '<td style="'+STYLES.td+'">'+esc(label)+'</td>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+(disabled?'Off':'On')+'</td>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+upBtn+' '+downBtn+'</td>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+togBtn+'</td>'+
+          '</tr>';
+      }).join('');
 
-  // Maintenance (GM)
-  resetcalendar:   { gm:true, run:function(){ resetToDefaults(); } }
+      whisper(m.who,
+        '<div style="margin:4px 0;"><b>Sources &amp; Priority</b></div>'+
+        '<table style="'+STYLES.table+'">'+head+rows+'</table>'+
+        '<div style="font-size:.8em;opacity:.7;margin-top:4px;">'+
+        'Priority 1 = primary event (sets cell color). Unranked sources (—) are tied last.<br>'+
+        'User-added events always rank first regardless of source.'+
+        '</div>'
+      );
+    }
+
+    function movePriority(name, dir){
+      var key  = String(name||'').toLowerCase();
+      var seen = allSources();
+      if (!key || !seen[key]){ whisper(m.who, 'Source not found: '+esc(name)); return; }
+      var st   = ensureSettings();
+      var pList= st.eventSourcePriority;
+      var idx  = pList.indexOf(key);
+
+      if (idx < 0){
+        // Not yet ranked: add it. 'up' puts it at front; 'down' appends.
+        if (dir === 'up')   pList.unshift(key);
+        else                pList.push(key);
+      } else {
+        var swap = dir === 'up' ? idx - 1 : idx + 1;
+        if (swap < 0 || swap >= pList.length){ listSources(); return; }
+        var tmp = pList[swap]; pList[swap] = pList[idx]; pList[idx] = tmp;
+      }
+
+      // Prune keys that no longer exist as sources.
+      var knownKeys = Object.keys(seen);
+      st.eventSourcePriority = pList.filter(function(k){ return knownKeys.indexOf(k) >= 0; });
+      listSources();
+    }
+
+    function disableSource(name){
+      var key = String(name||'').toLowerCase();
+      if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
+      suppressedSources[key] = 1;
+      var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
+      cal.events = cal.events.filter(function(e){
+        var src = (e.source != null) ? String(e.source).toLowerCase() : null;
+        if (src !== key) return true;
+        var maxD = cal.months[e.month-1].days|0;
+        var norm = DaySpec.canonicalForKey(e.day, maxD);
+        var k = defaultKeyFor(e.month, norm, e.name);
+        return !defaultsSet[k];
+      });
+      refreshAndSend();
+      sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.');
+    }
+
+    function enableSource(name){
+      var key = String(name||'').toLowerCase();
+      if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
+      delete suppressedSources[key];
+      var sup = state[state_name].suppressedDefaults || {};
+      Object.keys(sup).forEach(function(k){
+        var info = _defaultDetailsForKey(k);
+        var src = (info.source != null) ? String(info.source).toLowerCase() : null;
+        if (src === key) delete sup[k];
+      });
+      mergeInNewDefaultEvents(getCal());
+      refreshAndSend();
+      sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+    }
+
+    if (!sub || sub==='list') return listSources();
+    if (sub==='up')   { return movePriority(args.slice(1).join(' '), 'up'); }
+    if (sub==='down') { return movePriority(args.slice(1).join(' '), 'down'); }
+    if (sub==='disable'){ if (!args[1]) return whisper(m.who,'Usage: <code>!cal source disable &lt;name&gt;</code>'); return disableSource(args.slice(1).join(' ')); }
+    if (sub==='enable'){  if (!args[1]) return whisper(m.who,'Usage: <code>!cal source enable &lt;name&gt;</code>');  return enableSource(args.slice(1).join(' ')); }
+    whisper(m.who, 'Usage: <code>!cal source [list|up|down|disable|enable] [&lt;name&gt;]</code>');
+  }},
+
+  resetcalendar: { gm:true, run:function(){ resetToDefaults(); } },
+
+  // Moon system
+  moon:    function(m, a){ handleMoonCommand(m, a.slice(1)); },   // mixed: players=view, GM=edit
+
+  // Weather — GM full access, players get today's conditions only
+  weather:  function(m, a){   // mixed: players=today+forecast, GM=full access
+    // a[0]='!cal', a[1]='weather', a[2]=subcommand, a[3+]=params
+    // Pass a slice starting at 'weather' so handler sees args[0]='weather', args[1]=sub
+    handleWeatherCommand(m, a.slice(1));
+  },
+
+  // Planar system — parallel to moons/weather
+  planes:  function(m, a){ handlePlanesCommand(m, a.slice(1)); }
 };
 
-function sendGMButtons(m){
-  if (playerIsGM(m.playerid)) whisper(m.who, gmButtonsHtml());
+/* ============================================================================
+ * 18) WEATHER SYSTEM
+ * ==========================================================================*/
+
+// ---------------------------------------------------------------------------
+// 18 — Tuning constants and weather tables
+// ---------------------------------------------------------------------------
+
+// Uncertainty tiers: GM display labels, keyed by days-ahead from generatedAt.
+var WEATHER_UNCERTAINTY = {
+  certain:   { maxDist:  1, label: 'Certain'   },
+  likely:    { maxDist:  3, label: 'Likely'    },
+  uncertain: { maxDist:  7, label: 'Uncertain' },
+  vague:     { maxDist: 20, label: 'Vague'     }
+};
+
+// Stochastic TOD bell curve. One 1d20 roll per trait per period.
+// 1→−2, 2–4→−1, 5–16→0, 17–19→+1, 20→+2. Applied after arc, clamped.
+var WEATHER_TOD_BELL = [
+//  1    2   3   4    5  6  7  8  9 10 11 12 13 14 15 16   17  18  19   20
+   -2,  -1, -1, -1,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  +1, +1, +1,  +2
+];
+
+// Deterministic TOD arc — the predictable daily shape per climate.
+// afternoon = reference (offset 0). Arc is scaled by geo × terrain arcMult.
+var WEATHER_TOD_ARC = {
+  polar:       { temp:{morning:-1,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening: 0} },
+  continental: { temp:{morning:-2,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
+  temperate:   { temp:{morning:-1,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
+  dry:         { temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening:-1}, precip:{morning:-1,afternoon:0,evening: 0} },
+  tropical:    { temp:{morning:-1,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} }
+};
+
+// ---------------------------------------------------------------------------
+// Climate base tables — 5 climates × 12 months (index 0=mid-winter … 11=early-winter)
+// Each entry: { temp, wind, precip } each { base, die, min, max }
+// Geography and terrain modifiers shift base/min/max uniformly. die is unchanged.
+// Temp scale: 0=−25°F … 5=50°F … 10=125°F+
+// Wind scale: 0=calm … 4=extreme   Precip scale: 0=clear … 4=extreme
+// ---------------------------------------------------------------------------
+var WEATHER_CLIMATE_BASE = {
+
+  // Frostfell, Demon Wastes — perpetually cold, windswept, low moisture
+  polar: [
+    /*0  mid-win */ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1  late-win*/ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2  early-sp*/ {temp:{base:2,die:2,min:1,max:3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*3  mid-sp  */ {temp:{base:3,die:2,min:2,max:4}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*4  late-sp */ {temp:{base:3,die:2,min:2,max:4}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*5  early-su*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6  mid-su  */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7  late-su */ {temp:{base:3,die:2,min:2,max:4}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8  early-au*/ {temp:{base:2,die:2,min:1,max:3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10 late-au */ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
+  ],
+
+  // Karrnath, Mror Holds interior — wide seasonal swing, harsh winters
+  continental: [
+    /*0 */ {temp:{base:2,die:3,min:1,max:3}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*1 */ {temp:{base:3,die:3,min:1,max:4}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*2 */ {temp:{base:4,die:3,min:3,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:5,die:2,min:4,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*5 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:5,die:3,min:3,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*9 */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*10*/ {temp:{base:3,die:2,min:2,max:4}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*11*/ {temp:{base:2,die:3,min:1,max:3}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+  ],
+
+  // Breland, Shadow Marches, most of Khorvaire — moderate, maritime-influenced
+  temperate: [
+    /*0 */ {temp:{base:3,die:2,min:2,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*1 */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*2 */ {temp:{base:5,die:2,min:4,max:6}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:5,die:2,min:4,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*5 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:6,die:3,min:4,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*9 */ {temp:{base:5,die:2,min:4,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*10*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*11*/ {temp:{base:3,die:2,min:2,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+  ],
+
+  // Blade Desert, Valenar interior — heat-dominated, wide daily swings, very low precip
+  dry: [
+    /*0 */ {temp:{base:5,die:3,min:3,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1 */ {temp:{base:5,die:3,min:4,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2 */ {temp:{base:6,die:3,min:5,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:1}},
+    /*3 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*4 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*5 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*6 */ {temp:{base:9,die:2,min:8,max:10},wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*7 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*8 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*9 */ {temp:{base:6,die:3,min:5,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10*/ {temp:{base:6,die:3,min:4,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11*/ {temp:{base:5,die:3,min:3,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}}
+  ],
+
+  // Sharn, Q'barra, Xen'drik coast — narrow temp swing, seasonal rains
+  tropical: [
+    /*0 */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*1 */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*2 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:2}},
+    /*5 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*9 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*10*/ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*11*/ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}}
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// Geography modifier tables — 10 geographies × 12 months (or constant object)
+// Each entry: { temp, wind, precip, arc }
+//   temp/wind/precip: additive shift to base, min, and max uniformly
+//   arc: multiplicative scale on the TOD arc for this month (combined with terrain arc)
+// A constant object (non-array) applies uniformly to all months.
+// ---------------------------------------------------------------------------
+var WEATHER_GEO_MOD = {
+
+  // Baseline — no modification
+  inland: {temp:0, wind:0, precip:0, arc:1.00},
+
+  // Breland coast, Lhazaar coastline — maritime moderation
+  coastal: [
+    /*0 */ {temp:+1, wind:+1, precip:+1, arc:0.70},
+    /*1 */ {temp:+1, wind:+1, precip:+1, arc:0.70},
+    /*2 */ {temp: 0, wind: 0, precip:+1, arc:0.75},
+    /*3 */ {temp: 0, wind: 0, precip:+1, arc:0.75},
+    /*4 */ {temp: 0, wind: 0, precip:+1, arc:0.75},
+    /*5 */ {temp:-1, wind: 0, precip: 0, arc:0.70},
+    /*6 */ {temp:-1, wind: 0, precip: 0, arc:0.70},
+    /*7 */ {temp:-1, wind: 0, precip: 0, arc:0.70},
+    /*8 */ {temp: 0, wind:+1, precip:+1, arc:0.75},
+    /*9 */ {temp: 0, wind:+1, precip:+1, arc:0.75},
+    /*10*/ {temp:+1, wind:+1, precip:+1, arc:0.72},
+    /*11*/ {temp:+1, wind:+1, precip:+1, arc:0.70}
+  ],
+
+  // Thunder Sea crossings, Lhazaar open water — strong moderation, sustained wind
+  open_sea: [
+    /*0 */ {temp:+2, wind:+2, precip:+1, arc:0.35},
+    /*1 */ {temp:+2, wind:+2, precip:+1, arc:0.35},
+    /*2 */ {temp:+1, wind:+2, precip:+1, arc:0.35},
+    /*3 */ {temp: 0, wind:+2, precip:+1, arc:0.35},
+    /*4 */ {temp: 0, wind:+2, precip:+1, arc:0.35},
+    /*5 */ {temp:-2, wind:+2, precip:+1, arc:0.35},
+    /*6 */ {temp:-2, wind:+2, precip:+1, arc:0.35},
+    /*7 */ {temp:-2, wind:+2, precip:+1, arc:0.35},
+    /*8 */ {temp:-1, wind:+2, precip:+1, arc:0.35},
+    /*9 */ {temp: 0, wind:+2, precip:+1, arc:0.35},
+    /*10*/ {temp: 0, wind:+2, precip:+1, arc:0.35},
+    /*11*/ {temp:+2, wind:+2, precip:+1, arc:0.35}
+  ],
+
+  // Talenta Plains, Valenar, Mournland — amplified arc, fast-moving systems
+  open_plains: [
+    /*0 */ {temp:-1, wind:+1, precip:-1, arc:1.50},
+    /*1 */ {temp:-1, wind:+1, precip:-1, arc:1.50},
+    /*2 */ {temp: 0, wind:+1, precip: 0, arc:1.40},
+    /*3 */ {temp: 0, wind:+1, precip: 0, arc:1.40},
+    /*4 */ {temp:+1, wind:+1, precip: 0, arc:1.40},
+    /*5 */ {temp:+1, wind:+1, precip: 0, arc:1.40},
+    /*6 */ {temp:+1, wind:+1, precip: 0, arc:1.40},
+    /*7 */ {temp:+1, wind:+1, precip: 0, arc:1.40},
+    /*8 */ {temp: 0, wind:+1, precip:+1, arc:1.40},
+    /*9 */ {temp: 0, wind:+1, precip:-1, arc:1.45},
+    /*10*/ {temp: 0, wind:+1, precip:-1, arc:1.45},
+    /*11*/ {temp:-1, wind:+1, precip:-1, arc:1.50}
+  ],
+
+  // Mror Holds peaks, Starpeaks — elevation cold, orographic precip
+  highland: [
+    /*0 */ {temp:-2, wind:+2, precip:+1, arc:1.30},
+    /*1 */ {temp:-2, wind:+2, precip:+1, arc:1.30},
+    /*2 */ {temp:-2, wind:+1, precip:+1, arc:1.25},
+    /*3 */ {temp:-2, wind:+1, precip:+1, arc:1.25},
+    /*4 */ {temp:-2, wind:+1, precip:+1, arc:1.20},
+    /*5 */ {temp:-2, wind:+1, precip:+1, arc:1.20},
+    /*6 */ {temp:-2, wind:+1, precip:+1, arc:1.20},
+    /*7 */ {temp:-2, wind:+1, precip:+1, arc:1.20},
+    /*8 */ {temp:-2, wind:+1, precip:+1, arc:1.25},
+    /*9 */ {temp:-2, wind:+1, precip:+1, arc:1.25},
+    /*10*/ {temp:-2, wind:+2, precip:+1, arc:1.30},
+    /*11*/ {temp:-2, wind:+2, precip:+1, arc:1.30}
+  ],
+
+  // Aundair river valleys, Scions Sound region — fog-prone, channeled wind
+  river_valley: [
+    /*0 */ {temp: 0, wind:-1, precip:+1, arc:0.90},
+    /*1 */ {temp: 0, wind:-1, precip:+1, arc:0.90},
+    /*2 */ {temp: 0, wind:-1, precip:+1, arc:0.85},
+    /*3 */ {temp: 0, wind:-1, precip:+1, arc:0.85},
+    /*4 */ {temp: 0, wind:-1, precip:+1, arc:0.85},
+    /*5 */ {temp:+1, wind:-1, precip:+1, arc:0.80},
+    /*6 */ {temp:+1, wind:-1, precip:+1, arc:0.80},
+    /*7 */ {temp:+1, wind:-1, precip:+1, arc:0.80},
+    /*8 */ {temp: 0, wind:-1, precip:+1, arc:0.85},
+    /*9 */ {temp: 0, wind:-1, precip:+1, arc:0.85},
+    /*10*/ {temp: 0, wind:-1, precip:+1, arc:0.85},
+    /*11*/ {temp: 0, wind:-1, precip:+1, arc:0.90}
+  ],
+
+  // Q'barra interior, Xen'drik jungle lowlands — flat arc, suppressed wind, max moisture
+  jungle_basin: {temp:0, wind:-1, precip:+1, arc:0.25},
+
+  // Lake Galifar, large enclosed Scions Sound — lake-effect autumn/winter precip
+  inland_sea: [
+    /*0 */ {temp:+1, wind:+1, precip:+2, arc:0.75},
+    /*1 */ {temp:+1, wind:+1, precip:+2, arc:0.75},
+    /*2 */ {temp:+1, wind: 0, precip:+1, arc:0.80},
+    /*3 */ {temp: 0, wind: 0, precip:+1, arc:0.85},
+    /*4 */ {temp: 0, wind: 0, precip:+1, arc:0.85},
+    /*5 */ {temp:-1, wind: 0, precip: 0, arc:0.80},
+    /*6 */ {temp:-1, wind: 0, precip: 0, arc:0.80},
+    /*7 */ {temp:-1, wind: 0, precip: 0, arc:0.80},
+    /*8 */ {temp:+1, wind:+1, precip:+2, arc:0.80},
+    /*9 */ {temp:+1, wind:+1, precip:+2, arc:0.75},
+    /*10*/ {temp:+1, wind:+1, precip:+2, arc:0.75},
+    /*11*/ {temp:+1, wind:+1, precip:+2, arc:0.75}
+  ],
+
+  // Lhazaar islands, offshore Stormreach — all-direction maritime
+  island: [
+    /*0 */ {temp:+2, wind:+1, precip:+1, arc:0.45},
+    /*1 */ {temp:+2, wind:+1, precip:+1, arc:0.45},
+    /*2 */ {temp:+1, wind:+1, precip:+1, arc:0.50},
+    /*3 */ {temp:+1, wind:+1, precip:+1, arc:0.50},
+    /*4 */ {temp:-1, wind:+1, precip:+1, arc:0.45},
+    /*5 */ {temp:-1, wind:+1, precip:+1, arc:0.45},
+    /*6 */ {temp:-1, wind:+1, precip:+1, arc:0.45},
+    /*7 */ {temp:-1, wind:+1, precip:+1, arc:0.45},
+    /*8 */ {temp:+1, wind:+1, precip:+1, arc:0.50},
+    /*9 */ {temp:+1, wind:+1, precip:+1, arc:0.50},
+    /*10*/ {temp:+2, wind:+1, precip:+1, arc:0.45},
+    /*11*/ {temp:+2, wind:+1, precip:+1, arc:0.45}
+  ],
+
+  // Frostfell open tundra, Demon Wastes — open plains amplified by polar cold
+  arctic_plain: [
+    /*0 */ {temp:-3, wind:+2, precip:-1, arc:1.70},
+    /*1 */ {temp:-3, wind:+2, precip:-1, arc:1.70},
+    /*2 */ {temp:-2, wind:+2, precip:-1, arc:1.60},
+    /*3 */ {temp:-2, wind:+2, precip:-1, arc:1.60},
+    /*4 */ {temp:-1, wind:+2, precip:-1, arc:1.50},
+    /*5 */ {temp:-1, wind:+2, precip:-1, arc:1.50},
+    /*6 */ {temp:-1, wind:+2, precip:-1, arc:1.50},
+    /*7 */ {temp:-1, wind:+2, precip:-1, arc:1.50},
+    /*8 */ {temp:-2, wind:+2, precip:-1, arc:1.60},
+    /*9 */ {temp:-2, wind:+2, precip:-1, arc:1.60},
+    /*10*/ {temp:-3, wind:+2, precip:-1, arc:1.70},
+    /*11*/ {temp:-3, wind:+2, precip:-1, arc:1.70}
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// Terrain modifier tables — 9 terrains × 12 months (or constant object)
+// Same structure as WEATHER_GEO_MOD. Arc multipliers are seasonal where
+// the canopy changes through the year (forest, swamp); constant elsewhere.
+// ---------------------------------------------------------------------------
+var WEATHER_TERRAIN_MOD = {
+
+  // Full exposure to geography — no modification
+  open: {temp:0, wind:0, precip:0, arc:1.00},
+
+  // Deciduous forest: full canopy in summer, bare in winter
+  forest: [
+    /*0  mid-win */ {temp:0, wind: 0, precip: 0, arc:0.85},
+    /*1  late-win*/ {temp:0, wind: 0, precip: 0, arc:0.85},
+    /*2  early-sp*/ {temp:0, wind:-1, precip:+1, arc:0.60},
+    /*3  mid-sp  */ {temp:0, wind:-1, precip:+1, arc:0.45},
+    /*4  late-sp */ {temp:0, wind:-1, precip:+1, arc:0.30},
+    /*5  early-su*/ {temp:0, wind:-1, precip:+1, arc:0.25},
+    /*6  mid-su  */ {temp:0, wind:-1, precip:+1, arc:0.25},
+    /*7  late-su */ {temp:0, wind:-1, precip:+1, arc:0.25},
+    /*8  early-au*/ {temp:0, wind:-1, precip:+1, arc:0.30},
+    /*9  mid-au  */ {temp:0, wind: 0, precip: 0, arc:0.55},
+    /*10 late-au */ {temp:0, wind: 0, precip: 0, arc:0.75},
+    /*11 early-wn*/ {temp:0, wind: 0, precip: 0, arc:0.85}
+  ],
+
+  // Tropical/evergreen forest: constant heavy canopy all year
+  jungle: {temp:0, wind:-1, precip:+1, arc:0.20},
+
+  // Wetland: like forest but wetter and wind-dead at surface
+  swamp: [
+    /*0 */ {temp:0, wind:-1, precip:+1, arc:0.70},
+    /*1 */ {temp:0, wind:-1, precip:+1, arc:0.70},
+    /*2 */ {temp:0, wind:-1, precip:+2, arc:0.50},
+    /*3 */ {temp:0, wind:-1, precip:+2, arc:0.45},
+    /*4 */ {temp:0, wind:-1, precip:+2, arc:0.45},
+    /*5 */ {temp:+1,wind:-1, precip:+2, arc:0.35},
+    /*6 */ {temp:+1,wind:-1, precip:+2, arc:0.35},
+    /*7 */ {temp:+1,wind:-1, precip:+2, arc:0.35},
+    /*8 */ {temp:0, wind:-1, precip:+2, arc:0.50},
+    /*9 */ {temp:0, wind:-1, precip:+1, arc:0.65},
+    /*10*/ {temp:0, wind:-1, precip:+1, arc:0.65},
+    /*11*/ {temp:0, wind:-1, precip:+1, arc:0.70}
+  ],
+
+  // Settled area: heat island, streets channel wind slightly
+  urban: {temp:+1, wind:0, precip:0, arc:0.80},
+
+  // Above treeline: always exposed, cold, no canopy moderation
+  alpine: {temp:-2, wind:+1, precip:+1, arc:1.50},
+
+  // Cultivated fields: partial hedge/windbreak, otherwise open
+  farmland: {temp:0, wind:-1, precip:0, arc:0.90},
+
+  // Sand/rock desert: amplifies arc, reinforces dryness
+  desert: [
+    /*0 */ {temp: 0, wind:0, precip:-1, arc:1.80},
+    /*1 */ {temp: 0, wind:0, precip:-1, arc:1.80},
+    /*2 */ {temp:+1, wind:0, precip:-1, arc:1.90},
+    /*3 */ {temp:+1, wind:0, precip:-1, arc:1.90},
+    /*4 */ {temp:+1, wind:0, precip:-1, arc:1.90},
+    /*5 */ {temp:+2, wind:0, precip:-1, arc:2.00},
+    /*6 */ {temp:+2, wind:0, precip:-1, arc:2.00},
+    /*7 */ {temp:+2, wind:0, precip:-1, arc:2.00},
+    /*8 */ {temp:+1, wind:0, precip:-1, arc:1.90},
+    /*9 */ {temp:+1, wind:0, precip:-1, arc:1.85},
+    /*10*/ {temp:+1, wind:0, precip:-1, arc:1.85},
+    /*11*/ {temp: 0, wind:0, precip:-1, arc:1.80}
+  ],
+
+  // Exposed cliff above water: coastal moisture + wind amplification
+  coastal_bluff: {temp:-1, wind:+2, precip:+1, arc:1.20}
+};
+
+// ---------------------------------------------------------------------------
+// Wizard description strings — used in location wizard UI only
+// ---------------------------------------------------------------------------
+var WEATHER_CLIMATES = {
+  polar:       'Perpetual cold, minimal precipitation, wide seasonal swing',
+  continental: 'Harsh winters, hot summers, far from maritime influence',
+  temperate:   'Moderate seasons, consistent precipitation, mild maritime character',
+  dry:         'Heat-dominated, very low precipitation, extreme daily temperature swings',
+  tropical:    'Narrow temperature range, seasonal heavy rain, consistently warm'
+};
+
+var WEATHER_GEOGRAPHIES = {
+  inland:      'Default continental interior — no geographic amplification',
+  coastal:     'Shoreline: maritime moderation, sea breeze, dampened daily arc',
+  open_sea:    'Open water: strongly moderated temps, sustained wind, flat arc',
+  open_plains: 'Unobstructed flat terrain: amplified arc, fast-moving systems, strong wind',
+  highland:    'Elevated terrain: colder, orographic precipitation, exposed ridges',
+  river_valley:'Valley floor: fog-prone, wind channeled and reduced, elevated moisture',
+  jungle_basin:'Dense jungle lowland: flat arc, suppressed wind, maximum humidity',
+  inland_sea:  'Large enclosed water body: lake-effect precip spikes in autumn/winter',
+  island:      'Surrounded by water: all-direction maritime moderation, steady moisture',
+  arctic_plain:'Open polar tundra: extreme cold and wind amplified, minimal precipitation'
+};
+
+var WEATHER_TERRAINS_UI = {
+  open:         'No shelter — geography unfiltered',
+  forest:       'Deciduous: full canopy summer, bare winter — strongly seasonal buffering',
+  jungle:       'Tropical evergreen: constant heavy canopy, wind-dead, maximum humidity',
+  swamp:        'Wetland: still air, saturated ground, precip accumulates',
+  urban:        'Settled area: heat island, slight wind channeling',
+  alpine:       'Above treeline: always cold and exposed, no canopy',
+  farmland:     'Cultivated fields: partial windbreak, mostly open',
+  desert:       'Sand or rock desert: maximizes arc and heat, suppresses precipitation',
+  coastal_bluff:'Exposed cliff near water: coastal moisture with amplified wind'
+};
+
+// ---------------------------------------------------------------------------
+// 18a) State accessors
+// ---------------------------------------------------------------------------
+
+function getWeatherState(){
+  var root = state[state_name];
+  if (!root.weather) root.weather = {
+    location:     null,  // { name, climate, terrain, manifestZone, sig }
+    forecast:     [],    // array of day records keyed by serial
+    history:      [],    // locked past days (up to 60)
+    playerReveal: {}     // serial(str) → best detail tier revealed: 'full'|'moderate'|'abridged'
+  };
+  var ws = root.weather;
+  if (!ws.playerReveal) ws.playerReveal = {};
+  return ws;
+}
+
+// Location signature for resurrection matching.
+function _locSig(loc){
+  if (!loc) return '';
+  return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'')+'/'+(loc.manifestZone ? loc.manifestZone.name : 'none');
+}
+
+// ---------------------------------------------------------------------------
+// 18b) Dice helpers (Roll20 has randomInteger built-in)
+// ---------------------------------------------------------------------------
+
+function _rollDie(sides){
+  sides = Math.max(1, sides|0);
+  return (typeof randomInteger === 'function') ? randomInteger(sides) : (Math.floor(Math.random()*sides)+1);
+}
+
+// ---------------------------------------------------------------------------
+// 18c) Formula composition — three-layer system
+// ---------------------------------------------------------------------------
+
+// Returns the modifier entry for a given month index.
+// Table may be a 12-element array (seasonal) or a constant object.
+// Maps a raw calendar slot index to a 0-based regular-month index for the
+// weather tables, which are always 12 entries long (one per non-intercalary month).
+// For standard 12-month calendars this is identity. For Harptos (17-18 slots)
+// it skips intercalary slots so e.g. Marpenoth (slot 13) → regular index 9.
+function regularMonthIndex(mi){
+  var months = getCal().months;
+  var count = 0;
+  for (var i = 0; i < months.length && i <= mi; i++){
+    if (!months[i].isIntercalary){
+      if (i === mi) return count;
+      count++;
+    }
+  }
+  // Intercalary slot: inherit index from nearest preceding regular month.
+  for (var j = mi - 1; j >= 0; j--){
+    if (!months[j].isIntercalary) return count - 1;
+    // count was not incremented for intercalary slots, so we need to retrace
+  }
+  return 0;
+}
+
+// Returns the weather-table month index for monthIdx, with hemisphere offset applied.
+// Hemisphere-aware season sets (faerun, gregorian) offset by 6 for southern campaigns
+// so month 0 reads mid-summer stats rather than mid-winter stats.
+function _weatherMonthIndex(mi){
+  var st     = ensureSettings();
+  var sv     = st.seasonVariant || CONFIG_DEFAULTS.seasonVariant;
+  var entry  = SEASON_SETS[sv] || SEASON_SETS.eberron;
+  var hem    = st.hemisphere || CONFIG_DEFAULTS.hemisphere;
+  var offset = (entry && entry.hemisphereAware && hem === 'south') ? 6 : 0;
+  return (regularMonthIndex(mi) + offset) % 12;
+}
+
+function _getModEntry(table, monthIdx){
+  if (Array.isArray(table)) return table[_weatherMonthIndex(monthIdx)] || table[0];
+  return table;
+}
+
+// Compose the final formula for one day from all three layers.
+// Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
+function _composeFormula(climate, geography, terrain, monthIdx){
+  var TRAIT_MAX = { temp:10, wind:3, precip:3 };
+  var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
+  var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
+  var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
+  var tMod    = _getModEntry(WEATHER_TERRAIN_MOD[terrain]   || WEATHER_TERRAIN_MOD.open,  monthIdx);
+
+  function composeTrait(b, gm, tm, traitMax){
+    var shift = (gm|0) + (tm|0);
+    var mn = Math.max(0,         (b.min|0) + shift);
+    var mx = Math.min(traitMax,  (b.max|0) + shift);
+    if (mx < mn) mx = mn;
+    return { base: (b.base|0) + shift, die: b.die, min: mn, max: mx };
+  }
+
+  return {
+    temp:    composeTrait(base.temp,   gMod.temp,   tMod.temp,   TRAIT_MAX.temp),
+    wind:    composeTrait(base.wind,   gMod.wind,   tMod.wind,   TRAIT_MAX.wind),
+    precip:  composeTrait(base.precip, gMod.precip, tMod.precip, TRAIT_MAX.precip),
+    arcMult: (gMod.arc || 1.0) * (tMod.arc || 1.0)
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 18e) Single trait roll
+// ---------------------------------------------------------------------------
+
+function _rollTrait(formula, seedNudge){
+  var raw = (formula.base|0) +
+            _rollDie(formula.die) -
+            _rollDie(formula.die) +
+            (seedNudge|0);
+  return Math.max(formula.min|0, Math.min(formula.max|0, raw));
+}
+
+// ---------------------------------------------------------------------------
+// 18f) Time-of-day calculations — two layers
+//
+// Layer 1 (deterministic arc): predictable daily shape from WEATHER_TOD_ARC,
+//   scaled by terrain multiplier. Mornings are cooler/calmer, afternoons peak,
+//   evenings cool again with precip building in humid climates.
+//
+// Layer 2 (stochastic bell): one 1d20 roll per trait per period.
+//   1=−2, 2–4=−1, 5–16=0, 17–19=+1, 20=+2 (critical shifts are rare).
+//
+// Both layers are stored separately on the record so the GM display can
+// distinguish "arc shift" (expected) from "stochastic event" (unusual).
+// ---------------------------------------------------------------------------
+
+function _todArc(climate, arcMult, period){
+  // Returns the deterministic arc offset for each trait at this period.
+  // arcMult = geoMod.arc × terrainMod.arc, both already looked up for this month.
+  var arcDef = (WEATHER_TOD_ARC[climate] || WEATHER_TOD_ARC.temperate);
+  var traits = ['temp', 'wind', 'precip'];
+  var result = { temp:0, wind:0, precip:0 };
+  for (var i=0; i<traits.length; i++){
+    var t   = traits[i];
+    var raw = (arcDef[t] && arcDef[t][period] != null) ? arcDef[t][period] : 0;
+    result[t] = Math.round(raw * arcMult);
+  }
+  return result;
+}
+
+function _todStochastic(){
+  // Returns a random shift for each trait independently using the bell curve.
+  return {
+    temp:   WEATHER_TOD_BELL[_rollDie(20) - 1],
+    wind:   WEATHER_TOD_BELL[_rollDie(20) - 1],
+    precip: WEATHER_TOD_BELL[_rollDie(20) - 1]
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 18f-b) Probabilistic fog roll
+// Returns 'dense', 'light', or 'none'.
+// Called once per period per day at generation time. Result stored on record.
+// ---------------------------------------------------------------------------
+
+var _FOG_BASE = { morning: 0.40, evening: 0.20, afternoon: 0.05 };
+
+var _FOG_GEO_MULT = {
+  river_valley: 2.0,
+  coastal:      1.5,
+  inland_sea:   1.5,
+  open_plains:  0.3,
+  arctic_plain: 0.3,
+  jungle_basin: 1.2
+};
+
+var _FOG_TERRAIN_MULT = {
+  swamp:   2.5,
+  forest:  1.5,
+  desert:  0.1,
+  alpine:  0.4
+};
+
+// Month index → season weight. Fog favours shoulder seasons.
+var _FOG_SEASON_WEIGHT = [
+  0.5,  // 0  mid-win
+  0.5,  // 1  late-win
+  1.2,  // 2  early-sp
+  1.2,  // 3  mid-sp
+  1.2,  // 4  late-sp
+  0.7,  // 5  early-su
+  0.7,  // 6  mid-su
+  0.7,  // 7  late-su
+  1.2,  // 8  early-au
+  1.2,  // 9  mid-au
+  1.2,  // 10 late-au
+  0.6   // 11 early-wn
+];
+
+function _rollFog(period, pv, geography, terrain, monthIdx, prevPeriodFog){
+  // Gate: fog needs clear-to-overcast precip and above-frigid temperature
+  if (pv.precip > 1 || pv.temp < 2) return 'none';
+
+  var base    = _FOG_BASE[period] || 0.05;
+  var gMult   = _FOG_GEO_MULT[geography]   || 1.0;
+  var tMult   = _FOG_TERRAIN_MULT[terrain] || 1.0;
+  var sMult   = _FOG_SEASON_WEIGHT[_weatherMonthIndex(monthIdx)] || 1.0;
+
+  var prob = Math.min(0.90, base * gMult * tMult * sMult);
+
+  // Persistence: dense fog from prior period sustains strongly in calm air;
+  // light fog sustains modestly. Morning dense fog in a swamp can last all day.
+  if (prevPeriodFog === 'dense' && pv.wind <= 1) prob = Math.min(0.90, prob * 2.5);
+  else if (prevPeriodFog === 'light' && pv.wind <= 1) prob = Math.min(0.90, prob * 1.5);
+
+  // Roll (1–100 against prob×100)
+  var roll = _rollDie(100);
+  if (roll > Math.round(prob * 100)) return 'none';
+
+  // Dense fog: swamp terrain or river_valley geography
+  var isDense = (terrain === 'swamp' || geography === 'river_valley');
+  var rawFog  = isDense ? 'dense' : 'light';
+
+  // Wind suppression: light fog disperses at wind ≥2, dense at wind ≥3
+  if (rawFog === 'light'  && pv.wind >= 2) return 'none';
+  if (rawFog === 'dense'  && pv.wind >= 3) return 'none';
+
+  return rawFog;
+}
+
+// ---------------------------------------------------------------------------
+// 18g) Generate a single day's weather record
+// ---------------------------------------------------------------------------
+
+function _generateDayWeather(serial, prevFinal, locationOverride){
+  var loc = locationOverride || getWeatherState().location;
+  if (!loc) return null;
+
+  var dateObj   = fromSerial(serial);
+  var mi        = dateObj.mi;  // month index 0–11
+
+  var climate   = String(loc.climate   || 'temperate').toLowerCase();
+  var geography = String(loc.geography || 'inland').toLowerCase();
+  var terrain   = String(loc.terrain   || 'open').toLowerCase();
+
+  var formula = _composeFormula(climate, geography, terrain, mi);
+  var arcMult = formula.arcMult;
+
+  // Seed nudge: pull today toward yesterday's final by at most CONFIG_WEATHER_SEED_STRENGTH.
+  function _nudge(prev, base){
+    var dev = (prev|0) - (base|0);
+    if (dev > 0) return  CONFIG_WEATHER_SEED_STRENGTH;
+    if (dev < 0) return -CONFIG_WEATHER_SEED_STRENGTH;
+    return 0;
+  }
+
+  var nudge = { temp:0, wind:0, precip:0 };
+  if (prevFinal && CONFIG_WEATHER_SEED_STRENGTH > 0){
+    nudge.temp   = _nudge(prevFinal.temp,   formula.temp.base);
+    nudge.wind   = _nudge(prevFinal.wind,   formula.wind.base);
+    nudge.precip = _nudge(prevFinal.precip, formula.precip.base);
+  }
+
+  // Base roll — afternoon (peak) values for the day.
+  var base = {
+    temp:   _rollTrait(formula.temp,   nudge.temp),
+    wind:   _rollTrait(formula.wind,   nudge.wind),
+    precip: _rollTrait(formula.precip, nudge.precip)
+  };
+
+  // TOD Layer 1: deterministic arc (scaled by combined geo × terrain arcMult).
+  var arcMorning   = _todArc(climate, arcMult, 'morning');
+  var arcAfternoon = _todArc(climate, arcMult, 'afternoon');  // always {0,0,0}
+  var arcEvening   = _todArc(climate, arcMult, 'evening');
+
+  // TOD Layer 2: stochastic bell per trait per period.
+  var rngMorning   = _todStochastic();
+  var rngAfternoon = _todStochastic();
+  var rngEvening   = _todStochastic();
+
+  // Combine arc + stochastic and clamp to composed formula range.
+  function periodVals(arc, rng){
+    var traits = ['temp', 'wind', 'precip'];
+    var out = {};
+    for (var i=0; i<traits.length; i++){
+      var t = traits[i];
+      var v = (base[t]|0) + (arc[t]|0) + (rng[t]|0);
+      out[t] = Math.max(formula[t].min|0, Math.min(formula[t].max|0, v));
+    }
+    return out;
+  }
+
+  var periods = {
+    morning:   periodVals(arcMorning,   rngMorning),
+    afternoon: periodVals(arcAfternoon, rngAfternoon),
+    evening:   periodVals(arcEvening,   rngEvening)
+  };
+
+  // Roll fog per period at generation time — stored so display is consistent.
+  // Chained so each period can inherit persistence from the previous one.
+  var fogMorning   = _rollFog('morning',   periods.morning,   geography, terrain, mi);
+  var fogAfternoon = _rollFog('afternoon', periods.afternoon, geography, terrain, mi, fogMorning);
+  var fogEvening   = _rollFog('evening',   periods.evening,   geography, terrain, mi, fogAfternoon);
+  var fog = { morning: fogMorning, afternoon: fogAfternoon, evening: fogEvening };
+
+  // final = afternoon peak; manifest zones override last.
+  var finalVals = {
+    temp:   periods.afternoon.temp,
+    wind:   periods.afternoon.wind,
+    precip: periods.afternoon.precip
+  };
+  if (loc.manifestZone){
+    var mz = loc.manifestZone;
+    if (typeof mz.tempFloor === 'number') finalVals.temp = Math.max(finalVals.temp, mz.tempFloor);
+    if (typeof mz.tempCeil  === 'number') finalVals.temp = Math.min(finalVals.temp, mz.tempCeil);
+    if (typeof mz.tempMod   === 'number') finalVals.temp += mz.tempMod;
+    if (typeof mz.precipMod === 'number') finalVals.precip = Math.max(0, Math.min(5, finalVals.precip + mz.precipMod));
+    if (typeof mz.windMod   === 'number') finalVals.wind   = Math.max(0, Math.min(5, finalVals.wind   + mz.windMod));
+    if (mz.chaotic){
+      // Kythri: random ±2 swing to temp, ±1 to precip/wind
+      var kR = _seededRand(serial * 77 + 999);
+      finalVals.temp   += Math.floor(kR() * 5) - 2; // -2 to +2
+      finalVals.precip  = Math.max(0, Math.min(5, finalVals.precip + Math.floor(kR() * 3) - 1));
+      finalVals.wind    = Math.max(0, Math.min(5, finalVals.wind   + Math.floor(kR() * 3) - 1));
+    }
+  }
+
+  // Planar coterminous/remote weather influences (± modifiers, not hard overrides).
+  // These stack with manifest zone effects for layered environmental storytelling.
+  if (ensureSettings().planesEnabled !== false){
+    try {
+      var _plEff = getActivePlanarEffects(serial);
+      for (var _pe = 0; _pe < _plEff.length; _pe++){
+        var _ppe = _plEff[_pe];
+        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'coterminous') finalVals.temp += 2;
+        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')      finalVals.temp -= 1;
+        if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 2;
+        if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 1;
+        if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = Math.max(0, finalVals.precip - 1); finalVals.wind = Math.max(0, finalVals.wind - 1); }
+        if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
+        if (_ppe.plane === 'Mabar'   && _ppe.phase === 'coterminous') finalVals.temp -= 1;
+        if (_ppe.plane === 'Irian'   && _ppe.phase === 'coterminous') finalVals.temp += 1;
+        if (_ppe.plane === 'Lamannia'&& _ppe.phase === 'coterminous') finalVals.precip = Math.min(5, finalVals.precip + 1);
+        if (_ppe.plane === 'Shavarath' && _ppe.phase === 'coterminous') finalVals.wind = Math.min(5, finalVals.wind + 1);
+      }
+    } catch(e){ /* planar system not ready */ }
+  }
+
+  // Snow accumulation: previous day was cold (temp ≤3) with any precipitation.
+  var snowAccumulated = !!(prevFinal && prevFinal.temp <= 3 && prevFinal.precip >= 1);
+
+  // Wet accumulation: previous day was warm (temp ≥5) with significant rain (precip ≥2).
+  // Used by extreme event evaluator: flash flood risk elevated, flash freeze possible.
+  var wetAccumulated  = !!(prevFinal && prevFinal.temp >= 5  && prevFinal.precip >= 2);
+
+  return {
+    serial:          serial,
+    location:        { climate: climate, geography: geography, terrain: terrain },
+    monthIdx:        mi,
+    base:            base,
+    arc:             { morning: arcMorning, afternoon: arcAfternoon, evening: arcEvening },
+    rng:             { morning: rngMorning, afternoon: rngAfternoon, evening: rngEvening },
+    periods:         periods,
+    fog:             fog,
+    final:           finalVals,
+    snowAccumulated: snowAccumulated,
+    wetAccumulated:  wetAccumulated,
+    generatedAt:     todaySerial(),
+    stale:           false,
+    locked:          false
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 18h) Forecast management
+// ---------------------------------------------------------------------------
+
+function _forecastRecord(serial){
+  var fc = getWeatherState().forecast;
+  for (var i=0; i<fc.length; i++){ if (fc[i].serial === serial) return fc[i]; }
+  return null;
+}
+
+function _forecastIndex(serial){
+  var fc = getWeatherState().forecast;
+  for (var i=0; i<fc.length; i++){ if (fc[i].serial === serial) return i; }
+  return -1;
+}
+
+function _generateForecast(fromSerial_, count, forceRegen){
+  var ws  = getWeatherState();
+  var loc = ws.location;
+  if (!loc){ warnGM('Set a weather location first: !cal weather location'); return 0; }
+
+  count = (count != null) ? Math.max(1, count|0) : CONFIG_WEATHER_FORECAST_DAYS;
+  var generated = 0;
+
+  // Find the last known final values for seeding
+  var prevFinal = null;
+  var prevIdx = _forecastIndex(fromSerial_ - 1);
+  if (prevIdx >= 0) prevFinal = ws.forecast[prevIdx].final;
+  else {
+    // Check history
+    for (var h=0; h<ws.history.length; h++){
+      if (ws.history[h].serial === fromSerial_ - 1){ prevFinal = ws.history[h].final; break; }
+    }
+  }
+
+  for (var i=0; i<count; i++){
+    var ser = fromSerial_ + i;
+    var existing = _forecastRecord(ser);
+    if (existing && !forceRegen && !existing.stale) continue;
+
+    var rec = _generateDayWeather(ser, prevFinal, loc);
+    if (!rec) break;
+
+    if (existing){
+      ws.forecast[_forecastIndex(ser)] = rec;
+    } else {
+      ws.forecast.push(rec);
+    }
+    prevFinal = rec.final;
+    generated++;
+  }
+
+  // Keep forecast sorted and trimmed to window
+  ws.forecast.sort(function(a,b){ return a.serial - b.serial; });
+
+  return generated;
+}
+
+function weatherEnsureForecast(){
+  // Called after day advance. Locks today, archives old days, fills the window.
+  var ws    = getWeatherState();
+  var today = todaySerial();
+
+  // Archive and lock past days
+  ws.forecast = ws.forecast.filter(function(rec){
+    if (rec.serial < today){
+      rec.locked = true;
+      ws.history.push(rec);
+      return false;
+    }
+    return true;
+  });
+
+  // Trim history and playerReveal to 60 days behind today
+  ws.history.sort(function(a,b){ return a.serial - b.serial; });
+  if (ws.history.length > CONFIG_WEATHER_HISTORY_DAYS) ws.history = ws.history.slice(ws.history.length - CONFIG_WEATHER_HISTORY_DAYS);
+
+  var pruneThreshold = today - 60;
+  Object.keys(ws.playerReveal).forEach(function(k){
+    if (parseInt(k, 10) < pruneThreshold) delete ws.playerReveal[k];
+  });
+
+  // Fill forward to today + CONFIG_WEATHER_FORECAST_DAYS
+  _generateForecast(today, CONFIG_WEATHER_FORECAST_DAYS, false);
+}
+
+// ---------------------------------------------------------------------------
+// 18i) Uncertainty tier for a forecast record
+// ---------------------------------------------------------------------------
+
+function _uncertaintyTier(rec){
+  if (!rec) return 'vague';
+  if (rec.locked) return 'certain';
+  var dist = rec.serial - rec.generatedAt;
+  var tiers = WEATHER_UNCERTAINTY;
+  if (dist <= tiers.certain.maxDist)   return 'certain';
+  if (dist <= tiers.likely.maxDist)    return 'likely';
+  if (dist <= tiers.uncertain.maxDist) return 'uncertain';
+  return 'vague';
+}
+
+// ---------------------------------------------------------------------------
+// 18j-0) Extreme event system
+// ---------------------------------------------------------------------------
+// Events are evaluated once at generation time. The result (an array of
+// event objects) is stored on the record. The Today panel shows them as
+// flagged warnings with two GM buttons: Trigger (send to players) and
+// Roll the Dice (probabilistic roll that either fires or doesn't).
+//
+// No event ever fires automatically. GM must press a button.
+// ---------------------------------------------------------------------------
+
+var EXTREME_EVENTS = {
+
+  flash_flood: {
+    name:     'Flash Flood',
+    emoji:    '🌊',
+    // Trigger: heavy rain in lowland/coastal geography
+    check: function(f, loc, sa, wa){
+      var lowGeos = { river_valley:1, coastal:1, jungle_basin:1, inland_sea:1 };
+      if (f.temp < 5 || f.precip < 3 || !lowGeos[loc.geography]) return 0;
+      var p = 0.12;
+      if (wa)                      p += 0.15;  // prior day already wet
+      if (loc.terrain === 'urban') p += 0.08;  // pavement runoff
+      return Math.min(0.35, p);
+    },
+    duration:  '1–4 hours',
+    mechanics: 'River crossings impassable. Low ground becomes difficult terrain. Swim DC 15 or be swept downstream (1d6 bludgeoning per round). Creatures in water: Str save DC 13 or knocked prone.',
+    aftermath: 'Roads washed out. Fords flooded for 1d4 days. Water sources silted.',
+    playerMsg: function(loc){ return 'A flash flood sweeps through the lowlands. The river bursts its banks — all crossings are closed.'; }
+  },
+
+  whiteout: {
+    name:     'Whiteout',
+    emoji:    '❄️',
+    // Trigger: active blizzard on open flat terrain
+    check: function(f, loc, sa, wa){
+      var openGeos = { open_plains:1, arctic_plain:1 };
+      if (f.temp > 3 || f.precip < 3 || f.wind < 3 || !openGeos[loc.geography]) return 0;
+      return 0.55;
+    },
+    duration:  '2–8 hours',
+    mechanics: 'Visibility 0 ft (total whiteout). All creatures Blinded. Navigation impossible without magic — DC 20 Survival or travel in circles. Exposed creatures: DC 15 Con save each hour or gain Exhaustion.',
+    aftermath: 'Drifts 2–5 ft deep on open ground. All outdoor surfaces difficult terrain for 1d3 days.',
+    playerMsg: function(loc){ return 'A whiteout descends. The world disappears into white — sky and ground indistinguishable. Travel is impossible.'; }
+  },
+
+  ground_blizzard: {
+    name:     'Ground Blizzard',
+    emoji:    '💨',
+    // Trigger: accumulated snow + storm wind on open terrain — no active precip needed
+    check: function(f, loc, sa, wa){
+      var openGeos = { open_plains:1, arctic_plain:1 };
+      if (!sa || f.wind < 3 || !openGeos[loc.geography]) return 0;
+      // Can occur even if today's precip is low — the snow is already on the ground
+      if (f.precip > 1) return 0;  // if actively precipitating, whiteout covers it
+      return 0.35;
+    },
+    duration:  '1–6 hours',
+    mechanics: 'Heavily Obscured beyond 30ft. Navigation DC 15 Survival. Exposed creatures: DC 12 Con save each hour or gain Exhaustion level. Flying impossible in open terrain.',
+    aftermath: 'Drifting fills roads and sheltered passages. Travel speed halved outdoors for the day.',
+    playerMsg: function(loc){ return 'A ground blizzard erupts — the wind picks up the snow already on the ground and flings it horizontally. Visibility collapses.'; }
+  },
+
+  haboob: {
+    name:     'Dust Storm (Haboob)',
+    emoji:    '🌪️',
+    // Trigger: hot dry conditions with wind — desert/plains in dry climate
+    check: function(f, loc, sa, wa){
+      var dryTerrains = { desert:1, open:1 };
+      var openGeos    = { open_plains:1, arctic_plain:1 };
+      var dryClimates = { dry:1 };
+      // Needs dry conditions: no precipitation, hot, windy
+      if (f.precip > 0 || f.temp < 8 || f.wind < 2) return 0;
+      if (!dryTerrains[loc.terrain] && !openGeos[loc.geography]) return 0;
+      var p = 0.10;
+      if (f.wind >= 3) p += 0.05;
+      if (f.temp >= 9) p += 0.05;
+      return Math.min(0.20, p);
+    },
+    duration:  '10 minutes – 3 hours',
+    mechanics: 'Heavily Obscured beyond 30ft for duration. Creatures without eye/mouth protection: DC 12 Con save or become Poisoned (choking dust) until they take a short rest in shelter. Flying creatures: DC 15 Str save or be grounded.',
+    aftermath: 'Fine dust coats everything. Food/water may be contaminated. Visibility remains reduced (Lightly Obscured) for 1d4 hours after.',
+    playerMsg: function(loc){ return 'A wall of dust appears on the horizon and swallows the sky. Shelter — now.'; }
+  },
+
+  avalanche: {
+    name:     'Avalanche',
+    emoji:    '⛰️',
+    // Trigger: highland geography, cold, heavy snow + wind — or post-storm loading
+    check: function(f, loc, sa, wa){
+      if (loc.geography !== 'highland') return 0;
+      if (f.temp > 4) return 0;
+      var p = 0;
+      if (f.precip >= 2 && f.wind >= 2) p = 0.15;
+      if (sa && f.precip >= 2)          p = Math.max(p, 0.15);
+      if (sa && f.precip >= 3 && f.wind >= 3) p = Math.min(0.38, p + 0.15);
+      else if (f.wind >= 3)             p = Math.min(0.38, p + 0.08);
+      return p;
+    },
+    duration:  'Instantaneous event; aftermath hours to days',
+    mechanics: 'Any creature in the avalanche path: DC 15 Dex save or take 6d6 bludgeoning and become Restrained (buried). Restrained creatures: DC 15 Athletics each round to dig free, or suffocate after Con modifier + proficiency bonus rounds.',
+    aftermath: 'Pass or valley blocked. Rescue operations may be needed. Travel through area impossible without magical aid or 1d4 days of clearing.',
+    playerMsg: function(loc){ return 'A thunderous crack echoes from above. Avalanche!'; }
+  },
+
+  lightning_storm: {
+    name:     'Severe Thunderstorm',
+    emoji:    '⚡',
+    // Trigger: severe rain + warm temp + wind
+    check: function(f, loc, sa, wa){
+      if (f.temp < 7 || f.precip < 3 || f.wind < 2) return 0;
+      var p = 0.25;
+      if (f.temp >= 8) p += 0.10;
+      return Math.min(0.35, p);
+    },
+    duration:  '1–3 hours',
+    mechanics: 'Lightning strikes: each minute outdoors, DC 13 Dex save or be struck (4d10 lightning damage, DC 14 Con save or Stunned 1 round). Metal armour wearers: disadvantage on save. Tall isolated objects are struck first.',
+    aftermath: 'Fires possible in dry terrain. Fallen trees may block roads. Flash flooding risk elevated (see Flash Flood).',
+    playerMsg: function(loc){ return 'The storm reaches a violent peak. Lightning splits the sky — this is not a safe time to be in the open.'; }
+  },
+
+  flash_freeze: {
+    name:     'Flash Freeze',
+    emoji:    '🧊',
+    // Trigger: today is suddenly very cold after a warm wet yesterday
+    check: function(f, loc, sa, wa){
+      // wa = prev day was warm (≥5) and wet (≥1)
+      if (!wa || f.temp > 3 || f.wind < 2) return 0;
+      return 0.25;
+    },
+    duration:  '1–4 hours for freeze; persists until thaw',
+    mechanics: 'All exposed water surfaces (puddles, ford crossings, wet mud) become ice. Difficult terrain on all outdoor surfaces. DC 12 Acrobatics to avoid falling prone when moving at full speed on ice.',
+    aftermath: 'Icy surfaces persist until temperature rises above stage 4. Fords may be crossable on foot — or may give way.',
+    playerMsg: function(loc){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
+  }
+};
+
+// Evaluate all extreme events for a given day record.
+// Returns array of { key, event, probability } for events that qualify.
+// Probability > 0 means conditions are met. Events with p=0 are excluded.
+function _evaluateExtremeEvents(rec){
+  if (!rec) return [];
+  var f   = rec.final;
+  var loc = rec.location || {};
+  var sa  = !!rec.snowAccumulated;
+  var wa  = !!rec.wetAccumulated;
+  var qualified = [];
+  var keys = Object.keys(EXTREME_EVENTS);
+  for (var i=0; i<keys.length; i++){
+    var key = keys[i];
+    var evt = EXTREME_EVENTS[key];
+    var p   = evt.check(f, loc, sa, wa);
+    if (p > 0) qualified.push({ key: key, event: evt, probability: p });
+  }
+  return qualified;
+}
+
+// Roll the dice for a single event. Returns true if event fires.
+function _rollExtremeEvent(key, rec){
+  var evt = EXTREME_EVENTS[key];
+  if (!evt) return false;
+  if (!rec || !rec.final) return false;
+  var f   = rec.final;
+  var loc = rec.location || {};
+  var p   = evt.check(f, loc, !!rec.snowAccumulated, !!rec.wetAccumulated);
+  return (_rollDie(100) <= Math.round(p * 100));
+}
+
+// Render the extreme event panel for the GM Today view.
+// Shows each qualified event with its probability and two buttons.
+function _extremeEventPanelHtml(rec){
+  var events = _evaluateExtremeEvents(rec);
+  if (!events.length) return '';
+
+  var lines = ['<div style="margin-top:6px;border-top:1px solid rgba(0,0,0,.15);padding-top:5px;">'];
+  lines.push('<div style="font-size:.85em;font-weight:bold;color:#B71C1C;margin-bottom:3px;">⚠ Extreme Event Conditions Present</div>');
+
+  for (var i=0; i<events.length; i++){
+    var e   = events[i];
+    var pct = Math.round(e.probability * 100);
+    var triggerBtn = button(e.event.emoji+' Mark Active', 'weather event trigger '+e.key);
+    var rollBtn    = button('🎲 Roll (GM) ('+pct+'%)', 'weather event roll '+e.key);
+    lines.push(
+      '<div style="margin:3px 0;padding:4px 6px;background:rgba(183,28,28,.06);border-radius:4px;border:1px solid rgba(183,28,28,.2);">'+
+      '<div style="font-size:.9em;font-weight:bold;">'+esc(e.event.emoji+' '+e.event.name)+'</div>'+
+      '<div style="font-size:.85em;opacity:.85;margin:2px 0;">'+esc(e.event.mechanics)+'</div>'+
+      '<div style="margin-top:3px;">'+triggerBtn+' '+rollBtn+'</div>'+
+      '</div>'
+    );
+  }
+  lines.push('</div>');
+  return lines.join('');
+}
+
+// Build a GM-facing extreme-event details block.
+function _extremeEventDetailsHtml(key, rec){
+  var evt = EXTREME_EVENTS[key];
+  if (!evt) return '';
+  var msg = evt.playerMsg(rec ? rec.location || {} : {});
+  return (
+    '<div style="border:2px solid #B71C1C;border-radius:5px;padding:6px 10px;background:#FFF3F3;">'+
+    '<div style="font-size:1.1em;font-weight:bold;color:#B71C1C;">'+esc(evt.emoji+' '+evt.name)+'</div>'+
+    '<div style="margin-top:3px;">'+esc(msg)+'</div>'+
+    '<div style="font-size:.85em;margin-top:4px;opacity:.85;border-top:1px solid rgba(183,28,28,.2);padding-top:3px;">'+
+    '<b>Duration:</b> '+esc(evt.duration)+'<br>'+
+    '<b>Mechanics:</b> '+esc(evt.mechanics)+'<br>'+
+    '<b>Aftermath:</b> '+esc(evt.aftermath)+
+    '</div></div>'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 18j) Flavor text helpers
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 18j-a) Condition derivation — determines precip type, fog, visibility,
+//         difficult terrain from period values + location context.
+// Called per period. Returns a structured conditions object used by all
+// display functions. This replaces the old precip label system.
+// ---------------------------------------------------------------------------
+
+function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
+  var temp    = pv.temp   || 0;
+  var wind    = pv.wind   || 0;
+  var precip  = pv.precip || 0;
+  var geo     = (loc && loc.geography) || 'inland';
+  var terrain = (loc && loc.terrain)   || 'open';
+
+  // -- Precip type --
+  // temp ≤3 (≤20F) = snow zone; temp 4 (35F) = sleet zone; temp ≥5 = rain zone
+  var precipType = 'none';
+  if (precip >= 1){
+    if      (temp <= 3) precipType = (precip >= 3) ? 'blizzard'   : 'snow';
+    else if (temp === 4) precipType = (precip >= 3) ? 'ice_storm'  : 'sleet';
+    else                precipType = (precip >= 3) ? 'heavy_rain'  : 'rain';
+  }
+
+  // -- Fog --
+  // Use pre-rolled value from the record when available (fogOverride).
+  // Falls back to a quick inline derivation for display contexts that lack
+  // the record (e.g. abridged player view using only rec.final).
+  var fog = (fogOverride !== undefined) ? fogOverride : 'none';
+  if (fog === undefined) fog = 'none';
+
+  // -- Visibility — three clean tiers --
+  // Tier A: Lightly Obscured everywhere
+  // Tier B: Lightly Obscured; Heavily Obscured beyond 60ft
+  // Tier C: Lightly Obscured; Heavily Obscured beyond 30ft
+  var vis = { tier: 'none', beyond: null };
+  if (fog === 'dense' || precipType === 'blizzard'){
+    vis = { tier: 'C', beyond: 30 };
+  } else if (fog === 'light' || precipType === 'heavy_rain' || precipType === 'ice_storm'){
+    vis = { tier: 'B', beyond: 60 };
+  } else if (precipType === 'rain' || precipType === 'snow' || precipType === 'sleet'){
+    vis = { tier: 'A', beyond: null };
+  }
+
+  // -- Difficult terrain --
+  // Always: sleet and ice storm (ice on all surfaces), blizzard (rapid accumulation).
+  // Conditional: light snow only when prior-day accumulation exists (base layer).
+  var difficultTerrain = (
+    precipType === 'sleet'     ||
+    precipType === 'ice_storm' ||
+    precipType === 'blizzard'  ||
+    (precipType === 'snow' && snowAccumulated)
+  );
+
+  // -- Mechanics strings --
+  var mechLines = [];
+
+  // Temperature
+  var tm = CONFIG_WEATHER_MECHANICS.temp[temp];
+  if (tm) mechLines.push('<b>Temperature:</b> ' + esc(tm));
+
+  // Wind
+  var wm = CONFIG_WEATHER_MECHANICS.wind[wind];
+  if (wm) mechLines.push('<b>Wind:</b> ' + esc(wm));
+
+  // Visibility from precip/fog
+  if (vis.tier !== 'none'){
+    var visStr = '';
+    if (vis.tier === 'C'){
+      visStr = 'Lightly Obscured. Heavily Obscured beyond 30ft. Perception at disadvantage.';
+    } else if (vis.tier === 'B'){
+      visStr = 'Lightly Obscured. Heavily Obscured beyond 60ft. Perception at disadvantage.';
+    } else {
+      visStr = 'Lightly Obscured. Perception at disadvantage.';
+    }
+    var visSource = fog !== 'none' ? 'Fog' : 'Precipitation';
+    mechLines.push('<b>'+visSource+':</b> '+visStr);
+  }
+
+  // Difficult terrain
+  if (difficultTerrain){
+    var dtReason = (precipType === 'snow' && snowAccumulated)
+      ? 'Difficult terrain on all surfaces (accumulated snow underfoot).'
+      : (precipType === 'blizzard')
+        ? 'Difficult terrain on all surfaces (rapidly accumulating snow).'
+        : 'Difficult terrain on all surfaces (ice).';
+    mechLines.push('<b>Terrain:</b> ' + dtReason);
+  }
+
+  // Special events (informational, not binding)
+  if (precipType === 'heavy_rain' || precipType === 'blizzard' || precipType === 'ice_storm'){
+    var hazardNote = (precipType === 'heavy_rain')
+      ? 'Risk of lightning and flash flooding. Soft ground may become difficult terrain at GM discretion.'
+      : (precipType === 'blizzard')
+        ? 'Risk of whiteout, avalanche (mountainous terrain), and hypothermia.'
+        : 'Risk of lightning, flash flooding, or falling ice.';
+    mechLines.push('<b>Hazards:</b> ' + hazardNote);
+  }
+
+  return {
+    precipType:       precipType,     // none|rain|snow|sleet|heavy_rain|blizzard|ice_storm
+    fog:              fog,            // none|light|dense
+    visibility:       vis,            // { tier:'none'|'A'|'B'|'C', beyond:null|30|60 }
+    difficultTerrain: difficultTerrain,
+    mechanics:        mechLines       // array of HTML strings, ready to join
+  };
+}
+
+// Render conditions mechanics block as HTML (empty string if none).
+function _conditionsMechHtml(cond){
+  if (!cond.mechanics.length) return '';
+  return '<div style="font-size:.85em;margin-top:3px;">'+cond.mechanics.join('<br>')+'</div>';
+}
+
+// One-line narrative for a period's conditions.
+// period: 'morning' | 'afternoon' | 'evening' — used for fog phrasing.
+function _conditionsNarrative(pv, cond, period){
+  var base = _flavorText(pv);
+  if (cond.fog !== 'none' && pv.precip <= 1){
+    if (cond.fog === 'dense'){
+      if (period === 'morning')        base = pv.precip === 0 ? 'Dense fog.' : 'Dense fog and overcast.';
+      else if (period === 'afternoon') base = pv.precip === 0 ? 'Dense fog persisting into the day.' : 'Overcast with thick fog.';
+      else                             base = pv.precip === 0 ? 'Dense fog settling in.' : 'Foggy and overcast.';
+    } else {
+      // light fog
+      if (period === 'morning')        base = pv.precip === 0 ? 'Patchy morning fog.' : base;
+      else if (period === 'afternoon') base = pv.precip === 0 ? 'Patchy fog.' : base;
+      else                             base = pv.precip === 0 ? 'Light evening fog.' : base;
+    }
+  }
+  return base;
+}
+
+function _tempBand(stage){
+  if (stage <= 3) return 'cold';
+  if (stage === 4) return 'cool';
+  if (stage <= 6) return 'mild';
+  if (stage === 7) return 'warm';
+  return 'hot';
+}
+
+function _flavorText(pv){
+  var key  = _tempBand(pv.temp) + '|' + Math.min(pv.precip|0, 3);
+  var base = CONFIG_WEATHER_FLAVOR[key] || 'Conditions are unusual.';
+  // Wind clause: woven contextually rather than appended as a bare label.
+  // When precip is already heavy the wind is implicit; on clear/overcast days
+  // the wind is the weather and deserves its own sentence.
+  if (pv.wind >= 2){
+    var isStorm = pv.wind >= 3;
+    var hasHeavyPrecip = pv.precip >= 2;
+    var windClause;
+    if (hasHeavyPrecip){
+      // Rain/snow already harsh — note wind escalates severity
+      windClause = isStorm ? ' Storm-force winds.' : ' High winds.';
+    } else {
+      // Clear/overcast day — wind IS the story
+      windClause = isStorm ? ' Storm-force winds make exposed travel dangerous.' : ' Strong winds throughout the day.';
+    }
+    base += windClause;
+  }
+  return base;
+}
+
+// ---------------------------------------------------------------------------
+// 18k) HTML builders
+// ---------------------------------------------------------------------------
+
+function _weatherTraitBadge(trait, stage){
+  // Color scales chosen so that each trait has semantic meaning:
+  //   Temp: deep blue (cold) → white (neutral) → deep red/orange (hot)
+  //   Wind: near-white (calm) → dark blue-grey (storm force)
+  //   Precip: pale sky (clear) → deep slate blue (torrential)
+  var palettes = {
+    temp: [
+      '#A8D8FF','#C2E0FF','#D6ECFF','#E8F4FF','#F0F4F8',  // 0-4 cold range
+      '#F5F5F0',                                            // 5 balanced
+      '#FFF3E0','#FFD54F','#FF8A65','#E53935','#B71C1C'    // 6-10 hot range
+    ],
+    wind:  ['#F5F5F5','#E0E8E0','#B0BEC5','#546E7A'],
+    precip:['#F0F8FF','#CFE8F5','#90CAF9','#1565C0']
+  };
+  var pal   = palettes[trait] || palettes.wind;
+  var bg    = pal[Math.max(0, Math.min(stage, pal.length-1))];
+  var label = (CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage);
+  var tc    = textColor(bg);
+  return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+esc(bg)+';color:'+esc(tc)+';font-size:.85em;">'+esc(label)+'</span>';
+}
+
+function _weatherDayGmHtml(rec, showBreakdown){
+  if (!rec) return '<div style="opacity:.6;">(no data)</div>';
+
+  var tier = _uncertaintyTier(rec);
+  var f    = rec.final;
+  var tCfg = WEATHER_UNCERTAINTY[tier] || WEATHER_UNCERTAINTY.vague;
+
+  var lines = [];
+
+  if (rec.stale){
+    lines.push('<div style="color:#E65100;font-size:.85em;">⚠ Stale — location changed. Reroll to update.</div>');
+  }
+  // Afternoon (peak) badges
+  lines.push(
+    '<div style="margin:3px 0;">'+
+    _weatherTraitBadge('temp',   f.temp)+'&nbsp;'+
+    _weatherTraitBadge('wind',   f.wind)+'&nbsp;'+
+    _weatherTraitBadge('precip', f.precip)+
+    '</div>'
+  );
+  lines.push('<div style="font-size:.8em;opacity:.7;">T:'+f.temp+' W:'+f.wind+' P:'+f.precip+'&nbsp;&nbsp;['+esc(tCfg.label)+']</div>');
+
+  // Full period breakdown — shown for today's view (showBreakdown) at certain tier.
+  // Each period shows narrative, badges, crit flags, and derived mechanics.
+  if (showBreakdown && (tier === 'certain' || showBreakdown === 'force')){
+    var p    = rec.periods  || {};
+    var rng  = rec.rng      || {};
+    var rloc = rec.location || {};
+
+    function critNote(delta){
+      var crits = [];
+      if (Math.abs(delta.temp)   === 2) crits.push('T');
+      if (Math.abs(delta.wind)   === 2) crits.push('W');
+      if (Math.abs(delta.precip) === 2) crits.push('P');
+      return crits.length ? ' <span style="color:#C62828;font-size:.85em;">★'+crits.join(',')+'</span>' : '';
+    }
+
+    function periodBadges(pv){
+      return _weatherTraitBadge('temp',pv.temp)+'&nbsp;'+
+             _weatherTraitBadge('wind',pv.wind)+'&nbsp;'+
+             _weatherTraitBadge('precip',pv.precip);
+    }
+
+    var baseStr  = 'Base T:'+rec.base.temp+' W:'+rec.base.wind+' P:'+rec.base.precip;
+    var pNames   = ['morning','afternoon','evening'];
+    var pIcons   = { morning:'☀', afternoon:'☁', evening:'🌙' };
+
+    var bLines = ['<div style="margin-top:4px;"><div style="font-size:.8em;opacity:.6;">'+esc(baseStr)+'</div>'];
+    for (var pi=0; pi<pNames.length; pi++){
+      var pname   = pNames[pi];
+      var pv      = p[pname]   || {};
+      var delta   = rng[pname] || {};
+      var cond    = _deriveConditions(pv, rloc, pname, rec.snowAccumulated, rec.fog && rec.fog[pname]);
+      var narr    = esc(_conditionsNarrative(pv, cond, pname));
+      var mechHtml= _conditionsMechHtml(cond);
+      bLines.push(
+        '<div style="margin-top:3px;font-size:.85em;">'+
+        pIcons[pname]+' <b>'+titleCase(pname)+':</b> '+narr+critNote(delta)+'<br>'+
+        '<span style="margin-left:10px;">'+periodBadges(pv)+'</span>'+
+        (mechHtml ? '<div style="margin-left:10px;opacity:.9;">'+mechHtml+'</div>' : '')+
+        '</div>'
+      );
+    }
+    bLines.push('</div>');
+    lines.push(bLines.join(''));
+  }
+
+  return lines.join('');
+}
+
+// ---------------------------------------------------------------------------
+// Player forecast helpers
+// ---------------------------------------------------------------------------
+
+// Detail tier by day offset from today for mundane forecasting.
+// Day 1 = full, days 2-3 = moderate, days 4-10 = abridged.
+function _mundaneDetailTier(dayOffset){
+  if (dayOffset <= 0) return 'full';
+  if (dayOffset <= 2) return 'moderate';
+  return 'abridged';
+}
+
+// Upgrade-only: never downgrade a previously revealed tier.
+var _TIER_RANK = { full:3, moderate:2, abridged:1 };
+function _bestTier(a, b){
+  return (_TIER_RANK[a]||0) >= (_TIER_RANK[b]||0) ? a : b;
+}
+
+// Source labels for player-facing weather attribution.
+var WEATHER_SOURCE_LABELS = {
+  common:   'Common Knowledge',
+  mundane:  'Mundane Forecast',
+  magical:  'Magical Forecast',
+  // Legacy keys for backward compatibility with old stored records.
+  survival: 'Mundane Forecast',
+  magic:    'Magical Forecast'
+};
+
+// Record a reveal for a serial. Only upgrades, never downgrades.
+// source: 'common' | 'mundane' | 'magical'
+function _recordReveal(ws, serial, tier, source){
+  var key = String(serial);
+  var prev = ws.playerReveal[key];
+  var prevTier = (prev && typeof prev === 'object') ? prev.tier : (typeof prev === 'string' ? prev : 'abridged');
+  var prevSource = (prev && typeof prev === 'object') ? prev.source : 'common';
+  var newTier = _bestTier(prevTier, tier);
+  // If tier upgraded, use new source; otherwise keep existing
+  var newSource = (newTier !== prevTier) ? (source || 'common') : prevSource;
+  ws.playerReveal[key] = { tier: newTier, source: newSource };
+}
+
+// Read a reveal entry, handling both old string format and new {tier,source} format.
+function _readReveal(entry){
+  if (!entry) return { tier: null, source: 'common' };
+  if (typeof entry === 'string') return { tier: entry, source: 'common' };
+  return { tier: entry.tier || null, source: entry.source || 'common' };
+}
+
+// Render one player-facing day block at the given detail tier.
+function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
+  if (!rec) return '';
+  var cal      = getCal();
+  var d        = fromSerial(rec.serial);
+  var mObj     = cal.months[d.mi] || {};
+  var wd       = isToday ? cal.weekdays[getCal().current.day_of_the_week] : null;
+  var dateLabel= (wd ? esc(wd)+', ' : '') + esc(mObj.name||'?')+' '+d.day;
+  var f        = rec.final;
+  var loc      = rec.location || {};
+  var content  = '';
+
+  // Source attribution line
+  var srcLine = sourceLabel
+    ? '<div style="font-size:.75em;opacity:.45;font-style:italic;margin-top:1px;">'+esc(sourceLabel)+'</div>'
+    : '';
+
+  if (detailTier === 'full'){
+    // Afternoon summary + per-period narrative.
+    // Mechanics only shown on Today — future days show conditions only.
+    var todHtml = '';
+    if (rec.periods){
+      var p       = rec.periods;
+      var pNames  = ['morning','afternoon','evening'];
+      var pIcons  = { morning:'☀', afternoon:'☁', evening:'🌙' };
+      var pLines  = [];
+      for (var pi=0; pi<pNames.length; pi++){
+        var pname = pNames[pi];
+        var pv    = p[pname] || {};
+        var cond  = _deriveConditions(pv, loc, pname, rec.snowAccumulated, rec.fog && rec.fog[pname]);
+        var narr  = esc(_conditionsNarrative(pv, cond, pname));
+        var mhtml = isToday ? _conditionsMechHtml(cond) : '';
+        pLines.push(
+          '<div style="margin-top:2px;">'+
+          pIcons[pname]+' <b>'+titleCase(pname)+':</b> '+narr+
+          (mhtml ? '<div style="margin-left:12px;">'+mhtml+'</div>' : '')+
+          '</div>'
+        );
+      }
+      todHtml = '<div style="font-size:.85em;margin-top:3px;">'+pLines.join('')+'</div>';
+    }
+    var dayCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+    content =
+      '<div>'+esc(_conditionsNarrative(f, dayCond, 'afternoon'))+'</div>'+
+      todHtml;
+
+  } else if (detailTier === 'moderate'){
+    // Single narrative — no mechanics on future days
+    var mc = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+    content = '<div>'+esc(_conditionsNarrative(f, mc, 'afternoon'))+'</div>';
+
+  } else {
+    // Abridged: temp label + condition name
+    var tLabel = CONFIG_WEATHER_LABELS.temp[Math.min(f.temp, 10)] || _tempBand(f.temp);
+    var abCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+    var pLabel = abCond.precipType !== 'none'
+      ? titleCase(abCond.precipType.replace(/_/g,' '))
+      : (CONFIG_WEATHER_LABELS.precip[f.precip] || 'Clear');
+    content = '<div style="opacity:.85;">'+esc(tLabel)+', '+esc(pLabel)+' expected.</div>';
+  }
+
+  return '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12);">'+
+    '<div style="font-weight:bold;font-size:.9em;">'+dateLabel+(isToday ? ' (Today)' : '')+'</div>'+
+    content+
+    srcLine+
+    '</div>';
+}
+
+// Build and send the player forecast to chat.
+// method: 'mundane' | 'magical'. days: 1|3|6|10.
+function sendPlayerForecast(m, method, days){
+  var ws    = getWeatherState();
+  var today = todaySerial();
+  var cal   = getCal();
+  var cur   = cal.current;
+
+  if (!ws.location){
+    warnGM('No weather location set.');
+    return;
+  }
+
+  // Clamp to max 10 days player-facing regardless of GM window
+  days = Math.min(days, 10);
+
+  var methodNorm = String(method || '').toLowerCase();
+  if (methodNorm === 'survival') methodNorm = 'mundane'; // legacy alias
+  if (methodNorm === 'magic')    methodNorm = 'magical'; // legacy alias
+
+  var revealSource = (methodNorm === 'magical') ? 'magical' : 'mundane';
+  var sourceLabel  = WEATHER_SOURCE_LABELS[revealSource] || revealSource;
+
+  var blocks  = [];
+  var revealed = 0;
+
+  for (var i=0; i<days; i++){
+    var ser    = today + i;
+    var rec    = _forecastRecord(ser);
+    if (!rec) continue;
+
+    // Determine detail tier
+    var tier = (methodNorm === 'magical') ? 'full' : _mundaneDetailTier(i);
+
+    // Record the reveal (upgrade-only)
+    _recordReveal(ws, ser, tier, revealSource);
+
+    blocks.push(_playerDayHtml(rec, tier, i === 0, sourceLabel));
+    revealed++;
+  }
+
+  if (!revealed){
+    warnGM('No weather records available for that range. Try generating the forecast first.');
+    return;
+  }
+
+  var methodLabel = methodNorm === 'magical' ? 'Magical Forecast' : 'Mundane Forecast';
+  var dateObj     = fromSerial(today);
+  var mObj        = cal.months[dateObj.mi] || {};
+  var titleDate   = esc(mObj.name||'?')+' '+dateObj.day;
+
+  sendToAll(_menuBox(
+    methodLabel+' — '+titleDate,
+    blocks.join('')
+  ));
+
+  warnGM('Sent '+revealed+'-day '+methodLabel.toLowerCase()+' to players.');
+}
+
+// Build whispered player forecast from their stored reveal state.
+function playerForecastWhisper(m){
+  var ws    = getWeatherState();
+  var today = todaySerial();
+  var cal   = getCal();
+  var reveals = ws.playerReveal || {};
+  var blocks  = [];
+
+  for (var i=0; i<10; i++){
+    var ser  = today + i;
+    var key  = String(ser);
+    var rev  = _readReveal(reveals[key]);
+    if (!rev.tier) continue;
+    var rec  = _forecastRecord(ser);
+    if (!rec) continue;
+    var srcLabel = WEATHER_SOURCE_LABELS[rev.source] || null;
+    blocks.push(_playerDayHtml(rec, rev.tier, i === 0, srcLabel));
+  }
+
+  if (!blocks.length){
+    whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
+    return;
+  }
+
+  var dateObj  = fromSerial(today);
+  var mObj     = cal.months[dateObj.mi] || {};
+  var titleDate = esc(mObj.name||'?')+' '+dateObj.day;
+  whisper(m.who, _menuBox('Your Weather Forecast — '+titleDate, blocks.join('')));
+}
+
+function weatherTodayGmHtml(){
+  var ws  = getWeatherState();
+  var ser = todaySerial();
+  var rec = _forecastRecord(ser);
+
+  var loc = ws.location;
+  if (!loc){
+    return _menuBox('Weather',
+      '<div style="opacity:.7;">No location set.</div>'+
+      '<div style="margin-top:4px;">'+button('Set Location','weather location')+'</div>'
+    );
+  }
+
+  var locLine = '<div style="font-size:.85em;opacity:.75;">'+
+    esc(titleCase(loc.climate))+' / '+esc(titleCase((loc.geography||'inland').replace(/_/g,' ')))+' / '+esc(titleCase(loc.terrain))+
+    (loc.manifestZone ? ' &nbsp;<span style="color:#E65100;">['+esc(loc.manifestZone.name)+']</span>' : '')+
+    '</div>';
+
+  var body = rec
+    ? _weatherDayGmHtml(rec, true)
+    : '<div style="opacity:.6;">No weather generated for today.</div>';
+
+  var topButtons =
+    button('📣 Send Today','weather send today')+' '+
+    button('Forecast','weather forecast')+' '+
+    button('Reroll Today','weather reroll')+' '+
+    button('Set Location','weather location')+' '+
+    button('History','weather history');
+
+  var mundaneRow =
+    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Mundane send:</div>'+
+    '<div>'+
+    button('1 day', 'weather send mundane 1')+' '+
+    button('3 days','weather send mundane 3')+' '+
+    button('6 days','weather send mundane 6')+' '+
+    button('10 days','weather send mundane 10')+
+    '</div>';
+
+  var magicalRow =
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Magical send:</div>'+
+    '<div>'+
+    button('1 day', 'weather send magical 1')+' '+
+    button('3 days','weather send magical 3')+' '+
+    button('6 days','weather send magical 6')+' '+
+    button('10 days','weather send magical 10')+
+    '</div>';
+
+  var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
+
+  // Tidal info for coastal/island geographies
+  var tidalLine = '';
+  var geo = (loc.geography || 'inland').toLowerCase();
+  if (geo === 'coastal' || geo === 'island' || geo === 'coastal_bluff'){
+    try {
+      var _tidx = getTidalIndex(todaySerial());
+      tidalLine = '<div style="font-size:.82em;opacity:.75;margin-top:3px;">\uD83C\uDF0A Tides: <b>'+esc(tidalLabel(_tidx))+'</b> ('+_tidx+'/10)</div>';
+    } catch(e){}
+  }
+
+  return _menuBox("Today's Weather",
+    locLine + body +
+    tidalLine +
+    extremeHtml +
+    '<div style="margin-top:6px;">'+ topButtons +'</div>'+
+    mundaneRow + magicalRow
+  );
+}
+
+function weatherForecastGmHtml(){
+  var ws    = getWeatherState();
+  var today = todaySerial();
+  var cal   = getCal();
+  var rows  = [];
+
+  for (var i=0; i<CONFIG_WEATHER_FORECAST_DAYS; i++){
+    var ser = today + i;
+    var rec = _forecastRecord(ser);
+    var d   = fromSerial(ser);
+    var mObj= cal.months[d.mi] || {};
+    var dayLabel = esc(mObj.name||'?')+' '+d.day;
+
+    if (!rec){
+      rows.push('<tr>'+
+        '<td style="'+STYLES.td+'">'+dayLabel+'</td>'+
+        '<td style="'+STYLES.td+';opacity:.5;" colspan="2">Not generated</td>'+
+        '<td style="'+STYLES.td+'">'+button('Gen','weather reroll '+ser)+'</td>'+
+        '</tr>');
+      continue;
+    }
+
+    var tier  = _uncertaintyTier(rec);
+    var tCfg  = WEATHER_UNCERTAINTY[tier] || {};
+    var f     = rec.final;
+    var badges = _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
+    var raw    = 'T:'+f.temp+' W:'+f.wind+' P:'+f.precip;
+    var staleFlag   = rec.stale ? ' ⚠' : '';
+    var extremeFlag = _evaluateExtremeEvents(rec).length > 0
+      ? ' <span style="color:#B71C1C;font-weight:bold;" title="Extreme event conditions present">⚡</span>' : '';
+
+    rows.push('<tr>'+
+      '<td style="'+STYLES.td+(i===0?';font-weight:bold;':'')+'">'+dayLabel+(i===0?' (today)':'')+'</td>'+
+      '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
+      '<td style="'+STYLES.td+';font-size:.8em;opacity:.7;">'+esc(raw)+' ['+esc(tCfg.label||tier)+']'+staleFlag+'</td>'+
+      '<td style="'+STYLES.td+'">'+button('Reroll','weather reroll '+ser)+'</td>'+
+      '</tr>');
+  }
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Date</th>'+
+    '<th style="'+STYLES.th+'">Conditions</th>'+
+    '<th style="'+STYLES.th+'">Detail</th>'+
+    '<th style="'+STYLES.th+'">Action</th>'+
+    '</tr>';
+
+  return _menuBox('10-Day Forecast',
+    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
+    '<div style="margin-top:6px;">'+
+    button('Regenerate All','weather generate')+' '+
+    button('⬅ Back','weather')+
+    '</div>'
+  );
+}
+
+function weatherHistoryGmHtml(){
+  var ws  = getWeatherState();
+  var cal = getCal();
+
+  if (!ws.history || !ws.history.length){
+    return _menuBox('Weather History','<div style="opacity:.7;">No history yet.</div>'+'<div style="margin-top:4px;">'+button('⬅ Back','weather')+'</div>');
+  }
+
+  var rows = ws.history.slice().reverse().slice(0,20).map(function(rec){
+    var d     = fromSerial(rec.serial);
+    var mObj  = cal.months[d.mi] || {};
+    var label = esc(mObj.name||'?')+' '+d.day;
+    var f     = rec.final;
+    var loc   = rec.location || {};
+    var badges= _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
+    var hCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+    var hNarr = esc(_conditionsNarrative(f, hCond, 'afternoon'));
+    return '<tr>'+
+      '<td style="'+STYLES.td+'">'+label+'</td>'+
+      '<td style="'+STYLES.td+'">'+badges+'</td>'+
+      '<td style="'+STYLES.td+';font-size:.85em;opacity:.85;">'+hNarr+'</td>'+
+      '</tr>';
+  });
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Date</th>'+
+    '<th style="'+STYLES.th+'">Conditions</th>'+
+    '<th style="'+STYLES.th+'">Summary</th>'+
+    '</tr>';
+
+  return _menuBox('Weather History (last 20)',
+    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
+    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+  );
+}
+
+// Location wizard — multi-step button flow stored as pending state
+function _getWeatherWizard(){
+  var ws = getWeatherState();
+  if (!ws._wizard) ws._wizard = {};
+  return ws._wizard;
+}
+
+function weatherLocationWizardHtml(step, partial){
+  partial = partial || {};
+
+  // Step 1: Climate
+  if (!step || step === 'start'){
+    var climateButtons = Object.keys(WEATHER_CLIMATES).map(function(k){
+      return '<div style="margin:3px 0;">'+
+        button(titleCase(k), 'weather location climate '+k)+
+        ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_CLIMATES[k])+'</span>'+
+        '</div>';
+    }).join('');
+    var st2 = ensureSettings();
+    var sv2  = st2.seasonVariant || CONFIG_DEFAULTS.seasonVariant;
+    var hem2 = st2.hemisphere    || CONFIG_DEFAULTS.hemisphere;
+    var _hemAware = SEASON_SETS[sv2] && SEASON_SETS[sv2].hemisphereAware;
+    var hemHint = _hemAware
+      ? (hem2 === 'north'
+          ? '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Southern hemisphere campaign? › !cal hemisphere south</div>'
+          : '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Northern hemisphere campaign? › !cal hemisphere north</div>')
+      : '';
+    return _menuBox('Set Location — Step 1: Climate', climateButtons + hemHint);
+  }
+
+  // Step 2: Geography
+  if (step === 'geography'){
+    var geoButtons = Object.keys(WEATHER_GEOGRAPHIES).map(function(k){
+      var label = titleCase(k.replace(/_/g,' '));
+      return '<div style="margin:3px 0;">'+
+        button(label, 'weather location geography '+k)+
+        ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_GEOGRAPHIES[k])+'</span>'+
+        '</div>';
+    }).join('');
+    return _menuBox(
+      'Set Location — Step 2: Geography (Climate: '+esc(titleCase(partial.climate||'?'))+')',
+      geoButtons
+    );
+  }
+
+  // Step 3: Terrain
+  if (step === 'terrain'){
+    var terrainButtons = Object.keys(WEATHER_TERRAINS_UI).map(function(k){
+      var label = titleCase(k.replace(/_/g,' '));
+      return '<div style="margin:3px 0;">'+
+        button(label, 'weather location terrain '+k)+
+        ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_TERRAINS_UI[k])+'</span>'+
+        '</div>';
+    }).join('');
+    var ctx = esc(titleCase(partial.climate||'?'))+' / '+esc(titleCase((partial.geography||'inland').replace(/_/g,' ')));
+    return _menuBox('Set Location — Step 3: Terrain ('+ctx+')', terrainButtons);
+  }
+
+  // Step 4: Manifest Zone — this step finalizes the location
+  if (step === 'zone'){
+    var ctx2 = esc(titleCase(partial.climate||'?'))+' / '+
+               esc(titleCase((partial.geography||'inland').replace(/_/g,' ')))+' / '+
+               esc(titleCase(partial.terrain||'?'));
+    return _menuBox('Set Location — Step 4: Manifest Zone ('+ctx2+')',
+      '<div style="opacity:.8;margin-bottom:6px;">Active manifest zone? Selecting finalizes the location.</div>'+
+      '<div style="margin:3px 0;">'+button('None — finalize','weather location zone none')+'</div>'+
+      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Temperature-affecting zones:</div>'+
+      '<div style="margin:3px 0;">'+button('Fernia (warmth, temp +2)','weather location zone fernia')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Risia (cold, temp −2)','weather location zone risia')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Irian (radiant warmth, temp +1)','weather location zone irian')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Mabar (shadow cold, temp −1)','weather location zone mabar')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Lamannia (lush, precip +1)','weather location zone lamannia')+'</div>'+
+      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Atmospheric zones:</div>'+
+      '<div style="margin:3px 0;">'+button('Syrania (clear skies, precip −1)','weather location zone syrania')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Kythri (chaotic, random swings)','weather location zone kythri')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Shavarath (stormy, wind +1)','weather location zone shavarath')+'</div>'+
+      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Flavor zones (no weather effect):</div>'+
+      '<div style="margin:3px 0;">'+button('Daanvi (orderly)','weather location zone daanvi')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Dolurrh (deathly)','weather location zone dolurrh')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Thelanis (fey)','weather location zone thelanis')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Xoriat (madness)','weather location zone xoriat')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Dal Quor (dreams)','weather location zone dalquor')+'</div>'
+    );
+  }
+
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// 18l) Weather command handler
+// ---------------------------------------------------------------------------
+
+function handleWeatherCommand(m, args){
+  // args[0] = 'weather', args[1] = subcommand
+  var sub = String(args[1]||'').toLowerCase();
+
+  // If weather is disabled, non-GMs get a polite message; GMs can still configure.
+  if (ensureSettings().weatherEnabled === false && !playerIsGM(m.playerid)){
+    whisper(cleanWho(m.who), _menuBox("Weather", '<div style="opacity:.7;">Weather system is not active.</div>'));
+    return;
+  }
+
+  if (!playerIsGM(m.playerid)){
+    // Players: 'weather' shows today, 'weather forecast' shows their revealed forecast
+    if (sub === 'forecast'){
+      playerForecastWhisper(m);
+    } else {
+      // Show today at the best tier they've been granted, or abridged if nothing recorded
+      var ws0   = getWeatherState();
+      var tSer  = todaySerial();
+      var rec0  = _forecastRecord(tSer);
+      var rev0  = _readReveal(ws0.playerReveal && ws0.playerReveal[String(tSer)]);
+      var tier0 = rev0.tier || 'abridged';
+      var src0  = WEATHER_SOURCE_LABELS[rev0.source] || null;
+      if (!rec0){
+        whisper(m.who, _menuBox("Today's Weather", '<div style="opacity:.7;">Conditions not available.</div>'));
+      } else {
+        whisper(m.who, _menuBox("Today's Weather",
+          _playerDayHtml(rec0, tier0, true, src0)+
+          '<div style="margin-top:4px;">'+button('Full Forecast','weather forecast')+'</div>'
+        ));
+      }
+    }
+    return;
+  }
+
+  // GM subcommands
+  switch(sub){
+
+    case '':
+    case 'today':
+      weatherEnsureForecast();
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+
+    case 'forecast':
+      weatherEnsureForecast();
+      whisper(m.who, weatherForecastGmHtml());
+      break;
+
+    case 'history':
+      whisper(m.who, weatherHistoryGmHtml());
+      break;
+
+    case 'send': {
+      // weather send <mundane|magical|today> <1|3|6|10>
+      // 'today' sends today's weather at the best tier previously revealed.
+      var sendMethod = String(args[2]||'').toLowerCase();
+      var sendDays   = parseInt(args[3], 10) || 1;
+      // Legacy aliases
+      if (sendMethod === 'survival') sendMethod = 'mundane';
+      if (sendMethod === 'magic')    sendMethod = 'magical';
+
+      if (sendMethod === 'today'){
+        // Send today at best revealed tier (or abridged if none)
+        weatherEnsureForecast();
+        var tSerSend = todaySerial();
+        var recSend  = _forecastRecord(tSerSend);
+        if (!recSend){
+          warnGM('No weather record for today. Try generating first.');
+          break;
+        }
+        var revSend   = _readReveal(getWeatherState().playerReveal[String(tSerSend)]);
+        var tierSend  = revSend.tier || 'abridged';
+        var srcSend   = revSend.source || 'common';
+        var srcLabel  = WEATHER_SOURCE_LABELS[srcSend] || 'Common Knowledge';
+        // Record the reveal (upgrade-only) — 'common' source for auto-send
+        _recordReveal(getWeatherState(), tSerSend, tierSend, srcSend);
+        var dateObjS  = fromSerial(tSerSend);
+        var mObjS     = getCal().months[dateObjS.mi] || {};
+        var titleS    = esc(mObjS.name||'?')+' '+dateObjS.day;
+        sendToAll(_menuBox(
+          "Today's Weather — "+titleS,
+          _playerDayHtml(recSend, tierSend, true, srcLabel)
+        ));
+        warnGM('Sent today\'s weather ('+tierSend+' / '+srcLabel+') to players.');
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+
+      if (sendMethod !== 'mundane' && sendMethod !== 'magical'){
+        warnGM('Usage: weather send mundane|magical|today [1|3|6|10] (legacy aliases: survival|magic)');
+        break;
+      }
+      sendPlayerForecast(m, sendMethod, sendDays);
+      // Refresh today view so buttons are visible again
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+    }
+
+    case 'event': {
+      // weather event trigger <key>  — GM-only advisory
+      // weather event roll <key>     — GM-only probability roll
+      var evtSub = String(args[2]||'').toLowerCase();
+      var evtKey = String(args[3]||'').toLowerCase();
+      var evtRec = _forecastRecord(todaySerial());
+      if (!evtRec || !evtRec.final){
+        warnGM('No weather record for today. Generate weather first.');
+        break;
+      }
+      if (!EXTREME_EVENTS[evtKey]){
+        warnGM('Unknown event key: '+evtKey);
+        break;
+      }
+      if (evtSub === 'trigger'){
+        var trigHtml = _extremeEventDetailsHtml(evtKey, evtRec);
+        whisper(m.who, _menuBox('Extreme Event',
+          '<div><b>⚡ '+esc(EXTREME_EVENTS[evtKey].name)+'</b> triggered for GM reference.</div>'+
+          '<div style="opacity:.8;margin-top:3px;">No message was sent to players.</div>'+
+          '<div style="margin-top:5px;">'+trigHtml+'</div>'+
+          '<div style="margin-top:5px;">'+
+            button('Back to Weather','weather')+' '+
+            button('Forecast','weather forecast')+
+          '</div>'
+        ));
+      } else if (evtSub === 'roll'){
+        var fired = _rollExtremeEvent(evtKey, evtRec);
+        if (fired){
+          var fireHtml = _extremeEventDetailsHtml(evtKey, evtRec);
+          whisper(m.who, _menuBox('Extreme Event Roll',
+            '<div><b>🎲 Result:</b> '+esc(EXTREME_EVENTS[evtKey].name)+' fires (GM advisory only).</div>'+
+            '<div style="opacity:.8;margin-top:3px;">No message was sent to players.</div>'+
+            '<div style="margin-top:5px;">'+fireHtml+'</div>'+
+            '<div style="margin-top:5px;">'+
+              button('Back to Weather','weather')+' '+
+              button('Forecast','weather forecast')+
+            '</div>'
+          ));
+        } else {
+          whisper(m.who, _menuBox('Extreme Event Roll',
+            '<div><b>🎲 Result:</b> conditions were not quite right. No event this time.</div>'+
+            '<div style="margin-top:5px;">'+
+              button('Back to Weather','weather')+' '+
+              button('Forecast','weather forecast')+
+            '</div>'
+          ));
+        }
+      } else {
+        warnGM('Usage: weather event trigger <key>  or  weather event roll <key>');
+      }
+      break;
+    }
+
+    case 'generate':
+      // Force regenerate the whole forecast window
+      var n = parseInt(args[2],10) || CONFIG_WEATHER_FORECAST_DAYS;
+      var cnt = _generateForecast(todaySerial(), n, true);
+      whisper(m.who, 'Generated '+cnt+' day'+(cnt===1?'':'s')+' of weather.');
+      whisper(m.who, weatherForecastGmHtml());
+      break;
+
+    case 'reroll': {
+      // Reroll a specific future day (not past/locked)
+      var targetSer = parseInt(args[2],10);
+      if (!isFinite(targetSer)) targetSer = todaySerial();
+      var existing = _forecastRecord(targetSer);
+      if (existing && existing.locked){
+        warnGM('That day is locked (it\'s in the past). Cannot reroll.');
+        break;
+      }
+      var prevFinalForReroll = null;
+      var prevRec = _forecastRecord(targetSer - 1);
+      if (prevRec) prevFinalForReroll = prevRec.final;
+      var newRec = _generateDayWeather(targetSer, prevFinalForReroll, null);
+      if (newRec){
+        var ws2 = getWeatherState();
+        var idx2 = _forecastIndex(targetSer);
+        if (idx2 >= 0) ws2.forecast[idx2] = newRec;
+        else ws2.forecast.push(newRec);
+        ws2.forecast.sort(function(a,b){ return a.serial - b.serial; });
+        // Cascade: update the next day's accumulation flags so they reflect
+        // the newly rolled record. Only updates if next day exists and is unlocked.
+        var nextRec2 = _forecastRecord(targetSer + 1);
+        if (nextRec2 && !nextRec2.locked){
+          nextRec2.snowAccumulated = !!(newRec.final.temp <= 3 && newRec.final.precip >= 1);
+          nextRec2.wetAccumulated  = !!(newRec.final.temp >= 5 && newRec.final.precip >= 2);
+        }
+      }
+      whisper(m.who, weatherForecastGmHtml());
+      break;
+    }
+
+    case 'lock': {
+      // Magical reveal: collapse uncertainty on a day (treat as generated today)
+      var lockSer = parseInt(args[2],10);
+      if (!isFinite(lockSer)) lockSer = todaySerial();
+      var lockRec = _forecastRecord(lockSer);
+      if (!lockRec){ warnGM('No weather record for that day.'); break; }
+      lockRec.generatedAt = todaySerial(); // collapse uncertainty
+      warnGM('Forecast for day '+lockSer+' locked (Magical reveal — full detail).');
+      whisper(m.who, weatherForecastGmHtml());
+      break;
+    }
+
+    // --- Location wizard steps ---
+
+    case 'location': {
+      var locSub = String(args[2]||'').toLowerCase();
+
+      if (!locSub){
+        getWeatherState()._wizard = {};
+        whisper(m.who, weatherLocationWizardHtml('start'));
+        break;
+      }
+
+      if (locSub === 'climate'){
+        var climate = String(args[3]||'').toLowerCase();
+        if (!WEATHER_CLIMATE_BASE[climate]){
+          whisper(m.who, 'Unknown climate. '+button('Back','weather location'));
+          break;
+        }
+        // Quiet hint: tropical climate selected but season names are still geographic.
+        var _svNow = ensureSettings().seasonVariant || CONFIG_DEFAULTS.seasonVariant;
+        if (climate === 'tropical' && _svNow !== 'tropical'){
+          whisper(m.who,
+            '<div style="font-size:.85em;opacity:.6;font-style:italic;margin-bottom:4px;">' +
+            'Tropical climate — consider: ' +
+            button('Tropical seasons','seasons tropical')+
+            '</div>'
+          );
+        }
+        getWeatherState()._wizard = { climate: climate };
+        whisper(m.who, weatherLocationWizardHtml('geography', { climate: climate }));
+        break;
+      }
+
+      if (locSub === 'geography'){
+        var geography = String(args[3]||'').toLowerCase();
+        if (!WEATHER_GEO_MOD[geography]){
+          whisper(m.who, 'Unknown geography. '+button('Back','weather location'));
+          break;
+        }
+        var wiz = _getWeatherWizard();
+        wiz.geography = geography;
+        whisper(m.who, weatherLocationWizardHtml('terrain', wiz));
+        break;
+      }
+
+      if (locSub === 'terrain'){
+        var terrain = String(args[3]||'').toLowerCase();
+        if (!WEATHER_TERRAIN_MOD[terrain]){
+          whisper(m.who, 'Unknown terrain. '+button('Back','weather location'));
+          break;
+        }
+        var wiz2 = _getWeatherWizard();
+        wiz2.terrain = terrain;
+        whisper(m.who, weatherLocationWizardHtml('zone', wiz2));
+        break;
+      }
+
+      if (locSub === 'zone'){
+        // Zone step finalizes the location — no further step needed.
+        var zoneKey = String(args[3]||'').toLowerCase();
+        var wiz3 = _getWeatherWizard();
+        var mz = null;
+        // Manifest zones: the plane's influence leaks through, not the plane itself.
+        // Effects are mild nudges, not hard limits.
+        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:2 };
+        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-2 };
+        else if (zoneKey === 'irian')    mz = { name:'Irian',     tempMod:1 };
+        else if (zoneKey === 'mabar')    mz = { name:'Mabar',     tempMod:-1 };
+        else if (zoneKey === 'lamannia') mz = { name:'Lamannia',  precipMod:1 };
+        else if (zoneKey === 'syrania')  mz = { name:'Syrania',   precipMod:-1 };
+        else if (zoneKey === 'kythri')   mz = { name:'Kythri',    chaotic:true };
+        else if (zoneKey === 'shavarath')mz = { name:'Shavarath', windMod:1 };
+        else if (zoneKey === 'daanvi')   mz = { name:'Daanvi' };
+        else if (zoneKey === 'dolurrh')  mz = { name:'Dolurrh' };
+        else if (zoneKey === 'thelanis') mz = { name:'Thelanis' };
+        else if (zoneKey === 'xoriat')   mz = { name:'Xoriat' };
+        else if (zoneKey === 'dalquor')  mz = { name:'Dal Quor' };
+        // 'none' leaves mz null
+
+        var newLoc = {
+          climate:      wiz3.climate   || 'temperate',
+          geography:    wiz3.geography || 'inland',
+          terrain:      wiz3.terrain   || 'open',
+          manifestZone: mz
+        };
+        newLoc.sig = _locSig(newLoc);
+
+        var ws3 = getWeatherState();
+        var hadLocation = !!ws3.location;
+        ws3.location = newLoc;
+        delete ws3._wizard;
+
+        // Resurrection pass
+        var today3 = todaySerial();
+        var resurrected = 0, staled = 0;
+        ws3.forecast.forEach(function(rec){
+          if (rec.locked || rec.serial < today3) return;
+          var recSig = rec.location ? _locSig(rec.location) : '';
+          if (recSig === newLoc.sig){
+            rec.stale = false;
+            resurrected++;
+          } else {
+            rec.stale = true;
+            staled++;
+          }
+        });
+
+        var dispClimate   = esc(titleCase(newLoc.climate));
+        var dispGeo       = esc(titleCase(newLoc.geography.replace(/_/g,' ')));
+        var dispTerrain   = esc(titleCase(newLoc.terrain.replace(/_/g,' ')));
+        var dispZone      = mz ? ' ['+esc(mz.name)+']' : '';
+
+        var msg = 'Location set: <b>'+dispClimate+' / '+dispGeo+' / '+dispTerrain+'</b>'+dispZone+'.';
+        if (hadLocation){
+          if (resurrected > 0 && staled === 0){
+            msg += '<br><span style="color:#2E7D32;">Forecast restored from matching records.</span>';
+          } else if (resurrected > 0){
+            msg += '<br><span style="color:#1565C0;">'+resurrected+' day(s) restored; '+staled+' stale.</span>';
+          } else {
+            msg += '<br><span style="color:#E65100;">Future forecast marked stale. Regenerate to update.</span>';
+          }
+        }
+
+        whisper(m.who,
+          _menuBox('Location Set', msg)+
+          '<div style="margin-top:4px;">'+
+          button('Regenerate Forecast','weather generate')+' '+
+          button('View Forecast','weather forecast')+
+          '</div>'
+        );
+        break;
+      }
+
+      whisper(m.who, 'Usage: <code>!cal weather location</code> (opens wizard)');
+      break;
+    }
+
+    default:
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+  }
 }
 
 /* ============================================================================
- * 18) BOOT
+ * 19) BOOT
  * ==========================================================================*/
+
 function handleInput(msg){
   if (msg.type!=='api' || !/^!cal\b/i.test(msg.content)) return;
   checkInstall();
@@ -3758,24 +6530,2940 @@ function handleInput(msg){
   }
   cmd.run(msg, args);
 }
+
 function register(){ on('chat:message', handleInput); }
+
+/* ============================================================================
+ * SECTION 20) MOON SYSTEM
+ * ==========================================================================*/
+
+// ---------------------------------------------------------------------------
+// 20a) Moon data
+// ---------------------------------------------------------------------------
+
+var MOON_SYSTEMS = {
+  eberron: {
+    id: 'eberron',
+    moons: [
+      { name:'Zarantyr',  title:'The Storm Moon',    color:'#F5F5FA', associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
+        synodicPeriod:27.32, diameter:1250, distance:14300,
+        variation:{ shape:'random', amplitude:2.2, wavelengthCycles:5, bias:null },
+        epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Olarune',   title:'The Sentinel Moon', color:'#FFC68A', associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
+        synodicPeriod:33.6, diameter:950, distance:22500,
+        variation:{ shape:'sine', amplitude:0.4, wavelengthCycles:8, bias:null },
+        epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Therendor', title:"The Healer's Moon", color:'#D3D3D3', associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
+        synodicPeriod:24.0, diameter:1100, distance:39000,
+        variation:{ shape:'sine', amplitude:0.6, wavelengthCycles:9, bias:null },
+        epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Eyre',      title:'The Anvil',         color:'#C0C0C0', associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
+        synodicPeriod:14.0, diameter:1200, distance:52000,
+        variation:{ shape:'sine', amplitude:0.4, wavelengthCycles:2, bias:'fast' },
+        epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Dravago',   title:"The Herder's Moon", color:'#E6E6FA', associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
+        synodicPeriod:84.0, diameter:2000, distance:77500,
+        variation:{ shape:'sine', amplitude:1.1, wavelengthCycles:6, bias:'slow' },
+        epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Nymm',      title:'The Crown',         color:'#FFD96B', associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
+        synodicPeriod:28.0, diameter:900, distance:95000,
+        variation:null,
+        epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Lharvion',  title:'The Eye',           color:'#F5F5F5', associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
+        synodicPeriod:29.75, diameter:1350, distance:125000,
+        variation:{
+          shape:'xoriat',
+          phase:{ amplitude:3.0, wavelength:9, forwardBias:0.66, jumpChance:0.08, jumpMultiplier:7.5 },
+          inclination:{ range:3.0, wavelength:17 },
+          eccentricity:{ range:0.09, wavelength:23 },
+          precession:{ amplitude:15, wavelength:13, canReverse:true }
+        },
+        phaseAnchors:[] },
+      { name:'Barrakas',  title:'The Lantern',       color:'#DCDCDC', associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
+        synodicPeriod:22.4, diameter:1500, distance:144000,
+        variation:{ shape:'sine2', amplitude:0.7, wavelengthCycles:3, bias:null },
+        epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Rhaan',     title:'The Book',          color:'#9AC0FF', associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
+        synodicPeriod:42.0, diameter:800, distance:168000,
+        variation:{ shape:'sine2', amplitude:0.7, wavelengthCycles:3, bias:null },
+        epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Sypheros',  title:'The Shadow',        color:'#696969', associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
+        synodicPeriod:56.0, diameter:1200, distance:193000,
+        variation:{ shape:'sine', amplitude:0.9, wavelengthCycles:4, bias:'slow' },
+        phaseAnchors:[] },
+      { name:'Aryth',     title:'The Gateway',       color:'#FF4500', associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
+        synodicPeriod:84.0, diameter:1000, distance:221000,
+        variation:{ shape:'sine', amplitude:0.5, wavelengthCycles:4, bias:null },
+        epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] },
+      { name:'Vult',      title:'The Warding Moon',  color:'#A9A9A9', associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
+        synodicPeriod:168.0, diameter:1800, distance:252000,
+        variation:{ shape:'sine', amplitude:0.3, wavelengthCycles:7, bias:null },
+        epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} },
+        phaseAnchors:[] }
+    ]
+  }
+};
+
+// ---------------------------------------------------------------------------
+// 20b) State & PRNG helpers
+// ---------------------------------------------------------------------------
+
+function getMoonState(){
+  var root = state[state_name];
+  if (!root.moons) root.moons = {
+    sequences: {},     // moonName -> array of { serial, type, retro }
+    seeds: {},         // legacy moonName -> override seed string
+    systemSeed: null,  // single global seed word for the entire lunar system
+    gmAnchors: {},     // moonName -> [{ serial, type }]  GM-forced phase events
+    generatedFrom: null,  // serial day from which sequences were generated
+    generatedThru: 0,  // serial day up to which sequences have been generated
+    revealTier: 'mundane',  // 'mundane' | 'magical'
+    revealHorizonDays: 7    // player-known horizon window
+  };
+  var ms = root.moons;
+  if (!ms.gmAnchors) ms.gmAnchors = {};
+  if (ms.systemSeed === undefined) ms.systemSeed = null;
+  if (!isFinite(ms.generatedFrom)) ms.generatedFrom = null;
+  if (!ms.revealTier) ms.revealTier = 'mundane';
+  ms.revealTier = String(ms.revealTier || '').toLowerCase();
+  if (ms.revealTier !== 'mundane' && ms.revealTier !== 'magical') ms.revealTier = 'mundane';
+  ms.revealHorizonDays = parseInt(ms.revealHorizonDays, 10);
+  if (!isFinite(ms.revealHorizonDays) || ms.revealHorizonDays < 7) ms.revealHorizonDays = 7;
+  return ms;
+}
+
+function _moonHashStr(str){
+  // String -> deterministic float 0..1
+  var h = 0x811c9dc5;
+  for (var i = 0; i < str.length; i++){
+    h ^= str.charCodeAt(i);
+    h = (Math.imul(h, 0x01000193)) >>> 0;
+  }
+  return h / 4294967296;
+}
+
+function _moonPrng(seedFloat){
+  // Mulberry32 — fast, deterministic, seedable PRNG. Returns next() -> [0,1)
+  var s = (seedFloat * 4294967296) >>> 0;
+  return function(){
+    s += 0x6D2B79F5;
+    var t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Seeded dice roller — deterministic from serial + salt string.
+// Returns 1..sides (inclusive). Recognizably D&D: d4, d6, d8, d10, d12, d20, d100.
+function _dN(serial, salt, sides){
+  var h = 0x811c9dc5;
+  var str = String(serial) + ':' + salt;
+  for (var i = 0; i < str.length; i++){
+    h ^= str.charCodeAt(i);
+    h = (Math.imul(h, 0x01000193)) >>> 0;
+  }
+  return 1 + (h % sides);
+}
+
+// ---------------------------------------------------------------------------
+// 20b-ii) Festival soft anchors — decouple events from specific moons
+// ---------------------------------------------------------------------------
+// Each festival has a target date and phase. If any moon naturally has a
+// matching event within 1 day of that date, a d6 is rolled — on 6, the
+// event shifts to land exactly on the festival date. If nothing is within
+// 1 day, nothing happens. No moon is favored over another.
+
+var FESTIVAL_SOFT_ANCHORS = [
+  { event:'Crystalfall',       type:'full', month:2,  day:9,  salt:'crystalfall' },
+  { event:"Sun's Blessing",    type:'full', month:3,  day:15, salt:'suns_blessing' },
+  { event:"Onatar's Flame",    type:'full', month:1,  day:7,  salt:'onatars_flame' },
+  { event:"Bounty's Blessing", type:'full', month:7,  day:14, salt:'bountys_blessing' },
+  { event:'Brightblade',       type:'full', month:6,  day:12, salt:'brightblade' },
+  { event:'The Hunt',          type:'full', month:8,  day:4,  salt:'the_hunt' },
+  { event:"Aureon's Crown",    type:'full', month:5,  day:26, salt:'aureons_crown' },
+  { event:"Boldrei's Feast",   type:'full', month:9,  day:9,  salt:'boldreis_feast' },
+  { event:'Thronehold',        type:'full', month:11, day:11, salt:'thronehold' }
+];
+
+// ---------------------------------------------------------------------------
+// 20c) Year / serial helpers
+// ---------------------------------------------------------------------------
+
+var MOON_PRE_GENERATE_YEARS = 2;
+var MOON_PREDICTION_LIMITS = {
+  mundaneDays: 280,      // max mundane horizon (10 months)
+  magicalDays: 672,      // bounded by 2-year pre-generation window
+  magicalExactDays: 180  // exact-by-day confidence window for magical insight
+};
+var MOON_REVEAL_RANGE_OPTIONS = {
+  '1w': 7,
+  '1m': 28,
+  '3m': 84,
+  '6m': 168,
+  '10m': 280
+};
+
+function _parseMoonRevealRange(token, tier){
+  tier = _normalizeMoonRevealTier(tier);
+  var maxAllowed = (tier === 'magical') ? MOON_PREDICTION_LIMITS.magicalDays : Math.max(MOON_PREDICTION_LIMITS.mundaneDays, 280);
+  var t = String(token || '').toLowerCase().trim();
+  if (!t) return (tier === 'magical') ? 84 : 7;
+  if (MOON_REVEAL_RANGE_OPTIONS[t]) return Math.min(maxAllowed, MOON_REVEAL_RANGE_OPTIONS[t]);
+
+  if (!/^\d+$/.test(t)) return null;
+  if (!/^\d+$/.test(t)) return null;
+  var n = parseInt(t, 10);
+  if (!isFinite(n) || n < 1) return null;
+  return Math.min(maxAllowed, n);
+}
+
+function _rangeLabel(days){
+  days = parseInt(days, 10) || 0;
+  if (days === 7) return '1 week';
+  if (days === 28) return '1 month';
+  if (days === 84) return '3 months';
+  if (days === 168) return '6 months';
+  if (days === 280) return '10 months';
+  if (days % 28 === 0) return (days / 28) + ' months';
+  return days + ' days';
+}
+
+function _moonYearDays(){
+  return getCal().months.reduce(function(s, m){ return s + (m.days|0); }, 0);
+}
+
+// _moonAnchorBaseSerial and _nearestAnchorSerial removed — all moons now use
+// epochSeed. GM hard anchors use gmAnchors path in moonEnsureSequences.
+
+// ---------------------------------------------------------------------------
+// 20d) Variation step
+// ---------------------------------------------------------------------------
+
+function _moonVariationStep(variation, cycleIndex, rng){
+  // Returns signed day offset to add to synodicPeriod for this cycle
+  if (!variation) return 0;  // Nymm: exact
+
+  var amp  = variation.amplitude    || 0;
+  var wl   = variation.wavelengthCycles || 4;
+  var bias = variation.bias;
+  var offset = 0;
+
+  switch (variation.shape){
+    case 'sine':
+      offset = amp * Math.sin(cycleIndex * 2 * Math.PI / wl);
+      break;
+    case 'sine2':
+      var inner = Math.sin(cycleIndex * 2 * Math.PI / wl);
+      offset = amp * Math.sin(inner * Math.PI);
+      break;
+    case 'random':
+      offset = amp * (rng() * 2 - 1);
+      break;
+    default:
+      offset = 0;
+  }
+
+  if (bias === 'fast') offset -= amp * 0.3;
+  if (bias === 'slow') offset += amp * 0.3;
+
+  return offset;
+}
+
+// ---------------------------------------------------------------------------
+// 20d-ii) Festival soft nudge application
+// ---------------------------------------------------------------------------
+// For each festival, checks if ANY moon naturally has its target event within
+// 1 day of the festival date. If so, rolls d6 — only on 6, shifts that moon's
+// event to land exactly on the festival date. Simple, clean, no overreach.
+
+function _applyFestivalNudges(moons, ms, genFrom, genThru){
+  var calStart = fromSerial(genFrom);
+  var calEnd   = fromSerial(genThru);
+  for (var yr = calStart.year; yr <= calEnd.year; yr++){
+    for (var fi = 0; fi < FESTIVAL_SOFT_ANCHORS.length; fi++){
+      var fest = FESTIVAL_SOFT_ANCHORS[fi];
+      var festSerial = toSerial(yr, (fest.month|0) - 1, fest.day|0);
+      if (festSerial < genFrom || festSerial > genThru) continue;
+
+      // Roll d6: nudge only on 6 (16.7%)
+      if (_dN(festSerial, fest.salt + '_nudge', 6) !== 6) continue;
+
+      // Find any moon with a natural event within 1 day of the festival
+      var bestMoon = null, bestIdx = -1, bestDist = Infinity;
+      for (var mi = 0; mi < moons.length; mi++){
+        if (moons[mi].variation && moons[mi].variation.shape === 'xoriat') continue;
+        var seq = ms.sequences[moons[mi].name];
+        if (!seq) continue;
+        for (var si = 0; si < seq.length; si++){
+          if (seq[si].type !== fest.type) continue;
+          if (seq[si].gmForced) continue;
+          var dist = Math.abs(seq[si].serial - festSerial);
+          if (dist <= 1 && dist < bestDist){
+            bestDist = dist;
+            bestMoon = moons[mi].name;
+            bestIdx = si;
+          }
+        }
+      }
+
+      // Shift to exact festival date
+      if (bestMoon && bestIdx >= 0){
+        ms.sequences[bestMoon][bestIdx] = {
+          serial: festSerial,
+          type: fest.type,
+          retro: false,
+          festivalNudge: fest.event
+        };
+        ms.sequences[bestMoon].sort(function(a, b){ return a.serial - b.serial; });
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 20e) Standard sequence generation (all moons except Lharvion)
+// ---------------------------------------------------------------------------
+
+function _generateStandardSequence(moon, startSerial, endSerial, seedOverride){
+  var period    = moon.synodicPeriod;
+  var variation = moon.variation;
+  var events    = [];
+
+  // Determine epoch: serial of a known full moon to start counting from.
+  // All moons now use epochSeed for their starting point.
+  var epochSerial;
+  if (moon.epochSeed){
+    var seedWord  = seedOverride || (moon.epochSeed.defaultSeed) || 'storm';
+    var refD      = moon.epochSeed.referenceDate;
+    var refSerial = toSerial(refD.year, refD.month - 1, refD.day);
+    epochSerial   = refSerial - _moonHashStr(seedWord) * period;
+  } else {
+    // Fallback: use start of generation window
+    epochSerial = startSerial;
+  }
+
+  // RNG seeded from moon name (+ seed word for Zarantyr) for reproducibility
+  var rngSeed = _moonHashStr(moon.name + (seedOverride || ''));
+  var rng = _moonPrng(rngSeed);
+
+  // Rewind epochSerial backward to just before startSerial.
+  // We must consume the RNG in forward order, so: first estimate how many cycles
+  // to burn, burn them, then walk forward to the right starting point.
+  var cur = epochSerial;
+  var ci  = 0;
+
+  // If epochSerial is ahead of startSerial, step backward in whole-period chunks
+  // (no RNG consumed for backward steps -- we'll re-approach from a safe rewind point).
+  if (cur > startSerial){
+    var approxCyclesBack = Math.ceil((cur - startSerial) / period) + 2;
+    cur -= approxCyclesBack * period;
+    // ci stays 0 -- we haven't consumed RNG yet, so pattern starts fresh from this earlier point
+  }
+
+  // Now walk forward, consuming RNG, until we're just before startSerial
+  var MAX_REWIND = 2000;
+  while (cur + period < startSerial - period && MAX_REWIND-- > 0){
+    cur += period + _moonVariationStep(variation, ci++, rng);
+  }
+
+  // Walk forward, emitting full and new events
+  var MAX_FWD = 800;
+  while (cur <= endSerial && MAX_FWD-- > 0){
+    var thisOffset = _moonVariationStep(variation, ci, rng);
+    var thisPeriod = Math.max(period * 0.25, period + thisOffset);
+    var fullS = cur;
+    var newS  = cur + thisPeriod * 0.5;
+    if (fullS >= startSerial && fullS <= endSerial)
+      events.push({ serial:fullS, type:'full', retro:false });
+    if (newS  >= startSerial && newS  <= endSerial)
+      events.push({ serial:newS,  type:'new',  retro:false });
+    cur += thisPeriod;
+    ci++;
+  }
+
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// 20f) Lharvion (Xoriat) sequence — daily accumulator
+// ---------------------------------------------------------------------------
+
+function _generateLharvionSequence(moon, startSerial, endSerial, seedOverride){
+  var vp       = moon.variation.phase;
+  var baseStep = 1.0 / moon.synodicPeriod;
+  var rng      = _moonPrng(_moonHashStr('lharvion' + (seedOverride || '')));
+  var events   = [];
+
+  // Walk from well before startSerial so the phase accumulator is warmed up
+  var walkStart = Math.floor(startSerial) - Math.ceil(moon.synodicPeriod) * 4;
+  var phase     = rng();  // arbitrary starting phase
+  var prevPhase = phase;
+
+  for (var d = walkStart; d <= Math.ceil(endSerial); d++){
+    var sine    = Math.sin(d * 2 * Math.PI / vp.wavelength);
+    // Forward bias: tilted stronger forward when sine is positive, weaker when negative
+    var fwdP    = vp.forwardBias + (1 - vp.forwardBias) * 0.35 * sine;
+    fwdP        = Math.max(0.08, Math.min(0.96, fwdP));
+    var dir     = (rng() < fwdP) ? 1 : -1;
+    var mag     = baseStep * (1.0 + vp.amplitude * Math.abs(sine));
+    // Occasional quarter-phase lurch
+    if (rng() < vp.jumpChance) mag *= vp.jumpMultiplier;
+    prevPhase = phase;
+    phase    += dir * mag;
+
+    if (d < startSerial || d > endSerial) continue;
+
+    // Full moon: accumulator crosses an integer boundary
+    var pFloor = Math.floor(prevPhase), cFloor = Math.floor(phase);
+    if (cFloor !== pFloor){
+      events.push({ serial: d + 0.5, type:'full', retro:(dir < 0) });
+    }
+    // New moon: accumulator crosses a half-integer boundary
+    var pHalf = Math.floor(prevPhase * 2), cHalf = Math.floor(phase * 2);
+    if (cHalf !== pHalf && (cHalf % 2) !== 0){
+      events.push({ serial: d + 0.5, type:'new', retro:(dir < 0) });
+    }
+  }
+
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// 20g) Ensure sequences are generated / up to date
+// ---------------------------------------------------------------------------
+
+function moonEnsureSequences(focusSerial, horizonExtraDays){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return;
+
+  var ms         = getMoonState();
+  var cal        = getCal();
+  var cur        = cal.current;
+  var todayS     = toSerial(cur.year, cur.month, cur.day_of_the_month);
+  var focusS     = isFinite(focusSerial) ? (focusSerial|0) : todayS;
+  var extraDays  = isFinite(horizonExtraDays) ? Math.max(0, horizonExtraDays|0) : 0;
+  var yearDays   = _moonYearDays();
+  var needThru   = Math.max(todayS, focusS) + Math.max(MOON_PRE_GENERATE_YEARS * yearDays, extraDays);
+  var wantFrom   = Math.min(todayS, focusS) - yearDays;
+
+  var priorFrom = (isFinite(ms.generatedFrom) && ms.generatedFrom > 0) ? ms.generatedFrom : null;
+  if (priorFrom != null && ms.generatedThru >= needThru && priorFrom <= wantFrom) return;
+
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys) return;
+
+  var genFrom = (priorFrom != null) ? Math.min(priorFrom, wantFrom) : wantFrom;
+  var globalSeed = (ms.systemSeed != null && String(ms.systemSeed).trim() !== '')
+    ? String(ms.systemSeed).trim()
+    : null;
+  sys.moons.forEach(function(moon){
+    var moonSeedOverride = ms.seeds[moon.name] || null; // legacy compatibility
+    var seed = moonSeedOverride || (globalSeed ? (globalSeed + '::' + moon.name) : null);
+    var seq;
+    if (moon.variation && moon.variation.shape === 'xoriat'){
+      seq = _generateLharvionSequence(moon, genFrom, needThru, seed);
+    } else {
+      seq = _generateStandardSequence(moon, genFrom, needThru, seed);
+    }
+
+    // Apply GM anchor overrides: for each forced event, find the nearest
+    // existing event of the same type within (period/4) days and shift it,
+    // or insert a new event if nothing is close enough.
+    var gmList = ms.gmAnchors[moon.name] || [];
+    gmList.forEach(function(anchor){
+      if (anchor.serial < genFrom || anchor.serial > needThru) return;
+      var halfWindow = (moon.synodicPeriod || 28) / 4;
+      var nearest = null, nearestDist = Infinity;
+      for (var k = 0; k < seq.length; k++){
+        if (seq[k].type !== anchor.type) continue;
+        var dist = Math.abs(seq[k].serial - anchor.serial);
+        if (dist < nearestDist){ nearestDist = dist; nearest = k; }
+      }
+      if (nearest !== null && nearestDist <= halfWindow){
+        seq[nearest] = { serial: anchor.serial, type: anchor.type, retro: false, gmForced: true };
+      } else {
+        seq.push({ serial: anchor.serial, type: anchor.type, retro: false, gmForced: true });
+      }
+    });
+
+    // Keep sequence sorted by serial
+    seq.sort(function(a, b){ return a.serial - b.serial; });
+    ms.sequences[moon.name] = seq;
+  });
+
+  // --- Festival soft nudges (applied across all moons post-generation) ---
+  // For each festival, scan all moons to find which has its target event
+  // closest to the festival date. Roll d6; only on a 6, nudge that moon's
+  // event to the festival date (±1 day). This decouples festivals from
+  // specific moons and creates year-to-year variety.
+  _applyFestivalNudges(sys.moons, ms, genFrom, needThru);
+
+  // Clear Long Shadows cache since moon data has changed
+  _longShadowsCache = {};
+  ms.generatedFrom = genFrom;
+  ms.generatedThru = needThru;
+}
+
+// ---------------------------------------------------------------------------
+// 20h) Phase interpolation & display helpers
+// ---------------------------------------------------------------------------
+
+// Raw phase computation — no Long Shadows override. Used internally to
+// avoid recursion when computing which moons Long Shadows claims.
+function _moonPhaseAtRaw(moonName, serial){
+  var seq = (getMoonState().sequences[moonName]) || [];
+  if (!seq.length) return { illum:0.5, waxing:true };
+
+  var prev = null, next = null;
+  for (var i = 0; i < seq.length; i++){
+    if (seq[i].type !== 'full') continue;
+    if (seq[i].serial <= serial) prev = seq[i];
+    else if (!next)              next = seq[i];
+  }
+
+  if (!prev && !next) return { illum:0.5, waxing:true };
+  if (!prev) return { illum:0.0, waxing:true  };
+  if (!next) return { illum:0.5, waxing:false };
+
+  var span  = next.serial - prev.serial;
+  var pos   = (serial - prev.serial) / span;
+  var illum = 0.5 + 0.5 * Math.cos(pos * 2 * Math.PI);
+  var waxing = pos > 0.5;
+  return { illum: illum, waxing: waxing };
+}
+
+// Cache for Long Shadows claimed moons (one entry per year)
+var _longShadowsCache = {};
+
+// Compute which moons Long Shadows claims for a given year.
+//
+// Tapered gobble zone:
+//   1. Find the nearest new moon to Vult 27 across all moons.
+//   2. Based on that closest new's distance from Vult 27:
+//      - Distance 0 (on the 27th): gobble radius = ±3 days
+//      - Distance 1 (26th or 28th): gobble radius = ±2 days
+//      - Distance ≥2 (25th or earlier / 1st or later): gobble radius = ±1 day
+//   3. The gobble window is centered on the closest new moon, scanning
+//      directionally away from Vult 27 (past for moons before 27th,
+//      future for moons after 27th).
+//   4. Any moon whose new falls within the gobble window is also claimed.
+//
+// Long Shadows is exempt from the d6 festival chance filter — the canon
+// explicitly states there IS a new moon. The only question is which one(s).
+
+function _longShadowsClaimedMoons(year){
+  if (_longShadowsCache[year]) return _longShadowsCache[year];
+
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons){ _longShadowsCache[year] = []; return []; }
+  moonEnsureSequences();
+
+  var vult27 = toSerial(year, 11, 27); // month 11 = Vult (0-indexed), day 27
+
+  // For each moon, find its nearest new moon event to Vult 27.
+  // New moons are at midpoints between consecutive full moons in the sequence.
+  var candidates = [];
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    var seq = (getMoonState().sequences[moon.name]) || [];
+    if (!seq.length) continue;
+
+    // Collect all new-moon serials near Vult 27 (within a generous scan window)
+    var prevFull = null;
+    for (var j = 0; j < seq.length; j++){
+      if (seq[j].type !== 'full') continue;
+      if (prevFull){
+        var newS = Math.round((prevFull.serial + seq[j].serial) / 2);
+        var dist = newS - vult27; // signed distance (negative = before, positive = after)
+        if (Math.abs(dist) <= 20){ // generous initial scan
+          candidates.push({ name: moon.name, newSerial: newS, signedDist: dist, absDist: Math.abs(dist) });
+        }
+      }
+      prevFull = seq[j];
+    }
+  }
+
+  if (!candidates.length){ _longShadowsCache[year] = []; return []; }
+
+  // Sort by absolute distance to Vult 27
+  candidates.sort(function(a, b){ return a.absDist - b.absDist; });
+
+  // The closest moon is always claimed
+  var claimed = [candidates[0].name];
+  var closestAbsDist = candidates[0].absDist;
+
+  // Determine gobble radius based on closest moon's distance from Vult 27
+  var gobbleRadius;
+  if (closestAbsDist <= 0) gobbleRadius = 3;
+  else if (closestAbsDist <= 1) gobbleRadius = 2;
+  else gobbleRadius = 1;
+
+  // Now scan for additional moons to gobble.
+  // For each candidate beyond the closest, check if it falls within the
+  // gobble window. The window scans directionally away from Vult 27:
+  // - Moons before Vult 27: scan (newSerial - gobbleRadius) to newSerial
+  // - Moons after Vult 27: scan newSerial to (newSerial + gobbleRadius)
+  // The window is centered on the closest new, reaching outward.
+  // Actually: per user spec, we look ±gobbleRadius from the CLOSEST new's
+  // position, but directionally. The closest new defines the center; we look
+  // past-ward from it and future-ward from it, for additional new moons.
+  var closestSerial = candidates[0].newSerial;
+
+  for (var k = 1; k < candidates.length; k++){
+    var c = candidates[k];
+    // Skip if already claimed (same moon, different new event)
+    var alreadyClaimed = false;
+    for (var ac = 0; ac < claimed.length; ac++){
+      if (claimed[ac] === c.name){ alreadyClaimed = true; break; }
+    }
+    if (alreadyClaimed) continue;
+
+    // Check if this moon's new falls within the gobble zone.
+    // The zone extends gobbleRadius days outward from the closest new,
+    // in the direction away from Vult 27.
+    var distFromClosest = Math.abs(c.newSerial - closestSerial);
+    if (distFromClosest <= gobbleRadius){
+      claimed.push(c.name);
+    }
+  }
+
+  _longShadowsCache[year] = claimed;
+  return claimed;
+}
+
+// Check if a moon is in the Long Shadows window and claimed by Mabar
+function _isLongShadowsOverride(moonName, serial){
+  // Long Shadows = Vult 26-28 (month index 11, days 26-28 in 1-indexed)
+  var cal = fromSerial(serial);
+  if (cal.mi !== 11) return false; // not Vult
+  if (cal.day < 26 || cal.day > 28) return false;
+
+  // Check that Mabar is actually coterminous (respects GM overrides and anchors)
+  try {
+    var mabarState = getPlanarState('Mabar', serial);
+    if (!mabarState || mabarState.phase !== 'coterminous') return false;
+  } catch(e){ return false; }
+
+  var claimed = _longShadowsClaimedMoons(cal.year);
+  for (var i = 0; i < claimed.length; i++){
+    if (claimed[i] === moonName) return true;
+  }
+  return false;
+}
+
+// Public moonPhaseAt — applies Long Shadows override when active
+function moonPhaseAt(moonName, serial){
+  // Check Long Shadows: if this moon is claimed, force it to new
+  if (_isLongShadowsOverride(moonName, serial)){
+    return { illum: 0.0, waxing: false, longShadows: true };
+  }
+  return _moonPhaseAtRaw(moonName, serial);
+}
+
+function _moonPhaseLabel(illum, waxing){
+  if (illum >= 0.97) return 'Full';
+  if (illum >= 0.55) return (waxing ? 'Waxing' : 'Waning') + ' Gibbous';
+  if (illum >= 0.45) return (waxing ? 'First' : 'Last')    + ' Quarter';
+  if (illum >= 0.03) return (waxing ? 'Waxing' : 'Waning') + ' Crescent';
+  return 'New';
+}
+
+function _moonPhaseEmoji(illum, waxing){
+  if (illum >= 0.97) return '\uD83C\uDF15';   // 🌕 Full
+  if (illum >= 0.55) return waxing ? '\uD83C\uDF14' : '\uD83C\uDF16';  // 🌔 🌖 Gibbous
+  if (illum >= 0.45) return waxing ? '\uD83C\uDF13' : '\uD83C\uDF17';  // 🌓 🌗 Quarter
+  if (illum >= 0.03) return waxing ? '\uD83C\uDF12' : '\uD83C\uDF18';  // 🌒 🌘 Crescent
+  return '\uD83C\uDF11';  // 🌑 New
+}
+
+function _moonNextEvent(moonName, serial, type){
+  // Returns serial of next event of given type after serial, or null.
+  // Uses binary search to find the starting region, then scans forward for matching type.
+  var seq = (getMoonState().sequences[moonName]) || [];
+  if (!seq.length) return null;
+
+  // Binary search for first entry with serial > target
+  var lo = 0, hi = seq.length;
+  while (lo < hi){
+    var mid = (lo + hi) >>> 1;
+    if (seq[mid].serial <= serial) lo = mid + 1;
+    else hi = mid;
+  }
+
+  // Scan forward from lo for the first matching type
+  for (var i = lo; i < seq.length; i++){
+    if (seq[i].type === type) return seq[i].serial;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 20i) Moon uncertainty & tiered forecast helpers
+// ---------------------------------------------------------------------------
+
+// Moon reveal tiers -- simplified to match weather.
+// mundane: rough windows suitable for ordinary almanac knowledge.
+// magical: high-confidence projections with bounded long-range certainty.
+var MOON_REVEAL_TIERS = { mundane:1, magical:2 };
+
+function _normalizeMoonRevealTier(tier){
+  var t = String(tier || '').toLowerCase();
+  if (MOON_REVEAL_TIERS[t]) return t;
+  return 'mundane';
+}
+
+// Source labels for player-facing attribution.
+var MOON_SOURCE_LABELS = {
+  mundane:  'Mundane Forecast',
+  magical:  'Magical Forecast'
+};
+
+// Returns uncertainty window (+/- days) for a moon based on its variation parameters.
+function _moonUncertaintyDays(moon){
+  if (!moon.variation) return 0;  // Nymm -- perfectly predictable
+  if (moon.variation.shape === 'xoriat') return -1;  // Lharvion -- unknowable
+  // For sine/sine2/random shapes, uncertainty scales with amplitude
+  var amp = moon.variation.amplitude || 0;
+  return Math.ceil(amp);
+}
+
+// Format a "next event" string based on reveal tier.
+function _moonNextEventStr(moon, today, type, tier, horizonDays){
+  tier = _normalizeMoonRevealTier(tier);
+  var exact = _moonNextEvent(moon.name, today, type);
+  if (exact === null) return null;
+  var d = Math.ceil(exact - today);
+  if (d <= 0) return null;
+
+  var label = (type === 'full') ? 'Full' : 'New';
+  var unc   = _moonUncertaintyDays(moon);
+  var cap = (tier === 'magical') ? MOON_PREDICTION_LIMITS.magicalDays : MOON_PREDICTION_LIMITS.mundaneDays;
+  var horizon = parseInt(horizonDays, 10);
+  if (!isFinite(horizon) || horizon < 1) horizon = (tier === 'magical') ? 84 : 7;
+  horizon = Math.min(cap, horizon);
+  function inDays(n){
+    return (n === 1) ? 'in 1 day' : ('in ' + n + ' days');
+  }
+  if (d > horizon){
+    return label + ': beyond ' + horizon + ' days';
+  }
+
+  // Xoriat: broadly unknowable without strong magical insight.
+  if (unc === -1){
+    if (tier !== 'magical') return label + ': unknowable';
+    if (d <= MOON_PREDICTION_LIMITS.magicalExactDays) return label + ' ' + inDays(d);
+    var xWin = Math.max(2, Math.ceil((d - MOON_PREDICTION_LIMITS.magicalExactDays) / 84));
+    var xLo  = Math.max(1, d - xWin);
+    var xHi  = d + xWin;
+    return (xLo === xHi) ? (label + ' ' + inDays(xLo)) : (label + ' in ' + xLo + '\u2013' + xHi + ' days');
+  }
+
+  // Mundane: uncertainty grows with forecast distance.
+  // Predictable moons (unc=0) stay exact through 3 months, then widen.
+  if (tier === 'mundane'){
+    var mWin;
+    if (unc <= 0){
+      if (d <= 84) mWin = 0;
+      else mWin = 1 + Math.floor((d - 84) / 56);
+    } else {
+      mWin = unc + Math.floor(d / 56);
+    }
+    if (mWin <= 0) return label + ' ' + inDays(d);
+    var mLo = Math.max(1, d - mWin);
+    var mHi = d + mWin;
+    return (mLo === mHi) ? (label + ' in about ' + mLo + ' day' + (mLo===1?'':'s'))
+                         : (label + ' in about ' + mLo + '\u2013' + mHi + ' days');
+  }
+
+  // Magical: exact near-term, bounded uncertainty at longer range.
+  if (d <= MOON_PREDICTION_LIMITS.magicalExactDays){
+    return label + ' ' + inDays(d);
+  }
+  var gWin = Math.max(1, Math.ceil(Math.max(unc, 0) / 2)) +
+             Math.floor((d - MOON_PREDICTION_LIMITS.magicalExactDays) / 168);
+  var gLo = Math.max(1, d - gWin);
+  var gHi = d + gWin;
+  return (gLo === gHi) ? (label + ' ' + inDays(gLo)) : (label + ' in ' + gLo + '\u2013' + gHi + ' days');
+}
+
+// Render a single moon row at a given reveal tier.
+function _moonRowHtml(moon, today, tier, horizonDays){
+  tier = _normalizeMoonRevealTier(tier);
+  var ph       = moonPhaseAt(moon.name, today);
+  var label    = _moonPhaseLabel(ph.illum, ph.waxing);
+  var emoji    = _moonPhaseEmoji(ph.illum, ph.waxing);
+  var pct      = Math.round(ph.illum * 100);
+
+  // Long Shadows annotation
+  var longShadowsTag = '';
+  if (ph.longShadows){
+    longShadowsTag = ' <span style="color:#9C27B0;font-size:.75em;" title="Mabar pulls this moon into darkness">\uD83C\uDF11 Long Shadows</span>';
+  }
+
+  // Find next event to display
+  var nextFull = _moonNextEventStr(moon, today, 'full', tier, horizonDays);
+  var nextNew  = _moonNextEventStr(moon, today, 'new', tier, horizonDays);
+  var nextStr  = '';
+
+  // Pick the closer event
+  var dFull = _moonNextEvent(moon.name, today, 'full');
+  var dNew  = _moonNextEvent(moon.name, today, 'new');
+  if (dFull !== null && (dNew === null || dFull <= dNew))
+    nextStr = nextFull || '';
+  else if (dNew !== null)
+    nextStr = nextNew || '';
+
+  var dot = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;'+
+            'background:'+esc(moon.color||'#aaa')+';border:1px solid rgba(0,0,0,.3);'+
+            'margin-right:3px;vertical-align:middle;"></span>';
+  var isLharvion = (moon.variation && moon.variation.shape === 'xoriat');
+  var nameStyle  = isLharvion ? 'font-style:italic;' : '';
+
+  // Moon ascendancy: brighter when associated plane is coterminous, dimmer when remote
+  var ascendTag = '';
+  if (moon.plane && ensureSettings().planesEnabled !== false){
+    try {
+      var _plSt = getPlanarState(moon.plane, today);
+      if (_plSt && _plSt.phase === 'coterminous')
+        ascendTag = ' <span style="' +
+          applyBg('font-size:.75em;padding:0 3px;border-radius:3px;', '#FFE8A3', CONTRAST_MIN_HEADER) +
+          '" title="'+esc(moon.plane)+' coterminous">\u2728 ascendant</span>';
+      else if (_plSt && _plSt.phase === 'remote')
+        ascendTag = ' <span style="opacity:.4;font-size:.75em;" title="'+esc(moon.plane)+' remote">\u25CC dim</span>';
+    } catch(e){ /* planar system not ready */ }
+  }
+  // Also ascendant during its associated month
+  if (!ascendTag && moon.associatedMonth){
+    try {
+      var _curCal = getCal().current;
+      if (_curCal && (_curCal.month + 1) === moon.associatedMonth)
+        ascendTag = ' <span style="' +
+          applyBg('font-size:.75em;padding:0 3px;border-radius:3px;', '#FFE8A3', CONTRAST_MIN_HEADER) +
+          '">\u2728 ascendant</span>';
+    } catch(e){}
+  }
+
+  // Mundane tier: phase + approximate next event.
+  // Magical tier: phase + illumination + secondary event.
+  var infoParts = [emoji + ' ' + esc(label)];
+  if (tier === 'magical') infoParts[0] += ' (' + pct + '%)';
+
+  var result = '<div style="margin:3px 0;line-height:1.4;">'+
+    dot+
+    '<b style="min-width:82px;display:inline-block;'+nameStyle+'">'+esc(moon.name)+'</b>'+
+    '<span style="opacity:.9;">'+infoParts.join('')+'</span>'+
+    ascendTag+
+    longShadowsTag;
+
+  if (nextStr){
+    result += '<span style="opacity:.45;font-size:.82em;margin-left:8px;">'+esc(nextStr)+'</span>';
+  }
+
+  // Magical: show secondary event too.
+  if (tier === 'magical'){
+    var secStr = '';
+    if (dFull !== null && (dNew === null || dFull <= dNew))
+      secStr = nextNew || '';
+    else
+      secStr = nextFull || '';
+    if (secStr){
+      result += '<span style="opacity:.35;font-size:.78em;margin-left:6px;">'+esc(secStr)+'</span>';
+    }
+  }
+
+  result += '</div>';
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// 20j) Moon panel HTML -- tiered
+// ---------------------------------------------------------------------------
+
+// GM panel -- always shows magical-detail data
+function moonPanelHtml(serialOverride){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false){
+    return _menuBox('\uD83C\uDF19 Moons',
+      '<div style="opacity:.7;">Moon system is disabled.</div>'+
+      '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings moons on</code></div>'
+    );
+  }
+
+  var ms  = getMoonState();
+  var cal = getCal();
+  var cur = cal.current;
+  var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
+  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.magicalDays);
+  var dateLabel = dateLabelFromSerial(today);
+
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+
+  var rows = sys.moons.map(function(moon){
+    return _moonRowHtml(moon, today, 'magical', MOON_PREDICTION_LIMITS.magicalDays);
+  });
+
+  // Current player reveal tier
+  var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'mundane'));
+  var horizonLabel = _rangeLabel(ms.revealHorizonDays || 7);
+
+  // Seed line for system-wide moon generation
+  var seedLine = '';
+  if (sys.moons && sys.moons.length){
+    var activeSeed = (ms.systemSeed != null && String(ms.systemSeed).trim() !== '')
+      ? String(ms.systemSeed)
+      : 'default';
+    seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:7px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
+      'System seed: <code>'+esc(activeSeed)+'</code>'+
+      ' &nbsp;\u00B7&nbsp; <code>!cal moon seed &lt;word&gt;</code>'+
+    '</div>';
+  }
+
+  // GM send/query buttons
+  var sendRow = '<div style="margin-top:6px;font-size:.85em;opacity:.8;">Mundane send:</div>'+
+    '<div>'+
+    button('1w','moon send mundane 1w')+' '+
+    button('1m','moon send mundane 1m')+' '+
+    button('3m','moon send mundane 3m')+' '+
+    button('6m','moon send mundane 6m')+' '+
+    button('10m','moon send mundane 10m')+
+    '</div>'+
+    '<div style="margin-top:3px;font-size:.85em;opacity:.8;">Magical send:</div>'+
+    '<div>'+
+    button('1w','moon send magical 1w')+' '+
+    button('1m','moon send magical 1m')+' '+
+    button('3m','moon send magical 3m')+' '+
+    button('6m','moon send magical 6m')+' '+
+    button('10m','moon send magical 10m')+
+    '</div>'+
+    '<div style="font-size:.78em;opacity:.45;margin-top:2px;">Current player tier: '+esc(tierLabel)+' ('+esc(horizonLabel)+')</div>'+
+    '<div style="font-size:.8em;opacity:.7;margin-top:5px;">Query: <code>!cal moon on &lt;dateSpec&gt;</code></div>';
+
+  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
+    rows.join('') + seedLine + sendRow +
+    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','help root') +'</div>'
+  );
+}
+
+// Player panel -- shows at their revealed tier
+function moonPlayerPanelHtml(serialOverride){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
+  }
+
+  var ms  = getMoonState();
+  var cal = getCal();
+  var cur = cal.current;
+  var tier = _normalizeMoonRevealTier(ms.revealTier || 'mundane');
+  var horizon = parseInt(ms.revealHorizonDays, 10) || 7;
+  var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
+  moonEnsureSequences(today, horizon + 30);
+  var dateLabel = dateLabelFromSerial(today);
+
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+
+  var rows = sys.moons.map(function(moon){
+    return _moonRowHtml(moon, today, tier, horizon);
+  });
+
+  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
+  var srcLine  = srcLabel
+    ? '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>'
+    : '';
+
+  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
+    rows.join('') + srcLine +
+    '<div style="font-size:.75em;opacity:.4;margin-top:3px;">Forecast horizon: '+esc(_rangeLabel(horizon))+'</div>'+
+    '<div style="font-size:.75em;opacity:.4;">Query: <code>!cal moon on &lt;dateSpec&gt;</code></div>'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 20j) Moon command handler  (!cal moon ...)
+// ---------------------------------------------------------------------------
+
+function _moonParseMoonName(str, sys){
+  // Case-insensitive match against moon names
+  var s = str.toLowerCase();
+  for (var i = 0; i < sys.moons.length; i++){
+    if (sys.moons[i].name.toLowerCase() === s) return sys.moons[i].name;
+  }
+  return null;
+}
+
+
+// ---------------------------------------------------------------------------
+// 20k) Eclipse engine — seeded orbital positions for moon-moon & moon-sun eclipses
+// ---------------------------------------------------------------------------
+// Each moon gets a sky longitude (0–360°) based on its synodic period, plus
+// a seeded orbital inclination and ascending node. When two moons are within
+// a threshold angular separation AND one is full (bright disk) while the
+// other passes in front, we get a moon-moon eclipse. When a moon is new
+// and near the sun's ecliptic longitude, we get a solar eclipse.
+//
+// This is simplified orbital mechanics — not real 3-body, but produces
+// deterministic, interesting results that reward scholarly investigation.
+
+// Canonical diameters and distances from Keith Baker's Dragonshards article.
+// angularSizeVsSun: 1.0 = same apparent size as Arrah (the sun).
+var MOON_ORBITAL_DATA = {
+  Zarantyr:  { diameter:1250, distance:14300,  angularSizeVsSun: 9.08 },
+  Olarune:   { diameter:950,  distance:22500,  angularSizeVsSun: 5.73 },
+  Therendor: { diameter:1100, distance:39000,  angularSizeVsSun: 2.91 },
+  Eyre:      { diameter:1200, distance:52000,  angularSizeVsSun: 2.38 },
+  Dravago:   { diameter:2000, distance:77500,  angularSizeVsSun: 2.66 },
+  Nymm:      { diameter:900,  distance:95000,  angularSizeVsSun: 0.98 },
+  Lharvion:  { diameter:1350, distance:125000, angularSizeVsSun: 1.11 },
+  Barrakas:  { diameter:1500, distance:144000, angularSizeVsSun: 1.07 },
+  Rhaan:     { diameter:800,  distance:168000, angularSizeVsSun: 0.49 },
+  Sypheros:  { diameter:1200, distance:193000, angularSizeVsSun: 0.62 },
+  Aryth:     { diameter:1000, distance:221000, angularSizeVsSun: 0.69 },
+  Vult:      { diameter:1800, distance:252000, angularSizeVsSun: 0.74 }
+};
+
+// Movement tuning is intentionally mythic (not strict orbital physics):
+// each moon has a characteristic swing/precession profile matching its lore.
+var MOON_MOTION_TUNING = {
+  Zarantyr: { inclinationBase:0.4, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode:120, nodePrecessionDegPerYear:12, distanceSwingPct:0.06, distancePeriodDays:336, apsisAngle:20,  apsisPrecessionDegPerYear:24 },
+  Olarune:  { inclinationBase:0.6, inclinationAmp:0.1, inclinationPeriodDays:504, ascendingNode: 60, nodePrecessionDegPerYear: 8, distanceSwingPct:0.02, distancePeriodDays:448, apsisAngle:80,  apsisPrecessionDegPerYear:12 },
+  Therendor:{ inclinationBase:0.8, inclinationAmp:0.3, inclinationPeriodDays:336, ascendingNode:210, nodePrecessionDegPerYear:10, distanceSwingPct:0.04, distancePeriodDays:336, apsisAngle:140, apsisPrecessionDegPerYear:10 },
+  Eyre:     { inclinationBase:1.2, inclinationAmp:0.0, inclinationPeriodDays:336, ascendingNode: 25, nodePrecessionDegPerYear: 2, distanceSwingPct:0.18, distancePeriodDays: 84, apsisAngle:10,  apsisPrecessionDegPerYear:120 },
+  Dravago:  { inclinationBase:1.0, inclinationAmp:0.7, inclinationPeriodDays:672, ascendingNode:260, nodePrecessionDegPerYear: 6, distanceSwingPct:0.14, distancePeriodDays:672, apsisAngle:200, apsisPrecessionDegPerYear:18 },
+  Nymm:     { inclinationBase:1.0, inclinationAmp:0.7, inclinationPeriodDays:336, ascendingNode:  0, nodePrecessionDegPerYear:360, distanceSwingPct:0.00, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:0 },
+  Lharvion: { inclinationBase:1.5, inclinationAmp:3.0, inclinationPeriodDays:420, ascendingNode: 40, nodePrecessionDegPerYear:75, distanceSwingPct:0.10, distancePeriodDays:560, apsisAngle:300, apsisPrecessionDegPerYear:80 },
+  Barrakas: { inclinationBase:0.4, inclinationAmp:1.1, inclinationPeriodDays:168, ascendingNode:300, nodePrecessionDegPerYear:24, distanceSwingPct:0.08, distancePeriodDays:224, apsisAngle:260, apsisPrecessionDegPerYear:48 },
+  Rhaan:    { inclinationBase:0.9, inclinationAmp:0.4, inclinationPeriodDays:441, ascendingNode: 45, nodePrecessionDegPerYear: 6, distanceSwingPct:0.05, distancePeriodDays:504, apsisAngle: 90, apsisPrecessionDegPerYear:8 },
+  Sypheros: { inclinationBase:1.3, inclinationAmp:0.5, inclinationPeriodDays:560, ascendingNode:180, nodePrecessionDegPerYear: 4, distanceSwingPct:0.06, distancePeriodDays:560, apsisAngle:150, apsisPrecessionDegPerYear:5 },
+  Aryth:    { inclinationBase:0.2, inclinationAmp:0.15,inclinationPeriodDays:336, ascendingNode: 15, nodePrecessionDegPerYear:14, distanceSwingPct:0.07, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:16 },
+  Vult:     { inclinationBase:0.5, inclinationAmp:0.2, inclinationPeriodDays:1008,ascendingNode:330, nodePrecessionDegPerYear: 2, distanceSwingPct:0.03, distancePeriodDays:1008,apsisAngle:250, apsisPrecessionDegPerYear:2 }
+};
+
+function _normDeg(n){
+  n = n % 360;
+  return (n < 0) ? (n + 360) : n;
+}
+
+function _moonOrbitalParams(moonName, serial){
+  serial = serial || 0;
+  var canon = MOON_ORBITAL_DATA[moonName] || null;
+  var tune  = MOON_MOTION_TUNING[moonName] || null;
+
+  if (canon && tune){
+    var ypd = _moonYearDays() || 336;
+    var incPeriod = Math.max(1, tune.inclinationPeriodDays || ypd);
+    var distPeriod = Math.max(1, tune.distancePeriodDays || ypd);
+
+    var incl = (tune.inclinationBase || 0) +
+      (tune.inclinationAmp || 0) * Math.sin((serial * 2 * Math.PI) / incPeriod);
+
+    var node = _normDeg((tune.ascendingNode || 0) +
+      serial * ((tune.nodePrecessionDegPerYear || 0) / ypd));
+
+    var apsis = _normDeg((tune.apsisAngle || 0) +
+      serial * ((tune.apsisPrecessionDegPerYear || 0) / ypd));
+
+    var eccWave = Math.sin((serial * 2 * Math.PI) / distPeriod);
+    var distFactor = 1 + (tune.distanceSwingPct || 0) * eccWave;
+    var dist = canon.distance * distFactor;
+
+    return {
+      inclination: incl,
+      ascendingNode: node,
+      apsis: apsis,
+      apparentSize: canon.angularSizeVsSun / Math.max(0.5, distFactor),
+      diameter: canon.diameter,
+      distance: dist
+    };
+  }
+
+  // Fallback for unknown moons: deterministic seeded pseudo-orbit.
+  var h = 0;
+  for (var i = 0; i < moonName.length; i++){
+    h = ((h << 5) - h + moonName.charCodeAt(i)) | 0;
+  }
+  var r = function(){ h = (h * 16807 + 0) % 2147483647; return (h & 0x7fffffff) / 2147483647; };
+  r(); r(); // warm up
+  var out = {
+    inclination: 2 + r() * 6,
+    ascendingNode: r() * 360,
+    apparentSize: canon ? canon.angularSizeVsSun : (0.3 + r() * 0.7),
+    diameter: canon ? canon.diameter : 1000,
+    distance: canon ? canon.distance : 100000
+  };
+  out.apsis = r() * 360;
+  return out;
+}
+
+function _moonDistanceAt(moon, serial){
+  var op = _moonOrbitalParams(moon.name, serial);
+  if (op && isFinite(op.distance)) return op.distance;
+  return moon.distance || 100000;
+}
+
+// Sky longitude of a moon at a given serial day.
+// Based on synodic period: the moon completes one full 360° sky circuit per period.
+// We use the same phase data but convert to angular position.
+function _moonSkyLong(moon, serial){
+  var period = moon.synodicPeriod || 28;
+  // Use phase to derive sky longitude: 0° = new (conjunction with sun), 180° = full (opposition)
+  var ph = moonPhaseAt(moon.name, serial);
+  // Illumination goes 0→1→0 over the cycle; we need continuous angle.
+  // Waxing: 0→180°, Waning: 180→360°
+  var angle;
+  if (ph.waxing){
+    angle = ph.illum * 180;       // 0% waxing = 0°, 100% waxing = 180°
+  } else {
+    angle = 180 + (1 - ph.illum) * 180; // 100% waning = 180°, 0% waning = 360°
+  }
+  return angle % 360;
+}
+
+// Sun's ecliptic longitude: advances ~1° per day in a 336-day year
+function _sunSkyLong(serial){
+  var ypd = _planarYearDays();
+  return ((serial % ypd) / ypd) * 360;
+}
+
+// Ecliptic latitude of a moon based on its orbital inclination and ascending node
+function _moonEclipticLat(moon, serial){
+  var op = _moonOrbitalParams(moon.name, serial);
+  var skyLong = _moonSkyLong(moon, serial);
+  // Latitude oscillates with inclination as moon orbits
+  var relLong = skyLong - op.ascendingNode;
+  return op.inclination * Math.sin(relLong * Math.PI / 180);
+}
+
+function _degSeparation(a, b){
+  var d = Math.abs(a - b);
+  return d > 180 ? 360 - d : d;
+}
+
+function _clamp01(x){
+  return x < 0 ? 0 : (x > 1 ? 1 : x);
+}
+
+// Approximate apparent solar diameter in degrees. Used to normalize angular
+// separations into the same units as apparentSizeVsSun.
+var _SUN_ANGULAR_DIAM_DEG = 0.53;
+
+function _eclipseTimeBlock(frac){
+  var h = ((frac % 1) + 1) % 1 * 24;
+  if (h < 6)  return 'nighttime';
+  if (h < 12) return 'morning';
+  if (h < 18) return 'afternoon';
+  return 'evening';
+}
+
+function _moonByName(sys, name){
+  var moons = (sys && sys.moons) ? sys.moons : [];
+  for (var i = 0; i < moons.length; i++){
+    if (moons[i].name === name) return moons[i];
+  }
+  return null;
+}
+
+function _diskOverlapFraction(rFront, rBack, sep){
+  rFront = Math.max(0, rFront || 0);
+  rBack  = Math.max(0, rBack  || 0);
+  sep    = Math.max(0, sep    || 0);
+  if (rFront <= 0 || rBack <= 0) return 0;
+  if (sep >= rFront + rBack) return 0;
+
+  // One disk fully inside the other.
+  if (sep <= Math.abs(rFront - rBack)){
+    var fullyCoveredArea = Math.PI * Math.min(rFront, rBack) * Math.min(rFront, rBack);
+    return _clamp01(fullyCoveredArea / (Math.PI * rBack * rBack));
+  }
+
+  // Partial overlap area of two circles.
+  var _c1 = (sep*sep + rFront*rFront - rBack*rBack) / (2 * sep * rFront);
+  var _c2 = (sep*sep + rBack*rBack  - rFront*rFront) / (2 * sep * rBack);
+  _c1 = Math.max(-1, Math.min(1, _c1));
+  _c2 = Math.max(-1, Math.min(1, _c2));
+  var a1 = Math.acos(_c1);
+  var a2 = Math.acos(_c2);
+  var area = rFront*rFront*a1 + rBack*rBack*a2 -
+    0.5 * Math.sqrt(Math.max(0, (-sep + rFront + rBack) * (sep + rFront - rBack) * (sep - rFront + rBack) * (sep + rFront + rBack)));
+
+  return _clamp01(area / (Math.PI * rBack * rBack));
+}
+
+function _eclipseMetricsAt(sys, e, t){
+  if (!e) return null;
+
+  // Solar: moon disk against sun disk.
+  if (e.type === 'total solar' || e.type === 'partial solar' || e.type === 'transit'){
+    var sm = _moonByName(sys, e.moon);
+    if (!sm) return null;
+    var op = _moonOrbitalParams(sm.name, t);
+    var ph = moonPhaseAt(sm.name, t);
+    var dLong = _degSeparation(_moonSkyLong(sm, t), _sunSkyLong(t));
+    var dLat  = Math.abs(_moonEclipticLat(sm, t));
+    var sepDeg = Math.sqrt(dLong*dLong + dLat*dLat);
+    var sepSun = sepDeg / _SUN_ANGULAR_DIAM_DEG;
+    var rMoon = (op.apparentSize || 0) / 2;
+    var rSun  = 0.5;
+    var cover = _diskOverlapFraction(rMoon, rSun, sepSun);
+    // Keep a small near-new bias so non-new geometry doesn't read as an eclipse.
+    var newBias = _clamp01((0.12 - ph.illum) / 0.12);
+    return {
+      cover: cover * newBias,
+      coverRaw: cover,
+      sepDeg: sepDeg
+    };
+  }
+
+  // Moon-moon occultation: front moon disk against back moon disk.
+  if (e.type === 'lunar conjunction'){
+    var fm = _moonByName(sys, e.moon);
+    var bm = _moonByName(sys, e.occultedMoon);
+    if (!fm || !bm) return null;
+    // Keep physically in front.
+    if (_moonDistanceAt(fm, t) > _moonDistanceAt(bm, t)) return null;
+
+    var fop = _moonOrbitalParams(fm.name, t);
+    var bop = _moonOrbitalParams(bm.name, t);
+    var dLong2 = _degSeparation(_moonSkyLong(fm, t), _moonSkyLong(bm, t));
+    var dLat2  = Math.abs(_moonEclipticLat(fm, t) - _moonEclipticLat(bm, t));
+    var sepDeg2 = Math.sqrt(dLong2*dLong2 + dLat2*dLat2);
+    var sepSun2 = sepDeg2 / _SUN_ANGULAR_DIAM_DEG;
+    var rFront = (fop.apparentSize || 0) / 2;
+    var rBack  = (bop.apparentSize || 0) / 2;
+    var backPh = moonPhaseAt(bm.name, t);
+    var illumBias = _clamp01((backPh.illum - 0.2) / 0.8);
+    var cover2 = _diskOverlapFraction(rFront, rBack, sepSun2);
+    return {
+      cover: cover2 * illumBias,
+      coverRaw: cover2,
+      sepDeg: sepDeg2
+    };
+  }
+
+  return null;
+}
+
+function _estimateEclipseTiming(serial, e, sys){
+  // 96 steps/day => 15-minute granularity.
+  var steps = 96;
+  var dt = 1 / steps;
+  var samples = [];
+  var peakI = -1;
+  var peak = -1;
+
+  for (var i = 0; i <= steps; i++){
+    var t = serial + i * dt;
+    var m = _eclipseMetricsAt(sys, e, t);
+    var s = m ? m.cover : 0;
+    samples.push({ t:t, score:s, coverRaw:(m ? m.coverRaw : 0) });
+    if (s > peak){ peak = s; peakI = i; }
+  }
+  if (peakI < 0 || peak <= 0.03) return null;
+
+  // Dynamic cut around the strongest part of the event (prevents 24h windows).
+  var minCut = (e.type === 'lunar conjunction') ? 0.10 : 0.07;
+  var cut = Math.max(minCut, peak * 0.60);
+
+  var left = peakI, right = peakI;
+  while (left > 0 && samples[left - 1].score >= cut) left--;
+  while (right < samples.length - 1 && samples[right + 1].score >= cut) right++;
+
+  var startT = samples[left].t;
+  var endT   = samples[right].t;
+  var durationH = Math.max(0.25, (endT - startT) * 24);
+
+  var peakCover = samples[peakI].coverRaw;
+  return {
+    startBlock: _eclipseTimeBlock(startT - serial),
+    peakBlock:  _eclipseTimeBlock(samples[peakI].t - serial),
+    endBlock:   _eclipseTimeBlock(endT - serial),
+    durationHours: durationH,
+    peakCoveragePct: Math.round(_clamp01(peakCover) * 100)
+  };
+}
+
+// Check for eclipses on a given day. Returns array of eclipse events.
+// Types: 'solar' (moon passes in front of sun), 'lunar' (moon A passes in front of moon B)
+function getEclipses(serial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return [];
+
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons) return [];
+
+  moonEnsureSequences();
+
+  var eclipses = [];
+  var moons = sys.moons;
+
+  // Solar eclipses: moon near new phase AND ecliptic latitude near 0
+  for (var i = 0; i < moons.length; i++){
+    var ph = moonPhaseAt(moons[i].name, serial);
+    if (ph.illum > 0.08) continue; // must be very near new
+
+    var lat = _moonEclipticLat(moons[i], serial);
+    if (Math.abs(lat) < 1.5){ // within 1.5° of ecliptic — solar eclipse
+      var depth = 1 - (Math.abs(lat) / 1.5); // 0–1, 1 = perfect alignment
+      var op = _moonOrbitalParams(moons[i].name, serial);
+      // A moon can only produce a total eclipse if its apparent size >= the sun's (1.0)
+      var type;
+      if (op.apparentSize >= 1.0 && depth > 0.85)
+        type = 'total solar';
+      else if (op.apparentSize >= 0.7 && depth > 0.5)
+        type = 'partial solar';
+      else
+        type = 'transit'; // small moon crossing the sun — visible but not dramatic
+      eclipses.push({
+        type: type,
+        moon: moons[i].name,
+        depth: depth,
+        apparentSize: op.apparentSize,
+        description: esc(moons[i].name) + ' ' + type + ' eclipse' +
+          (type === 'total solar' ? ' \u2014 the sky darkens!' : '')
+      });
+    }
+  }
+
+  // Moon-moon eclipses: two moons at similar sky longitude AND similar ecliptic latitude
+  for (var a = 0; a < moons.length; a++){
+    for (var b = a + 1; b < moons.length; b++){
+      var longA = _moonSkyLong(moons[a], serial);
+      var longB = _moonSkyLong(moons[b], serial);
+      var dLong = Math.abs(longA - longB);
+      if (dLong > 180) dLong = 360 - dLong;
+      if (dLong > 8) continue; // must be within 8° of each other
+
+      var latA = _moonEclipticLat(moons[a], serial);
+      var latB = _moonEclipticLat(moons[b], serial);
+      var dLat = Math.abs(latA - latB);
+      if (dLat > 3) continue; // must be within 3° ecliptic latitude
+
+      // Which moon is in front? Use modeled orbital distance for this day.
+      // In this setting, synodic cadence is magical and not a proxy for distance.
+      var phA = moonPhaseAt(moons[a].name, serial);
+      var phB = moonPhaseAt(moons[b].name, serial);
+      var distA = _moonDistanceAt(moons[a], serial);
+      var distB = _moonDistanceAt(moons[b], serial);
+      var closer = (distA <= distB) ? moons[a] : moons[b];
+      var farther = (closer === moons[a]) ? moons[b] : moons[a];
+      var fartherPh = (closer === moons[a]) ? phB : phA;
+
+      // Only visually notable if the farther moon is bright enough to see the occultation
+      if (fartherPh.illum < 0.3) continue;
+
+      var conjDepth = 1 - (Math.max(dLong, dLat) / 8);
+      eclipses.push({
+        type: 'lunar conjunction',
+        moon: closer.name,
+        occultedMoon: farther.name,
+        depth: conjDepth,
+        description: esc(closer.name) + ' occults ' + esc(farther.name) +
+          (conjDepth > 0.7 ? ' — dramatic alignment!' : ' — close conjunction')
+      });
+    }
+  }
+
+  return eclipses;
+}
+
+// Notable eclipses for the !cal default view
+function _eclipseNotableToday(serial){
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var ecl = getEclipses(serial);
+  var notes = [];
+  for (var i = 0; i < ecl.length; i++){
+    var ti = _estimateEclipseTiming(serial, ecl[i], sys);
+    var dur = ti ? (Math.round(ti.durationHours * 10) / 10) : null;
+    var tInfo = ti
+      ? ' <span style="opacity:.75;">(' + esc(ti.startBlock) + '→' + esc(ti.endBlock) +
+        ', peaks ' + esc(ti.peakBlock) + ', ~' + dur + 'h, ~' + ti.peakCoveragePct + '% cover)</span>'
+      : '';
+    if (ecl[i].type === 'total solar')
+      notes.push('\uD83C\uDF11\u2600\uFE0F <b>Total eclipse!</b> ' + ecl[i].description + tInfo);
+    else if (ecl[i].type === 'partial solar')
+      notes.push('\uD83C\uDF11 ' + ecl[i].description + tInfo);
+    else if (ecl[i].type === 'lunar conjunction' && ecl[i].depth > 0.5)
+      notes.push('\uD83C\uDF15 ' + ecl[i].description + tInfo);
+  }
+  return notes;
+}
+
+
+// ---------------------------------------------------------------------------
+// 20l) Tidal influence — Zarantyr only
+// ---------------------------------------------------------------------------
+// By campaign design, only Zarantyr's magical mass influences tides.
+// Returns 0–10 scale: 0=neap, 10=extreme spring tide.
+
+function getTidalIndex(serial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return 5; // neutral
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons) return 5;
+  moonEnsureSequences();
+
+  var moon = null;
+  for (var i = 0; i < sys.moons.length; i++){
+    if (String(sys.moons[i].name || '').toLowerCase() === 'zarantyr'){
+      moon = sys.moons[i];
+      break;
+    }
+  }
+  if (!moon) return 5;
+
+  // Phase alignment: strongest at full/new, weakest at quarter.
+  var ph = moonPhaseAt(moon.name, serial);
+  var alignment = Math.abs(Math.cos(ph.illum * Math.PI));
+  var phaseScale = 0.2 + 0.8 * alignment;
+
+  // Distance swing from movement tuning modulates tidal strength.
+  var baseDist = moon.distance || 100000;
+  var distNow = _moonDistanceAt(moon, serial);
+  var distBoost = Math.pow(baseDist / Math.max(1, distNow), 3);
+  var raw = phaseScale * distBoost;
+
+  // Map expected range to 0..10 with clamping.
+  var tune = MOON_MOTION_TUNING[moon.name] || {};
+  var swing = Math.max(0, tune.distanceSwingPct || 0);
+  var minRaw = 0.2 * Math.pow(1 / (1 + swing), 3);
+  var maxRaw = 1.0 * Math.pow(1 / Math.max(0.01, (1 - swing)), 3);
+  var scaled = (raw - minRaw) / Math.max(0.0001, (maxRaw - minRaw));
+  return Math.max(0, Math.min(10, Math.round(scaled * 10)));
+}
+
+// Human-readable tidal description
+function tidalLabel(index){
+  if (index <= 1) return 'Dead calm (neap)';
+  if (index <= 3) return 'Low tides';
+  if (index <= 5) return 'Normal tides';
+  if (index <= 7) return 'High tides';
+  if (index <= 8) return 'Spring tides';
+  return 'Extreme tides \u2014 coastal flooding risk';
+}
+
+
+// ---------------------------------------------------------------------------
+// 20m) Long Shadows — Mabar pulls the nearest moon(s) into darkness
+// ---------------------------------------------------------------------------
+// During Vult 26-28, Mabar's coterminous period forces the nearest moon(s)
+// to new phase. Uses a tapered gobble zone: the closer the nearest new moon
+// is to Vult 27, the wider the search for additional moons to claim.
+// See _longShadowsClaimedMoons() for the full algorithm.
+//
+// Core logic lives above moonPhaseAt since it reads sequences directly
+// (using _moonPhaseAtRaw would cause recursion with moonPhaseAt).
+
+function getLongShadowsMoons(year){
+  // Public API: returns array of { name, distToNew } for claimed moons
+  var claimed = _longShadowsClaimedMoons(year);
+  var results = [];
+  for (var i = 0; i < claimed.length; i++){
+    results.push({ name: claimed[i] });
+  }
+  return results;
+}
+
+
+// ---------------------------------------------------------------------------
+// 20n) Spontaneous planar episodes — seeded rare coterminous/remote flickers
+// ---------------------------------------------------------------------------
+// Canonical cycles remain the baseline. This layer adds sparse "unstructured"
+// events without overwhelming regular lore-timed moments.
+//
+// Mechanics:
+//   - One seeded trigger roll per plane per year (not per month)
+//   - Plane-specific rarity profile (Mabar extremely rare, Kythri/Shavarath higher)
+//   - Short durations by default (Kythri can run longer)
+//   - GM overrides/anchors suppress flickering for that plane
+//   - For cyclic planes, only applies while waning/waxing (preserves canon anchors)
+//
+// Weather effects still flow through getActivePlanarEffects naturally.
+
+// Planes that never flicker
+var FLICKER_SEALED = { 'Dal Quor':true, 'Xoriat':true };
+
+// Chance per in-world year, scaled 1..10000 (e.g. 100 = 1.00%).
+// This keeps non-canonical spikes rare while preserving flavor.
+var PLANAR_FLICKER_PROFILE = {
+  __default: { chancePer10000: 8, coterminousBiasPct: 65 }, // 0.08%/year
+  'Daanvi':   { chancePer10000: 1,   coterminousBiasPct: 50 },
+  'Dolurrh':  { chancePer10000: 3,   coterminousBiasPct: 60 },
+  'Fernia':   { chancePer10000: 6,   coterminousBiasPct: 60 },
+  'Irian':    { chancePer10000: 10,  coterminousBiasPct: 70 },
+  'Kythri':   { chancePer10000: 1800, coterminousBiasPct: 55 }, // erratic by design
+  'Lamannia': { chancePer10000: 20,  coterminousBiasPct: 70 },  // frequent annual baseline
+  'Mabar':    { chancePer10000: 1,   coterminousBiasPct: 50 },  // preserve Long Shadows rarity
+  'Risia':    { chancePer10000: 6,   coterminousBiasPct: 45 },
+  'Shavarath':{ chancePer10000: 600, coterminousBiasPct: 90 },  // known single-day spikes
+  'Syrania':  { chancePer10000: 4,   coterminousBiasPct: 55 },
+  'Thelanis': { chancePer10000: 1,   coterminousBiasPct: 60 }
+};
+
+function _planarFlickerDurationDays(planeName, year, salt){
+  // Kythri is the one plane where prolonged episodes fit canon flavor.
+  if (planeName === 'Kythri'){
+    var kr = _dN(year, salt + '_kdur', 100);
+    if (kr <= 55) return _dN(year, salt + '_kdur_short', 7);           // 1-7d
+    if (kr <= 85) return 7  + _dN(year, salt + '_kdur_mid', 28);       // 8-35d
+    if (kr <= 97) return 35 + _dN(year, salt + '_kdur_long', 56);      // 36-91d
+    return 91 + _dN(year, salt + '_kdur_epic', 245);                   // 92-336d
+  }
+
+  var dr = _dN(year, salt + '_dur', 100);
+  if (dr <= 72) return 1;
+  if (dr <= 91) return 2;
+  if (dr <= 98) return 3;
+  return 3 + _dN(year, salt + '_dur2', 4); // 4-7
+}
+
+function _planarFlickerEventForYear(planeName, year){
+  if (FLICKER_SEALED[planeName]) return null;
+  var profile = PLANAR_FLICKER_PROFILE[planeName] || PLANAR_FLICKER_PROFILE.__default;
+  if (!profile) return null;
+
+  var chance = Math.max(0, Math.min(10000, profile.chancePer10000 | 0));
+  if (chance <= 0) return null;
+
+  var salt = planeName + '_flicker_y' + String(year);
+  var roll = _dN(year, salt + '_chance', 10000);
+  if (roll > chance) return null;
+
+  var yearStart = toSerial(year, 0, 1);
+  var yearLen = Math.max(1, toSerial(year + 1, 0, 1) - yearStart);
+  var startSerial = yearStart + (_dN(year, salt + '_start', yearLen) - 1);
+  var durationDays = _planarFlickerDurationDays(planeName, year, salt);
+
+  var bias = profile.coterminousBiasPct;
+  if (!isFinite(bias)) bias = 65;
+  bias = Math.max(0, Math.min(100, bias));
+  var phase = (_dN(year, salt + '_phase', 100) <= bias) ? 'coterminous' : 'remote';
+
+  return {
+    startSerial: startSerial,
+    endSerial: startSerial + durationDays - 1,
+    durationDays: durationDays,
+    phase: phase
+  };
+}
+
+function _planarFlickerEventAt(planeName, serial){
+  var d = fromSerial(serial);
+  var evt = _planarFlickerEventForYear(planeName, d.year);
+  if (evt && serial >= evt.startSerial && serial <= evt.endSerial) return evt;
+  // Catch year-boundary spillover
+  evt = _planarFlickerEventForYear(planeName, d.year - 1);
+  if (evt && serial >= evt.startSerial && serial <= evt.endSerial) return evt;
+  return null;
+}
+
+// Returns the next flicker episode within maxDays, if any.
+// { phase, daysUntilStart, durationDays, startSerial, endSerial, activeNow }
+function _nextPlanarFlickerForecast(planeName, serial, maxDays){
+  if (FLICKER_SEALED[planeName]) return null;
+  maxDays = Math.max(0, maxDays|0);
+  if (maxDays <= 0) return null;
+
+  var ypd = Math.max(1, _planarYearDays());
+  var y0 = fromSerial(serial).year;
+  var yearsToCheck = Math.max(1, Math.ceil(maxDays / ypd) + 1);
+  var best = null;
+
+  for (var y = y0 - 1; y <= y0 + yearsToCheck; y++){
+    var evt = _planarFlickerEventForYear(planeName, y);
+    if (!evt) continue;
+    if (evt.endSerial < serial) continue;
+    if (evt.startSerial > serial + maxDays) continue;
+
+    var activeNow = (evt.startSerial <= serial && evt.endSerial >= serial);
+    var daysUntilStart = activeNow ? 0 : Math.max(0, evt.startSerial - serial);
+    if (!best || daysUntilStart < best.daysUntilStart){
+      best = {
+        phase: evt.phase,
+        daysUntilStart: daysUntilStart,
+        durationDays: evt.durationDays,
+        startSerial: evt.startSerial,
+        endSerial: evt.endSerial,
+        activeNow: activeNow
+      };
+    }
+  }
+
+  return best;
+}
+
+function isPlanarFlickering(planeName, serial){
+  if (FLICKER_SEALED[planeName]) return false;
+
+  // Check for GM override or anchor — suppress if present
+  try {
+    var ps = getPlanesState();
+    if (ps && ps.overrides && ps.overrides[planeName]) return false;
+    if (ps && ps.anchors && ps.anchors[planeName]) return false;
+  } catch(e){ return false; }
+
+  return !!_planarFlickerEventAt(planeName, serial);
+}
+
+// Returns the flicker type: 'coterminous' or 'remote' (seeded coin flip)
+function _flickerPhase(planeName, serial){
+  var evt = _planarFlickerEventAt(planeName, serial);
+  return (evt && evt.phase) ? evt.phase : 'coterminous';
+}
+
+
+function handleMoonCommand(m, args){
+  // args[0]='moon', args[1]=subcommand, args[2+]=params
+  var sub = String(args[1] || '').toLowerCase();
+  var st  = ensureSettings();
+
+  // Anyone can view — players see their tier, GM sees exact
+  if (!sub || sub === 'show'){
+    moonEnsureSequences();
+    if (playerIsGM(m.playerid)){
+      return whisper(m.who, moonPanelHtml());
+    } else {
+      return whisper(m.who, moonPlayerPanelHtml());
+    }
+  }
+
+  // Player self-query mode (read-only, knowledge-limited).
+  if (!playerIsGM(m.playerid)){
+    if (sub === 'on' || sub === 'date'){
+      var pDateToks = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+      var pPref = parseDatePrefixForAdd(pDateToks);
+      if (!pPref){
+        return whisper(m.who, 'Usage: <code>!cal moon on &lt;dateSpec&gt;</code>');
+      }
+      var pSerial = toSerial(pPref.year, pPref.mHuman - 1, pPref.day);
+      var pToday = todaySerial();
+      var pHorizon = parseInt(getMoonState().revealHorizonDays, 10) || 7;
+      if (pSerial < pToday || pSerial > (pToday + pHorizon)){
+        return whisper(m.who, 'That date is outside your known lunar horizon ('+esc(_rangeLabel(pHorizon))+').');
+      }
+      moonEnsureSequences(pSerial, pHorizon + 30);
+      return whisper(m.who, moonPlayerPanelHtml(pSerial));
+    }
+    return whisper(m.who,
+      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code>'
+    );
+  }
+
+  // !cal moon send <mundane|magical> [1w|1m|3m|6m|10m]
+  if (sub === 'send'){
+    var tierRaw = String(args[2] || '').toLowerCase();
+    if (!tierRaw)
+      return whisper(m.who, 'Usage: <code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code>');
+    var tierArg = MOON_REVEAL_TIERS[tierRaw] ? tierRaw : null;
+    if (!tierArg)
+      return whisper(m.who, 'Usage: <code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code>');
+    var reqHorizon = _parseMoonRevealRange(args[3], tierArg);
+    if (!reqHorizon)
+      return whisper(m.who, 'Usage: <code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code>');
+
+    moonEnsureSequences(todaySerial(), reqHorizon + 30);
+    var ms0  = getMoonState();
+    var cal0 = getCal();
+    var cur0 = cal0.current;
+    var today0 = toSerial(cur0.year, cur0.month, cur0.day_of_the_month);
+
+    // Upgrade reveal tier (never downgrade)
+    var curRank = MOON_REVEAL_TIERS[_normalizeMoonRevealTier(ms0.revealTier)] || 0;
+    var newRank = MOON_REVEAL_TIERS[tierArg] || 0;
+    if (newRank > curRank) ms0.revealTier = _normalizeMoonRevealTier(tierArg);
+    // Use the effective tier (may be higher than requested)
+    var effectiveTier = _normalizeMoonRevealTier(ms0.revealTier);
+    if (newRank > curRank){
+      ms0.revealHorizonDays = reqHorizon;
+    } else if (newRank === curRank){
+      ms0.revealHorizonDays = Math.max(parseInt(ms0.revealHorizonDays,10)||7, reqHorizon);
+    }
+    var effectiveHorizon = parseInt(ms0.revealHorizonDays, 10) || reqHorizon;
+
+    var sys0 = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    if (!sys0) return whisper(m.who, 'No moon data for this calendar system.');
+
+    var rows0 = sys0.moons.map(function(moon){
+      return _moonRowHtml(moon, today0, effectiveTier, effectiveHorizon);
+    });
+
+    var srcLabel0 = MOON_SOURCE_LABELS[effectiveTier] || '';
+    var srcLine0  = srcLabel0
+      ? '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:5px;">'+esc(srcLabel0)+'</div>'
+      : '';
+
+    sendToAll(_menuBox(
+      '\uD83C\uDF19 Lunar Forecast \u2014 ' + esc(currentDateLabel()),
+      rows0.join('') + srcLine0 +
+      '<div style="font-size:.75em;opacity:.4;margin-top:3px;">Forecast horizon: '+esc(_rangeLabel(effectiveHorizon))+'</div>'
+    ));
+
+    warnGM('Sent '+titleCase(effectiveTier)+' lunar forecast to players ('+_rangeLabel(effectiveHorizon)+').');
+    return whisper(m.who, moonPanelHtml());
+  }
+
+  // !cal moon on <dateSpec>  — inspect moon states on a specific day
+  if (sub === 'on' || sub === 'date'){
+    var dateToksOn = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+    var prefOn = parseDatePrefixForAdd(dateToksOn);
+    if (!prefOn){
+      return whisper(m.who, 'Usage: <code>!cal moon on &lt;dateSpec&gt;</code> (example: <code>!cal moon on Rhaan 14 998</code>)');
+    }
+    var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
+    moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.magicalDays);
+    return whisper(m.who, moonPanelHtml(serialOn));
+  }
+
+  // !cal moon seed <word>
+  if (sub === 'seed'){
+    var word = String(args[2] || '').trim();
+    if (!word) return whisper(m.who, 'Usage: <code>!cal moon seed &lt;word&gt;</code>');
+    var ms = getMoonState();
+    // Global lunar seed: one word deterministically drives all moons.
+    ms.systemSeed = word;
+    // Clear legacy per-moon overrides so the global seed fully controls generation.
+    ms.seeds = {};
+    ms.generatedFrom = null;
+    ms.generatedThru = 0;
+    moonEnsureSequences();
+    return whisper(m.who, 'System moon seed set to <b>'+esc(word)+'</b>. Sequences regenerated.');
+  }
+
+  // !cal moon full <MoonName> <dateSpec>
+  // !cal moon new  <MoonName> <dateSpec>
+  // dateSpec uses the same smart rules as !cal add:
+  //   14            -> next occurrence of day 14 in any month
+  //   Rhaan 14      -> next occurrence of Rhaan 14 (this or next year)
+  //   Rhaan 14 999  -> exact date: Rhaan 14, year 999
+  if (sub === 'full' || sub === 'new'){
+    var moonNameRaw = String(args[2] || '').trim();
+    if (!moonNameRaw)
+      return whisper(m.who,
+        'Usage: <code>!cal moon (full|new) &lt;MoonName&gt; &lt;dateSpec&gt;</code> '+
+        '— dateSpec: <code>14</code> or <code>Rhaan 14</code> or <code>Rhaan 14 999</code>'
+      );
+
+    var sys2  = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var mName = _moonParseMoonName(moonNameRaw, sys2);
+    if (!mName) return whisper(m.who, 'Unknown moon: <b>'+esc(moonNameRaw)+'</b>');
+
+    // Hand remaining tokens to the shared smart-date parser
+    var dateToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+    var pref = parseDatePrefixForAdd(dateToks);
+    if (!pref)
+      return whisper(m.who,
+        'Could not parse date. Try: <code>!cal moon '+sub+' '+esc(mName)+' Rhaan 14</code>'
+      );
+
+    var cal2 = getCal();
+    var targetSerial = toSerial(pref.year, pref.mHuman - 1, pref.day);
+    var ms2 = getMoonState();
+    if (!ms2.gmAnchors[mName]) ms2.gmAnchors[mName] = [];
+    ms2.gmAnchors[mName].push({ serial: targetSerial, type: sub });
+    ms2.generatedFrom = null;
+    ms2.generatedThru = 0;
+    moonEnsureSequences();
+
+    var monthName = (cal2.months[pref.mHuman - 1] || {}).name || String(pref.mHuman);
+    return whisper(m.who,
+      '<b>'+esc(mName)+'</b> will be <b>'+sub+'</b> on '+
+      esc(String(pref.day))+' '+esc(monthName)+' '+esc(String(pref.year))+'.<br>'+
+      '<span style="opacity:.6;font-size:.85em;">Sequence regenerated.</span>'
+    );
+  }
+
+  // !cal moon reset [<MoonName>]  — remove GM phase overrides
+  if (sub === 'reset'){
+    var clearName = String(args[2] || '').trim();
+    var sys3 = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var mName3 = clearName ? _moonParseMoonName(clearName, sys3) : null;
+    var ms3 = getMoonState();
+    if (mName3){
+      ms3.gmAnchors[mName3] = [];
+      ms3.generatedFrom = null;
+      ms3.generatedThru = 0;
+      moonEnsureSequences();
+      return whisper(m.who, 'Phase overrides reset for <b>'+esc(mName3)+'</b>.');
+    } else {
+      ms3.gmAnchors = {};
+      ms3.generatedFrom = null;
+      ms3.generatedThru = 0;
+      moonEnsureSequences();
+      return whisper(m.who, 'All moon phase overrides reset.');
+    }
+  }
+
+  whisper(m.who,
+    'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon reset [&lt;name&gt;]</code>'
+  );
+}
+
+
+/* ============================================================================
+ * 21) PLANAR SYSTEM
+ * ============================================================================
+ * Each plane orbits the Material in a cycle: coterminous → waning → remote →
+ * waxing → coterminous. The system calculates current phase from anchor dates
+ * and cycle parameters, provides a public API for cross-system hooks, and
+ * offers GM/player panels parallel to the moon system.
+ * ==========================================================================*/
+
+// ---------------------------------------------------------------------------
+// 21a) Planar data — cycle definitions for Eberron's 13 planes
+// ---------------------------------------------------------------------------
+
+// Phase durations in days. Full orbit = coterminous + waning + remote + waxing.
+// Waning and waxing are computed as (orbit - coterminous - remote) / 2.
+// Special planes have 'fixed' type instead of 'cyclic'.
+
+var PLANE_DATA = {
+  eberron: [
+    { name:'Daanvi',    title:'The Perfect Order',
+      type:'cyclic',
+      orbitYears: 400,   coterminousDays: null, remoteDays: null,
+      coterminousYears: 100, remoteYears: 100,
+      anchorYear: 800, anchorPhase: 'coterminous',
+      associatedMoon: 'Nymm',
+      note: 'Traditional cycle: coterminous for a century, then remote for a century one hundred years later.',
+      effects: {
+        coterminous: 'No obvious effects. Some sages link rise of civilizations to Daanvi coterminous periods. May impact eldritch machine rituals.',
+        remote: 'No obvious effects. Century-long remote period.'
+      }
+    },
+    { name:'Dal Quor',  title:'The Region of Dreams',
+      type:'fixed', fixedPhase:'remote',
+      associatedMoon: 'Crya',
+      note: 'Knocked off orbit ~40,000 years ago during the Quori invasion of Xen\'drik. Permanently remote. Crya (the 13th moon) believed destroyed.',
+      effects: { remote: 'Only reachable via dreaming. Plane shift cannot reach Dal Quor. No manifest zones exist naturally.' }
+    },
+    { name:'Dolurrh',   title:'The Realm of the Dead',
+      type:'cyclic',
+      orbitYears: 100,   coterminousDays: null, remoteDays: null,
+      coterminousYears: 1, remoteYears: 1,
+      anchorYear: 950, anchorPhase: 'coterminous',
+      associatedMoon: 'Aryth',
+      note: 'Traditional cycle: coterminous for 1 year once per century; 50 years later it is remote for 1 year. Can also have shorter phases tied to Aryth.',
+      effects: {
+        coterminous: 'Ghosts more easily slip into the Material Plane, especially near Dolurrhi manifest zones. Raise-dead effects can draw unwanted spirits (Dolurrhi mishaps).',
+        remote: 'Traditional resurrection magic cannot pull spirits back from Dolurrh. Recovering the dead requires retrieving the shade in Dolurrh; deaths with intense emotion or unfinished business more often leave ghosts behind.'
+      }
+    },
+    { name:'Fernia',    title:'The Sea of Fire',
+      type:'cyclic',
+      orbitYears: 5,     coterminousDays: 28, remoteDays: 28,
+      coterminousYears: null, remoteYears: null,
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 7,
+      seasonHint: 'midsummer',
+      associatedMoon: 'Eyre',
+      note: 'Traditional cycle: coterminous during Lharvion once every five years; remote during Zarantyr once every five years, exactly 2.5 years later.',
+      effects: {
+        coterminous: 'Temperatures rise sharply. Safer warm regions can become extremely hot, taking on Deadly Heat, Empowered Fire, and Burning Bright traits. Rarely, creatures caught in exceptionally intense flame are pulled into Fernia.',
+        remote: 'Intense heat loses some of its bite. Creatures have advantage on saves against extreme heat and on saves against spells that deal fire damage.'
+      }
+    },
+    { name:'Irian',     title:'The Eternal Dawn',
+      type:'cyclic',
+      orbitYears: 3,     coterminousDays: 10, remoteDays: 10,
+      coterminousYears: null, remoteYears: null,
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 4, anchorDay: 1,
+      seasonHint: 'spring',
+      associatedMoon: 'Barrakas',
+      note: 'Traditional cycle: coterminous for 10 days in Eyre and remote for 10 days in Sypheros, once every 3 years (remote is 1.5 years after coterminous).',
+      effects: {
+        coterminous: 'Life blossoms. Health and fertility are enhanced, positive energy flows freely, and Radiant Power applies across Eberron. All creatures have advantage on saves against disease, poison, and fear.',
+        remote: 'Colors seem to fade and psychic numbness pervades the world. All creatures have disadvantage on saves against fear and resistance to radiant damage. Hit point restoration is halved, except long rests still restore full hit points.'
+      }
+    },
+    { name:'Kythri',    title:'The Churning Chaos',
+      type:'fixed', fixedPhase:'waning',
+      associatedMoon: 'Zarantyr',
+      note: 'Kythri\'s coterminous and remote phases are completely unpredictable, lasting from days to centuries. Proximity has no discernible global effects on the Material Plane.',
+      effects: {
+        coterminous: 'No discernible global effects on the Material Plane.',
+        remote: 'No discernible global effects on the Material Plane.'
+      }
+    },
+    { name:'Lamannia',  title:'The Twilight Forest',
+      type:'cyclic',
+      orbitYears: 1,     coterminousDays: 7, remoteDays: 7,
+      coterminousYears: null, remoteYears: null,
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 7, anchorDay: 11,
+      seasonHint: 'late spring',
+      associatedMoon: 'Olarune',
+      note: 'Traditionally coterminous for a week around the summer solstice and remote for a week during the winter solstice.',
+      effects: {
+        coterminous: 'Lamannian manifest zone effects are enhanced. In unspoiled nature, fertility of plants and animals rises and beasts conceived in this period are often exceptionally strong and healthy. Spells targeting beasts or elementals with duration 1 minute or longer are doubled; durations of 24 hours or longer are unaffected.',
+        remote: 'Fertility rates drop and beasts born in this period are often weak or sickly; animals are uneasy. Spells affecting beasts or elementals have their duration halved, to a minimum of 1 round.'
+      }
+    },
+    { name:'Mabar',     title:'The Endless Night',
+      type:'cyclic',
+      orbitYears: 5,     coterminousDays: 3, remoteDays: 5,
+      coterminousYears: null, remoteYears: null,
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 12, anchorDay: 26,
+      seasonHint: 'winter solstice',
+      associatedMoon: 'Sypheros',
+      note: 'Traditional cycle: coterminous for 3 nights in Vult (the new moon nights closest to the winter solstice, called Long Shadows). Remote for 5 days around the summer solstice, once every 5 years.',
+      effects: {
+        coterminous: 'Necrotic Power encompasses the world and all light source radii are halved. In regions steeped in despair or misery, deep darkness can open gateways to Mabar, releasing shadows and other horrors. This manifests only at night and ends at dawn.',
+        remote: 'All creatures gain resistance to necrotic damage. Undead have disadvantage on saves vs being turned or frightened.'
+      }
+    },
+    { name:'Risia',     title:'The Plain of Ice',
+      type:'cyclic',
+      orbitYears: 5,     coterminousDays: 28, remoteDays: 28,
+      coterminousYears: null, remoteYears: null,
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 1,
+      seasonHint: 'midwinter',
+      associatedMoon: 'Dravago',
+      note: 'Traditional cycle: coterminous for the full month of Zarantyr once every five years; remote during Lharvion once every five years, exactly 2.5 years later. Historians record anomalous extensions, including a 3-year coterminous phase in 657 YK.',
+      effects: {
+        coterminous: 'Temperatures drop sharply. Areas that are normally merely chilly can take on Lethal Cold, Empowered Ice, and Stillness of Flesh properties. Rarely, creatures caught in exceptionally intense cold can be transported to Risia.',
+        remote: 'Intense cold loses some of its bite. Creatures have advantage on saves against extreme cold and on saves against spells that deal cold damage.'
+      }
+    },
+    { name:'Shavarath', title:'The Eternal Battleground',
+      type:'cyclic',
+      orbitYears: 36,    coterminousDays: null, remoteDays: null,
+      coterminousYears: 1, remoteYears: 1,
+      anchorYear: 990, anchorPhase: 'coterminous',
+      associatedMoon: 'Vult',
+      note: 'Traditional cycle: coterminous for 1 year every 36 years and remote for 1 year every 36 years. It also frequently has single-day coterminous spikes; remote periods suppress these spikes.',
+      effects: {
+        coterminous: 'People are quick to anger: trivial disputes can become brawls, and restless thought can lead to riots or revolution. War Magic and Unquenchable Fury spread worldwide; intense violence in Shavaran manifest zones can draw in whirling blades.',
+        remote: 'Prevents the occasional single-day coterminous spikes; otherwise has no apparent effect on the Material Plane.'
+      }
+    },
+    { name:'Syrania',   title:'The Azure Sky',
+      type:'cyclic',
+      orbitYears: 10,    coterminousDays: 1, remoteDays: 1,
+      coterminousYears: null, remoteYears: null,
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 9, anchorDay: 9,
+      associatedMoon: 'Therendor',
+      note: 'Traditionally coterminous on 9 Rhaan once every 10 years and remote on the same day 5 years later. This is celebrated as Boldrei’s Feast, with especially grand celebrations on coterminous years.',
+      effects: {
+        coterminous: 'Goodwill spreads worldwide. Absolute Peace and Gentle Thoughts apply across Eberron; creatures harmed (or witnessing allies harmed) ignore Absolute Peace for 1 minute. Skies are clear and weather calm.',
+        remote: 'Skies are gray and the sun is hidden. People feel quarrelsome: creatures have disadvantage on Charisma (Persuasion) checks and advantage on Charisma (Intimidation) checks. Outside Syranian manifest zones, flying speeds are reduced by 10 feet (minimum 5 feet).'
+      }
+    },
+    { name:'Thelanis',  title:'The Faerie Court',
+      type:'cyclic',
+      orbitYears: 225,   coterminousDays: null, remoteDays: null,
+      coterminousYears: 7, remoteYears: 7,
+      anchorYear: 800, anchorPhase: 'coterminous',
+      associatedMoon: 'Rhaan',
+      note: 'Traditional cycle: coterminous for 7 years every 225 years, remote for 7 years halfway between. Evidence suggests this cycle has been disrupted (possibly by the Mourning), and no one knows when Thelanis will next become coterminous or how long it will last.',
+      effects: {
+        coterminous: 'New gateway zones spring up, and mischievous or cruel fey may cross over. It is easier for careless travelers to cross into Thelanis, but usually only after breaking a superstition or taboo; warnings are often present.',
+        remote: 'Effects of Thelanian manifest zones are suppressed. Fey creatures, even ones that usually dwell on Eberron, may be temporarily drawn back to Thelanis. The world feels less magical.'
+      }
+    },
+    { name:'Xoriat',    title:'The Realm of Madness',
+      type:'fixed', fixedPhase:'remote',
+      associatedMoon: 'Lharvion',
+      note: 'The Gatekeeper seals that bind the daelkyr in Khyber also keep Xoriat from becoming coterminous. Remote phases are unpredictable and usually much slower than Kythri’s. No citizens of the Five Nations are known to have visited Xoriat.',
+      effects: { remote: 'Xoriat’s remote phases have no known global effect on the Material Plane.' }
+    }
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// 21b) State management
+// ---------------------------------------------------------------------------
+
+function getPlanesState(){
+  var root = state[state_name];
+  var baselineHorizon = _planarYearDays();
+  if (!root.planes) root.planes = {
+    overrides: {},    // planeName -> { phase:'coterminous'|'waning'|'remote'|'waxing', note:'' }
+    anchors: {},      // planeName -> { year, month, day, phase } — GM-set anchor overrides
+    revealTier: 'mundane', // 'mundane' | 'magical'
+    revealHorizonDays: baselineHorizon   // player-known horizon window
+  };
+  var ps = root.planes;
+  if (!ps.overrides) ps.overrides = {};
+  if (!ps.anchors) ps.anchors = {};
+  if (!ps.revealTier) ps.revealTier = 'mundane';
+  ps.revealTier = String(ps.revealTier || '').toLowerCase();
+  if (ps.revealTier !== 'mundane' && ps.revealTier !== 'magical') ps.revealTier = 'mundane';
+  ps.revealHorizonDays = parseInt(ps.revealHorizonDays, 10);
+  if (!isFinite(ps.revealHorizonDays) || ps.revealHorizonDays < baselineHorizon) ps.revealHorizonDays = baselineHorizon;
+  return ps;
+}
+
+// ---------------------------------------------------------------------------
+// 21c) Phase calculation engine
+// ---------------------------------------------------------------------------
+
+// Get the plane definition by name (case-insensitive).
+function _getPlaneData(name){
+  var st = ensureSettings();
+  var planes = PLANE_DATA[st.calendarSystem] || PLANE_DATA.eberron;
+  if (!planes) return null;
+  var lc = name.toLowerCase();
+  for (var i = 0; i < planes.length; i++){
+    if (planes[i].name.toLowerCase() === lc) return planes[i];
+  }
+  return null;
+}
+
+// Get all plane definitions for the current calendar system.
+function _getAllPlaneData(){
+  var st = ensureSettings();
+  return PLANE_DATA[st.calendarSystem] || PLANE_DATA.eberron || [];
+}
+
+// Convert years to days using the calendar's year length.
+function _planarYearDays(){
+  return getCal().months.reduce(function(s, m){ return s + (m.days|0); }, 0);
+}
+
+// Calculate the current phase of a cyclic plane at a given serial day.
+// opts.ignoreFlicker=true returns canonical cycle state without seeded flickers.
+// Returns { phase, daysIntoPhase, daysUntilNextPhase, phaseDuration, nextPhase }
+function getPlanarState(planeName, serial, opts){
+  opts = opts || {};
+  var ignoreFlicker = !!opts.ignoreFlicker;
+  var plane = _getPlaneData(planeName);
+  if (!plane) return null;
+
+  // Check for GM override first
+  var ps = getPlanesState();
+  var override = ps.overrides[plane.name];
+  if (override){
+    // Check if timed override has expired
+    if (override.durationDays && override.setOn != null){
+      var today = todaySerial();
+      if (today >= override.setOn + override.durationDays){
+        delete ps.overrides[plane.name]; // expired — fall through to normal calc
+        override = null;
+      }
+    }
+  }
+  if (override){
+    return {
+      plane: plane,
+      phase: override.phase || 'waning',
+      daysIntoPhase: null,
+      daysUntilNextPhase: override.durationDays
+        ? Math.max(0, (override.setOn + override.durationDays) - todaySerial())
+        : null,
+      phaseDuration: override.durationDays || null,
+      nextPhase: null,
+      overridden: true,
+      note: override.note || ''
+    };
+  }
+
+  // Fixed planes (Dal Quor, Xoriat, Kythri)
+  if (plane.type === 'fixed'){
+    var fixedPhase = plane.fixedPhase || 'remote';
+    var fixedNote = plane.note || '';
+
+    // Check for spontaneous planar flicker
+    if (!ignoreFlicker && isPlanarFlickering(plane.name, serial)){
+      fixedPhase = _flickerPhase(plane.name, serial);
+      fixedNote = esc(plane.name) + ' flicker \u2014 brief ' + fixedPhase + ' episode!';
+    }
+
+    return {
+      plane: plane,
+      phase: fixedPhase,
+      daysIntoPhase: null,
+      daysUntilNextPhase: null,
+      phaseDuration: null,
+      nextPhase: null,
+      overridden: false,
+      note: fixedNote
+    };
+  }
+
+  // Cyclic planes — calculate from anchor
+  var ypd = _planarYearDays();
+
+  // Resolve durations in days
+  var coterminousDays = plane.coterminousDays || ((plane.coterminousYears || 0) * ypd);
+  var remoteDays      = plane.remoteDays      || ((plane.remoteYears || 0)      * ypd);
+  var orbitDays       = (plane.orbitYears || 1) * ypd;
+  var transitionDays  = (orbitDays - coterminousDays - remoteDays) / 2;
+  if (transitionDays < 1) transitionDays = 1;
+
+  // Phase order: coterminous → waning → remote → waxing → (repeat)
+  var phases = [
+    { name:'coterminous', dur: coterminousDays },
+    { name:'waning',      dur: transitionDays },
+    { name:'remote',      dur: remoteDays },
+    { name:'waxing',      dur: transitionDays }
+  ];
+
+  // Anchor: use GM override anchor or default
+  var anchor = ps.anchors[plane.name];
+  var anchorSerial;
+  if (anchor){
+    anchorSerial = toSerial(anchor.year, anchor.month || 0, anchor.day || 1);
+  } else {
+    var anchorMi = (plane.anchorMonth != null) ? (plane.anchorMonth - 1) : 0;
+    var anchorDay = (plane.anchorDay != null) ? (plane.anchorDay | 0) : 1;
+    if (anchorDay < 1) anchorDay = 1;
+    anchorSerial = toSerial(plane.anchorYear || 998, anchorMi, anchorDay);
+  }
+
+  // Find which phase the anchor starts in
+  var anchorPhaseIdx = 0;
+  var anchorPhaseName = (anchor && anchor.phase) || plane.anchorPhase || 'coterminous';
+  for (var p = 0; p < phases.length; p++){
+    if (phases[p].name === anchorPhaseName){ anchorPhaseIdx = p; break; }
+  }
+
+  // Compute offset from anchor into the cycle
+  var daysSinceAnchor = serial - anchorSerial;
+  // Normalize into the cycle — handle negative offsets (dates before anchor)
+  var totalCycle = orbitDays;
+  var offset = daysSinceAnchor % totalCycle;
+  if (offset < 0) offset += totalCycle;
+
+  // Walk through phases starting from the anchor phase
+  var accumulated = 0;
+  for (var pi = 0; pi < phases.length; pi++){
+    var idx = (anchorPhaseIdx + pi) % phases.length;
+    var ph  = phases[idx];
+    if (offset < accumulated + ph.dur){
+      var into = offset - accumulated;
+      var nextIdx = (idx + 1) % phases.length;
+      var cyclicPhase = ph.name;
+      var cyclicNote = '';
+
+      // Spontaneous flicker: can override waning/waxing to coterminous/remote
+      // Only triggers during transition phases (not when already coterminous/remote)
+      if (!ignoreFlicker &&
+          (cyclicPhase === 'waning' || cyclicPhase === 'waxing') &&
+          isPlanarFlickering(plane.name, serial)){
+        var flickPhase = _flickerPhase(plane.name, serial);
+        cyclicNote = esc(plane.name) + ' flicker \u2014 brief ' + flickPhase + ' episode!';
+        cyclicPhase = flickPhase;
+      }
+
+      return {
+        plane: plane,
+        phase: cyclicPhase,
+        daysIntoPhase: Math.floor(into),
+        daysUntilNextPhase: Math.ceil(ph.dur - into),
+        phaseDuration: Math.floor(ph.dur),
+        nextPhase: phases[nextIdx].name,
+        overridden: false,
+        note: cyclicNote
+      };
+    }
+    accumulated += ph.dur;
+  }
+
+  // Shouldn't reach here, but fallback
+  return {
+    plane: plane,
+    phase: 'waning',
+    daysIntoPhase: 0,
+    daysUntilNextPhase: 0,
+    phaseDuration: 0,
+    nextPhase: 'remote',
+    overridden: false,
+    note: ''
+  };
+}
+
+// Public API: Get all active planar effects for a given day.
+// Returns array of { plane, phase, effect } for planes that are coterminous or remote.
+function getActivePlanarEffects(serial){
+  var planes = _getAllPlaneData();
+  var effects = [];
+  for (var i = 0; i < planes.length; i++){
+    var ps = getPlanarState(planes[i].name, serial);
+    if (!ps) continue;
+    if (ps.phase === 'coterminous' || ps.phase === 'remote'){
+      var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || null;
+      effects.push({
+        plane: ps.plane.name,
+        title: ps.plane.title,
+        phase: ps.phase,
+        effect: eff,
+        state: ps
+      });
+    }
+  }
+  return effects;
+}
+
+// ---------------------------------------------------------------------------
+// 21d) Notable planes for !cal default view
+// ---------------------------------------------------------------------------
+
+// Returns array of HTML strings for planes worth mentioning today.
+// Criteria: currently coterminous/remote, or transitioning within 3 days.
+// Excludes: fixed planes (always the same), and phases longer than 1 year (too routine to note daily).
+function _planarNotableToday(serial){
+  var planes = _getAllPlaneData();
+  var notes  = [];
+  var ypd    = _planarYearDays();
+
+  for (var i = 0; i < planes.length; i++){
+    // Skip fixed planes — they never change, no point showing them daily
+    if (planes[i].type === 'fixed') continue;
+
+    var ps = getPlanarState(planes[i].name, serial);
+    if (!ps) continue;
+
+    // Skip phases longer than 1 year — they're too long to be "news"
+    if (ps.phaseDuration != null && ps.phaseDuration > ypd) continue;
+
+    var name = ps.plane.name;
+
+    if (ps.phase === 'coterminous'){
+      var remaining = ps.daysUntilNextPhase;
+      var tag = (remaining != null && remaining <= 3)
+        ? ' <span style="opacity:.6;">('+remaining+'d left)</span>'
+        : '';
+      notes.push('\uD83D\uDD34 <b>'+esc(name)+'</b> coterminous'+tag);
+    }
+    else if (ps.phase === 'remote'){
+      var remRem = ps.daysUntilNextPhase;
+      var remTag = (remRem != null && remRem <= 3)
+        ? ' <span style="opacity:.6;">('+remRem+'d left)</span>'
+        : '';
+      notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote'+remTag);
+    }
+    else if (ps.phase === 'waxing' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 3){
+      notes.push('\uD83D\uDD34 <b>'+esc(name)+'</b> coterminous in '+ps.daysUntilNextPhase+'d');
+    }
+    else if (ps.phase === 'waning' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 3){
+      notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote in '+ps.daysUntilNextPhase+'d');
+    }
+  }
+
+  return notes;
+}
+
+// ---------------------------------------------------------------------------
+// 21e) Phase emoji and label helpers
+// ---------------------------------------------------------------------------
+
+var PLANE_PHASE_EMOJI = {
+  coterminous: '\uD83D\uDD34',  // 🔴
+  waning:      '\uD83D\uDFE0',  // 🟠
+  remote:      '\uD83D\uDD35',  // 🔵
+  waxing:      '\uD83D\uDFE1'   // 🟡
+};
+
+var PLANE_PHASE_LABELS = {
+  coterminous: 'Coterminous',
+  waning:      'Waning',
+  remote:      'Remote',
+  waxing:      'Waxing'
+};
+
+var PLANE_REVEAL_TIERS = { mundane:1, magical:2 };
+var PLANE_SOURCE_LABELS = {
+  mundane:  'Mundane Forecast',
+  magical:  'Magical Forecast'
+};
+var PLANE_PREDICTION_LIMITS = {
+  mundaneDays: 3360,      // max mundane horizon (10 years)
+  magicalDays: 3360,      // about ten years
+  magicalExactDays: 336   // exact-by-day confidence window for magical flicker foresight
+};
+var PLANE_FLICKER_LOOKAHEAD = {
+  gmDays: 672
+};
+var PLANE_REVEAL_RANGE_OPTIONS = {
+  '1y': 1,
+  '3y': 3,
+  '6y': 6,
+  '10y': 10
+};
+
+function _normalizePlaneRevealTier(tier){
+  var t = String(tier || '').toLowerCase();
+  if (PLANE_REVEAL_TIERS[t]) return t;
+  return 'mundane';
+}
+
+function _parsePlaneRevealRange(token, tier){
+  tier = _normalizePlaneRevealTier(tier);
+  var ypd = Math.max(1, _planarYearDays());
+  var maxAllowed = (tier === 'magical') ? PLANE_PREDICTION_LIMITS.magicalDays : PLANE_PREDICTION_LIMITS.mundaneDays;
+  var t = String(token || '').toLowerCase().trim();
+  if (!t) return Math.min(maxAllowed, ypd);
+  if (PLANE_REVEAL_RANGE_OPTIONS[t]) return Math.min(maxAllowed, PLANE_REVEAL_RANGE_OPTIONS[t] * ypd);
+  if (t === '1w') return Math.min(maxAllowed, ypd); // legacy alias
+
+  var n = parseInt(t, 10);
+  if (!isFinite(n) || n < 1) return null;
+  return Math.min(maxAllowed, n);
+}
+
+function _planeRangeLabel(days){
+  var ypd = Math.max(1, _planarYearDays());
+  days = parseInt(days, 10) || 0;
+  if (days === ypd) return '1 year';
+  if (days === ypd * 3) return '3 years';
+  if (days === ypd * 6) return '6 years';
+  if (days === ypd * 10) return '10 years';
+  if (days % ypd === 0) return (days / ypd) + ' years';
+  return _rangeLabel(days);
+}
+
+function _parseSpanDaysToken(tok, fallbackDays, maxDays){
+  var t = String(tok || '').toLowerCase().trim();
+  if (!t) return fallbackDays;
+  var ypd = Math.max(1, _planarYearDays());
+  var m = t.match(/^(\d+)([dwmy])$/);
+  var out = null;
+  if (m){
+    var n = parseInt(m[1],10) || 0;
+    if (m[2] === 'd') out = n;
+    if (m[2] === 'w') out = n * 7;
+    if (m[2] === 'm') out = n * 28;
+    if (m[2] === 'y') out = n * ypd;
+  } else if (/^\d+$/.test(t)){
+    out = parseInt(t,10);
+  }
+  if (!isFinite(out) || out < 1) return null;
+  return Math.min(maxDays, out);
+}
+
+function _planePredictionWindowDays(plane, daysAhead, tier){
+  tier = _normalizePlaneRevealTier(tier);
+  daysAhead = Math.max(0, daysAhead | 0);
+
+  var base = 0;
+  if (plane && plane.type === 'fixed'){
+    if (plane.name === 'Kythri') base += 24;
+    else if (plane.name === 'Xoriat') base += 36;
+    else base += 12;
+  }
+
+  var profile = PLANAR_FLICKER_PROFILE[(plane && plane.name) || ''] || PLANAR_FLICKER_PROFILE.__default || { chancePer10000:0 };
+  var chance = Math.max(0, profile.chancePer10000 || 0);
+  base += Math.ceil(chance / 300);
+
+  if (plane && /disrupted|anomal|no one knows|unpredictable/i.test(String(plane.note || ''))){
+    base += (tier === 'magical') ? 3 : 8;
+  }
+
+  if (tier === 'magical'){
+    if (daysAhead <= PLANE_PREDICTION_LIMITS.magicalExactDays) return 0;
+    return Math.max(1, base + Math.floor((daysAhead - PLANE_PREDICTION_LIMITS.magicalExactDays) / 336));
+  }
+
+  return Math.max(2, base + Math.floor(daysAhead / 168));
+}
+
+function _planeNextInfoForTier(ps, tier, horizonDays){
+  if (!ps || ps.daysUntilNextPhase == null || !ps.nextPhase) return '';
+  tier = _normalizePlaneRevealTier(tier);
+  var d = Math.max(0, ps.daysUntilNextPhase | 0);
+  var nextLabel = PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase;
+  var cap = (tier === 'magical') ? PLANE_PREDICTION_LIMITS.magicalDays : PLANE_PREDICTION_LIMITS.mundaneDays;
+  var horizon = parseInt(horizonDays, 10);
+  if (!isFinite(horizon) || horizon < 1) horizon = _planarYearDays();
+  horizon = Math.min(cap, horizon);
+  if (d > horizon) return nextLabel + ' beyond ' + _planeRangeLabel(horizon);
+  return nextLabel + ' in ' + d + 'd';
+}
+
+function _nextCanonicalPhaseStart(planeName, serial, targetPhase, horizonDays){
+  var cap = Math.max(1, horizonDays|0);
+  var prev = getPlanarState(planeName, serial, { ignoreFlicker: true });
+  if (!prev) return null;
+  for (var s = serial + 1; s <= serial + cap; s++){
+    var cur = getPlanarState(planeName, s, { ignoreFlicker: true });
+    if (!cur){ prev = cur; continue; }
+    if (cur.phase === targetPhase && prev.phase !== targetPhase){
+      return { serial: s, daysUntil: s - serial, state: cur };
+    }
+    prev = cur;
+  }
+  return null;
+}
+
+function _canonicalPhaseKnowledgeSummary(planeName, serial, horizonDays){
+  var h = Math.max(1, horizonDays|0);
+  var now = getPlanarState(planeName, serial, { ignoreFlicker: true });
+  if (!now) return '';
+
+  var c = _nextCanonicalPhaseStart(planeName, serial, 'coterminous', h);
+  var r = _nextCanonicalPhaseStart(planeName, serial, 'remote', h);
+
+  var cTxt = (now.phase === 'coterminous') ? 'now'
+    : (c ? ('in ' + c.daysUntil + 'd') : ('beyond ' + _planeRangeLabel(h)));
+  var rTxt = (now.phase === 'remote') ? 'now'
+    : (r ? ('in ' + r.daysUntil + 'd') : ('beyond ' + _planeRangeLabel(h)));
+
+  return 'Cycle: C ' + cTxt + ' \u00B7 R ' + rTxt;
+}
+
+// ---------------------------------------------------------------------------
+// 21f) Panel HTML — GM and player views
+// ---------------------------------------------------------------------------
+
+function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
+  var st = ensureSettings();
+  if (st.planesEnabled === false){
+    return _menuBox('\uD83C\uDF00 Planes',
+      '<div style="opacity:.7;">Planar system is disabled.</div>'+
+      (isGM ? '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings planes on</code></div>' : '')
+    );
+  }
+
+  var viewTier = isGM ? 'magical' : _normalizePlaneRevealTier(revealTier || getPlanesState().revealTier || 'mundane');
+  var viewHorizon = parseInt(revealHorizonDays, 10);
+  if (!isFinite(viewHorizon) || viewHorizon < 1){
+    viewHorizon = parseInt(getPlanesState().revealHorizonDays, 10) || _planarYearDays();
+  }
+  var srcLabel = isGM ? '' : (PLANE_SOURCE_LABELS[viewTier] || '');
+  var planes = _getAllPlaneData();
+  var today  = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
+  var dateLabel = dateLabelFromSerial(today);
+  var rows   = [];
+
+  for (var i = 0; i < planes.length; i++){
+    var canonicalOnlyView = (!isGM && viewTier !== 'magical');
+    var ps = getPlanarState(planes[i].name, today, canonicalOnlyView ? { ignoreFlicker: true } : null);
+    if (!ps) continue;
+
+    var emoji = PLANE_PHASE_EMOJI[ps.phase] || '\u26AA';
+    var label = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
+    var name  = ps.plane.name;
+    var title = ps.plane.title;
+
+    // Next transition info
+    var nextInfo = '';
+    if (ps.daysUntilNextPhase != null && ps.nextPhase){
+      if (isGM){
+        var nextLabel = PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase;
+        nextInfo = nextLabel + ' in ' + ps.daysUntilNextPhase + 'd';
+      }
+    }
+    var cycleSummaryHtml = '';
+    if (!isGM){
+      var cycTxt = _canonicalPhaseKnowledgeSummary(name, today, viewHorizon);
+      if (cycTxt){
+        cycleSummaryHtml = '<div style="font-size:.75em;opacity:.45;margin-left:14px;">'+esc(cycTxt)+'</div>';
+      }
+    }
+
+    // Effect text for coterminous/remote
+    var effectHtml = '';
+    if (isGM && (ps.phase === 'coterminous' || ps.phase === 'remote')){
+      var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || '';
+      if (eff){
+        effectHtml = '<div style="font-size:.78em;opacity:.55;margin-left:14px;margin-top:1px;">'+esc(eff)+'</div>';
+      }
+    }
+
+    // Override indicator
+    var overrideTag = ps.overridden
+      ? ' <span style="font-size:.75em;color:#E65100;">[override]</span>'
+      : '';
+
+    // Note for fixed planes
+    var noteHtml = '';
+    if (ps.note && isGM){
+      noteHtml = '<div style="font-size:.75em;opacity:.45;margin-left:14px;font-style:italic;">'+esc(ps.note)+'</div>';
+    }
+
+    // Upcoming seeded flicker advisory.
+    // Mundane view excludes flicker foresight.
+    // Magical player view includes flickers within the revealed horizon.
+    var flickerHtml = '';
+    var hasFlickerNow = !!(ps.note && /flicker/i.test(ps.note));
+    if (hasFlickerNow && !isGM && viewTier === 'magical'){
+      flickerHtml = '<div style="font-size:.75em;opacity:.48;margin-left:14px;">⚡ Flicker active now</div>';
+    } else if (!hasFlickerNow && !ps.overridden){
+      var lookahead = isGM ? PLANE_FLICKER_LOOKAHEAD.gmDays
+                           : (viewTier === 'magical' ? viewHorizon : 0);
+      if (lookahead > 0){
+        var ff = _nextPlanarFlickerForecast(name, today, lookahead);
+        if (ff){
+          var ffLabel = PLANE_PHASE_LABELS[ff.phase] || ff.phase;
+          var ffText;
+          if (ff.activeNow){
+            ffText = 'Flicker ' + ffLabel + ' now';
+          } else if (isGM){
+            ffText = 'Flicker ' + ffLabel + ' in ' + ff.daysUntilStart + 'd';
+          } else {
+            var ffWin = _planePredictionWindowDays(ps.plane, ff.daysUntilStart, 'magical');
+            if (ffWin <= 0){
+              ffText = 'Flicker ' + ffLabel + ' in ' + ff.daysUntilStart + 'd';
+            } else {
+              var ffLo = Math.max(1, ff.daysUntilStart - ffWin);
+              var ffHi = ff.daysUntilStart + ffWin;
+              ffText = (ffLo === ffHi)
+                ? ('Flicker ' + ffLabel + ' in ' + ffLo + 'd')
+                : ('Flicker ' + ffLabel + ' in about ' + ffLo + '\u2013' + ffHi + 'd');
+            }
+          }
+          if (ff.durationDays > 1) ffText += ' (~' + ff.durationDays + 'd)';
+          flickerHtml = '<div style="font-size:.75em;opacity:.48;margin-left:14px;">⚡ '+esc(ffText)+'</div>';
+        }
+      }
+    }
+
+    rows.push(
+      '<div style="margin:3px 0;line-height:1.4;">'+
+        emoji+' <b style="min-width:82px;display:inline-block;">'+esc(name)+'</b>'+
+        '<span style="opacity:.85;">'+esc(label)+'</span>'+
+        overrideTag+
+        (nextInfo ? '<span style="opacity:.4;font-size:.82em;margin-left:8px;">'+esc(nextInfo)+'</span>' : '')+
+      '</div>'+
+      effectHtml+
+      cycleSummaryHtml+
+      noteHtml+
+      flickerHtml
+    );
+  }
+
+  // Long Shadows special: when Mabar is coterminous, show which moons are dark
+  var longShadowsHtml = '';
+  try {
+    var mabarState = getPlanarState('Mabar', today, (!isGM && viewTier !== 'magical') ? { ignoreFlicker: true } : null);
+    if (mabarState && mabarState.phase === 'coterminous'){
+      var c = getCal().current;
+      var lsMoons = getLongShadowsMoons(c.year);
+      if (lsMoons.length > 0){
+        var moonNames = [];
+        for (var lm = 0; lm < lsMoons.length; lm++) moonNames.push(lsMoons[lm].name);
+        longShadowsHtml = '<div style="font-size:.82em;margin-top:4px;padding:4px;'+
+          'background:rgba(60,0,80,.15);border-radius:3px;border:1px solid rgba(100,50,120,.3);">'+
+          '\uD83C\uDF11 <b>Long Shadows</b> \u2014 Dark moons tonight: <b>'+esc(moonNames.join(', '))+'</b>'+
+          '</div>';
+      } else {
+        longShadowsHtml = '<div style="font-size:.82em;margin-top:4px;padding:4px;'+
+          'background:rgba(60,0,80,.15);border-radius:3px;border:1px solid rgba(100,50,120,.3);">'+
+          '\uD83C\uDF11 <b>Long Shadows</b> \u2014 Mabar is coterminous. Darkness reigns.'+
+          '</div>';
+      }
+    }
+  } catch(e){}
+
+  // GM-only controls
+  var gmControls = '';
+  if (isGM){
+    gmControls =
+      '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
+        '<div style="font-size:.8em;opacity:.75;margin-bottom:2px;">Mundane share:</div>'+
+        '<div>'+
+          button('1y','planes send mundane 1y')+' '+
+          button('3y','planes send mundane 3y')+' '+
+          button('6y','planes send mundane 6y')+' '+
+          button('10y','planes send mundane 10y')+
+        '</div>'+
+        '<div style="font-size:.8em;opacity:.75;margin:3px 0 2px 0;">Magical share:</div>'+
+        '<div>'+
+          button('1y','planes send magical 1y')+' '+
+          button('3y','planes send magical 3y')+' '+
+          button('6y','planes send magical 6y')+' '+
+          button('10y','planes send magical 10y')+
+        '</div>'+
+        '<div style="margin-top:4px;">'+
+          button('Upcoming (2y)','planes upcoming 2y')+
+        '</div>'+
+        '<div style="font-size:.8em;opacity:.6;">'+
+          'Query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code><br>'+
+          'Override: <code>!cal planes set &lt;name&gt; &lt;phase&gt; [days]</code><br>'+
+          'Anchor: <code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code><br>'+
+          'Clear: <code>!cal planes clear &lt;name&gt;</code>'+
+        '</div>'+
+      '</div>';
+  }
+
+  var srcLine = srcLabel
+    ? '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:6px;">'+esc(srcLabel)+'</div>'
+    : '';
+  var horizonLine = (!isGM)
+    ? '<div style="font-size:.75em;opacity:.4;margin-top:2px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>'+
+      '<div style="font-size:.75em;opacity:.4;">Query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code></div>'
+    : '';
+
+  return _menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel),
+    rows.join('') + longShadowsHtml + srcLine + horizonLine + gmControls +
+    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','help root') +'</div>'
+  );
+}
+
+function _isFlickerNote(note){
+  return /flicker/i.test(String(note || ''));
+}
+
+function _planarUpcomingRows(daysAhead, opts){
+  opts = opts || {};
+  var includeFlickers = (opts.includeFlickers !== false);
+  var today = todaySerial();
+  var end = today + Math.max(1, daysAhead|0);
+  var planes = _getAllPlaneData();
+  var rows = [];
+  var prevCanon = {};
+  var prevFlick = {};
+
+  for (var i = 0; i < planes.length; i++){
+    var pName = planes[i].name;
+    prevCanon[pName] = getPlanarState(pName, today, { ignoreFlicker: true });
+    if (includeFlickers){
+      var pNow = getPlanarState(pName, today);
+      prevFlick[pName] = !!(pNow && _isFlickerNote(pNow.note));
+    }
+  }
+
+  for (var ser = today + 1; ser <= end; ser++){
+    for (var j = 0; j < planes.length; j++){
+      var name = planes[j].name;
+      var curCanon = getPlanarState(name, ser, { ignoreFlicker: true });
+      var prvCanon = prevCanon[name];
+      if (!curCanon || !prvCanon){
+        prevCanon[name] = curCanon;
+      } else {
+        // Canonical transitions of interest.
+        if (curCanon.phase !== prvCanon.phase && (curCanon.phase === 'coterminous' || curCanon.phase === 'remote')){
+          rows.push({
+            serial: ser,
+            plane: name,
+            kind: 'Cycle',
+            detail: (PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase) + ' begins'
+          });
+        }
+        prevCanon[name] = curCanon;
+      }
+
+      if (includeFlickers){
+        var curActual = getPlanarState(name, ser);
+        var curFlick = !!(curActual && _isFlickerNote(curActual.note));
+        var hadFlick = !!prevFlick[name];
+        if (curFlick && !hadFlick){
+          var fe = _planarFlickerEventAt(name, ser);
+          var durTxt = (fe && fe.durationDays > 1) ? (' (~'+fe.durationDays+'d)') : '';
+          rows.push({
+            serial: ser,
+            plane: name,
+            kind: 'Flicker',
+            detail: (PLANE_PHASE_LABELS[curActual.phase] || curActual.phase) + durTxt
+          });
+        }
+        prevFlick[name] = curFlick;
+      }
+    }
+  }
+
+  rows.sort(function(a,b){
+    if (a.serial !== b.serial) return a.serial - b.serial;
+    return String(a.plane).localeCompare(String(b.plane));
+  });
+  return rows;
+}
+
+function planesUpcomingHtml(daysAhead, opts){
+  opts = opts || {};
+  var includeFlickers = (opts.includeFlickers !== false);
+  var rows = _planarUpcomingRows(daysAhead, { includeFlickers: includeFlickers });
+  var title = opts.title || 'Upcoming Planar Events';
+  if (!rows.length){
+    return _menuBox(title,
+      '<div style="opacity:.7;">No '+(includeFlickers ? '' : 'canonical ')+'coterminous/remote transitions'+(includeFlickers ? ' or flickers' : '')+' in the next '+daysAhead+' days.</div>'+
+      '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+    );
+  }
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Date</th>'+
+    '<th style="'+STYLES.th+'">Plane</th>'+
+    '<th style="'+STYLES.th+'">Type</th>'+
+    '<th style="'+STYLES.th+'">Detail</th>'+
+    '</tr>';
+  var body = rows.slice(0, 250).map(function(r){
+    var d = fromSerial(r.serial);
+    var m = getCal().months[d.mi] || {};
+    var label = esc((m.name || '?')+' '+d.day+', '+d.year);
+    return '<tr>'+
+      '<td style="'+STYLES.td+'">'+label+'</td>'+
+      '<td style="'+STYLES.td+'">'+esc(r.plane)+'</td>'+
+      '<td style="'+STYLES.td+'">'+esc(r.kind)+'</td>'+
+      '<td style="'+STYLES.td+'">'+esc(r.detail)+'</td>'+
+      '</tr>';
+  }).join('');
+
+  var extra = rows.length > 250
+    ? '<div style="font-size:.78em;opacity:.55;margin-top:4px;">Showing first 250 results of '+rows.length+'. Narrow the range if needed.</div>'
+    : '';
+
+  return _menuBox(title + ' ('+daysAhead+' days)',
+    '<table style="'+STYLES.table+'">'+head+body+'</table>'+
+    extra+
+    '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 21g) Command handler  (!cal planes ...)
+// ---------------------------------------------------------------------------
+
+function handlePlanesCommand(m, args){
+  // args[0]='planes', args[1]=subcommand
+  var sub = String(args[1] || '').toLowerCase();
+  var isGM = playerIsGM(m.playerid);
+
+  var psView = getPlanesState();
+  var playerTier = _normalizePlaneRevealTier(psView.revealTier || 'mundane');
+  var playerHorizon = parseInt(psView.revealHorizonDays, 10) || _planarYearDays();
+
+  if (!sub || sub === 'show'){
+    return whisper(m.who, isGM ? planesPanelHtml(true) : planesPanelHtml(false, playerTier, null, playerHorizon));
+  }
+
+  // Player self-query mode (read-only, knowledge-limited).
+  if (!isGM){
+    if (sub === 'on' || sub === 'date'){
+      var pDateToks = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+      var pPref = parseDatePrefixForAdd(pDateToks);
+      if (!pPref){
+        return whisper(m.who, 'Usage: <code>!cal planes on &lt;dateSpec&gt;</code>');
+      }
+      var pSerial = toSerial(pPref.year, pPref.mHuman - 1, pPref.day);
+      var pToday = todaySerial();
+      if (pSerial < pToday || pSerial > (pToday + playerHorizon)){
+        return whisper(m.who, 'That date is outside your known planar horizon ('+esc(_planeRangeLabel(playerHorizon))+').');
+      }
+      return whisper(m.who, planesPanelHtml(false, playerTier, pSerial, playerHorizon));
+    }
+
+    if (sub === 'upcoming' || sub === 'list'){
+      var pSpan = _parseSpanDaysToken(args[2], playerHorizon, playerHorizon);
+      if (!pSpan){
+        return whisper(m.who, 'Usage: <code>!cal planes upcoming [span]</code> (up to your horizon)');
+      }
+      var pIncludeFlickers = (playerTier === 'magical');
+      var pTitle = pIncludeFlickers ? 'Your Planar Forecast' : 'Your Canonical Planar Forecast';
+      return whisper(m.who, planesUpcomingHtml(pSpan, {
+        includeFlickers: pIncludeFlickers,
+        title: pTitle
+      }));
+    }
+
+    return whisper(m.who,
+      'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
+      '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
+      '<code>!cal planes upcoming [span]</code>'
+    );
+  }
+
+  // !cal planes on <dateSpec>  — inspect planar states on a specific day
+  if (sub === 'on' || sub === 'date'){
+    var dateToksOn = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+    var prefOn = parseDatePrefixForAdd(dateToksOn);
+    if (!prefOn){
+      return whisper(m.who, 'Usage: <code>!cal planes on &lt;dateSpec&gt;</code> (example: <code>!cal planes on Rhaan 14 998</code>)');
+    }
+    var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
+    return whisper(m.who, planesPanelHtml(true, null, serialOn));
+  }
+
+  // !cal planes upcoming [span]  — list upcoming cycle/flicker events
+  if (sub === 'upcoming' || sub === 'list'){
+    var spanDays = _parseSpanDaysToken(args[2], _planarYearDays() * 2, _planarYearDays() * 10);
+    if (!spanDays){
+      return whisper(m.who, 'Usage: <code>!cal planes upcoming [days|4w|2y|10y]</code>');
+    }
+    return whisper(m.who, planesUpcomingHtml(spanDays, { includeFlickers: true }));
+  }
+
+  // !cal planes set <n> <phase> [days]  — force override a plane's phase
+  if (sub === 'set'){
+    var setName  = String(args[2] || '').trim();
+    var setPhase = String(args[3] || '').toLowerCase();
+    if (!setName || !PLANE_PHASE_LABELS[setPhase]){
+      return whisper(m.who, 'Usage: <code>!cal planes set &lt;name&gt; (coterminous|waning|remote|waxing) [days]</code>');
+    }
+    var plane = _getPlaneData(setName);
+    if (!plane) return whisper(m.who, 'Unknown plane: <b>'+esc(setName)+'</b>');
+
+    var durationDays = parseInt(args[4], 10) || 0; // 0 = indefinite
+    var setToday = todaySerial();
+    var ps = getPlanesState();
+    var overrideObj = { phase: setPhase, note: 'GM override', setOn: setToday };
+    if (durationDays > 0) overrideObj.durationDays = durationDays;
+    ps.overrides[plane.name] = overrideObj;
+
+    var durMsg = durationDays > 0 ? ' for <b>'+durationDays+'</b> day'+(durationDays>1?'s':'') : ' (indefinite)';
+    whisper(m.who, '<b>'+esc(plane.name)+'</b> forced to <b>'+esc(PLANE_PHASE_LABELS[setPhase])+'</b>'+durMsg+'.');
+    return whisper(m.who, planesPanelHtml(true));
+  }
+
+  // !cal planes clear <name>  — remove override for a plane
+  if (sub === 'clear'){
+    var clearName = String(args[2] || '').trim();
+    var psC = getPlanesState();
+    if (!clearName){
+      psC.overrides = {};
+      psC.anchors = {};
+      whisper(m.who, 'All planar overrides and anchor overrides cleared.');
+      return whisper(m.who, planesPanelHtml(true));
+    }
+    var planeC = _getPlaneData(clearName);
+    if (!planeC) return whisper(m.who, 'Unknown plane: <b>'+esc(clearName)+'</b>');
+    delete psC.overrides[planeC.name];
+    delete psC.anchors[planeC.name];
+    whisper(m.who, 'Override cleared for <b>'+esc(planeC.name)+'</b>.');
+    return whisper(m.who, planesPanelHtml(true));
+  }
+
+  // !cal planes anchor <name> <phase> <dateSpec>  — set anchor date for cycle calculation
+  if (sub === 'anchor'){
+    var ancName  = String(args[2] || '').trim();
+    var ancPhase = String(args[3] || '').toLowerCase();
+    if (!ancName || !PLANE_PHASE_LABELS[ancPhase]){
+      return whisper(m.who,
+        'Usage: <code>!cal planes anchor &lt;name&gt; (coterminous|waning|remote|waxing) &lt;dateSpec&gt;</code><br>'+
+        'Example: <code>!cal planes anchor Fernia coterminous Lharvion 1 996</code>'
+      );
+    }
+    var planeA = _getPlaneData(ancName);
+    if (!planeA) return whisper(m.who, 'Unknown plane: <b>'+esc(ancName)+'</b>');
+
+    var dateToks = args.slice(4).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+    var pref = parseDatePrefixForAdd(dateToks);
+    if (!pref){
+      return whisper(m.who, 'Could not parse date. Try: <code>!cal planes anchor '+esc(planeA.name)+' '+ancPhase+' Lharvion 1 996</code>');
+    }
+
+    var psA = getPlanesState();
+    psA.anchors[planeA.name] = {
+      year: pref.year,
+      month: pref.mHuman - 1,
+      day: pref.day,
+      phase: ancPhase
+    };
+
+    var cal2 = getCal();
+    var monthName = (cal2.months[pref.mHuman - 1] || {}).name || String(pref.mHuman);
+    whisper(m.who,
+      '<b>'+esc(planeA.name)+'</b> anchor set: <b>'+esc(PLANE_PHASE_LABELS[ancPhase])+'</b> on '+
+      esc(String(pref.day))+' '+esc(monthName)+' '+esc(String(pref.year))+'.'
+    );
+    // Clear any phase override since we're now using calculated cycles
+    delete psA.overrides[planeA.name];
+    return whisper(m.who, planesPanelHtml(true));
+  }
+
+  // !cal planes send [mundane|magical] [1y|3y|6y|10y]
+  // Without a tier, shows GM-only snapshot.
+  // With a tier, broadcasts a player-facing planar forecast and upgrades stored tier.
+  if (sub === 'send'){
+    var tierRaw = String(args[2] || '').toLowerCase();
+    if (!tierRaw){
+      var planes = _getAllPlaneData();
+      var today  = todaySerial();
+      var sendRows = [];
+
+      for (var si = 0; si < planes.length; si++){
+        var sps = getPlanarState(planes[si].name, today);
+        if (!sps) continue;
+        var sEmoji = PLANE_PHASE_EMOJI[sps.phase] || '\u26AA';
+        var sLabel = PLANE_PHASE_LABELS[sps.phase] || sps.phase;
+        sendRows.push(
+          '<div style="margin:2px 0;">'+
+            sEmoji+' <b>'+esc(sps.plane.name)+'</b> \u2014 '+esc(sLabel)+
+          '</div>'
+        );
+      }
+
+      whisper(m.who, _menuBox(
+        '\uD83C\uDF00 Planar Almanac \u2014 '+esc(dateLabelFromSerial(today)),
+        sendRows.join('') +
+        '<div style="opacity:.75;margin-top:4px;">GM-only view. No message was sent to players.</div>'+
+        '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+      ));
+      return;
+    }
+
+    var tier = PLANE_REVEAL_TIERS[tierRaw] ? tierRaw : null;
+    if (!tier){
+      return whisper(m.who, 'Usage: <code>!cal planes send [mundane|magical] [1y|3y|6y|10y]</code>');
+    }
+    var reqHorizon = _parsePlaneRevealRange(args[3], tier);
+    if (!reqHorizon){
+      return whisper(m.who, 'Usage: <code>!cal planes send [mundane|magical] [1y|3y|6y|10y]</code>');
+    }
+
+    var psSend = getPlanesState();
+    var curTier = _normalizePlaneRevealTier(psSend.revealTier || 'mundane');
+    var curRank = PLANE_REVEAL_TIERS[curTier] || 1;
+    var newRank = PLANE_REVEAL_TIERS[tier] || 1;
+    if (newRank > curRank) psSend.revealTier = tier;
+    var effectiveTier = _normalizePlaneRevealTier(psSend.revealTier || tier);
+    if (newRank > curRank){
+      psSend.revealHorizonDays = reqHorizon;
+    } else if (newRank === curRank){
+      psSend.revealHorizonDays = Math.max(parseInt(psSend.revealHorizonDays,10)||_planarYearDays(), reqHorizon);
+    }
+    var effectiveHorizon = parseInt(psSend.revealHorizonDays,10) || reqHorizon;
+
+    sendToAll(planesPanelHtml(false, effectiveTier, null, effectiveHorizon));
+    warnGM('Sent '+titleCase(effectiveTier)+' planar forecast to players ('+_planeRangeLabel(effectiveHorizon)+').');
+    whisper(m.who, planesPanelHtml(true));
+    return;
+  }
+
+  whisper(m.who,
+    'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes send [mundane|magical] [1y|3y|6y|10y]</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes upcoming [span]</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes clear [&lt;name&gt;]</code>'
+  );
+}
+
+
+/* ============================================================================
+ * INITIALIZATION
+ * ==========================================================================*/
 
 on("ready", function(){
   checkInstall();
   refreshCalendarState(true);
   register();
   var currentDate = currentDateLabel();
-  log('Eberron Calendar Running, current date: ' + currentDate);
+  var stReady = ensureSettings();
+  var sysReady = CALENDAR_SYSTEMS[stReady.calendarSystem] || {};
+  var sysLabelReady = String(sysReady.label || 'Calendar');
+  log(sysLabelReady + ' Running, current date: ' + currentDate);
   sendChat(script_name,
-    '/direct ' +
-    '<div>Eberron Calendar Initialized</div>' +
-    '<div>Current date: ' + esc(currentDate) + '</div>' +
-    '<div>Use <code>!cal</code> to view the calendar.</div>' +
+    '/direct '+
+    '<div>'+esc(sysLabelReady)+' Initialized</div>'+
+    '<div>Current date: '+esc(currentDate)+'</div>'+
+    '<div>Use <code>!cal</code> to view the calendar.</div>'+
     '<div>Use <code>!cal help</code> for help.</div>'
   );
 });
 
-// Final return (bottom of IIFE)
+
 return {
   checkInstall: checkInstall,
   register: register,
@@ -3783,4 +9471,5 @@ return {
   events: eventsAPI,
   colors: colorsAPI
 };
+
 })();
