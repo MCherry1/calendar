@@ -2,7 +2,7 @@
 // By Matthew Cherry (github.com/mcherry1/calendar)
 // Roll20 API script
 // Call `!cal` to start. Add macro for easy access.
-// Version: 2.1
+// Version: 3.0
 
 var Calendar = (function(){
 
