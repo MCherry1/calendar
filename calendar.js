@@ -51,9 +51,10 @@ var CONFIG_DEFAULTS = {
   moonsEnabled:    true,        // false = moon system fully disabled
   weatherEnabled:  true,        // false = weather system fully disabled
   planesEnabled:   true,        // false = planar system disabled
-  moonDisplayMode: 'both',      // 'calendar' | 'list' | 'both'
-  weatherDisplayMode:'both',    // 'calendar' | 'list' | 'both'
-  planesDisplayMode:'both',     // 'calendar' | 'list' | 'both'
+  offCyclePlanes:  true,        // false = disable off-cycle (anomalous) planar movement
+  moonDisplayMode: 'calendar',  // 'calendar' | 'list' | 'both'
+  weatherDisplayMode:'calendar', // 'calendar' | 'list' | 'both'
+  planesDisplayMode:'calendar',  // 'calendar' | 'list' | 'both'
   subsystemVerbosity:'normal',  // 'normal' | 'minimal'
   weatherForecastViewDays: 10,  // GM weather forecast display span (10 or 20)
   uiDensity:       'normal',    // 'compact' or 'normal'
@@ -185,7 +186,9 @@ var CONFIG_WEATHER_MECHANICS = {
     0: null,
     1: null,
     2: 'Ranged attacks at disadvantage. Long range auto-miss. Fogs and gases dispersed.',
-    3: 'All ranged attacks auto-miss. Flying creatures: DC 15 Str or half speed and must land. Open flames extinguished.'
+    3: 'All ranged attacks auto-miss. Flying creatures: DC 15 Str or half speed and must land. Open flames extinguished.',
+    4: 'All ranged attacks auto-miss. Flying impossible. Small creatures: DC 12 Str or knocked prone. Structures creak and groan.',
+    5: 'All ranged attacks auto-miss. Flying impossible. All creatures: DC 15 Str each round or knocked prone and pushed 10ft. Unsecured objects become projectiles (2d6 bludgeoning).'
   }
   // Precip mechanics are now fully derived per-condition by _deriveConditions.
   // See CONFIG_WEATHER_FLAVOR for narrative and that function for visibility rules.
@@ -198,8 +201,8 @@ var CONFIG_WEATHER_LABELS = {
     'Extreme Cold','Frigid','Freezing','Cold','Chilly',
     'Mild','Warm','Hot','Sweltering','Blistering','Extreme Heat'
   ],
-  wind:   ['Calm','Breezy','Windy','Storm'],
-  precip: ['Clear','Overcast','Precipitation','Severe']
+  wind:   ['Calm','Breezy','Windy','Storm','Gale','Hurricane'],
+  precip: ['Clear','Partly Cloudy','Overcast','Precipitation','Heavy Precipitation','Deluge']
 };
 
 /* --- Weather Flavor Text --------------------------------------------------*/
@@ -209,26 +212,36 @@ var CONFIG_WEATHER_LABELS = {
 // Fog is a derived condition (morning, low wind, swamp/valley/forest) and
 // handled separately in _deriveConditions — not represented here.
 var CONFIG_WEATHER_FLAVOR = {
-  'cold|0':  'Bitterly cold and clear.',
-  'cold|1':  'Cold and overcast.',
-  'cold|2':  'Cold with light snow.',
-  'cold|3':  'Blizzard. Dangerous to be outside.',
-  'cool|0':  'Crisp and clear.',
-  'cool|1':  'Cool and cloudy.',
-  'cool|2':  'Sleet and freezing rain.',
-  'cool|3':  'Ice storm. Roads are treacherous.',
-  'mild|0':  'Clear skies.',
-  'mild|1':  'Partly to mostly cloudy.',
-  'mild|2':  'Light rain.',
-  'mild|3':  'Heavy rain and reduced visibility.',
-  'warm|0':  'Warm and sunny.',
-  'warm|1':  'Warm with clouds building.',
-  'warm|2':  'Warm with light rain. Humid.',
-  'warm|3':  'Heavy rain. Hot and muggy.',
+  'cold|0':  'Bitterly cold and clear. Frost glitters on every surface.',
+  'cold|1':  'Cold and partly cloudy. A few high clouds drift past.',
+  'cold|2':  'Cold and overcast. A grey ceiling threatens snow.',
+  'cold|3':  'Cold with light snow. Flakes fall steadily.',
+  'cold|4':  'Blizzard. Driving snow and dangerous cold.',
+  'cold|5':  'Whiteout. An impenetrable wall of snow and wind.',
+  'cool|0':  'Crisp and clear. A clean chill in the air.',
+  'cool|1':  'Cool with scattered clouds. Pleasant but brisk.',
+  'cool|2':  'Cool and overcast. Damp and grey.',
+  'cool|3':  'Sleet and freezing rain. Roads are slick.',
+  'cool|4':  'Ice storm. A thick glaze of ice coats everything.',
+  'cool|5':  'Catastrophic ice storm. Trees crack and power lines fall.',
+  'mild|0':  'Clear skies. A fine day.',
+  'mild|1':  'Partly cloudy. Fair weather clouds drift by.',
+  'mild|2':  'Mostly cloudy. The sky is a featureless grey.',
+  'mild|3':  'Light rain. A steady drizzle.',
+  'mild|4':  'Heavy rain. Puddles form quickly and gutters overflow.',
+  'mild|5':  'Torrential downpour. Sheets of rain and near-zero visibility.',
+  'warm|0':  'Warm and sunny. Not a cloud in the sky.',
+  'warm|1':  'Warm with clouds building. Hazy and humid.',
+  'warm|2':  'Warm and overcast. The air feels heavy.',
+  'warm|3':  'Warm with light rain. Humid and close.',
+  'warm|4':  'Heavy rain. Hot and muggy. Thunder rumbles.',
+  'warm|5':  'Violent thunderstorm. Lightning, driving rain, and flooding.',
   'hot|0':   'Hot and dry. The sun is punishing.',
-  'hot|1':   'Hot and hazy.',
-  'hot|2':   'Hot with light rain. Steam rises from the ground.',
-  'hot|3':   'Intense heat and driving rain.'
+  'hot|1':   'Hot and hazy. Dust or heat shimmer on the horizon.',
+  'hot|2':   'Hot and overcast. Oppressive humidity.',
+  'hot|3':   'Hot with light rain. Steam rises from the ground.',
+  'hot|4':   'Intense heat and driving rain. Tropical storm conditions.',
+  'hot|5':   'Catastrophic heat storm. Flash flooding and dangerous lightning.'
 };
 
 /* ============================================================================
@@ -616,6 +629,25 @@ function ensureSettings(){
   if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
   if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
+  if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
+
+  // Auto-toggle: Eberron-specific subsystems default to on for Galifar,
+  // off for non-Eberron calendars. The GM can always override manually.
+  // Only apply auto-toggle when the setting has never been explicitly touched.
+  if (s._planesAutoToggle !== false){
+    var isEberronCal = (s.calendarSystem === 'eberron');
+    if (s.planesEnabled === undefined || s._planesAutoToggle === undefined){
+      s.planesEnabled = isEberronCal;
+      s._planesAutoToggle = true; // mark as auto-set so manual overrides stick
+    }
+  }
+  if (s._moonsAutoToggle !== false){
+    var isEberronCal2 = (s.calendarSystem === 'eberron');
+    if (s.moonsEnabled === undefined || s._moonsAutoToggle === undefined){
+      s.moonsEnabled = isEberronCal2;
+      s._moonsAutoToggle = true;
+    }
+  }
   if (!/^(calendar|list|both)$/.test(String(s.moonDisplayMode || '').toLowerCase()))
     s.moonDisplayMode = CONFIG_DEFAULTS.moonDisplayMode;
   if (!/^(calendar|list|both)$/.test(String(s.weatherDisplayMode || '').toLowerCase()))
@@ -834,6 +866,18 @@ function applyCalendarSystem(sysKey, varKey){
   var _prevSys = st.calendarSystem || '';
   st.calendarSystem  = sysKey;
   st.calendarVariant = vk;
+
+  // Auto-toggle Eberron-specific subsystems when switching calendar systems.
+  // Only auto-toggle if the previous toggle was also automatic (not manual).
+  var isEberron = (sysKey === 'eberron');
+  if (st._planesAutoToggle !== false){
+    st.planesEnabled = isEberron;
+    st._planesAutoToggle = true;
+  }
+  if (st._moonsAutoToggle !== false){
+    st.moonsEnabled = isEberron;
+    st._moonsAutoToggle = true;
+  }
 
   // Enforce source calendar scopes so calendar-specific defaults only appear
   // on their matching calendar systems.
@@ -1217,10 +1261,6 @@ function _buildSerialCache(){
   _serialCache.avgDpy  = base + leapFrac; // average including leap contribution
 }
 
-function _baseDaysPerYear(){
-  if (_serialCache.baseDpy === null) _buildSerialCache();
-  return _serialCache.baseDpy;
-}
 
 // Count of years in [0, y-1] divisible by `every` (includes year 0).
 function _leapsBefore(y, every){
@@ -2951,17 +2991,18 @@ function sendCurrentDate(to, gmOnly, opts){
           var ph = moonPhaseAt(moon.name, todaySer);
           var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
           var _thisNotable = false;
+          var titleTag = ' <span style="opacity:.55;">(' + esc(moon.title) + ')</span>';
 
           // Full or New right now?
           if (ph.illum >= 0.97){
-            _notable.push(emoji + ' <b>' + esc(moon.name) + '</b> is Full');
+            _notable.push(emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is Full');
             _thisNotable = true;
             return;
           }
           if (ph.illum <= 0.03){
             var newLabel = ph.longShadows
-              ? emoji + ' <b>' + esc(moon.name) + '</b> goes dark (Long Shadows)'
-              : emoji + ' <b>' + esc(moon.name) + '</b> is New';
+              ? emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' goes dark (Long Shadows)'
+              : emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is New';
             _notable.push(newLabel);
             _thisNotable = true;
             return;
@@ -2975,11 +3016,11 @@ function sendCurrentDate(to, gmOnly, opts){
 
           if (dFull <= 2){
             var fEmoji = '\uD83C\uDF15'; // 🌕
-            _notable.push(fEmoji + ' <b>' + esc(moon.name) + '</b> Full ' + (dFull === 1 ? 'tomorrow' : 'in 2 days'));
+            _notable.push(fEmoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' Full ' + (dFull === 1 ? 'tomorrow' : 'in 2 days'));
             _thisNotable = true;
           } else if (dNew <= 2){
             var nEmoji = '\uD83C\uDF11'; // 🌑
-            _notable.push(nEmoji + ' <b>' + esc(moon.name) + '</b> New ' + (dNew === 1 ? 'tomorrow' : 'in 2 days'));
+            _notable.push(nEmoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' New ' + (dNew === 1 ? 'tomorrow' : 'in 2 days'));
             _thisNotable = true;
           }
 
@@ -2988,14 +3029,14 @@ function sendCurrentDate(to, gmOnly, opts){
             try {
               var _aPs = getPlanarState(moon.plane, todaySer);
               if (_aPs && _aPs.phase === 'coterminous')
-                _notable.push('\u2728 <b>' + esc(moon.name) + '</b> ascendant');
+                _notable.push('\u2728 <b>' + esc(moon.name) + '</b>' + titleTag + ' ascendant');
             } catch(e2){}
           }
         });
 
         if (_notable.length){
-          moonLine = '<div style="font-size:.82em;opacity:.7;margin-top:3px;">' +
-            _notable.join(' &nbsp;&middot;&nbsp; ') +
+          moonLine = '<div style="font-size:.82em;opacity:.7;margin-top:3px;line-height:1.6;">' +
+            _notable.join('<br>') +
             '</div>';
         }
 
@@ -3029,14 +3070,12 @@ function sendCurrentDate(to, gmOnly, opts){
           var _tL = CONFIG_WEATHER_LABELS.temp[Math.min(_f.temp, 10)] || _tempBand(_f.temp);
           var _wxLoc   = _wxRec.location || {};
           var _wxCond  = _deriveConditions(_f, _wxLoc, 'afternoon', _wxRec.snowAccumulated, _wxRec.fog && _wxRec.fog.afternoon);
-          var _pL = _wxCond.precipType !== 'none'
-            ? titleCase(_wxCond.precipType.replace(/_/g,' '))
-            : (CONFIG_WEATHER_LABELS.precip[_f.precip] || 'Clear');
+          var _wxNarr = _conditionsNarrative(_f, _wxCond, 'afternoon');
           weatherLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
-            '\u2601\uFE0F ' + esc(_tL) + ', ' + esc(_pL) +
+            '\u2601\uFE0F ' + esc(_wxNarr) +
             '</div>';
           // Auto-record abridged common-knowledge reveal for today
-          _recordReveal(_ws, todaySer, 'abridged', 'common');
+          _recordReveal(_ws, todaySer, 'low', 'common');
         }
       }
     } catch(e){ /* weather not ready — skip silently */ }
@@ -3048,8 +3087,8 @@ function sendCurrentDate(to, gmOnly, opts){
     try {
       var _plNotes = _planarNotableToday(todaySer);
       if (_plNotes.length){
-        planesLine = '<div style="font-size:.82em;opacity:.7;margin-top:2px;">' +
-          _plNotes.join(' &nbsp;&middot;&nbsp; ') +
+        planesLine = '<div style="font-size:.82em;opacity:.7;margin-top:2px;line-height:1.6;">' +
+          _plNotes.join('<br>') +
           '</div>';
       }
     } catch(e){ /* planes not ready — skip silently */ }
@@ -3717,15 +3756,25 @@ function _menuBox(title, innerHtml){
 function gmButtonsHtml(){
   var wrap = STYLES.gmbuttonWrap;
   var st = ensureSettings();
-  var btns = [
-    '<div style="'+wrap+'">'+ mb('⏮️ Back','retreat 1')   +'</div>',
-    '<div style="'+wrap+'">'+ mb('⏭️ Forward','advance 1') +'</div>',
+  // Row 1: day controls + send
+  var row1 = [
+    '<div style="'+wrap+'">'+ mb('⏮ Back','retreat 1')   +'</div>',
+    '<div style="'+wrap+'">'+ mb('⏭ Forward','advance 1') +'</div>',
     '<div style="'+wrap+'">'+ mb('📣 Send','send')         +'</div>'
   ];
-  if (st.moonsEnabled   !== false) btns.push('<div style="'+wrap+'">'+ mb('🌙 Moons','moon')     +'</div>');
-  if (st.weatherEnabled !== false) btns.push('<div style="'+wrap+'">'+ mb('🌤️ Weather','weather') +'</div>');
-  btns.push('<div style="'+wrap+'">'+ nav('❔ Help','root') +'</div>');
-  return btns.join('');
+  // Row 2: today deep-dive + upcoming planner + subsystems
+  var row2 = [
+    '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>',
+    '<div style="'+wrap+'">'+ mb('📅 Upcoming','upcoming')  +'</div>'
+  ];
+  if (st.weatherEnabled !== false) row2.push('<div style="'+wrap+'">'+ mb('🌤 Weather','weather') +'</div>');
+  if (st.moonsEnabled   !== false) row2.push('<div style="'+wrap+'">'+ mb('🌙 Moons','moon')     +'</div>');
+  if (st.planesEnabled  !== false) row2.push('<div style="'+wrap+'">'+ mb('🌀 Planes','planes')   +'</div>');
+  // Row 3: admin
+  var row3 = [
+    '<div style="'+wrap+'">'+ nav('⚙ Admin','root') +'</div>'
+  ];
+  return row1.join('') + '<br>' + row2.join('') + '<br>' + row3.join('');
 }
 
 function _activePlanarWeatherShiftLines(serial){
@@ -3824,12 +3873,12 @@ function activeEffectsPanelHtml(){
         if (!ps) continue;
         if (ps.phase !== 'coterminous' && ps.phase !== 'remote') continue;
 
-        // Skip permanently fixed routine states (e.g., Dal Quor/Xoriat) unless flickering.
-        var isFlicker = !!(ps.note && /flicker/i.test(ps.note));
-        if (planes[i].type === 'fixed' && !isFlicker) continue;
+        // Skip permanently fixed routine states (e.g., Dal Quor/Xoriat) unless anomalous.
+        var isAnomaly = !!(ps.note && /anomalous/i.test(ps.note));
+        if (planes[i].type === 'fixed' && !isAnomaly) continue;
 
-        // Skip extremely long routine phases unless forced or flickering.
-        if (ps.phaseDuration != null && ps.phaseDuration > ypd && !ps.overridden && !isFlicker) continue;
+        // Skip extremely long routine phases unless forced or anomalous.
+        if (ps.phaseDuration != null && ps.phaseDuration > ypd && !ps.overridden && !isAnomaly) continue;
 
         var emoji = PLANE_PHASE_EMOJI[ps.phase] || '⚪';
         var lbl = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
@@ -3979,6 +4028,10 @@ function helpRootMenu(m){
       '🌀 Planes: '+(st.planesEnabled ? 'On ✓' : 'Off'),
       'settings planes '+(st.planesEnabled ? 'off' : 'on')
     );
+    var offCycBtn = mbP(m,
+      '◇ Off-Cycle: '+(st.offCyclePlanes !== false ? 'On ✓' : 'Off'),
+      'settings offcycle '+(st.offCyclePlanes !== false ? 'off' : 'on')
+    );
     var denBtn = mbP(m,
       'Density: '+(_uiDensityValue(st.uiDensity) === 'compact' ? 'Compact ✓' : 'Normal'),
       'settings density '+(_uiDensityValue(st.uiDensity) === 'compact' ? 'normal' : 'compact')
@@ -4013,7 +4066,7 @@ function helpRootMenu(m){
       'settings buttons '+(st.autoButtons ? 'off' : 'on')
     );
     rows.push(_menuBox('Settings',
-      grpBtn+' '+lblBtn+' '+evBtn+' '+moonBtn+' '+wxBtn+' '+plBtn+' '+denBtn+' '+autoBtn+' '+
+      grpBtn+' '+lblBtn+' '+evBtn+' '+moonBtn+' '+wxBtn+' '+plBtn+' '+offCycBtn+' '+denBtn+' '+autoBtn+' '+
       moonViewBtn+' '+wxViewBtn+' '+plViewBtn+' '+wxSpanBtn+' '+verbBtn+
       '<div style="font-size:.8em;opacity:.6;margin-top:5px;">Reset everything: <code>!cal resetcalendar</code></div>'
     ));
@@ -4176,24 +4229,262 @@ function runEventsShortcut(m, a, sub){
 // Default !cal entrypoint routing:
 // events minical first (if enabled), then other enabled subsystems.
 function _showDefaultCalView(m){
+  // !cal → show the month calendar with subsystem highlights.
+  // Priority: events (default), then moons, weather, planes.
+  sendCurrentDate(m.who, false, {
+    playerid: m.playerid,
+    dashboard: true,
+    includeButtons: true
+  });
+}
+
+// ── Today — Combined detail from all subsystems ────────────────────────
+function _todayAllHtml(){
   var st = ensureSettings();
-  if (st.eventsEnabled !== false){
-    sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
-    return;
-  }
-  if (st.moonsEnabled !== false){
-    handleMoonCommand(m, ['moon']);
-    return;
-  }
+  var today = todaySerial();
+  var cal = getCal(), c = cal.current;
+  var mObj = cal.months[c.month] || {};
+  var wd = cal.weekdays[c.day_of_the_week];
+
+  var sections = [];
+
+  sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
+    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
+    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
+
+  // Events
+  try {
+    var occ = occurrencesInRange(today, today);
+    if (occ.length){
+      var names = [];
+      var seen = {};
+      for (var oi = 0; oi < occ.length; oi++){
+        var nm = eventDisplayName(occ[oi].e);
+        if (!seen[nm.toLowerCase()]){ seen[nm.toLowerCase()]=1; names.push(nm); }
+      }
+      sections.push('<div style="margin:3px 0;">🎉 <b>Events:</b> ' +
+        names.map(esc).join(', ') + '</div>');
+    }
+  } catch(e){}
+
+  // Weather — full period breakdown
   if (st.weatherEnabled !== false){
-    handleWeatherCommand(m, ['weather']);
-    return;
+    try {
+      weatherEnsureForecast();
+      var wxRec = _forecastRecord(today);
+      if (wxRec && wxRec.final){
+        var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b></div>';
+        var periods = ['morning','afternoon','evening'];
+        var pIcons = { morning:'☀', afternoon:'☁', evening:'🌙' };
+        for (var pi = 0; pi < periods.length; pi++){
+          var pname = periods[pi];
+          var fogP = wxRec.fog && wxRec.fog[pname];
+          var cond = _deriveConditions(wxRec.final, wxRec.location||{}, pname,
+            wxRec.snowAccumulated, fogP);
+          var narr = _conditionsNarrative(wxRec.final, cond, pname);
+          var mech = _conditionsMechHtml(cond);
+          wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
+            pIcons[pname] + ' <b>' + titleCase(pname) + ':</b> ' + esc(narr) +
+            (mech ? '<div style="margin-left:12px;">'+mech+'</div>' : '') +
+            '</div>';
+        }
+        // Extreme events
+        var extremes = _evaluateExtremeEvents(wxRec);
+        if (extremes.length){
+          wxHtml += '<div style="margin:3px 0 0 8px;font-size:.88em;color:#B71C1C;">';
+          for (var ei = 0; ei < extremes.length; ei++){
+            wxHtml += '⚡ <b>'+esc(extremes[ei].event.name)+'</b>';
+            if (extremes[ei].event.mechanics) wxHtml += ' — '+esc(extremes[ei].event.mechanics);
+            wxHtml += '<br>';
+          }
+          wxHtml += '</div>';
+        }
+        sections.push(wxHtml);
+      }
+    } catch(e){}
   }
+
+  // Moons — phase summary for all 12
+  if (st.moonsEnabled !== false){
+    try {
+      moonEnsureSequences();
+      var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      if (sys && sys.moons){
+        var moonHtml = '<div style="margin:4px 0;"><b>🌙 Moons:</b></div>';
+        var moonLines = [];
+        for (var mi = 0; mi < sys.moons.length; mi++){
+          var moon = sys.moons[mi];
+          var ph = moonPhaseAt(moon.name, today);
+          if (!ph) continue;
+          var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+          var pLabel = _moonPhaseLabel(ph.illum, ph.waxing);
+          var pct = Math.round(ph.illum * 100);
+          var extra = '';
+          if (ph.illum >= 0.97) extra = ' <b style="color:#FFD700;">FULL</b>';
+          else if (ph.illum <= 0.03) extra = ' <b>' + (ph.longShadows ? 'NEW (Long Shadows)' : 'NEW') + '</b>';
+          moonLines.push(emoji + ' ' + esc(moon.name) +
+            ' <span style="opacity:.5;">(' + pct + '% ' + esc(pLabel) + ')</span>' + extra);
+        }
+        moonHtml += '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+          moonLines.join('<br>') + '</div>';
+
+        // Eclipses
+        try {
+          var eclNotes = _eclipseNotableToday(today);
+          if (eclNotes.length){
+            moonHtml += '<div style="font-size:.85em;margin:3px 0 0 8px;color:#FFE082;">' +
+              eclNotes.join(' · ') + '</div>';
+          }
+        } catch(e3){}
+
+        sections.push(moonHtml);
+      }
+    } catch(e){}
+  }
+
+  // Nighttime lighting
+  if (st.moonsEnabled !== false){
+    try {
+      var lightHtml = nighttimeLightHtml(today);
+      if (lightHtml){
+        sections.push('<div style="margin:4px 0;"><b>🌙 Tonight\'s Lighting:</b></div>' +
+          '<div style="margin-left:8px;">' + lightHtml + '</div>');
+      }
+    } catch(e){}
+  }
+
+  // Planar effects
   if (st.planesEnabled !== false){
-    handlePlanesCommand(m, ['planes']);
-    return;
+    try {
+      var plNotes = _planarNotableToday(today);
+      if (plNotes.length){
+        sections.push('<div style="margin:4px 0;"><b>🌀 Planar:</b></div>' +
+          '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+          plNotes.join('<br>') + '</div>');
+      }
+      // Planar weather shifts
+      var shifts = _activePlanarWeatherShiftLines(today);
+      if (shifts.length){
+        sections.push('<div style="font-size:.82em;opacity:.7;margin-left:8px;">' +
+          shifts.map(esc).join('<br>') + '</div>');
+      }
+    } catch(e){}
   }
-  sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
+
+  sections.push('<div style="margin-top:6px;">' +
+    button('⬅ Calendar', '') + ' ' +
+    button('📅 Upcoming', 'upcoming') +
+    '</div>');
+
+  return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month,
+    sections.join(''));
+}
+
+// ── Upcoming — 7-day combined view ─────────────────────────────────────
+// Shows a week strip (today + 6) using the calendar grid renderer, plus
+// subsystem highlights for each day below. Fixed at 7 days.
+function _upcomingHtml(){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var days = 7;
+  var cal = getCal();
+  var endSer = today + days - 1;
+
+  // Build calendar strip for the 7-day range using the month strip renderer
+  var spec = { start: today, end: endSer, title: 'This Week' };
+  var calStrip = buildCalendarsHtmlForSpec(spec);
+
+  // Day-by-day highlights below the strip
+  var rows = [];
+  for (var i = 0; i < days; i++){
+    var ser = today + i;
+    var d = fromSerial(ser);
+    var mObj = cal.months[d.mi] || {};
+    var dayLabel = esc(mObj.name) + ' ' + d.day;
+    if (i === 0) dayLabel = '<b>' + dayLabel + '</b>';
+
+    var bits = [];
+
+    // Weather
+    if (st.weatherEnabled !== false){
+      try {
+        var wxRec = _forecastRecord(ser);
+        if (wxRec && wxRec.final){
+          var wxEmoji = _weatherEmojiForRecord(wxRec);
+          var wxCond = _deriveConditions(wxRec.final, wxRec.location||{}, 'afternoon',
+            wxRec.snowAccumulated, wxRec.fog && wxRec.fog.afternoon);
+          bits.push(wxEmoji + ' ' + esc(_conditionsNarrative(wxRec.final, wxCond, 'afternoon')));
+          var extremes = _evaluateExtremeEvents(wxRec);
+          if (extremes.length) bits.push('⚡ ' + esc(extremes[0].event.name));
+        }
+      } catch(e){}
+    }
+
+    // Moon events (full/new only)
+    if (st.moonsEnabled !== false){
+      try {
+        var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+        if (sys && sys.moons){
+          var moonBits = [];
+          for (var mi = 0; mi < sys.moons.length; mi++){
+            var moon = sys.moons[mi];
+            var ph = moonPhaseAt(moon.name, ser);
+            if (!ph) continue;
+            if (ph.illum >= 0.97) moonBits.push('🌕 ' + moon.name);
+            else if (ph.illum <= 0.03) moonBits.push('🌑 ' + moon.name +
+              (ph.longShadows ? ' (LS)' : ''));
+          }
+          try {
+            var eclNotes = _eclipseNotableToday(ser);
+            for (var ei = 0; ei < eclNotes.length; ei++) moonBits.push(eclNotes[ei]);
+          } catch(e3){}
+          if (moonBits.length) bits.push(moonBits.join(' · '));
+        }
+      } catch(e){}
+    }
+
+    // Planar events
+    if (st.planesEnabled !== false){
+      try {
+        var plNotes = _planarNotableToday(ser);
+        if (plNotes.length) bits.push(plNotes.slice(0,2).join(' · '));
+      } catch(e){}
+    }
+
+    // Calendar events
+    try {
+      var occ = occurrencesInRange(ser, ser);
+      if (occ.length){
+        var evNames = [];
+        var evSeen = {};
+        for (var oi = 0; oi < occ.length; oi++){
+          var nm = eventDisplayName(occ[oi].e);
+          if (!evSeen[nm.toLowerCase()]){ evSeen[nm.toLowerCase()]=1; evNames.push(nm); }
+        }
+        bits.push('🎉 ' + evNames.slice(0,2).map(esc).join(', '));
+      }
+    } catch(e){}
+
+    if (bits.length){
+      var border = (i < days - 1) ? 'border-bottom:1px solid rgba(255,255,255,.06);' : '';
+      rows.push('<div style="padding:2px 0;'+border+'">' +
+        '<span style="font-size:.85em;">' + dayLabel + '</span> ' +
+        '<span style="font-size:.78em;opacity:.75;">' + bits.join(' · ') + '</span>' +
+        '</div>');
+    }
+  }
+
+  var detailHtml = rows.length
+    ? '<div style="margin-top:4px;">' + rows.join('') + '</div>'
+    : '';
+
+  return _menuBox('📅 This Week',
+    calStrip + detailHtml +
+    '<div style="margin-top:6px;">' +
+    button('⬅ Calendar', '') + ' ' +
+    button('📋 Today', 'today') +
+    '</div>'
+  );
 }
 
 var USAGE = {
@@ -4270,6 +4561,27 @@ var commands = {
 
   now: function(m){
     sendCurrentDate(m.who, false, { playerid:m.playerid, compact:true, includeButtons:false });
+  },
+
+  today: function(m){
+    if (playerIsGM(m.playerid)){
+      weatherEnsureForecast();
+      moonEnsureSequences();
+      whisper(m.who, _todayAllHtml());
+    } else {
+      // Players see their tier-appropriate view
+      _showDefaultCalView(m);
+    }
+  },
+
+  upcoming: function(m, a){
+    if (playerIsGM(m.playerid)){
+      weatherEnsureForecast();
+      moonEnsureSequences();
+      whisper(m.who, _upcomingHtml());
+    } else {
+      whisper(m.who, 'This Week view is GM-only. Try ' + button('📋 Forecast','forecast'));
+    }
   },
 
   // FIX: top-level !cal list now works
@@ -4350,16 +4662,17 @@ var commands = {
       refreshAndSend();
       return whisper(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
-    if (!/^(group|labels|events|moons|weather|planes|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+    if (!/^(group|labels|events|moons|weather|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
     }
-    if (key==='group')   st.groupEventsBySource = (val==='on');
-    if (key==='labels')  st.showSourceLabels    = (val==='on');
-    if (key==='events')  st.eventsEnabled       = (val==='on');
-    if (key==='moons')   st.moonsEnabled        = (val==='on');
-    if (key==='weather') st.weatherEnabled      = (val==='on');
-    if (key==='planes')  st.planesEnabled       = (val==='on');
-    if (key==='buttons') st.autoButtons         = (val==='on');
+    if (key==='group')    st.groupEventsBySource = (val==='on');
+    if (key==='labels')   st.showSourceLabels    = (val==='on');
+    if (key==='events')   st.eventsEnabled       = (val==='on');
+    if (key==='moons'){    st.moonsEnabled  = (val==='on'); st._moonsAutoToggle = false; }
+    if (key==='weather')  st.weatherEnabled      = (val==='on');
+    if (key==='planes'){  st.planesEnabled = (val==='on'); st._planesAutoToggle = false; }
+    if (key==='offcycle') st.offCyclePlanes      = (val==='on');
+    if (key==='buttons')  st.autoButtons         = (val==='on');
     refreshAndSend();
     whisper(m.who,'Setting updated.');
   }},
@@ -4665,7 +4978,9 @@ var WEATHER_TOD_ARC = {
   continental: { temp:{morning:-2,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
   temperate:   { temp:{morning:-1,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
   dry:         { temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening:-1}, precip:{morning:-1,afternoon:0,evening: 0} },
-  tropical:    { temp:{morning:-1,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} }
+  tropical:    { temp:{morning:-1,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} },
+  monsoon:     { temp:{morning:-1,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening:+1}, precip:{morning:-1,afternoon:0,evening:+2} },
+  mediterranean:{ temp:{morning:-2,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} }
 };
 
 // ---------------------------------------------------------------------------
@@ -4755,6 +5070,41 @@ var WEATHER_CLIMATE_BASE = {
     /*9 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
     /*10*/ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
     /*11*/ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}}
+  ],
+
+  // Q'barra interior monsoon, Xen'drik seasonal — dramatic wet/dry season flip
+  // Dry season (winter–early spring): clear skies, low precip
+  // Wet season (summer–autumn): torrential, daily downpours, high wind
+  monsoon: [
+    /*0  mid-win */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*1  late-win*/ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*2  early-sp*/ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*3  mid-sp  */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*4  late-sp */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*5  early-su*/ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*6  mid-su  */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*7  late-su */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*8  early-au*/ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*9  mid-au  */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*10 late-au */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}}
+  ],
+
+  // Valenar coast, southern Breland — hot dry summers, mild wet winters
+  // Inverted precip curve: winters wetter than summers
+  mediterranean: [
+    /*0  mid-win */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*1  late-win*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:1,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*2  early-sp*/ {temp:{base:5,die:2,min:4,max:6}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3  mid-sp  */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*4  late-sp */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:1}},
+    /*5  early-su*/ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*6  mid-su  */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*7  late-su */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*8  early-au*/ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*10 late-au */ {temp:{base:5,die:2,min:4,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*11 early-wn*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
   ]
 };
 
@@ -4984,7 +5334,9 @@ var WEATHER_CLIMATES = {
   continental: 'Harsh winters, hot summers, far from maritime influence',
   temperate:   'Moderate seasons, consistent precipitation, mild maritime character',
   dry:         'Heat-dominated, very low precipitation, extreme daily temperature swings',
-  tropical:    'Narrow temperature range, seasonal heavy rain, consistently warm'
+  tropical:    'Narrow temperature range, seasonal heavy rain, consistently warm',
+  monsoon:     'Dramatic wet/dry season flip: dry clear winters, torrential summer downpours',
+  mediterranean:'Hot dry summers, mild wet winters: inverted precipitation curve'
 };
 
 var WEATHER_GEOGRAPHIES = {
@@ -5022,7 +5374,7 @@ function getWeatherState(){
     location:     null,  // { name, climate, terrain, manifestZone, sig }
     forecast:     [],    // array of day records keyed by serial
     history:      [],    // locked past days (up to 60)
-    playerReveal: {}     // serial(str) → best detail tier revealed: 'full'|'moderate'|'abridged'
+    playerReveal: {}     // serial(str) → best detail tier revealed: 'high'|'medium'|'low'
   };
   var ws = root.weather;
   if (!ws.playerReveal) ws.playerReveal = {};
@@ -5251,12 +5603,15 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
   var formula = _composeFormula(climate, geography, terrain, mi);
   var arcMult = formula.arcMult;
 
-  // Seed nudge: pull today toward yesterday's final by at most CONFIG_WEATHER_SEED_STRENGTH.
+  // Seed nudge: mean reversion — pull today back toward the seasonal base
+  // if yesterday deviated significantly. Prevents prolonged extreme streaks.
+  // Small deviations (±1 from base): no nudge — normal daily variation.
+  // Larger deviations (±2+): nudge back toward base.
   function _nudge(prev, base){
     var dev = (prev|0) - (base|0);
-    if (dev > 0) return  CONFIG_WEATHER_SEED_STRENGTH;
-    if (dev < 0) return -CONFIG_WEATHER_SEED_STRENGTH;
-    return 0;
+    if (dev >= 2)  return -CONFIG_WEATHER_SEED_STRENGTH;  // above base → pull down
+    if (dev <= -2) return  CONFIG_WEATHER_SEED_STRENGTH;  // below base → pull up
+    return 0;  // within ±1: let it ride
   }
 
   var nudge = { temp:0, wind:0, precip:0 };
@@ -5341,11 +5696,8 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
         if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')      finalVals.temp -= 1;
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 2;
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 1;
-        if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = Math.max(0, finalVals.precip - 1); finalVals.wind = Math.max(0, finalVals.wind - 1); }
+        if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = 0; finalVals.wind = 0; }
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
-        if (_ppe.plane === 'Mabar'   && _ppe.phase === 'coterminous') finalVals.temp -= 1;
-        if (_ppe.plane === 'Irian'   && _ppe.phase === 'coterminous') finalVals.temp += 1;
-        if (_ppe.plane === 'Lamannia'&& _ppe.phase === 'coterminous') finalVals.precip = Math.min(5, finalVals.precip + 1);
         if (_ppe.plane === 'Shavarath' && _ppe.phase === 'coterminous') finalVals.wind = Math.min(5, finalVals.wind + 1);
       }
     } catch(e){ /* planar system not ready */ }
@@ -5611,6 +5963,43 @@ var EXTREME_EVENTS = {
     mechanics: 'All exposed water surfaces (puddles, ford crossings, wet mud) become ice. Difficult terrain on all outdoor surfaces. DC 12 Acrobatics to avoid falling prone when moving at full speed on ice.',
     aftermath: 'Icy surfaces persist until temperature rises above stage 4. Fords may be crossable on foot — or may give way.',
     playerMsg: function(loc){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
+  },
+
+  tropical_storm: {
+    name:     'Tropical Storm',
+    emoji:    '🌀',
+    // Trigger: warm/hot + coastal or open sea + high wind + rain
+    check: function(f, loc, sa, wa){
+      var seaGeos = { coastal:1, open_sea:1, inland_sea:1 };
+      if (f.temp < 7 || f.wind < 3 || f.precip < 3 || !seaGeos[loc.geography]) return 0;
+      var p = 0.20;
+      if (f.wind >= 4) p += 0.15;
+      if (f.temp >= 8) p += 0.10;
+      return Math.min(0.45, p);
+    },
+    duration:  '6–24 hours',
+    mechanics: 'Wind: sustained gale-force. Ranged weapon attacks and flying have disadvantage. Small sailing vessels: DC 15 water vehicles check each hour or capsize. Structures: DC 12 to resist minor damage to roofs and shutters. Outdoor fires extinguished.',
+    aftermath: 'Coastal flooding for 1d3 days. Minor structural damage. Debris-strewn roads.',
+    playerMsg: function(loc){ return 'A tropical storm bears down on the coast. Winds howl, rain drives sideways, and the sea surges against the shore.'; }
+  },
+
+  hurricane: {
+    name:     'Hurricane',
+    emoji:    '🌊',
+    // Trigger: extremely warm + open sea or coastal + extreme wind + deluge
+    // Rarer and more dangerous than tropical storm
+    check: function(f, loc, sa, wa){
+      var seaGeos = { coastal:1, open_sea:1 };
+      if (f.temp < 8 || f.wind < 4 || f.precip < 4 || !seaGeos[loc.geography]) return 0;
+      var p = 0.30;
+      if (f.wind >= 5) p += 0.20;
+      if (f.precip >= 5) p += 0.10;
+      return Math.min(0.60, p);
+    },
+    duration:  '12–48 hours',
+    mechanics: 'Wind: hurricane force. All ranged attacks impossible. Flying impossible without magic (DC 18 Str save each round). Creatures outdoors: DC 13 Str save each round or be knocked prone and pushed 10 ft. All non-stone structures: DC 15 to resist significant damage. Ships at sea: DC 18 water vehicles each hour or capsize with 4d6 bludgeoning to all aboard. Storm surge floods coastal areas to 1d4 × 5 feet.',
+    aftermath: 'Catastrophic coastal flooding for 1d6 days. Major structural damage. Trees uprooted. Roads impassable for 1d4 days. Water sources contaminated.',
+    playerMsg: function(loc){ return 'The sky turns an unearthly green. The hurricane hits with a wall of wind and water that shakes the foundations of the world.'; }
   }
 };
 
@@ -5708,11 +6097,17 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
 
   // -- Precip type --
   // temp ≤3 (≤20F) = snow zone; temp 4 (35F) = sleet zone; temp ≥5 = rain zone
+  // precip 1 = partly cloudy/light, 2 = overcast/moderate, 3 = precipitation,
+  // 4 = heavy precipitation, 5 = extreme/deluge
   var precipType = 'none';
   if (precip >= 1){
-    if      (temp <= 3) precipType = (precip >= 3) ? 'blizzard'   : 'snow';
-    else if (temp === 4) precipType = (precip >= 3) ? 'ice_storm'  : 'sleet';
-    else                precipType = (precip >= 3) ? 'heavy_rain'  : 'rain';
+    if (temp <= 3){
+      precipType = (precip >= 4) ? 'blizzard' : (precip >= 3) ? 'snow' : 'snow_light';
+    } else if (temp === 4){
+      precipType = (precip >= 4) ? 'ice_storm' : (precip >= 3) ? 'sleet' : 'sleet_light';
+    } else {
+      precipType = (precip >= 5) ? 'deluge' : (precip >= 4) ? 'heavy_rain' : (precip >= 3) ? 'rain' : 'rain_light';
+    }
   }
 
   // -- Fog --
@@ -5727,13 +6122,14 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
   // Tier B: Lightly Obscured; Heavily Obscured beyond 60ft
   // Tier C: Lightly Obscured; Heavily Obscured beyond 30ft
   var vis = { tier: 'none', beyond: null };
-  if (fog === 'dense' || precipType === 'blizzard'){
+  if (fog === 'dense' || precipType === 'blizzard' || precipType === 'deluge'){
     vis = { tier: 'C', beyond: 30 };
   } else if (fog === 'light' || precipType === 'heavy_rain' || precipType === 'ice_storm'){
     vis = { tier: 'B', beyond: 60 };
   } else if (precipType === 'rain' || precipType === 'snow' || precipType === 'sleet'){
     vis = { tier: 'A', beyond: null };
   }
+  // _light subtypes: no visibility penalty (light precip is atmospheric, not obscuring)
 
   // -- Difficult terrain --
   // Always: sleet and ice storm (ice on all surfaces), blizzard (rapid accumulation).
@@ -5742,6 +6138,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
     precipType === 'sleet'     ||
     precipType === 'ice_storm' ||
     precipType === 'blizzard'  ||
+    precipType === 'deluge'    ||
     (precipType === 'snow' && snowAccumulated)
   );
 
@@ -5781,17 +6178,19 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
   }
 
   // Special events (informational, not binding)
-  if (precipType === 'heavy_rain' || precipType === 'blizzard' || precipType === 'ice_storm'){
+  if (precipType === 'heavy_rain' || precipType === 'deluge' || precipType === 'blizzard' || precipType === 'ice_storm'){
     var hazardNote = (precipType === 'heavy_rain')
       ? 'Risk of lightning and flash flooding. Soft ground may become difficult terrain at GM discretion.'
-      : (precipType === 'blizzard')
+      : (precipType === 'deluge')
+        ? 'Extreme flooding. Rivers burst banks. Roads impassable. Shelter imperative.'
+        : (precipType === 'blizzard')
         ? 'Risk of whiteout, avalanche (mountainous terrain), and hypothermia.'
         : 'Risk of lightning, flash flooding, or falling ice.';
     mechLines.push('<b>Hazards:</b> ' + hazardNote);
   }
 
   return {
-    precipType:       precipType,     // none|rain|snow|sleet|heavy_rain|blizzard|ice_storm
+    precipType:       precipType,     // none|rain_light|rain|heavy_rain|deluge|snow_light|snow|blizzard|sleet_light|sleet|ice_storm
     fog:              fog,            // none|light|dense
     visibility:       vis,            // { tier:'none'|'A'|'B'|'C', beyond:null|30|60 }
     difficultTerrain: difficultTerrain,
@@ -5803,6 +6202,87 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
 function _conditionsMechHtml(cond){
   if (!cond.mechanics.length) return '';
   return '<div style="font-size:.85em;margin-top:3px;">'+cond.mechanics.join('<br>')+'</div>';
+}
+
+// Full mechanical readout for today — whispered on demand via button.
+// Covers morning, afternoon, evening conditions + any extreme events + planar effects.
+function weatherTodayMechanicsHtml(){
+  var today = todaySerial();
+  var rec = _forecastRecord(today);
+  if (!rec || !rec.final) return _menuBox('📋 Weather Mechanics', '<div style="opacity:.7;">No weather data for today.</div>');
+
+  var f = rec.final;
+  var loc = rec.location || {};
+  var d = fromSerial(today);
+  var cal = getCal();
+  var mObj = cal.months[d.mi] || {};
+  var dateLabel = esc(mObj.name||'?') + ' ' + d.day;
+
+  var sections = [];
+
+  // Period breakdown: morning, afternoon, evening
+  var periods = ['morning', 'afternoon', 'evening'];
+  var periodEmoji = { morning: '☀️', afternoon: '☁️', evening: '🌙' };
+  for (var pi = 0; pi < periods.length; pi++){
+    var period = periods[pi];
+    var fogForPeriod = (period === 'afternoon')
+      ? (rec.fog && rec.fog.afternoon)
+      : (period === 'evening')
+        ? (rec.fog && rec.fog.evening)
+        : (rec.fog && rec.fog.morning);
+    var cond = _deriveConditions(f, loc, period, rec.snowAccumulated, fogForPeriod);
+    var narr = _conditionsNarrative(f, cond, period);
+    var mechBlock = _conditionsMechHtml(cond);
+    sections.push(
+      '<div style="margin-top:6px;">'+
+      '<b>' + (periodEmoji[period]||'') + ' ' + titleCase(period) + ':</b> ' + esc(narr) +
+      (mechBlock || '') +
+      '</div>'
+    );
+  }
+
+  // Extreme events
+  var extremes = _evaluateExtremeEvents(rec);
+  if (extremes.length){
+    var exHtml = '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px;">' +
+      '<b style="color:#B71C1C;">⚡ Extreme Events:</b>';
+    for (var ei = 0; ei < extremes.length; ei++){
+      var ex = extremes[ei];
+      exHtml += '<div style="margin:4px 0;font-size:.9em;"><b>'+esc(ex.event.name)+'</b>';
+      if (ex.event.mechanics) exHtml += '<br><span style="font-size:.9em;">'+esc(ex.event.mechanics)+'</span>';
+      exHtml += '</div>';
+    }
+    exHtml += '</div>';
+    sections.push(exHtml);
+  }
+
+  // Planar weather effects
+  var shifts = _activePlanarWeatherShiftLines(today);
+  if (shifts.length){
+    sections.push(
+      '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px;">'+
+      '<b>🌀 Planar Effects:</b><br>' +
+      shifts.map(esc).join('<br>') +
+      '</div>'
+    );
+  }
+
+  // Nighttime lighting — always shown so GM knows what darkness looks like tonight
+  moonEnsureSequences();
+  var lightHtml = nighttimeLightHtml(today);
+  if (lightHtml){
+    sections.push(
+      '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px;">'+
+      '<b>🌙 Tonight\'s Lighting:</b><br>' +
+      lightHtml +
+      '</div>'
+    );
+  }
+
+  return _menuBox('📋 Weather Mechanics — ' + dateLabel,
+    sections.join('') +
+    '<div style="margin-top:8px;">' + button('⬅ Back', 'weather') + '</div>'
+  );
 }
 
 // One-line narrative for a period's conditions.
@@ -5833,7 +6313,7 @@ function _tempBand(stage){
 }
 
 function _flavorText(pv){
-  var key  = _tempBand(pv.temp) + '|' + Math.min(pv.precip|0, 3);
+  var key  = _tempBand(pv.temp) + '|' + (pv.precip|0);
   var base = CONFIG_WEATHER_FLAVOR[key] || 'Conditions are unusual.';
   // Wind clause: woven contextually rather than appended as a bare label.
   // When precip is already heavy the wind is implicit; on clear/overcast days
@@ -5956,13 +6436,13 @@ function _weatherDayGmHtml(rec, showBreakdown){
 // Detail tier by day offset from today for mundane forecasting.
 // Day 1 = full, days 2-3 = moderate, days 4-10 = abridged.
 function _mundaneDetailTier(dayOffset){
-  if (dayOffset <= 0) return 'full';
-  if (dayOffset <= 2) return 'moderate';
-  return 'abridged';
+  if (dayOffset <= 0) return 'high';
+  if (dayOffset <= 2) return 'medium';
+  return 'low';
 }
 
 // Upgrade-only: never downgrade a previously revealed tier.
-var _TIER_RANK = { full:3, moderate:2, abridged:1 };
+var _TIER_RANK = { high:3, medium:2, low:1 };
 function _bestTier(a, b){
   return (_TIER_RANK[a]||0) >= (_TIER_RANK[b]||0) ? a : b;
 }
@@ -5970,11 +6450,14 @@ function _bestTier(a, b){
 // Source labels for player-facing weather attribution.
 var WEATHER_SOURCE_LABELS = {
   common:   'Common Knowledge',
-  mundane:  'Mundane Forecast',
-  magical:  'Magical Forecast',
+  low:      'Common Knowledge',
+  medium:   'Skilled Forecast',
+  high:     'Expert Forecast',
   // Legacy keys for backward compatibility with old stored records.
-  survival: 'Mundane Forecast',
-  magic:    'Magical Forecast'
+  mundane:  'Skilled Forecast',
+  magical:  'Expert Forecast',
+  survival: 'Skilled Forecast',
+  magic:    'Expert Forecast'
 };
 
 // Record a reveal for a serial. Only upgrades, never downgrades.
@@ -5982,7 +6465,7 @@ var WEATHER_SOURCE_LABELS = {
 function _recordReveal(ws, serial, tier, source){
   var key = String(serial);
   var prev = ws.playerReveal[key];
-  var prevTier = (prev && typeof prev === 'object') ? prev.tier : (typeof prev === 'string' ? prev : 'abridged');
+  var prevTier = (prev && typeof prev === 'object') ? prev.tier : (typeof prev === 'string' ? prev : 'low');
   var prevSource = (prev && typeof prev === 'object') ? prev.source : 'common';
   var newTier = _bestTier(prevTier, tier);
   // If tier upgraded, use new source; otherwise keep existing
@@ -6014,7 +6497,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
     ? '<div style="font-size:.75em;opacity:.45;font-style:italic;margin-top:1px;">'+esc(sourceLabel)+'</div>'
     : '';
 
-  if (detailTier === 'full'){
+  if (detailTier === 'high'){
     // Afternoon summary + per-period narrative.
     // Mechanics only shown on Today — future days show conditions only.
     var todHtml = '';
@@ -6039,23 +6522,31 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
       todHtml = '<div style="font-size:.85em;margin-top:3px;">'+pLines.join('')+'</div>';
     }
     var dayCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+
+    // Nighttime lighting — show on today only
+    var nightHtml = '';
+    if (isToday){
+      moonEnsureSequences();
+      var nl = nighttimeLightHtml(rec.serial);
+      if (nl) nightHtml = '<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,.08);">' +
+        '<b style="font-size:.85em;">🌙 Tonight:</b>' + nl + '</div>';
+    }
+
     content =
       '<div>'+esc(_conditionsNarrative(f, dayCond, 'afternoon'))+'</div>'+
-      todHtml;
+      todHtml+
+      nightHtml;
 
-  } else if (detailTier === 'moderate'){
+  } else if (detailTier === 'medium'){
     // Single narrative — no mechanics on future days
     var mc = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
     content = '<div>'+esc(_conditionsNarrative(f, mc, 'afternoon'))+'</div>';
 
   } else {
-    // Abridged: temp label + condition name
-    var tLabel = CONFIG_WEATHER_LABELS.temp[Math.min(f.temp, 10)] || _tempBand(f.temp);
+    // Abridged: narrative prose
     var abCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-    var pLabel = abCond.precipType !== 'none'
-      ? titleCase(abCond.precipType.replace(/_/g,' '))
-      : (CONFIG_WEATHER_LABELS.precip[f.precip] || 'Clear');
-    content = '<div style="opacity:.85;">'+esc(tLabel)+', '+esc(pLabel)+' expected.</div>';
+    var abNarr = _conditionsNarrative(f, abCond, 'afternoon');
+    content = '<div style="opacity:.85;">'+esc(abNarr)+'</div>';
   }
 
   return '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12);">'+
@@ -6082,10 +6573,11 @@ function sendPlayerForecast(m, method, days){
   days = Math.min(days, 10);
 
   var methodNorm = String(method || '').toLowerCase();
-  if (methodNorm === 'survival') methodNorm = 'mundane'; // legacy alias
-  if (methodNorm === 'magic')    methodNorm = 'magical'; // legacy alias
+  // Legacy aliases
+  if (methodNorm === 'survival' || methodNorm === 'mundane') methodNorm = 'medium';
+  if (methodNorm === 'magic' || methodNorm === 'magical') methodNorm = 'high';
 
-  var revealSource = (methodNorm === 'magical') ? 'magical' : 'mundane';
+  var revealSource = methodNorm;
   var sourceLabel  = WEATHER_SOURCE_LABELS[revealSource] || revealSource;
 
   var blocks  = [];
@@ -6097,7 +6589,7 @@ function sendPlayerForecast(m, method, days){
     if (!rec) continue;
 
     // Determine detail tier
-    var tier = (methodNorm === 'magical') ? 'full' : _mundaneDetailTier(i);
+    var tier = (methodNorm === 'high') ? 'high' : _mundaneDetailTier(i);
 
     // Record the reveal (upgrade-only)
     _recordReveal(ws, ser, tier, revealSource);
@@ -6111,7 +6603,7 @@ function sendPlayerForecast(m, method, days){
     return;
   }
 
-  var methodLabel = methodNorm === 'magical' ? 'Magical Forecast' : 'Mundane Forecast';
+  var methodLabel = methodNorm === 'high' ? 'Expert Forecast' : 'Skilled Forecast';
   var dateObj     = fromSerial(today);
   var mObj        = cal.months[dateObj.mi] || {};
   var titleDate   = esc(mObj.name||'?')+' '+dateObj.day;
@@ -6158,7 +6650,7 @@ function playerForecastWhisper(m){
   var titleDate = esc(mObj.name||'?')+' '+dateObj.day;
   var miniCal = _weatherForecastMiniCalHtml(today, 10, { knownSerials: knownSerials });
   var tRev = _readReveal(reveals[String(today)]);
-  var todayTier = tRev.tier || 'abridged';
+  var todayTier = tRev.tier || 'low';
   var body = '';
   if (displayMode !== 'list'){
     body += miniCal;
@@ -6254,46 +6746,28 @@ function _weatherEmojiForRecord(rec){
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
   if (!cond || !cond.precipType) return '🌥️';
-  if (cond.precipType === 'blizzard' || cond.precipType === 'snow') return '❄️';
-  if (cond.precipType === 'ice_storm' || cond.precipType === 'sleet') return '🧊';
-  if (cond.precipType === 'heavy_rain') return '⛈️';
-  if (cond.precipType === 'rain') return '🌧️';
-  if ((rec.final.wind|0) >= 3) return '💨';
+  if (cond.precipType === 'blizzard')    return '🌨️';
+  if (cond.precipType === 'snow')        return '❄️';
+  if (cond.precipType === 'snow_light')  return '🌤️';
+  if (cond.precipType === 'ice_storm')   return '🧊';
+  if (cond.precipType === 'sleet')       return '🧊';
+  if (cond.precipType === 'sleet_light') return '🌤️';
+  if (cond.precipType === 'deluge')      return '🌊';
+  if (cond.precipType === 'heavy_rain')  return '⛈️';
+  if (cond.precipType === 'rain')        return '🌧️';
+  if (cond.precipType === 'rain_light')  return '🌦️';
+  if ((rec.final.wind|0) >= 3)          return '💨';
+  if (cond.precipType === 'none' && (rec.final.precip|0) >= 1) return '⛅';
   return '☀️';
-}
-
-function _weatherMiniCalEvents(startSerial, days){
-  var out = [];
-  var span = Math.max(1, days|0);
-  for (var i = 0; i < span; i++){
-    var ser = startSerial + i;
-    var rec = _forecastRecord(ser);
-    if (!rec || !rec.final) continue;
-    var f = rec.final;
-    var tempLabel = CONFIG_WEATHER_LABELS.temp[Math.max(0, Math.min(10, f.temp|0))] || ('Temp '+f.temp);
-    var cond = _deriveConditions(f, rec.location || {}, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-    var precipLabel = (cond && cond.precipType && cond.precipType !== 'none')
-      ? titleCase(String(cond.precipType).replace(/_/g,' '))
-      : 'Clear';
-    out.push({
-      serial: ser,
-      name: _weatherEmojiForRecord(rec) + ' ' + tempLabel + ', ' + precipLabel,
-      color: '#4FC3F7'
-    });
-  }
-  return out;
 }
 
 function _weatherMiniCellTitle(serial){
   var rec = _forecastRecord(serial);
   if (!rec || !rec.final) return null;
   var f = rec.final;
-  var tempLabel = CONFIG_WEATHER_LABELS.temp[Math.max(0, Math.min(10, f.temp|0))] || ('Temp '+f.temp);
-  var cond = _deriveConditions(f, rec.location || {}, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-  var precipLabel = (cond && cond.precipType && cond.precipType !== 'none')
-    ? titleCase(String(cond.precipType).replace(/_/g,' '))
-    : 'Clear';
-  return tempLabel + ', ' + precipLabel;
+  var loc = rec.location || {};
+  var cond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+  return _conditionsNarrative(f, cond, 'afternoon');
 }
 
 function _renderWeatherMonthStripWantedDays(year, mi, wantedSet, startSerial, endSerial){
@@ -6398,19 +6872,9 @@ function _weatherForecastMiniCalHtml(startSerial, days, opts){
 function _weatherTodaySummaryHtml(serial, detailTier){
   var rec = _forecastRecord(serial);
   if (!rec || !rec.final) return '';
-  var tier = String(detailTier || 'full').toLowerCase();
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-  var txt;
-  if (tier === 'abridged'){
-    var tLabel = CONFIG_WEATHER_LABELS.temp[Math.min(rec.final.temp, 10)] || _tempBand(rec.final.temp);
-    var pLabel = cond.precipType !== 'none'
-      ? titleCase(cond.precipType.replace(/_/g,' '))
-      : (CONFIG_WEATHER_LABELS.precip[rec.final.precip] || 'Clear');
-    txt = tLabel + ', ' + pLabel + ' expected.';
-  } else {
-    txt = _conditionsNarrative(rec.final, cond, 'afternoon');
-  }
+  var txt = _conditionsNarrative(rec.final, cond, 'afternoon');
   return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b> '+esc(txt)+'</div>';
 }
 
@@ -6423,7 +6887,6 @@ function weatherForecastGmHtml(daysOverride){
   st.weatherForecastViewDays = forecastDays;
   var weatherMiniCal = _weatherForecastMiniCalHtml(today, forecastDays);
   var displayMode = _normalizeDisplayMode(st.weatherDisplayMode);
-  var verbose = _subsystemIsVerbose();
 
   for (var i=0; i<forecastDays; i++){
     var ser = today + i;
@@ -6436,33 +6899,39 @@ function weatherForecastGmHtml(daysOverride){
       rows.push('<tr>'+
         '<td style="'+STYLES.td+'">'+dayLabel+'</td>'+
         '<td style="'+STYLES.td+';opacity:.5;" colspan="2">Not generated</td>'+
-        '<td style="'+STYLES.td+'">'+button('Gen','weather reroll '+ser)+'</td>'+
         '</tr>');
       continue;
     }
 
-    var tier  = _uncertaintyTier(rec);
-    var tCfg  = WEATHER_UNCERTAINTY[tier] || {};
     var f     = rec.final;
+    var loc   = rec.location || {};
+    var cond  = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
     var badges = _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
-    var raw    = 'T:'+f.temp+' W:'+f.wind+' P:'+f.precip;
+    var narr   = _conditionsNarrative(f, cond, 'afternoon');
     var staleFlag   = rec.stale ? ' ⚠' : '';
     var extremeFlag = _evaluateExtremeEvents(rec).length > 0
       ? ' <span style="color:#B71C1C;font-weight:bold;" title="Extreme event conditions present">⚡</span>' : '';
 
-    rows.push('<tr>'+
-      '<td style="'+STYLES.td+(i===0?';font-weight:bold;':'')+'">'+dayLabel+(i===0?' (today)':'')+'</td>'+
-      '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
-      '<td style="'+STYLES.td+';font-size:.8em;opacity:.7;">'+esc(raw)+' ['+esc(tCfg.label||tier)+']'+staleFlag+'</td>'+
-      '<td style="'+STYLES.td+'">'+button('Reroll','weather reroll '+ser)+'</td>'+
-      '</tr>');
+    // Today gets full detail; future days get compact
+    if (i === 0){
+      rows.push('<tr style="font-weight:bold;">'+
+        '<td style="'+STYLES.td+'">'+dayLabel+' (today)</td>'+
+        '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
+        '<td style="'+STYLES.td+';font-size:.82em;">'+esc(narr)+staleFlag+'</td>'+
+        '</tr>');
+    } else {
+      rows.push('<tr>'+
+        '<td style="'+STYLES.td+'">'+dayLabel+'</td>'+
+        '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
+        '<td style="'+STYLES.td+';font-size:.82em;opacity:.7;">'+esc(narr)+staleFlag+'</td>'+
+        '</tr>');
+    }
   }
 
   var head = '<tr>'+
     '<th style="'+STYLES.th+'">Date</th>'+
     '<th style="'+STYLES.th+'">Conditions</th>'+
-    '<th style="'+STYLES.th+'">Detail</th>'+
-    '<th style="'+STYLES.th+'">Action</th>'+
+    '<th style="'+STYLES.th+'">Outlook</th>'+
     '</tr>';
 
   var topControls = '<div style="margin:3px 0 6px 0;">'+
@@ -6473,7 +6942,7 @@ function weatherForecastGmHtml(daysOverride){
   var body = '';
   if (displayMode !== 'list'){
     body += weatherMiniCal;
-    body += _legendLine(['☀ Morning', '☁ Afternoon', '🌙 Evening', 'Emoji row = afternoon outlook']);
+    body += _legendLine(['Emoji = afternoon outlook', 'Hover for details']);
   }
   if (displayMode !== 'calendar'){
     body += '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>';
@@ -6481,15 +6950,14 @@ function weatherForecastGmHtml(daysOverride){
   if (!body){
     body = '<div style="opacity:.7;">No weather display mode selected.</div>';
   }
-  if (verbose){
-    body += '<div style="font-size:.78em;opacity:.58;margin-top:4px;">Switch mode with <code>!cal settings mode weather calendar|list|both</code>.</div>';
-  }
 
   return _menuBox(forecastDays+'-Day Forecast',
     topControls+
     _weatherTodaySummaryHtml(today)+
     body+
     '<div style="margin-top:6px;">'+
+    button('📋 Today\'s Mechanics','weather mechanics')+' '+
+    button('Reroll Today','weather reroll '+today)+' '+
     button('Regenerate All','weather generate')+' '+
     button('⬅ Back','weather')+
     '</div>'
@@ -6644,7 +7112,7 @@ function handleWeatherCommand(m, args){
       var tSer  = todaySerial();
       var rec0  = _forecastRecord(tSer);
       var rev0  = _readReveal(ws0.playerReveal && ws0.playerReveal[String(tSer)]);
-      var tier0 = rev0.tier || 'abridged';
+      var tier0 = rev0.tier || 'low';
       var src0  = WEATHER_SOURCE_LABELS[rev0.source] || null;
       if (!rec0){
         whisper(m.who, _menuBox("Today's Weather", '<div style="opacity:.7;">Conditions not available.</div>'));
@@ -6684,14 +7152,19 @@ function handleWeatherCommand(m, args){
       whisper(m.who, weatherHistoryGmHtml());
       break;
 
+    case 'mechanics':
+      weatherEnsureForecast();
+      whisper(m.who, weatherTodayMechanicsHtml());
+      break;
+
     case 'send': {
       // weather send <mundane|magical|today> <1|3|6|10>
       // 'today' sends today's weather at the best tier previously revealed.
       var sendMethod = String(args[2]||'').toLowerCase();
       var sendDays   = parseInt(args[3], 10) || 1;
       // Legacy aliases
-      if (sendMethod === 'survival') sendMethod = 'mundane';
-      if (sendMethod === 'magic')    sendMethod = 'magical';
+      if (sendMethod === 'survival' || sendMethod === 'mundane') sendMethod = 'medium';
+      if (sendMethod === 'magic' || sendMethod === 'magical') sendMethod = 'high';
 
       if (sendMethod === 'today'){
         // Send today at best revealed tier (or abridged if none)
@@ -6703,7 +7176,7 @@ function handleWeatherCommand(m, args){
           break;
         }
         var revSend   = _readReveal(getWeatherState().playerReveal[String(tSerSend)]);
-        var tierSend  = revSend.tier || 'abridged';
+        var tierSend  = revSend.tier || 'low';
         var srcSend   = revSend.source || 'common';
         var srcLabel  = WEATHER_SOURCE_LABELS[srcSend] || 'Common Knowledge';
         // Record the reveal (upgrade-only) — 'common' source for auto-send
@@ -6720,8 +7193,8 @@ function handleWeatherCommand(m, args){
         break;
       }
 
-      if (sendMethod !== 'mundane' && sendMethod !== 'magical'){
-        warnGM('Usage: weather send mundane|magical|today [1|3|6|10] (legacy aliases: survival|magic)');
+      if (sendMethod !== 'medium' && sendMethod !== 'high'){
+        warnGM('Usage: weather send medium|high|today [1|3|6|10] (legacy: mundane|magical|survival|magic)');
         break;
       }
       sendPlayerForecast(m, sendMethod, sendDays);
@@ -7009,73 +7482,338 @@ var MOON_SYSTEMS = {
   eberron: {
     id: 'eberron',
     moons: [
+      // ── ZARANTYR ── The Storm Moon ─────────────────────────────────
+      // Analog: Luna (Earth's Moon). The reference moon — pearly white,
+      // moderate eccentricity, wide inclination sweep. Closest and most
+      // influential on tides. Kythri = chaos; storms rage when full.
+      // Real Luna: ecc 0.0549, inc 5.145°, albedo 0.12.
       { name:'Zarantyr',  title:'The Storm Moon',    color:'#F5F5FA', associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
         synodicPeriod:27.32, diameter:1250, distance:14300,
-        variation:{ shape:'random', amplitude:2.2, wavelengthCycles:5, bias:null },
-        epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        inclination:5.145, eccentricity:0.0549, albedo:0.12,
+        variation:{ shape:'random', amplitude:1.4 },
+        epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── OLARUNE ── The Sentinel Moon ───────────────────────────────
+      // Analog: Titan (Saturn). The most natural moon — thick atmosphere,
+      // methane rain, seasons, lakes. Orange haze hides the surface from
+      // view: the sentinel who watches unseen. Low inclination, steady.
+      // Real Titan: ecc 0.0288, inc 0.33°, albedo 0.22.
       { name:'Olarune',   title:'The Sentinel Moon', color:'#FFC68A', associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
-        synodicPeriod:33.6, diameter:950, distance:22500,
-        variation:{ shape:'sine', amplitude:0.4, wavelengthCycles:8, bias:null },
-        epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        synodicPeriod:34.0, diameter:1000, distance:18000,
+        inclination:0.33, eccentricity:0.0288, albedo:0.22,
+        variation:{ shape:'random', amplitude:1.7 },
+        epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── THERENDOR ── The Healer's Moon ─────────────────────────────
+      // Analog: Europa (Jupiter). Smooth ice shell over a warm subsurface
+      // ocean — the healer's calm exterior with life-sustaining depth
+      // beneath. Youngest surface of the Galileans: constantly renewed
+      // (healing). In 1:2:4 resonance with Ganymede/Nymm → connected
+      // to order. Bright reflective ice = gentle healing light.
+      // Real Europa: ecc 0.0094, inc 0.47°, albedo 0.67.
       { name:'Therendor', title:"The Healer's Moon", color:'#D3D3D3', associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
         synodicPeriod:24.0, diameter:1100, distance:39000,
-        variation:{ shape:'sine', amplitude:0.6, wavelengthCycles:9, bias:null },
-        epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        inclination:0.47, eccentricity:0.0094, albedo:0.67,
+        variation:{ shape:'random', amplitude:1.2 },
+        epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── EYRE ── The Anvil ──────────────────────────────────────────
+      // Analog: Hyperion (Saturn). The ONLY confirmed chaotic tumbler in
+      // the solar system — never shows the same face twice. Sponge-like
+      // surface pocked with deep craters = a forge full of crucibles.
+      // Eccentricity 0.123 gives real brightness variation: bellows
+      // breathing, speeding and slowing, ~56% brightness swing periapsis
+      // to apoapsis. In 4:3 resonance with Titan/Olarune → nature feeds
+      // the forge. Silver = white-hot metal from Fernia's flame.
+      // Real Hyperion: ecc 0.1230, inc 0.43°, albedo 0.30.
       { name:'Eyre',      title:'The Anvil',         color:'#C0C0C0', associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
-        synodicPeriod:14.0, diameter:1200, distance:52000,
-        variation:{ shape:'sine', amplitude:0.4, wavelengthCycles:2, bias:'fast' },
-        epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        synodicPeriod:21.0, diameter:1200, distance:52000,
+        inclination:0.43, eccentricity:0.1230, albedo:0.30,
+        variation:{ shape:'random', amplitude:1.0 },
+        epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── DRAVAGO ── The Herder's Moon ───────────────────────────────
+      // Analog: Tethys (Saturn). THE most circular orbit in the solar
+      // system (ecc essentially zero). Pure water ice, extremely bright
+      // (geometric albedo 1.229). Perfect embodiment of Risia's frozen
+      // stasis — unchanging, unvarying, eternal stillness. The herder
+      // watches from a crystalline vantage, unmoving as the ice plains.
+      // Largest moon by diameter. Lavender = planar tint over ice.
+      // Real Tethys: ecc 0.0001, inc 1.09°, albedo 1.229.
       { name:'Dravago',   title:"The Herder's Moon", color:'#E6E6FA', associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
-        synodicPeriod:84.0, diameter:2000, distance:77500,
-        variation:{ shape:'sine', amplitude:1.1, wavelengthCycles:6, bias:'slow' },
-        epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        synodicPeriod:42.0, diameter:2000, distance:77500,
+        inclination:1.09, eccentricity:0.0001, albedo:1.229,
+        variation:{ shape:'random', amplitude:2.1 },
+        epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── NYMM ── The Crown ──────────────────────────────────────────
+      // Analog: Ganymede (Jupiter). LARGEST moon in the solar system —
+      // a crown jewel. The ONLY moon with its own magnetic field:
+      // sovereign authority, self-contained order. In perfect 1:2:4
+      // Laplace resonance with Europa/Therendor and Io → mathematical
+      // perfection = Daanvi. Near-circular orbit, near-equatorial.
+      // Gold = Daanvi's planar influence, not geology.
+      // Real Ganymede: ecc 0.0013, inc 0.20°, albedo 0.43.
       { name:'Nymm',      title:'The Crown',         color:'#FFD96B', associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
         synodicPeriod:28.0, diameter:900, distance:95000,
-        variation:null,
+        inclination:0.20, eccentricity:0.0013, albedo:0.43,
+        variation:{ shape:'random', amplitude:1.4 },
         epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        nodePrecession:{ period:336, navigable:true } },
+
+      // ── LHARVION ── The Eye ────────────────────────────────────────
+      // Analog: Nereid (Neptune). THE most eccentric moon in the solar
+      // system (0.7507) — travels 7x farther at apoapsis than periapsis.
+      // Likely scattered into its insane orbit by Triton's capture: a
+      // moon flung into madness by external catastrophe. Brightness
+      // varies wildly and irregularly. May tumble chaotically. Sometimes
+      // terrifyingly close and bright, sometimes nearly vanishes.
+      // Uses standard random variation like all moons.
+      // Dull white with 750-mile black chasm → the Eye.
+      // Real Nereid: ecc 0.7507, inc 7.23°, albedo 0.155.
       { name:'Lharvion',  title:'The Eye',           color:'#F5F5F5', associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
-        synodicPeriod:29.75, diameter:1350, distance:125000,
-        variation:{
-          shape:'xoriat',
-          phase:{ amplitude:3.0, wavelength:9, forwardBias:0.66, jumpChance:0.08, jumpMultiplier:7.5 },
-          inclination:{ range:3.0, wavelength:17 },
-          eccentricity:{ range:0.09, wavelength:23 },
-          precession:{ amplitude:15, wavelength:13, canReverse:true }
-        },
-        phaseAnchors:[] },
+        synodicPeriod:30.0, diameter:1350, distance:125000,
+        inclination:7.23, eccentricity:0.7507, albedo:0.155,
+        variation:{ shape:'random', amplitude:1.5 },
+        epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── BARRAKAS ── The Lantern ────────────────────────────────────
+      // Analog: Enceladus (Saturn). THE brightest body in the solar
+      // system — geometric albedo 1.375 (backscattering from pure ice
+      // exceeds a flat-disk model). Ice geysers feed Saturn's E-ring.
+      // Near-equatorial orbit lights all latitudes equally. The Lantern
+      // of Irian needs no magical amplification: real physics already
+      // gives it supernatural brightness. Slight ecc for gentle pulsing.
+      // Real Enceladus: ecc 0.0047, inc 0.02°, albedo 1.375.
       { name:'Barrakas',  title:'The Lantern',       color:'#DCDCDC', associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
-        synodicPeriod:22.4, diameter:1500, distance:144000,
-        variation:{ shape:'sine2', amplitude:0.7, wavelengthCycles:3, bias:null },
-        epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        synodicPeriod:22.0, diameter:1500, distance:144000,
+        inclination:0.02, eccentricity:0.0047, albedo:1.375,
+        variation:{ shape:'random', amplitude:1.1 },
+        epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── RHAAN ── The Book ──────────────────────────────────────────
+      // Analog: Miranda (Uranus). The "Frankenstein moon" — shattered
+      // and reassembled, its patchwork surface looks like pages from
+      // different books stitched together. Three coronae with chevron
+      // patterns. Verona Rupes = tallest cliff in the solar system.
+      // Named after Shakespeare's Tempest character — the only HUMAN
+      // among Uranus's fairy-named moons. Once tumbled chaotically
+      // (like Hyperion) during a past 3:1 resonance with Umbriel, but
+      // now calm: stories of violence written on a peaceful face.
+      // Orbits a sideways planet → extreme seasonal illumination.
+      // Smallest Eberron moon. Blue = Thelanis fey light through
+      // ancient stone. The Book carries every story on its skin.
+      // Real Miranda: ecc 0.0013, inc 4.34°, albedo 0.32.
       { name:'Rhaan',     title:'The Book',          color:'#9AC0FF', associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
-        synodicPeriod:42.0, diameter:800, distance:168000,
-        variation:{ shape:'sine2', amplitude:0.7, wavelengthCycles:3, bias:null },
-        epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        synodicPeriod:37.0, diameter:800, distance:168000,
+        inclination:4.34, eccentricity:0.0013, albedo:0.32,
+        variation:{ shape:'random', amplitude:1.9 },
+        epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── SYPHEROS ── The Shadow ─────────────────────────────────────
+      // Analog: Phoebe (Saturn). Dark captured body in RETROGRADE orbit
+      // (175.3° inclination = effectively 4.7° backward). Albedo 0.06:
+      // coal-dark, nearly invisible. The SOURCE of the dark material
+      // that coats Iapetus/Aryth's leading hemisphere — Shadow
+      // literally spreads darkness to others. Eccentricity 0.1635
+      // gives an erratic, lurking presence. Mabar = Endless Night.
+      // Real Phoebe: ecc 0.1635, inc 175.3° (retro), albedo 0.06.
       { name:'Sypheros',  title:'The Shadow',        color:'#696969', associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
-        synodicPeriod:56.0, diameter:1200, distance:193000,
-        variation:{ shape:'sine', amplitude:0.9, wavelengthCycles:4, bias:'slow' },
-        phaseAnchors:[] },
+        synodicPeriod:67.0, diameter:1100, distance:183000,
+        inclination:175.3, eccentricity:0.1635, albedo:0.06,
+        variation:{ shape:'random', amplitude:3.4 } },
+
+      // ── ARYTH ── The Gateway ───────────────────────────────────────
+      // Analog: Iapetus (Saturn). THE two-tone moon — leading hemisphere
+      // coal-black (albedo 0.05), trailing hemisphere bright (0.50).
+      // A literal gateway between light and dark, life and death.
+      // 13km equatorial ridge = a threshold between realms. HIGHEST
+      // inclination of any regular Saturnian moon (7.57°) → sees both
+      // extremes of the sky. Walnut-shaped. Dark reddish-brown leading
+      // side matches #FF4500 burnt orange-red. Coated in dark material
+      // shed by Phoebe/Sypheros: the Shadow marks the Gateway.
+      // Real Iapetus: ecc 0.0283, inc 7.57°, albedo 0.05 (leading).
       { name:'Aryth',     title:'The Gateway',       color:'#FF4500', associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
-        synodicPeriod:84.0, diameter:1000, distance:221000,
-        variation:{ shape:'sine', amplitude:0.5, wavelengthCycles:4, bias:null },
-        epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] },
+        synodicPeriod:48.0, diameter:1300, distance:195000,
+        inclination:7.57, eccentricity:0.0283, albedo:0.05,
+        variation:{ shape:'random', amplitude:2.4 },
+        epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
+
+      // ── VULT ── The Warding Moon ───────────────────────────────────
+      // Analog: Oberon (Uranus). Outermost major Uranian moon — the
+      // outer ward. Heavily cratered from endless bombardment = scars
+      // of eternal war (Shavarath). Dark deposits fill crater floors.
+      // An 11km mountain = fortress on the frontier. Named for
+      // Shakespeare's fairy king in A Midsummer Night's Dream: the
+      // warrior-king who holds the line. Near-circular, near-equatorial
+      // = disciplined, unwavering patrol. Gray with reddish tint.
+      // Real Oberon: ecc 0.0014, inc 0.07°, albedo 0.23.
       { name:'Vult',      title:'The Warding Moon',  color:'#A9A9A9', associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
-        synodicPeriod:168.0, diameter:1800, distance:252000,
-        variation:{ shape:'sine', amplitude:0.3, wavelengthCycles:7, bias:null },
-        epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} },
-        phaseAnchors:[] }
+        synodicPeriod:56.0, diameter:1800, distance:252000,
+        inclination:0.07, eccentricity:0.0014, albedo:0.23,
+        variation:{ shape:'random', amplitude:2.8 },
+        epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} } }
+    ]
+  },
+
+  // =========================================================================
+  // FAERUNIAN — Selûne (single moon of Toril)
+  // =========================================================================
+  // Selûne: full at midnight Hammer 1, 1372 DR. 30.4375-day period.
+  // 48 synodic cycles = 1461 days = exactly 4 Harptos years (incl. Shieldmeet).
+  // Phase is perfectly self-resetting on the four-year leap cycle.
+  // ~2000 miles diameter, ~183,000 miles distance. Similar apparent size to Earth's moon.
+  // Bright enough to cast pale shadows. Associated with lycanthropy, navigation, tides.
+  // Trailed by the Tears of Selûne (asteroid cluster, visible flavor).
+  faerunian: {
+    id: 'faerunian',
+    name: 'Toril',
+    description: "Selûne, the silver moon of Toril. 30.4375-day cycle aligned to the Harptos leap year.",
+    moons: [
+      { name:'Selûne', title:'The Moonmaiden', color:'#C8D8F0', associatedMonth:null,
+        synodicPeriod:30.4375, diameter:2000, distance:183000,
+        inclination:5.1, eccentricity:0.054, albedo:0.25,
+        variation:{ shape:'random', amplitude:1.5 },
+        epochSeed:{ defaultSeed:'selune', referenceDate:{year:1372,month:1,day:1} },
+        loreNote:'Full at midnight Hammer 1, 1372 DR. Trailed by the Tears of Selûne. Associated with lycanthropy, divination, navigation, and tides.',
+        deity:'Selûne' }
+    ]
+  },
+
+  // =========================================================================
+  // GREGORIAN — Luna (Earth's moon)
+  // =========================================================================
+  // Standard astronomical reference. Synodic period 29.53059 days.
+  // Anchor: full moon on January 28, 2021 (a known astronomical full moon).
+  // Albedo 0.12, diameter 2159 miles, distance 238855 miles.
+  // Variation: slight (~0.5 day) due to orbital eccentricity.
+  gregorian: {
+    id: 'gregorian',
+    name: 'Earth',
+    description: "Luna, Earth's moon. Standard synodic period 29.53059 days.",
+    moons: [
+      { name:'Luna', title:'The Moon', color:'#DCDCDC', associatedMonth:null,
+        synodicPeriod:29.53059, diameter:2159, distance:238855,
+        inclination:5.14, eccentricity:0.0549, albedo:0.12,
+        variation:{ shape:'random', amplitude:0.5 },
+        epochSeed:{ defaultSeed:'luna', referenceDate:{year:2021,month:1,day:28} },
+        loreNote:'Earth\'s natural satellite. Synodic period 29.53 days. Governs tides and has inspired mythology across all human cultures.' }
     ]
   }
 };
+
+// ---------------------------------------------------------------------------
+// 20a-ii) Moon lore — short blurbs for player reference
+// ---------------------------------------------------------------------------
+// Derived from Keith Baker's Dragonshards article on the moons of Eberron.
+// Accessible via !cal moon lore [name] — whispered to the querier.
+
+var MOON_LORE = {
+  Zarantyr: {
+    blurb: "The Storm Moon is the closest and largest moon in the sky. It appears to shift in color, and storms are said to be fiercer when Zarantyr is full. Associated with Kythri, the Churning Chaos, and the Mark of Storm borne by House Lyrandar.",
+    orbit: "Closest moon. ~27-day cycle. Analog: Luna. Moderate eccentricity with wide inclination sweep — storms rage when Zarantyr is full."
+  },
+  Olarune: {
+    blurb: "The Sentinel Moon glows with a warm amber light. Druids and rangers watch Olarune closely, as its phases are tied to the rhythms of the natural world. Associated with Lamannia, the Twilight Forest, and the Mark of Sentinel borne by House Deneith.",
+    orbit: "Second closest. ~34-day cycle. Analog: Titan. Low inclination, steady orbit — the sentinel watches from behind an orange haze."
+  },
+  Therendor: {
+    blurb: "The Healer's Moon shines with a soft silver light. Healers and midwives track its phases, and some hospitals time treatments to its cycle. Associated with Syrania, the Azure Sky, and the Mark of Healing borne by House Jorasco.",
+    orbit: "Third orbit. ~24-day cycle. Analog: Europa. Gentle, bright, and reliable — the healer's calm exterior hides depth beneath."
+  },
+  Eyre: {
+    blurb: "The Anvil gleams like heated steel. Artificers and smiths consider it auspicious to begin major works when Eyre is full. Its brightness visibly pulses as it speeds and slows in its eccentric orbit — like a forge breathing through bellows. Associated with Fernia, the Sea of Fire, and the Mark of Making borne by House Cannith.",
+    orbit: "Fourth orbit. ~21-day cycle — the fastest moon. Analog: Hyperion. Highest eccentricity of the regular moons — brightness swings ~56% from near to far. Chaotic tumbler: never shows the same face twice."
+  },
+  Dravago: {
+    blurb: "The Herder's Moon is the largest moon by diameter, though its great distance makes it appear modest. Farmers and herders watch it for seasonal guidance. Its orbit is the most perfectly circular of all twelve moons — an unchanging, frozen path. Associated with Risia, the Plain of Ice, and the Mark of Handling borne by House Vadalis.",
+    orbit: "Fifth orbit. ~42-day cycle. Analog: Tethys. The most circular orbit of any moon — near-zero eccentricity. Pure ice, extremely bright. Frozen stillness."
+  },
+  Nymm: {
+    blurb: "The Crown shines with a golden light. It is considered the most auspicious moon for celebrations, feasts, and acts of hospitality. It is the only moon with its own sovereign authority — an invisible shield that answers to no other. Associated with Daanvi, the Perfect Order, and the Mark of Hospitality borne by House Ghallanda.",
+    orbit: "Sixth orbit. Precise 28-day cycle — the most regular of all moons. Analog: Ganymede. Near-perfect circle, near-equatorial. In mathematical resonance with Therendor and Eyre."
+  },
+  Lharvion: {
+    blurb: "The Eye is the most unsettling moon. It sometimes appears to move backward, and its phases do not follow any predictable pattern. Its orbit is the most extreme of any moon — swinging from terrifyingly close and bright to nearly vanishing at the edge of sight. Seers and inquisitives study it, but few claim to understand it. Associated with Xoriat, the Realm of Madness, and the Mark of Detection borne by House Medani.",
+    orbit: "Seventh orbit. Nominally ~30-day cycle, but truly erratic. Analog: Nereid. Most eccentric orbit of any known moon — 7x distance swing. Backward motion, sudden jumps, and doubled phases have all been recorded."
+  },
+  Barrakas: {
+    blurb: "The Lantern glows with a steady pale light brighter than any other moon — brighter, in fact, than physics should allow, reflecting more light than falls upon it. Travelers and explorers consider it a guide, and it is said that those who search by the light of Barrakas will find what they seek. Associated with Irian, the Eternal Dawn, and the Mark of Finding borne by House Tharashk.",
+    orbit: "Eighth orbit. ~22-day cycle. Analog: Enceladus. Brightest body in the sky — geometric albedo exceeds 1.0. Near-equatorial orbit lights all latitudes equally."
+  },
+  Rhaan: {
+    blurb: "The Book shines with a blue-white light. Scholars and scribes hold it sacred, and the greatest works of literature are said to have been composed under its light. Its surface is a patchwork of mismatched terrain — as if pages from different books were stitched together. A great cliff, the tallest in all the heavens, marks where one story ends and another begins. Associated with Thelanis, the Faerie Court, and the Mark of Scribing borne by House Sivis.",
+    orbit: "Ninth orbit. ~37-day cycle. Analog: Miranda. Nearly circular now, but once tumbled chaotically — every story of that violent past is written on its scarred face. Named for a character in a play."
+  },
+  Sypheros: {
+    blurb: "The Shadow is a dark, dim moon that is difficult to see even when full. It is associated with secrets, espionage, and hidden knowledge. It orbits BACKWARD — against the motion of all other moons — a captured wanderer that spreads darkness wherever it goes. The dark material that stains the Gateway's face is shed by the Shadow. Associated with Mabar, the Endless Night, and the Mark of Shadow borne by House Phiarlan and House Thuranni.",
+    orbit: "Tenth orbit. ~67-day cycle — the slowest moon. Analog: Phoebe. Retrograde orbit, coal-dark (albedo 0.06), notable eccentricity. Source of darkness coating Aryth."
+  },
+  Aryth: {
+    blurb: "The Gateway burns with a deep orange-red light. It is associated with death, transition, and passage between worlds. One face is coal-black, the other bright — a literal threshold between light and darkness. A great ridge circles its equator like a doorframe between realms. The Aereni elves track Aryth closely, and funeral rites are often timed to its phases. Associated with Dolurrh, the Realm of the Dead, and the Mark of Passage borne by House Orien.",
+    orbit: "Eleventh orbit. ~48-day cycle. Analog: Iapetus. Two-tone surface (dark leading, bright trailing). Highest inclination of regular moons (7.57°) — sees both extremes."
+  },
+  Vult: {
+    blurb: "The Warding Moon is the farthest and slowest of the twelve moons. It is associated with protection and defense, and its full moons are considered times of safety. Its surface bears the scars of endless bombardment — every crater a battle fought and survived. A great mountain rises from its surface like a fortress on the frontier. During Long Shadows, when Mabar is coterminous, even Vult's protective light may be swallowed by darkness. Associated with Shavarath, the Battleground, and the Mark of Warding borne by House Kundarak.",
+    orbit: "Outermost orbit. ~56-day cycle. Analog: Oberon. Near-perfect circle, near-equatorial — disciplined, unwavering patrol. Named for a warrior-king. Its light is a ward against darkness."
+  }
+};
+
+function _moonLoreHtml(moonName){
+  var lore = MOON_LORE[moonName];
+  if (!lore) return null;
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var moon = null;
+  if (sys && sys.moons){
+    for (var i = 0; i < sys.moons.length; i++){
+      if (sys.moons[i].name === moonName){ moon = sys.moons[i]; break; }
+    }
+  }
+  if (!moon) return null;
+
+  var dot = '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;'+
+    'background:'+esc(moon.color||'#aaa')+';border:1px solid rgba(0,0,0,.3);'+
+    'vertical-align:middle;margin-right:5px;"></span>';
+
+  var html = dot + '<b style="font-size:1.1em;">' + esc(moon.name) + '</b>' +
+    ' — <i>' + esc(moon.title) + '</i>' +
+    '<br><br>' + esc(lore.blurb) +
+    '<br><br><b>Orbit:</b> ' + esc(lore.orbit);
+
+  if (moon.dragonmark){
+    html += '<br><b>Dragonmark:</b> ' + esc(moon.dragonmark);
+  }
+
+  return _menuBox('🌙 ' + esc(moon.name), html);
+}
+
+// Ring of Siberys lore panel
+function _siberysLoreHtml(){
+  var r = RING_OF_SIBERYS;
+  var html = '<b style="font-size:1.1em;">The Ring of Siberys</b>' +
+    ' — <i>The Blood of the Dragon Above</i>' +
+    '<br><br>An equatorial ring of siberys dragonshards encircling Eberron, ' +
+    'believed by sages at Arcanix to be the source of all arcane magic. ' +
+    'Siberys shards that fall from the Ring are the rarest and most valuable ' +
+    'dragonshards, used for dragonmark focus items and legendary artifacts.' +
+    '<br><br><b>Analog:</b> ' + esc(r.analog) +
+    '<br><b>Width:</b> ' + r.width_km.toLocaleString() + ' km' +
+    '<br><b>Thickness:</b> ' + r.thickness_m + ' meters' +
+    '<br><b>Orbit:</b> ' + r.innerEdge_km.toLocaleString() + ' – ' +
+      r.outerEdge_km.toLocaleString() + ' km (inside Zarantyr at 14,300 km)' +
+    '<br><b>Albedo:</b> ' + r.albedo +
+    '<br><br><b>Appearance:</b>' +
+    '<br>&nbsp;&nbsp;Day: ' + esc(r.appearance.daylight) +
+    '<br>&nbsp;&nbsp;Night: ' + esc(r.appearance.night) +
+    '<br>&nbsp;&nbsp;Equator: ' + esc(r.appearance.equator) +
+    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles);
+  html += '<br><br>';
+  for (var fi = 0; fi < r.facts.length; fi++){
+    html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">• ' + esc(r.facts[fi]) + '</div>';
+  }
+  return _menuBox('💎 Ring of Siberys', html);
+}
 
 // ---------------------------------------------------------------------------
 // 20b) State & PRNG helpers
@@ -7097,9 +7835,9 @@ function getMoonState(){
   if (!ms.gmAnchors) ms.gmAnchors = {};
   if (ms.systemSeed === undefined) ms.systemSeed = null;
   if (!isFinite(ms.generatedFrom)) ms.generatedFrom = null;
-  if (!ms.revealTier) ms.revealTier = 'mundane';
+  if (!ms.revealTier) ms.revealTier = 'medium';
   ms.revealTier = String(ms.revealTier || '').toLowerCase();
-  if (ms.revealTier !== 'mundane' && ms.revealTier !== 'magical') ms.revealTier = 'mundane';
+  if (!MOON_REVEAL_TIERS[ms.revealTier]) ms.revealTier = 'medium';
   ms.revealHorizonDays = parseInt(ms.revealHorizonDays, 10);
   if (!isFinite(ms.revealHorizonDays) || ms.revealHorizonDays < 7) ms.revealHorizonDays = 7;
   return ms;
@@ -7164,30 +7902,64 @@ var FESTIVAL_SOFT_ANCHORS = [
 
 var MOON_PRE_GENERATE_YEARS = 2;
 var MOON_PREDICTION_LIMITS = {
-  mundaneDays: 280,      // max mundane horizon (10 months)
-  magicalDays: 672,      // bounded by 2-year pre-generation window
-  magicalExactDays: 180  // exact-by-day confidence window for magical insight
+  // Low: look outside + 2 days. Phases are obvious.
+  lowDays: 2,
+  // Medium: varies by button press. One full cycle exact, beyond that adds
+  // uncertainty windows. Max reach = 10 months.
+  mediumMaxDays: 280,
+  // High: full knowledge. Max reach = 2 years (pre-generation window).
+  highMaxDays: 672,
+  // Within this range from today, high-tier predictions are exact (no window).
+  highExactDays: 180
 };
+
+// Preset reveal buttons: 1m, 3m, 6m, 10m (in 28-day months, inclusive of today)
+// Each maps to days. DC hints for the GM.
+var MOON_REVEAL_PRESETS = [
+  { label:'1m',  days:28,  dc:'DC 10' },
+  { label:'3m',  days:84,  dc:'DC 15' },
+  { label:'6m',  days:168, dc:'DC 20' },
+  { label:'10m', days:280, dc:'DC 25' }
+];
+
+// Legacy range options (still parsed for CLI input)
 var MOON_REVEAL_RANGE_OPTIONS = {
-  '1w': 7,
-  '1m': 28,
-  '3m': 84,
-  '6m': 168,
-  '10m': 280
+  '1w': 7, '2w': 14, '4w': 28, '1m': 28,
+  '3m': 84, '6m': 168, '10m': 280
 };
 
 function _parseMoonRevealRange(token, tier){
   tier = _normalizeMoonRevealTier(tier);
-  var maxAllowed = (tier === 'magical') ? MOON_PREDICTION_LIMITS.magicalDays : Math.max(MOON_PREDICTION_LIMITS.mundaneDays, 280);
+  var maxAllowed = (tier === 'high') ? MOON_PREDICTION_LIMITS.highMaxDays
+    : (tier === 'medium') ? MOON_PREDICTION_LIMITS.mediumMaxDays
+    : MOON_PREDICTION_LIMITS.lowDays;
   var t = String(token || '').toLowerCase().trim();
-  if (!t) return (tier === 'magical') ? 84 : 7;
+
+  // Default if no token given
+  if (!t){
+    if (tier === 'low')    return MOON_PREDICTION_LIMITS.lowDays;
+    if (tier === 'medium') return 28;  // 1 month default
+    return 84;                          // high default: 3 months
+  }
+
+  // Named range options
   if (MOON_REVEAL_RANGE_OPTIONS[t]) return Math.min(maxAllowed, MOON_REVEAL_RANGE_OPTIONS[t]);
 
-  if (!/^\d+$/.test(t)) return null;
-  if (!/^\d+$/.test(t)) return null;
-  var n = parseInt(t, 10);
-  if (!isFinite(n) || n < 1) return null;
-  return Math.min(maxAllowed, n);
+  // Day suffix: "28d" or "56d"
+  var dayMatch = t.match(/^(\d+)d$/);
+  if (dayMatch) return Math.min(maxAllowed, parseInt(dayMatch[1], 10));
+
+  // Week suffix: "4w"
+  var weekMatch = t.match(/^(\d+)w$/);
+  if (weekMatch) return Math.min(maxAllowed, parseInt(weekMatch[1], 10) * 7);
+
+  // Plain number = days
+  if (/^\d+$/.test(t)){
+    var n = parseInt(t, 10);
+    if (isFinite(n) && n >= 1) return Math.min(maxAllowed, n);
+  }
+
+  return null;
 }
 
 function _rangeLabel(days){
@@ -7213,33 +7985,21 @@ function _moonYearDays(){
 // ---------------------------------------------------------------------------
 
 function _moonVariationStep(variation, cycleIndex, rng){
-  // Returns signed day offset to add to synodicPeriod for this cycle
-  if (!variation) return 0;  // Nymm: exact
+  // Returns signed day offset to add to synodicPeriod for this cycle.
+  // All standard moons use 'random': uniform roll in [-amp, +amp].
+  // This is a true random walk — can streak in one direction across
+  // multiple cycles, creating genuine drift that gives the smoothing
+  // engine cover and makes player predictions meaningfully uncertain.
+  if (!variation) return 0;  // Nymm: exact 28-day cycles
 
-  var amp  = variation.amplitude    || 0;
-  var wl   = variation.wavelengthCycles || 4;
-  var bias = variation.bias;
-  var offset = 0;
+  var amp = variation.amplitude || 0;
 
-  switch (variation.shape){
-    case 'sine':
-      offset = amp * Math.sin(cycleIndex * 2 * Math.PI / wl);
-      break;
-    case 'sine2':
-      var inner = Math.sin(cycleIndex * 2 * Math.PI / wl);
-      offset = amp * Math.sin(inner * Math.PI);
-      break;
-    case 'random':
-      offset = amp * (rng() * 2 - 1);
-      break;
-    default:
-      offset = 0;
+  if (variation.shape === 'random'){
+    return amp * (rng() * 2 - 1);
   }
 
-  if (bias === 'fast') offset -= amp * 0.3;
-  if (bias === 'slow') offset += amp * 0.3;
-
-  return offset;
+  // Xoriat and any future special shapes fall through to 0
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -7264,7 +8024,6 @@ function _applyFestivalNudges(moons, ms, genFrom, genThru){
       // Find any moon with a natural event within 1 day of the festival
       var bestMoon = null, bestIdx = -1, bestDist = Infinity;
       for (var mi = 0; mi < moons.length; mi++){
-        if (moons[mi].variation && moons[mi].variation.shape === 'xoriat') continue;
         var seq = ms.sequences[moons[mi].name];
         if (!seq) continue;
         for (var si = 0; si < seq.length; si++){
@@ -7279,15 +8038,12 @@ function _applyFestivalNudges(moons, ms, genFrom, genThru){
         }
       }
 
-      // Shift to exact festival date
+      // Smooth to exact festival date over prior cycles
       if (bestMoon && bestIdx >= 0){
-        ms.sequences[bestMoon][bestIdx] = {
-          serial: festSerial,
-          type: fest.type,
-          retro: false,
-          festivalNudge: fest.event
-        };
-        ms.sequences[bestMoon].sort(function(a, b){ return a.serial - b.serial; });
+        var bestSeq = ms.sequences[bestMoon];
+        _smoothToTarget(bestSeq, bestIdx, festSerial, 7);
+        bestSeq[bestIdx].festivalNudge = fest.event;
+        bestSeq.sort(function(a, b){ return a.serial - b.serial; });
       }
     }
   }
@@ -7358,47 +8114,65 @@ function _generateStandardSequence(moon, startSerial, endSerial, seedOverride){
 }
 
 // ---------------------------------------------------------------------------
-// 20f) Lharvion (Xoriat) sequence — daily accumulator
 // ---------------------------------------------------------------------------
+// 20g-iii) Multi-cycle smoothing for forced moon events
+// ---------------------------------------------------------------------------
+// When a moon event needs to land on a specific serial (GM anchor, Long
+// Shadows, festival nudge), we don't teleport it — we redistribute the
+// offset across the preceding N events of the same type so the moon
+// appears to drift naturally toward the target date.
+//
+// Algorithm: given the target event at index targetIdx in the sequence,
+// and the desired serial targetSerial, compute the total offset
+// (targetSerial - seq[targetIdx].serial). Distribute this across the
+// prior smoothingCycles events using triangular weighting: the cycle
+// closest to the target absorbs the most, the one furthest absorbs the
+// least. Each event shifts by weight_i / sum(weights) * totalOffset.
+// The target event itself lands exactly on targetSerial.
 
-function _generateLharvionSequence(moon, startSerial, endSerial, seedOverride){
-  var vp       = moon.variation.phase;
-  var baseStep = 1.0 / moon.synodicPeriod;
-  var rng      = _moonPrng(_moonHashStr('lharvion' + (seedOverride || '')));
-  var events   = [];
-
-  // Walk from well before startSerial so the phase accumulator is warmed up
-  var walkStart = Math.floor(startSerial) - Math.ceil(moon.synodicPeriod) * 4;
-  var phase     = rng();  // arbitrary starting phase
-  var prevPhase = phase;
-
-  for (var d = walkStart; d <= Math.ceil(endSerial); d++){
-    var sine    = Math.sin(d * 2 * Math.PI / vp.wavelength);
-    // Forward bias: tilted stronger forward when sine is positive, weaker when negative
-    var fwdP    = vp.forwardBias + (1 - vp.forwardBias) * 0.35 * sine;
-    fwdP        = Math.max(0.08, Math.min(0.96, fwdP));
-    var dir     = (rng() < fwdP) ? 1 : -1;
-    var mag     = baseStep * (1.0 + vp.amplitude * Math.abs(sine));
-    // Occasional quarter-phase lurch
-    if (rng() < vp.jumpChance) mag *= vp.jumpMultiplier;
-    prevPhase = phase;
-    phase    += dir * mag;
-
-    if (d < startSerial || d > endSerial) continue;
-
-    // Full moon: accumulator crosses an integer boundary
-    var pFloor = Math.floor(prevPhase), cFloor = Math.floor(phase);
-    if (cFloor !== pFloor){
-      events.push({ serial: d + 0.5, type:'full', retro:(dir < 0) });
-    }
-    // New moon: accumulator crosses a half-integer boundary
-    var pHalf = Math.floor(prevPhase * 2), cHalf = Math.floor(phase * 2);
-    if (cHalf !== pHalf && (cHalf % 2) !== 0){
-      events.push({ serial: d + 0.5, type:'new', retro:(dir < 0) });
-    }
+function _smoothToTarget(seq, targetIdx, targetSerial, smoothingCycles){
+  smoothingCycles = Math.max(1, smoothingCycles|0) || 7;
+  var totalOffset = targetSerial - seq[targetIdx].serial;
+  if (Math.abs(totalOffset) < 0.5){
+    // Already close enough — just set it exactly
+    seq[targetIdx].serial = targetSerial;
+    return;
   }
 
-  return events;
+  var targetType = seq[targetIdx].type;
+
+  // Collect prior events of the same type
+  var priorIndices = [];
+  for (var i = targetIdx - 1; i >= 0 && priorIndices.length < smoothingCycles; i--){
+    if (seq[i].type === targetType && !seq[i].gmForced) priorIndices.push(i);
+  }
+
+  // Build triangular weights: closest to target = highest weight
+  // priorIndices[0] is the one just before target (gets most weight)
+  var weights = [];
+  var sumW = 0;
+  for (var w = 0; w < priorIndices.length; w++){
+    var weight = priorIndices.length - w; // N, N-1, ..., 1
+    weights.push(weight);
+    sumW += weight;
+  }
+  // The target itself also gets weight (N+1) — but we force it exactly,
+  // so we only use the weights for the priors.
+  // Total offset distributed: prior events get fraction of the shift,
+  // the remainder goes to the target.
+  var priorShare = sumW / (sumW + priorIndices.length + 1);
+  var priorOffset = totalOffset * priorShare;
+
+  // Apply shifts to prior events
+  for (var p = 0; p < priorIndices.length; p++){
+    var shift = Math.round(priorOffset * weights[p] / sumW);
+    seq[priorIndices[p]].serial += shift;
+  }
+
+  // Set target exactly
+  seq[targetIdx].serial = targetSerial;
+  seq[targetIdx].type = targetType;
+  seq[targetIdx].retro = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -7432,20 +8206,23 @@ function moonEnsureSequences(focusSerial, horizonExtraDays){
   sys.moons.forEach(function(moon){
     var moonSeedOverride = ms.seeds[moon.name] || null; // legacy compatibility
     var seed = moonSeedOverride || (globalSeed ? (globalSeed + '::' + moon.name) : null);
-    var seq;
-    if (moon.variation && moon.variation.shape === 'xoriat'){
-      seq = _generateLharvionSequence(moon, genFrom, needThru, seed);
-    } else {
-      seq = _generateStandardSequence(moon, genFrom, needThru, seed);
-    }
+    var seq = _generateStandardSequence(moon, genFrom, needThru, seed);
 
-    // Apply GM anchor overrides: for each forced event, find the nearest
-    // existing event of the same type within (period/4) days and shift it,
-    // or insert a new event if nothing is close enough.
+    // Apply GM anchor overrides with multi-cycle smoothing.
+    // Instead of teleporting an event to the target date, we distribute the
+    // offset across the preceding N cycles so the moon appears to drift
+    // naturally toward the target. Each prior event is adjusted by a fraction
+    // of the total offset, weighted more heavily toward the target (later
+    // cycles absorb more of the shift). This exploits the built-in variation
+    // to make the movement look like natural orbital drift.
+    //
+    // smoothingCycles: how many prior events to adjust (default 4)
+    // The target event itself lands exactly on the anchor serial.
+    // Prior events are shifted proportionally: cycle i gets weight (i+1)/sum.
     var gmList = ms.gmAnchors[moon.name] || [];
     gmList.forEach(function(anchor){
       if (anchor.serial < genFrom || anchor.serial > needThru) return;
-      var halfWindow = (moon.synodicPeriod || 28) / 4;
+      var halfWindow = (moon.synodicPeriod || 28) / 2;
       var nearest = null, nearestDist = Infinity;
       for (var k = 0; k < seq.length; k++){
         if (seq[k].type !== anchor.type) continue;
@@ -7453,7 +8230,8 @@ function moonEnsureSequences(focusSerial, horizonExtraDays){
         if (dist < nearestDist){ nearestDist = dist; nearest = k; }
       }
       if (nearest !== null && nearestDist <= halfWindow){
-        seq[nearest] = { serial: anchor.serial, type: anchor.type, retro: false, gmForced: true };
+        _smoothToTarget(seq, nearest, anchor.serial, 7);
+        seq[nearest].gmForced = true;
       } else {
         seq.push({ serial: anchor.serial, type: anchor.type, retro: false, gmForced: true });
       }
@@ -7465,10 +8243,8 @@ function moonEnsureSequences(focusSerial, horizonExtraDays){
   });
 
   // --- Festival soft nudges (applied across all moons post-generation) ---
-  // For each festival, scan all moons to find which has its target event
-  // closest to the festival date. Roll d6; only on a 6, nudge that moon's
-  // event to the festival date (±1 day). This decouples festivals from
-  // specific moons and creates year-to-year variety.
+  // Festival soft nudges: if any moon has a full/new within 1 day of a
+  // published festival date, d6=6 shifts it to land exactly on the holiday.
   _applyFestivalNudges(sys.moons, ms, genFrom, needThru);
 
   // Clear Long Shadows cache since moon data has changed
@@ -7510,19 +8286,21 @@ var _longShadowsCache = {};
 
 // Compute which moons Long Shadows claims for a given year.
 //
-// Tapered gobble zone:
-//   1. Find the nearest new moon to Vult 27 across all moons.
-//   2. Based on that closest new's distance from Vult 27:
-//      - Distance 0 (on the 27th): gobble radius = ±3 days
-//      - Distance 1 (26th or 28th): gobble radius = ±2 days
-//      - Distance ≥2 (25th or earlier / 1st or later): gobble radius = ±1 day
-//   3. The gobble window is centered on the closest new moon, scanning
-//      directionally away from Vult 27 (past for moons before 27th,
-//      future for moons after 27th).
-//   4. Any moon whose new falls within the gobble window is also claimed.
+// Long Shadows is canonically both "the new moon closest to the winter
+// solstice" AND "Vult 26-28." This system ensures there IS a real new
+// moon during the window by smoothing the nearest new moon event into
+// position across prior cycles. The event is genuinely moved in the
+// sequence — not a display override.
 //
-// Long Shadows is exempt from the d6 festival chance filter — the canon
-// explicitly states there IS a new moon. The only question is which one(s).
+// Tapered gobble zone for secondary moons:
+//   1. Find the nearest new moon to Vult 27 across all moons.
+//   2. That closest moon is always claimed and smoothed to Vult 27.
+//   3. Based on the closest moon's natural distance from Vult 27:
+//      - Distance 0: gobble radius = ±3 days
+//      - Distance 1: gobble radius = ±2 days
+//      - Distance ≥2: gobble radius = ±1 day
+//   4. Secondary moons within the gobble radius are also claimed (but
+//      not further smoothed — they just get the display override).
 
 function _longShadowsClaimedMoons(year){
   if (_longShadowsCache[year]) return _longShadowsCache[year];
@@ -7534,26 +8312,19 @@ function _longShadowsClaimedMoons(year){
 
   var vult27 = toSerial(year, 11, 27); // month 11 = Vult (0-indexed), day 27
 
-  // For each moon, find its nearest new moon event to Vult 27.
-  // New moons are at midpoints between consecutive full moons in the sequence.
+  // For each moon, find its nearest new-type event to Vult 27.
   var candidates = [];
   for (var i = 0; i < sys.moons.length; i++){
     var moon = sys.moons[i];
     var seq = (getMoonState().sequences[moon.name]) || [];
     if (!seq.length) continue;
 
-    // Collect all new-moon serials near Vult 27 (within a generous scan window)
-    var prevFull = null;
     for (var j = 0; j < seq.length; j++){
-      if (seq[j].type !== 'full') continue;
-      if (prevFull){
-        var newS = Math.round((prevFull.serial + seq[j].serial) / 2);
-        var dist = newS - vult27; // signed distance (negative = before, positive = after)
-        if (Math.abs(dist) <= 20){ // generous initial scan
-          candidates.push({ name: moon.name, newSerial: newS, signedDist: dist, absDist: Math.abs(dist) });
-        }
+      if (seq[j].type !== 'new') continue;
+      var dist = seq[j].serial - vult27;
+      if (Math.abs(dist) <= 20){
+        candidates.push({ name: moon.name, seqIdx: j, newSerial: seq[j].serial, signedDist: dist, absDist: Math.abs(dist) });
       }
-      prevFull = seq[j];
     }
   }
 
@@ -7562,46 +8333,49 @@ function _longShadowsClaimedMoons(year){
   // Sort by absolute distance to Vult 27
   candidates.sort(function(a, b){ return a.absDist - b.absDist; });
 
-  // The closest moon is always claimed
-  var claimed = [candidates[0].name];
-  var closestAbsDist = candidates[0].absDist;
+  // The closest moon is always claimed — smooth its new moon to Vult 27
+  var primary = candidates[0];
+  var claimed = [{ name: primary.name, seqIdx: primary.seqIdx }];
 
-  // Determine gobble radius based on closest moon's distance from Vult 27
+  // Smooth the primary moon's new event to Vult 27
+  var primarySeq = getMoonState().sequences[primary.name];
+  if (primarySeq && primary.seqIdx < primarySeq.length){
+    _smoothToTarget(primarySeq, primary.seqIdx, vult27, 7);
+    primarySeq[primary.seqIdx].longShadowsClaimed = true;
+    primarySeq.sort(function(a, b){ return a.serial - b.serial; });
+  }
+
+  var closestAbsDist = primary.absDist;
+
+  // Determine gobble radius for secondary moons
   var gobbleRadius;
   if (closestAbsDist <= 0) gobbleRadius = 3;
   else if (closestAbsDist <= 1) gobbleRadius = 2;
   else gobbleRadius = 1;
 
-  // Now scan for additional moons to gobble.
-  // For each candidate beyond the closest, check if it falls within the
-  // gobble window. The window scans directionally away from Vult 27:
-  // - Moons before Vult 27: scan (newSerial - gobbleRadius) to newSerial
-  // - Moons after Vult 27: scan newSerial to (newSerial + gobbleRadius)
-  // The window is centered on the closest new, reaching outward.
-  // Actually: per user spec, we look ±gobbleRadius from the CLOSEST new's
-  // position, but directionally. The closest new defines the center; we look
-  // past-ward from it and future-ward from it, for additional new moons.
-  var closestSerial = candidates[0].newSerial;
-
+  // Secondary moons within gobble radius are also claimed AND smoothed
   for (var k = 1; k < candidates.length; k++){
     var c = candidates[k];
-    // Skip if already claimed (same moon, different new event)
     var alreadyClaimed = false;
     for (var ac = 0; ac < claimed.length; ac++){
-      if (claimed[ac] === c.name){ alreadyClaimed = true; break; }
+      if (claimed[ac].name === c.name){ alreadyClaimed = true; break; }
     }
     if (alreadyClaimed) continue;
-
-    // Check if this moon's new falls within the gobble zone.
-    // The zone extends gobbleRadius days outward from the closest new,
-    // in the direction away from Vult 27.
-    var distFromClosest = Math.abs(c.newSerial - closestSerial);
-    if (distFromClosest <= gobbleRadius){
-      claimed.push(c.name);
+    if (c.absDist <= gobbleRadius){
+      claimed.push({ name: c.name, seqIdx: c.seqIdx });
+      // Smooth this secondary moon's new event to Vult 27 too
+      var secSeq = getMoonState().sequences[c.name];
+      if (secSeq && c.seqIdx < secSeq.length){
+        _smoothToTarget(secSeq, c.seqIdx, vult27, 5);
+        secSeq[c.seqIdx].longShadowsClaimed = true;
+        secSeq.sort(function(a, b){ return a.serial - b.serial; });
+      }
     }
   }
 
-  _longShadowsCache[year] = claimed;
+  var claimedNames = [];
+  for (var cn = 0; cn < claimed.length; cn++) claimedNames.push(claimed[cn].name);
+  _longShadowsCache[year] = claimedNames;
   return claimed;
 }
 
@@ -7627,7 +8401,9 @@ function _isLongShadowsOverride(moonName, serial){
 
 // Public moonPhaseAt — applies Long Shadows override when active
 function moonPhaseAt(moonName, serial){
-  // Check Long Shadows: if this moon is claimed, force it to new
+  // Long Shadows safety net: smoothing moves the new moon to Vult 27 in the
+  // sequence, so interpolation should naturally give ~0.0 illumination.
+  // This override ensures exactly 0.0 and sets the longShadows flag for display.
   if (_isLongShadowsOverride(moonName, serial)){
     return { illum: 0.0, waxing: false, longShadows: true };
   }
@@ -7678,27 +8454,62 @@ function _moonNextEvent(moonName, serial, type){
 // Moon reveal tiers -- simplified to match weather.
 // mundane: rough windows suitable for ordinary almanac knowledge.
 // magical: high-confidence projections with bounded long-range certainty.
-var MOON_REVEAL_TIERS = { mundane:1, magical:2 };
+var MOON_REVEAL_TIERS = { low:1, medium:2, high:3 };
 
 function _normalizeMoonRevealTier(tier){
   var t = String(tier || '').toLowerCase();
+  // Legacy aliases
+  if (t === 'mundane') return 'medium';
+  if (t === 'magical') return 'high';
   if (MOON_REVEAL_TIERS[t]) return t;
-  return 'mundane';
+  return 'medium';
 }
 
 // Source labels for player-facing attribution.
 var MOON_SOURCE_LABELS = {
-  mundane:  'Mundane Forecast',
-  magical:  'Magical Forecast'
+  low:      'Common Knowledge',
+  medium:   'Skilled Forecast',
+  high:     'Expert Forecast',
+  mundane:  'Skilled Forecast',
+  magical:  'Expert Forecast'
 };
 
-// Returns uncertainty window (+/- days) for a moon based on its variation parameters.
-function _moonUncertaintyDays(moon){
-  if (!moon.variation) return 0;  // Nymm -- perfectly predictable
-  if (moon.variation.shape === 'xoriat') return -1;  // Lharvion -- unknowable
-  // For sine/sine2/random shapes, uncertainty scales with amplitude
-  var amp = moon.variation.amplitude || 0;
-  return Math.ceil(amp);
+// ---------------------------------------------------------------------------
+// Uncertainty window for player-facing moon predictions.
+// ---------------------------------------------------------------------------
+// The window represents the range of dates an event COULD land on, given
+// that each remaining lunar cycle introduces random drift of ±amplitude days.
+//
+// Window width = amplitude × √(remainingCycles) × 1.3 (80% confidence)
+// Minimum 2 days even for tight predictions.
+//
+// CRITICAL: the window is ASYMMETRICALLY OFFSET from the actual day.
+// The real event day sits anywhere from 15% to 85% of the way through
+// the window — sometimes the window is mostly before the real day,
+// sometimes mostly after. Players cannot reverse-engineer the center.
+//
+// The offset is deterministic per-event (seeded from moon name + event
+// serial + type) so the same query always returns the same answer.
+
+// Returns { lo, hi } in days-from-today for a prediction window.
+// `d` = actual days until event, `period` = synodic period,
+// `amplitude` = variation amplitude in days, `seed` = deterministic seed.
+function _moonPredictionWindow(d, period, amplitude, seed){
+  // How many full cycles of drift remain between now and the event?
+  var remainingCycles = Math.max(0.1, d / period);
+  // Random walk: potential drift ≈ amplitude × √(remaining_cycles)
+  // Scale by 1.3 for ~80% confidence interval
+  var winWidth = Math.max(2, Math.round(amplitude * Math.sqrt(remainingCycles) * 1.3));
+  // Deterministic asymmetric offset: seed → fraction 0..1
+  var h = seed | 0;
+  h = ((h * 16807) + 0) % 2147483647;
+  var frac = (h & 0x7fffffff) / 2147483647;  // 0..1
+  var placement = 0.15 + frac * 0.70;  // 0.15..0.85
+  var daysBefore = Math.round(winWidth * placement);
+  var daysAfter  = winWidth - daysBefore;
+  var lo = Math.max(1, d - daysBefore);
+  var hi = d + daysAfter;
+  return { lo: lo, hi: hi };
 }
 
 // Format a "next event" string based on reveal tier.
@@ -7710,54 +8521,57 @@ function _moonNextEventStr(moon, today, type, tier, horizonDays){
   if (d <= 0) return null;
 
   var label = (type === 'full') ? 'Full' : 'New';
-  var unc   = _moonUncertaintyDays(moon);
-  var cap = (tier === 'magical') ? MOON_PREDICTION_LIMITS.magicalDays : MOON_PREDICTION_LIMITS.mundaneDays;
+  var cap = (tier === 'high') ? MOON_PREDICTION_LIMITS.highMaxDays
+    : (tier === 'medium') ? MOON_PREDICTION_LIMITS.mediumMaxDays
+    : MOON_PREDICTION_LIMITS.lowDays;
   var horizon = parseInt(horizonDays, 10);
-  if (!isFinite(horizon) || horizon < 1) horizon = (tier === 'magical') ? 84 : 7;
+  if (!isFinite(horizon) || horizon < 1){
+    if (tier === 'low') horizon = MOON_PREDICTION_LIMITS.lowDays;
+    else if (tier === 'medium') horizon = 28;
+    else horizon = 84;
+  }
   horizon = Math.min(cap, horizon);
   function inDays(n){
     return (n === 1) ? 'in 1 day' : ('in ' + n + ' days');
   }
   if (d > horizon){
-    return label + ': beyond ' + horizon + ' days';
+    return label + ': beyond prediction';
   }
 
-  // Xoriat: broadly unknowable without strong magical insight.
-  if (unc === -1){
-    if (tier !== 'magical') return label + ': unknowable';
-    if (d <= MOON_PREDICTION_LIMITS.magicalExactDays) return label + ' ' + inDays(d);
-    var xWin = Math.max(2, Math.ceil((d - MOON_PREDICTION_LIMITS.magicalExactDays) / 84));
-    var xLo  = Math.max(1, d - xWin);
-    var xHi  = d + xWin;
-    return (xLo === xHi) ? (label + ' ' + inDays(xLo)) : (label + ' in ' + xLo + '\u2013' + xHi + ' days');
+  var period = moon.synodicPeriod || 28;
+
+  // Deterministic seed: combine moon name hash + event serial + type
+  var evSeed = exact * 31 + (type === 'full' ? 7 : 13);
+  for (var si = 0; si < moon.name.length; si++){
+    evSeed = ((evSeed << 5) - evSeed + moon.name.charCodeAt(si)) | 0;
   }
 
-  // Mundane: uncertainty grows with forecast distance.
-  // Predictable moons (unc=0) stay exact through 3 months, then widen.
-  if (tier === 'mundane'){
-    var mWin;
-    if (unc <= 0){
-      if (d <= 84) mWin = 0;
-      else mWin = 1 + Math.floor((d - 84) / 56);
-    } else {
-      mWin = unc + Math.floor(d / 56);
+  // Variation amplitude in days (from the moon's variation config)
+  var amp = (moon.variation && moon.variation.amplitude) || 0;
+
+  // Low: only shows if within 2 days, always with uncertainty window
+  if (tier === 'low'){
+    var lowWin = _moonPredictionWindow(d, period, amp, evSeed);
+    return (lowWin.lo === lowWin.hi)
+      ? (label + ' in about ' + lowWin.lo + ' day' + (lowWin.lo===1?'':'s'))
+      : (label + ' in about ' + lowWin.lo + '\u2013' + lowWin.hi + ' days');
+  }
+
+  // Medium: first cycle exact, beyond that adds uncertainty windows
+  if (tier === 'medium'){
+    // Within one cycle of this moon → exact
+    if (d <= period){
+      return label + ' ' + inDays(d);
     }
-    if (mWin <= 0) return label + ' ' + inDays(d);
-    var mLo = Math.max(1, d - mWin);
-    var mHi = d + mWin;
-    return (mLo === mHi) ? (label + ' in about ' + mLo + ' day' + (mLo===1?'':'s'))
-                         : (label + ' in about ' + mLo + '\u2013' + mHi + ' days');
+    // Beyond one cycle → asymmetric window
+    var win = _moonPredictionWindow(d, period, amp, evSeed);
+    return (win.lo === win.hi)
+      ? (label + ' in about ' + win.lo + ' day' + (win.lo===1?'':'s'))
+      : (label + ' in about ' + win.lo + '\u2013' + win.hi + ' days');
   }
 
-  // Magical: exact near-term, bounded uncertainty at longer range.
-  if (d <= MOON_PREDICTION_LIMITS.magicalExactDays){
-    return label + ' ' + inDays(d);
-  }
-  var gWin = Math.max(1, Math.ceil(Math.max(unc, 0) / 2)) +
-             Math.floor((d - MOON_PREDICTION_LIMITS.magicalExactDays) / 168);
-  var gLo = Math.max(1, d - gWin);
-  var gHi = d + gWin;
-  return (gLo === gHi) ? (label + ' ' + inDays(gLo)) : (label + ' in ' + gLo + '\u2013' + gHi + ' days');
+  // High: full exact knowledge within the horizon
+  return label + ' ' + inDays(d);
 }
 
 // Render a single moon row at a given reveal tier.
@@ -7790,8 +8604,7 @@ function _moonRowHtml(moon, today, tier, horizonDays){
   var dot = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;'+
             'background:'+esc(moon.color||'#aaa')+';border:1px solid rgba(0,0,0,.3);'+
             'margin-right:3px;vertical-align:middle;"></span>';
-  var isLharvion = (moon.variation && moon.variation.shape === 'xoriat');
-  var nameStyle  = isLharvion ? 'font-style:italic;' : '';
+  var nameStyle = '';
 
   // Moon ascendancy: brighter when associated plane is coterminous, dimmer when remote
   var ascendTag = '';
@@ -7820,7 +8633,7 @@ function _moonRowHtml(moon, today, tier, horizonDays){
   // Mundane tier: phase + approximate next event.
   // Magical tier: phase + illumination + secondary event.
   var infoParts = [emoji + ' ' + esc(label)];
-  if (tier === 'magical') infoParts[0] += ' (' + pct + '%)';
+  if (tier === 'high') infoParts[0] += ' (' + pct + '%)';
 
   var result = '<div style="margin:3px 0;line-height:1.4;">'+
     dot+
@@ -7834,7 +8647,7 @@ function _moonRowHtml(moon, today, tier, horizonDays){
   }
 
   // Magical: show secondary event too.
-  if (tier === 'magical'){
+  if (tier === 'high'){
     var secStr = '';
     if (dFull !== null && (dNew === null || dFull <= dNew))
       secStr = nextNew || '';
@@ -7849,7 +8662,7 @@ function _moonRowHtml(moon, today, tier, horizonDays){
   return result;
 }
 
-function _moonMiniCalEvents(startSerial, endSerial, tier){
+function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays){
   var st = ensureSettings();
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
   var out = [];
@@ -7857,10 +8670,16 @@ function _moonMiniCalEvents(startSerial, endSerial, tier){
   var start = startSerial|0;
   var end = endSerial|0;
   if (end < start){ var tmp = start; start = end; end = tmp; }
+  var isMagical = _normalizeMoonRevealTier(tier) === 'high';
+  var today = todaySerial();
 
   for (var ser = start; ser <= end; ser++){
     for (var i = 0; i < sys.moons.length; i++){
       var moon = sys.moons[i];
+      // For player display: suppress events past the reveal horizon
+      if (!isMagical && isFinite(baseHorizonDays) && ser > today){
+        if ((ser - today) > baseHorizonDays) continue;
+      }
       var ph = moonPhaseAt(moon.name, ser);
       if (!ph) continue;
       var isFull = ph.illum >= 0.97;
@@ -7869,12 +8688,12 @@ function _moonMiniCalEvents(startSerial, endSerial, tier){
       var phaseLabel = isFull ? 'Full' : (ph.longShadows ? 'New (Long Shadows)' : 'New');
       out.push({
         serial: ser,
-        name: _moonPhaseEmoji(ph.illum, ph.waxing) + ' ' + moon.name + ' ' + phaseLabel,
+        name: _moonPhaseEmoji(ph.illum, ph.waxing) + ' ' + moon.name + ' (' + moon.title + ') ' + phaseLabel,
         color: moon.color || '#B39DDB'
       });
     }
 
-    if (_normalizeMoonRevealTier(tier) === 'magical'){
+    if (isMagical){
       var eNotes = _eclipseNotableToday(ser);
       for (var ei = 0; ei < eNotes.length; ei++){
         out.push({
@@ -7894,7 +8713,11 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
   if (!sys || !sys.moons || !sys.moons.length) return '';
   tier = _normalizeMoonRevealTier(tier);
   var horizon = parseInt(horizonDays, 10);
-  if (!isFinite(horizon) || horizon < 1) horizon = (tier === 'magical') ? 84 : 7;
+  if (!isFinite(horizon) || horizon < 1){
+    if (tier === 'low') horizon = MOON_PREDICTION_LIMITS.lowDays;
+    else if (tier === 'medium') horizon = 28;
+    else horizon = 84;
+  }
   var horizonEnd = today + horizon;
 
   var fullNow = [];
@@ -7910,6 +8733,7 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
 
     var fSer = _moonNextEvent(moon.name, today, 'full');
     var nSer = _moonNextEvent(moon.name, today, 'new');
+    var horizonEnd = today + horizon;
     if (fSer != null && fSer > today && fSer <= horizonEnd && (!best || fSer < best.serial)){
       best = { serial:fSer, moon:moon.name, type:'full', str:_moonNextEventStr(moon, today, 'full', tier, horizon) };
     }
@@ -7923,8 +8747,8 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
   if (newNow.length) bits.push('🌑 New now: ' + newNow.join(', '));
   if (best){
     bits.push('Next: ' + (best.str || (best.moon + ' ' + titleCase(best.type))));
-  } else if (tier !== 'magical') {
-    bits.push('Next: beyond ' + horizon + ' days');
+  } else if (tier !== 'high') {
+    bits.push('Next: beyond prediction');
   }
   if (!bits.length) return '';
   return '<div style="font-size:.8em;opacity:.72;margin:2px 0 6px 0;">'+esc(bits.join(' · '))+'</div>';
@@ -7948,7 +8772,7 @@ function moonPanelHtml(serialOverride){
   var cal = getCal();
   var cur = cal.current;
   var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
-  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.magicalDays);
+  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
   var dateLabel = dateLabelFromSerial(today);
 
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
@@ -7957,12 +8781,12 @@ function moonPanelHtml(serialOverride){
   }
 
   var rows = sys.moons.map(function(moon){
-    return _moonRowHtml(moon, today, 'magical', MOON_PREDICTION_LIMITS.magicalDays);
+    return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
   });
   var displayMode = _normalizeDisplayMode(st.moonDisplayMode);
   var verbose = _subsystemIsVerbose();
   var mr = _monthRangeFromSerial(today);
-  var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'magical');
+  var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
   var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
@@ -7987,7 +8811,7 @@ function moonPanelHtml(serialOverride){
   }
 
   // Current player reveal tier
-  var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'mundane'));
+  var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'medium'));
   var horizonLabel = _rangeLabel(ms.revealHorizonDays || 7);
 
   // Seed line for system-wide moon generation
@@ -8002,35 +8826,34 @@ function moonPanelHtml(serialOverride){
     '</div>';
   }
 
-  // GM send/query buttons
-  var sendRow = '<div style="margin-top:6px;font-size:.85em;opacity:.8;">Mundane send:</div>'+
-    '<div>'+
-    button('1w','moon send mundane 1w')+' '+
-    button('1m','moon send mundane 1m')+' '+
-    button('3m','moon send mundane 3m')+' '+
-    button('6m','moon send mundane 6m')+' '+
-    button('10m','moon send mundane 10m')+
+  // GM controls — send buttons with DC hints
+  var sendBtns = MOON_REVEAL_PRESETS.map(function(p){
+    return button(p.label + ' (' + p.dc + ')', 'moon send medium ' + p.days + 'd');
+  }).join(' ');
+  var highBtns = MOON_REVEAL_PRESETS.map(function(p){
+    return button(p.label, 'moon send high ' + p.days + 'd');
+  }).join(' ');
+
+  var gmControls = '<div style="margin-top:6px;font-size:.82em;opacity:.7;">'+
+    '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
+    '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
+    button('📖 Lore','moon lore')+' '+
+    button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>'+
-    '<div style="margin-top:3px;font-size:.85em;opacity:.8;">Magical send:</div>'+
-    '<div>'+
-    button('1w','moon send magical 1w')+' '+
-    button('1m','moon send magical 1m')+' '+
-    button('3m','moon send magical 3m')+' '+
-    button('6m','moon send magical 6m')+' '+
-    button('10m','moon send magical 10m')+
-    '</div>'+
-    '<div style="font-size:.78em;opacity:.45;margin-top:2px;">Current player tier: '+esc(tierLabel)+' ('+esc(horizonLabel)+')</div>'+
-    (verbose ? '<div style="font-size:.8em;opacity:.7;margin-top:5px;">Query: <code>!cal moon on &lt;dateSpec&gt;</code></div>' : '');
+    '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
+    'Player tier: '+esc(tierLabel)+' · '+
+    'CLI: <code>!cal moon send (low|medium|high) [28d|1m|3m|6m|10m]</code>'+
+    '</div>';
 
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
     navRow +
-    _moonTodaySummaryHtml(today, 'magical', MOON_PREDICTION_LIMITS.magicalDays) +
-    body + seedLine + sendRow +
+    _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
+    body + seedLine + gmControls +
     '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','help root') +'</div>'
   );
 }
 
-// Player panel -- shows at their revealed tier
+// Player panel -- calendar grid is the primary view, minimal list
 function moonPlayerPanelHtml(serialOverride){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
@@ -8040,7 +8863,7 @@ function moonPlayerPanelHtml(serialOverride){
   var ms  = getMoonState();
   var cal = getCal();
   var cur = cal.current;
-  var tier = _normalizeMoonRevealTier(ms.revealTier || 'mundane');
+  var tier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
   var horizon = parseInt(ms.revealHorizonDays, 10) || 7;
   var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
   moonEnsureSequences(today, horizon + 30);
@@ -8051,14 +8874,12 @@ function moonPlayerPanelHtml(serialOverride){
     return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
   }
 
-  var rows = sys.moons.map(function(moon){
-    return _moonRowHtml(moon, today, tier, horizon);
-  });
-  var displayMode = _normalizeDisplayMode(st.moonDisplayMode);
-  var verbose = _subsystemIsVerbose();
+  // Calendar grid — always shown
   var pmr = _monthRangeFromSerial(today);
-  var pMoonMiniEvents = _moonMiniCalEvents(pmr.start, pmr.end, tier);
+  var pMoonMiniEvents = _moonMiniCalEvents(pmr.start, pmr.end, tier, horizon);
   var pMoonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', pmr.start, pmr.end, pMoonMiniEvents);
+
+  // Navigation (within known horizon)
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var knownStart = todaySerial();
@@ -8070,37 +8891,49 @@ function moonPlayerPanelHtml(serialOverride){
     return button(label, 'moon on '+_serialToDateSpec(serial));
   }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    _navBtn(prevSer, '◀ Prev Month')+' '+
+    _navBtn(prevSer, '◀ Prev')+' '+
     button('Current','moon')+' '+
-    _navBtn(nextSer, 'Next Month ▶')+
+    _navBtn(nextSer, 'Next ▶')+
     '</div>';
-  var body = '';
-  if (displayMode !== 'list'){
-    body += pMoonMiniCal;
-    body += _legendLine(['🌕 Full', '🌑 New', 'Known phases only']);
-    if (verbose){
-      body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">Known new/full phases are marked.</div>';
+
+  // Today summary + notable moons only (not all 12)
+  var body = navRow;
+  body += _moonTodaySummaryHtml(today, tier, horizon);
+  body += pMoonMiniCal;
+  body += _legendLine(['🌕 Full', '🌑 New']);
+
+  // Compact notable list: only moons at full, new, or ascending right now
+  // Each line includes the moon's title so players know what they're reading
+  var notableLines = [];
+  sys.moons.forEach(function(moon){
+    var ph = moonPhaseAt(moon.name, today);
+    var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+    if (ph.illum >= 0.97){
+      notableLines.push(emoji + ' <b>' + esc(moon.name) + '</b> <span style="opacity:.6;">(' + esc(moon.title) + ')</span> is Full');
+    } else if (ph.illum <= 0.03){
+      var tag = ph.longShadows ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
+      notableLines.push(emoji + ' <b>' + esc(moon.name) + '</b> <span style="opacity:.6;">(' + esc(moon.title) + ')</span> is New' + tag);
     }
+  });
+  if (notableLines.length){
+    body += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
+      notableLines.join('<br>') + '</div>';
+  } else {
+    body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
   }
-  if (displayMode !== 'calendar'){
-    body += rows.join('');
-  }
-  if (!body){
-    body = '<div style="opacity:.7;">No lunar display mode selected.</div>';
-  }
+
+  // Lore button
+  body += '<div style="margin-top:6px;">' +
+    button('📖 Moon Lore', 'moon lore') + ' ' +
+    button('🌌 Sky Now', 'moon sky') +
+    '</div>';
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
-  var srcLine  = srcLabel
-    ? '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>'
-    : '';
+  if (srcLabel){
+    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
+  }
 
-  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
-    navRow +
-    _moonTodaySummaryHtml(today, tier, horizon) +
-    body + srcLine +
-    '<div style="font-size:.75em;opacity:.4;margin-top:3px;">Forecast horizon: '+esc(_rangeLabel(horizon))+'</div>'+
-    (verbose ? '<div style="font-size:.75em;opacity:.4;">Query: <code>!cal moon on &lt;dateSpec&gt;</code></div>' : '')
-  );
+  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
 }
 
 // ---------------------------------------------------------------------------
@@ -8131,36 +8964,280 @@ function _moonParseMoonName(str, sys){
 
 // Canonical diameters and distances from Keith Baker's Dragonshards article.
 // angularSizeVsSun: 1.0 = same apparent size as Arrah (the sun).
+// albedo: real solar-system analog values. Geometric albedo can exceed 1.0
+//   (Enceladus 1.375, Tethys 1.229) due to backscattering from pure ice.
+//   Sypheros/Phoebe retrograde inc 175.3° handled in illumination calc.
 var MOON_ORBITAL_DATA = {
-  Zarantyr:  { diameter:1250, distance:14300,  angularSizeVsSun: 9.08 },
-  Olarune:   { diameter:950,  distance:22500,  angularSizeVsSun: 5.73 },
-  Therendor: { diameter:1100, distance:39000,  angularSizeVsSun: 2.91 },
-  Eyre:      { diameter:1200, distance:52000,  angularSizeVsSun: 2.38 },
-  Dravago:   { diameter:2000, distance:77500,  angularSizeVsSun: 2.66 },
-  Nymm:      { diameter:900,  distance:95000,  angularSizeVsSun: 0.98 },
-  Lharvion:  { diameter:1350, distance:125000, angularSizeVsSun: 1.11 },
-  Barrakas:  { diameter:1500, distance:144000, angularSizeVsSun: 1.07 },
-  Rhaan:     { diameter:800,  distance:168000, angularSizeVsSun: 0.49 },
-  Sypheros:  { diameter:1200, distance:193000, angularSizeVsSun: 0.62 },
-  Aryth:     { diameter:1000, distance:221000, angularSizeVsSun: 0.69 },
-  Vult:      { diameter:1800, distance:252000, angularSizeVsSun: 0.74 }
+  Zarantyr:  { diameter:1250, distance:14300,  angularSizeVsSun: 9.08, albedo: 0.12 },
+  Olarune:   { diameter:1000, distance:18000,  angularSizeVsSun: 5.73, albedo: 0.22 },
+  Therendor: { diameter:1100, distance:39000,  angularSizeVsSun: 2.91, albedo: 0.67 },
+  Eyre:      { diameter:1200, distance:52000,  angularSizeVsSun: 2.38, albedo: 0.30 },
+  Dravago:   { diameter:2000, distance:77500,  angularSizeVsSun: 2.66, albedo: 1.229 },
+  Nymm:      { diameter:900,  distance:95000,  angularSizeVsSun: 0.98, albedo: 0.43 },
+  Lharvion:  { diameter:1350, distance:125000, angularSizeVsSun: 1.11, albedo: 0.155 },
+  Barrakas:  { diameter:1500, distance:144000, angularSizeVsSun: 1.07, albedo: 1.375 },
+  Rhaan:     { diameter:800,  distance:168000, angularSizeVsSun: 0.49, albedo: 0.32 },
+  Sypheros:  { diameter:1100, distance:183000, angularSizeVsSun: 0.62, albedo: 0.06 },
+  Aryth:     { diameter:1300, distance:195000, angularSizeVsSun: 0.69, albedo: 0.05 },
+  Vult:      { diameter:1800, distance:252000, angularSizeVsSun: 0.74, albedo: 0.23 }
 };
+
+// ---------------------------------------------------------------------------
+// 20g-i-b) Ring of Siberys — analog: Saturn's rings
+// ---------------------------------------------------------------------------
+// The Ring of Siberys is the equatorial band of siberys dragonshards that
+// encircles Eberron. Saturn's rings provide the physical template:
+// 282,000 km wide but only ~10 meters thick — an aspect ratio like a
+// DVD scaled up to 30 km across. Composed of dragonshard fragments
+// ranging from dust to mountain-sized.
+//
+// The Ring is visible in daylight and dominates the night sky. Sages at
+// Arcanix believe all arcane magic may draw on energy radiating from the
+// Ring — the "Blood of Siberys." (Keith Baker, "Reaching For The Stars")
+
+var RING_OF_SIBERYS = {
+  // A single equatorial ring of siberys dragonshards. Physical parameters
+  // derived from Saturn's rings but scaled to fit inside Zarantyr's orbit
+  // (14,300 km). Saturn's ring system spans ~1.1–2.3 planet radii; if
+  // Eberron is ~6,400 km radius, the ring fits at ~1.1–1.9 Eberron radii.
+  analog: "Saturn's rings",
+  composition: 'Siberys dragonshards',
+  innerEdge_km: 7000,          // just above atmosphere
+  outerEdge_km: 12000,         // well inside Zarantyr at 14,300 km
+  width_km: 5000,              // single visible band
+  thickness_m: 10,             // Saturn-analog: incredibly thin
+  albedo: 0.50,                // Saturn B-ring average
+  inclination: 0,              // equatorial
+  // Saturn's ring particle composition analog
+  particleSizes: 'Dust to boulder-sized dragonshard fragments',
+  appearance: {
+    daylight: 'A brilliant equatorial arc of golden-white light, visible even in full sunlight.',
+    night: 'A sweeping band of light across the sky. Casts faint but real shadows on clear nights.',
+    equator: 'Seen edge-on as a thin bright line directly overhead.',
+    poles: 'A wide luminous arch spanning the sky from horizon to horizon.'
+  },
+  facts: [
+    'The Ring is 5,000 km wide but only ~10 meters thick.',
+    'If scaled to a dinner plate, the Ring would be thousands of times thinner than a sheet of paper.',
+    'Siberys shards that fall from the Ring are the rarest and most valuable dragonshards.',
+    'Ring particles orbit at different speeds: inner fragments orbit faster than outer ones.'
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// 20g-ii) Nighttime Illumination System
+// ---------------------------------------------------------------------------
+// Computes ambient light level in lux from overhead moons, starlight, and
+// the Ring of Siberys. The result maps to D&D mechanical thresholds:
+//
+//   Lux     | Condition        | D&D Equivalent
+//   --------|------------------|-----------------------
+//   > 0.25  | Bright moonlight | Dim light (no penalty)
+//   0.03–0.25 | Dim moonlight  | Dim light (disadvantage on Perception)
+//   < 0.03  | Near darkness    | Darkness (effectively blind w/o darkvision)
+//
+// Reference: Earth's full moon ≈ 0.25 lux at zenith (albedo 0.12,
+// angular diameter 0.5°). Our moons are much larger and closer, so
+// even modest illumination fractions produce significant light.
+//
+// Formula per moon:
+//   lux_moon = lux_reference × (angularArea / moonAngularArea) × (albedo / 0.12) × illum
+// where lux_reference = 0.25 (Earth full moon), moonAngularArea is proportional
+// to angularSizeVsSun² (since area scales as diameter²).
+// Earth's moon angularSizeVsSun ≈ 1.0 and albedo ≈ 0.12.
+//
+// Simplified: lux_moon = 0.25 × angularSize² × (albedo / 0.12) × illum
+//
+// Ambient sources:
+//   Starlight:          ~0.002 lux (clear night, no moon, Earth analog)
+//   Ring of Siberys:    ~0.008 lux (diffuse golden glow from the dragon-shard ring)
+//   Total ambient:      ~0.010 lux (always present on clear nights)
+//   Overcast penalty:   ×0.15 for heavy cloud cover
+
+var NIGHTLIGHT_AMBIENT_LUX = 0.010;  // starlight + Ring of Siberys
+var NIGHTLIGHT_OVERCAST_MULT = 0.15;  // heavy cloud cover blocks ~85% of moonlight
+var NIGHTLIGHT_EARTH_MOON_LUX = 0.25; // reference: full Earth moon at zenith
+var NIGHTLIGHT_EARTH_ALBEDO = 0.12;
+
+// Fraction of the night a moon is "overhead" — simplified to ~50% for all moons
+// (real value depends on orbital inclination and time, but 50% is a fair average
+// for 12 moons that aren't all on the same schedule).
+var NIGHTLIGHT_OVERHEAD_FRACTION = 0.50;
+
+function nighttimeLux(serial, precipStage){
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons || !sys.moons.length) return { total: NIGHTLIGHT_AMBIENT_LUX, moons: [], ambient: NIGHTLIGHT_AMBIENT_LUX };
+
+  var moonContributions = [];
+  var totalMoonLux = 0;
+
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    var ph = moonPhaseAt(moon.name, serial);
+    if (!ph || ph.illum < 0.01) continue; // too dim to matter
+
+    var orb = MOON_ORBITAL_DATA[moon.name];
+    if (!orb) continue;
+
+    var angSq = orb.angularSizeVsSun * orb.angularSizeVsSun;
+    var alb = orb.albedo || 0.12;
+    var rawLux = NIGHTLIGHT_EARTH_MOON_LUX * angSq * (alb / NIGHTLIGHT_EARTH_ALBEDO) * ph.illum;
+
+    // Apply overhead fraction: not all moons are up all night
+    var effectiveLux = rawLux * NIGHTLIGHT_OVERHEAD_FRACTION;
+
+    if (effectiveLux >= 0.001){ // only track meaningful contributors
+      moonContributions.push({
+        name: moon.name,
+        illum: ph.illum,
+        lux: effectiveLux,
+        angularSize: orb.angularSizeVsSun,
+        albedo: alb
+      });
+      totalMoonLux += effectiveLux;
+    }
+  }
+
+  // Cloud cover dims moonlight (but ambient starlight/Siberys also affected)
+  var cloudMult = 1.0;
+  if (typeof precipStage === 'number'){
+    // precip 0=clear, 1=partly cloudy, 2=overcast, 3+=precipitation
+    if (precipStage >= 3) cloudMult = NIGHTLIGHT_OVERCAST_MULT;
+    else if (precipStage === 2) cloudMult = 0.35;
+    else if (precipStage === 1) cloudMult = 0.70;
+  }
+
+  var totalLux = (NIGHTLIGHT_AMBIENT_LUX + totalMoonLux) * cloudMult;
+
+  // Sort moons by contribution descending
+  moonContributions.sort(function(a, b){ return b.lux - a.lux; });
+
+  return {
+    total: Math.round(totalLux * 1000) / 1000,  // 3 decimal places
+    moons: moonContributions,
+    ambient: Math.round(NIGHTLIGHT_AMBIENT_LUX * cloudMult * 1000) / 1000,
+    cloudMult: cloudMult
+  };
+}
+
+// D&D mechanical classification for the lux level.
+function nighttimeLightCondition(lux){
+  // Eberron thresholds calibrated to D&D mechanics and real photometry.
+  // 1 lux ≈ a candle at 1 meter. D&D candles produce 5 ft of bright light.
+  // So 1 lux is the natural "bright light from moonlight" threshold.
+  //
+  // Shadow: scattered light under canopy/overhang is ~10% of open sky.
+  var shadow = lux * 0.10;
+
+  if (lux >= 1.0) return {
+    condition: 'bright', label: 'Bright Moonlight', emoji: '🌕',
+    note: 'Bright light. No vision restrictions.',
+    shadow: (shadow >= 0.3) ? 'dim' : 'dark',
+    shadowNote: (shadow >= 0.3)
+      ? 'In shadow (trees, overhangs): dim light.'
+      : 'In shadow: darkness. Darkvision or light source needed.'
+  };
+  if (lux >= 0.30) return {
+    condition: 'dim', label: 'Dim Moonlight', emoji: '🌗',
+    note: 'Dim light. Enough to fight by. Disadvantage on Perception.',
+    shadow: 'dark',
+    shadowNote: 'In shadow: darkness. Darkvision or light source needed.'
+  };
+  if (lux >= 0.03) return {
+    condition: 'dim', label: 'Faint Moonlight', emoji: '🌘',
+    note: 'Dim light (faint). Disadvantage on Perception. Hard to see detail.',
+    shadow: 'dark',
+    shadowNote: 'In shadow: darkness.'
+  };
+  return {
+    condition: 'darkness', label: 'Near Darkness', emoji: '🌑',
+    note: 'Darkness. Effectively blind without darkvision.',
+    shadow: 'dark',
+    shadowNote: 'Dark everywhere, open or covered.'
+  };
+}
+
+// Build nighttime lighting HTML block for the Today panel.
+// Auto-pulls weather precip stage if available.
+function nighttimeLightHtml(serial){
+  // Get precipitation stage from weather if available
+  var precipStage = 0;
+  var weatherNote = '';
+  var rec = _forecastRecord(serial);
+  if (rec && rec.final){
+    precipStage = rec.final.precip || 0;
+    if (precipStage >= 3) weatherNote = 'Heavy cloud/precipitation — moonlight severely reduced.';
+    else if (precipStage === 2) weatherNote = 'Overcast sky — moonlight dimmed.';
+    else if (precipStage === 1) weatherNote = 'Partly cloudy — moonlight slightly dimmed.';
+  }
+
+  var result = nighttimeLux(serial, precipStage);
+  var cond = nighttimeLightCondition(result.total);
+
+  var html = '<div style="margin-bottom:4px;">' +
+    '<b>' + cond.emoji + ' ' + esc(cond.label) + '</b>' +
+    ' <span style="opacity:.6;">(' + result.total + ' lux)</span>' +
+    '</div>';
+
+  html += '<div style="font-size:.88em;margin:2px 0;">' + esc(cond.note) + '</div>';
+  html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">🌲 ' + esc(cond.shadowNote) + '</div>';
+
+  if (weatherNote){
+    html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">☁ ' + esc(weatherNote) + '</div>';
+  }
+
+  // Top contributing moons
+  if (result.moons.length > 0){
+    var topMoons = result.moons.slice(0, 3);
+    var moonBits = [];
+    for (var i = 0; i < topMoons.length; i++){
+      var m = topMoons[i];
+      moonBits.push(esc(m.name) + ' ' + Math.round(m.illum * 100) + '%');
+    }
+    var moreCount = result.moons.length - 3;
+    html += '<div style="font-size:.82em;opacity:.55;margin-top:3px;">Sources: ' +
+      moonBits.join(', ') +
+      (moreCount > 0 ? (', +' + moreCount + ' more') : '') +
+      '</div>';
+  }
+
+  if (result.cloudMult < 1.0){
+    html += '<div style="font-size:.82em;opacity:.55;">Cloud cover: ×' + result.cloudMult.toFixed(2) + '</div>';
+  }
+
+  return html;
+}
 
 // Movement tuning is intentionally mythic (not strict orbital physics):
 // each moon has a characteristic swing/precession profile matching its lore.
+// inclinationBase: real analog value. distanceSwingPct: ~2x real eccentricity.
+// Ascending nodes and precession rates are lore-driven (not real).
 var MOON_MOTION_TUNING = {
-  Zarantyr: { inclinationBase:0.4, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode:120, nodePrecessionDegPerYear:12, distanceSwingPct:0.06, distancePeriodDays:336, apsisAngle:20,  apsisPrecessionDegPerYear:24 },
-  Olarune:  { inclinationBase:0.6, inclinationAmp:0.1, inclinationPeriodDays:504, ascendingNode: 60, nodePrecessionDegPerYear: 8, distanceSwingPct:0.02, distancePeriodDays:448, apsisAngle:80,  apsisPrecessionDegPerYear:12 },
-  Therendor:{ inclinationBase:0.8, inclinationAmp:0.3, inclinationPeriodDays:336, ascendingNode:210, nodePrecessionDegPerYear:10, distanceSwingPct:0.04, distancePeriodDays:336, apsisAngle:140, apsisPrecessionDegPerYear:10 },
-  Eyre:     { inclinationBase:1.2, inclinationAmp:0.0, inclinationPeriodDays:336, ascendingNode: 25, nodePrecessionDegPerYear: 2, distanceSwingPct:0.18, distancePeriodDays: 84, apsisAngle:10,  apsisPrecessionDegPerYear:120 },
-  Dravago:  { inclinationBase:1.0, inclinationAmp:0.7, inclinationPeriodDays:672, ascendingNode:260, nodePrecessionDegPerYear: 6, distanceSwingPct:0.14, distancePeriodDays:672, apsisAngle:200, apsisPrecessionDegPerYear:18 },
-  Nymm:     { inclinationBase:1.0, inclinationAmp:0.7, inclinationPeriodDays:336, ascendingNode:  0, nodePrecessionDegPerYear:360, distanceSwingPct:0.00, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:0 },
-  Lharvion: { inclinationBase:1.5, inclinationAmp:3.0, inclinationPeriodDays:420, ascendingNode: 40, nodePrecessionDegPerYear:75, distanceSwingPct:0.10, distancePeriodDays:560, apsisAngle:300, apsisPrecessionDegPerYear:80 },
-  Barrakas: { inclinationBase:0.4, inclinationAmp:1.1, inclinationPeriodDays:168, ascendingNode:300, nodePrecessionDegPerYear:24, distanceSwingPct:0.08, distancePeriodDays:224, apsisAngle:260, apsisPrecessionDegPerYear:48 },
-  Rhaan:    { inclinationBase:0.9, inclinationAmp:0.4, inclinationPeriodDays:441, ascendingNode: 45, nodePrecessionDegPerYear: 6, distanceSwingPct:0.05, distancePeriodDays:504, apsisAngle: 90, apsisPrecessionDegPerYear:8 },
-  Sypheros: { inclinationBase:1.3, inclinationAmp:0.5, inclinationPeriodDays:560, ascendingNode:180, nodePrecessionDegPerYear: 4, distanceSwingPct:0.06, distancePeriodDays:560, apsisAngle:150, apsisPrecessionDegPerYear:5 },
-  Aryth:    { inclinationBase:0.2, inclinationAmp:0.15,inclinationPeriodDays:336, ascendingNode: 15, nodePrecessionDegPerYear:14, distanceSwingPct:0.07, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:16 },
-  Vult:     { inclinationBase:0.5, inclinationAmp:0.2, inclinationPeriodDays:1008,ascendingNode:330, nodePrecessionDegPerYear: 2, distanceSwingPct:0.03, distancePeriodDays:1008,apsisAngle:250, apsisPrecessionDegPerYear:2 }
+  // Luna analog:        ecc 0.0549, inc 5.145°
+  Zarantyr: { inclinationBase:5.145, inclinationAmp:1.5, inclinationPeriodDays:336, ascendingNode:120, nodePrecessionDegPerYear:12, distanceSwingPct:0.11, distancePeriodDays:336, apsisAngle:20,  apsisPrecessionDegPerYear:24 },
+  // Titan analog:       ecc 0.0288, inc 0.33°
+  Olarune:  { inclinationBase:0.33, inclinationAmp:0.15, inclinationPeriodDays:504, ascendingNode: 60, nodePrecessionDegPerYear: 8, distanceSwingPct:0.058, distancePeriodDays:448, apsisAngle:80,  apsisPrecessionDegPerYear:12 },
+  // Europa analog:      ecc 0.0094, inc 0.47°
+  Therendor:{ inclinationBase:0.47, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode:210, nodePrecessionDegPerYear:10, distanceSwingPct:0.019, distancePeriodDays:336, apsisAngle:140, apsisPrecessionDegPerYear:10 },
+  // Hyperion analog:    ecc 0.1230, inc 0.43°
+  Eyre:     { inclinationBase:0.43, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode: 25, nodePrecessionDegPerYear: 2, distanceSwingPct:0.246, distancePeriodDays: 84, apsisAngle:10,  apsisPrecessionDegPerYear:120 },
+  // Tethys analog:      ecc 0.0001, inc 1.09°
+  Dravago:  { inclinationBase:1.09, inclinationAmp:0.15, inclinationPeriodDays:672, ascendingNode:260, nodePrecessionDegPerYear: 6, distanceSwingPct:0.0002, distancePeriodDays:672, apsisAngle:200, apsisPrecessionDegPerYear:18 },
+  // Ganymede analog:    ecc 0.0013, inc 0.20°
+  Nymm:     { inclinationBase:0.20, inclinationAmp:0.05, inclinationPeriodDays:336, ascendingNode:  0, nodePrecessionDegPerYear:360, distanceSwingPct:0.0026, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:0 },
+  // Nereid analog:      ecc 0.7507, inc 7.23° — xoriat engine overrides these
+  Lharvion: { inclinationBase:7.23, inclinationAmp:5.0, inclinationPeriodDays:420, ascendingNode: 40, nodePrecessionDegPerYear:75, distanceSwingPct:1.50, distancePeriodDays:560, apsisAngle:300, apsisPrecessionDegPerYear:80 },
+  // Enceladus analog:   ecc 0.0047, inc 0.02°
+  Barrakas: { inclinationBase:0.02, inclinationAmp:0.01, inclinationPeriodDays:168, ascendingNode:300, nodePrecessionDegPerYear:24, distanceSwingPct:0.0094, distancePeriodDays:224, apsisAngle:260, apsisPrecessionDegPerYear:48 },
+  // Miranda analog:     ecc 0.0013, inc 4.34°
+  Rhaan:    { inclinationBase:4.34, inclinationAmp:0.6, inclinationPeriodDays:441, ascendingNode: 45, nodePrecessionDegPerYear: 6, distanceSwingPct:0.0026, distancePeriodDays:504, apsisAngle: 90, apsisPrecessionDegPerYear:8 },
+  // Phoebe analog:      ecc 0.1635, inc 175.3° (retrograde)
+  Sypheros: { inclinationBase:175.3, inclinationAmp:0.8, inclinationPeriodDays:560, ascendingNode:180, nodePrecessionDegPerYear: 4, distanceSwingPct:0.327, distancePeriodDays:560, apsisAngle:150, apsisPrecessionDegPerYear:5 },
+  // Iapetus analog:     ecc 0.0283, inc 7.57°
+  Aryth:    { inclinationBase:7.57, inclinationAmp:0.4, inclinationPeriodDays:336, ascendingNode: 15, nodePrecessionDegPerYear:14, distanceSwingPct:0.0566, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:16 },
+  // Oberon analog:      ecc 0.0014, inc 0.07°
+  Vult:     { inclinationBase:0.07, inclinationAmp:0.03, inclinationPeriodDays:1008,ascendingNode:330, nodePrecessionDegPerYear: 2, distanceSwingPct:0.0028, distancePeriodDays:1008,apsisAngle:250, apsisPrecessionDegPerYear:2 }
 };
 
 function _normDeg(n){
@@ -8189,6 +9266,9 @@ function _moonOrbitalParams(moonName, serial){
 
     var eccWave = Math.sin((serial * 2 * Math.PI) / distPeriod);
     var distFactor = 1 + (tune.distanceSwingPct || 0) * eccWave;
+    // Clamp: Nereid-analog (Lharvion) has distanceSwingPct > 1.0, so distFactor
+    // can go negative at periapsis. Floor at 0.25 (4x closer than mean).
+    if (distFactor < 0.25) distFactor = 0.25;
     var dist = canon.distance * distFactor;
 
     return {
@@ -8261,6 +9341,116 @@ function _moonEclipticLat(moon, serial){
 function _degSeparation(a, b){
   var d = Math.abs(a - b);
   return d > 180 ? 360 - d : d;
+}
+
+// ---------------------------------------------------------------------------
+// 20k-0) Moon visibility — which moons are overhead right now?
+// ---------------------------------------------------------------------------
+// Computes altitude above/below the horizon for each moon at a given serial
+// day and time-of-day fraction (0=midnight, 0.5=noon, 1=midnight again).
+// Uses a consistent observer latitude (Sharn ≈ 30°N equivalent) and the
+// moon's ecliptic longitude + latitude to derive altitude.
+//
+// Simplification: treats ecliptic ≈ celestial equator (axial tilt shifts
+// everything, but for categorization into broad buckets this is fine).
+
+var OBSERVER_LATITUDE = 30;  // degrees N — Sharn equivalent
+
+// Returns altitude in degrees (-90 to +90) for a moon at given time.
+// Negative = below horizon.
+function _moonAltitude(moon, serial, timeFrac){
+  if (!moon) return -90;
+  var skyLong = _moonSkyLong(moon, serial);
+  var eclLat  = _moonEclipticLat(moon, serial);
+  var sunLong = _sunSkyLong(serial);
+  // Hour angle: how far the moon is from the local meridian.
+  // At midnight (timeFrac=0), the anti-sun point is overhead.
+  // Moon's hour angle = (skyLong - sunLong - 180) + timeFrac*360
+  var ha = (skyLong - sunLong - 180 + timeFrac * 360) % 360;
+  if (ha < 0) ha += 360;
+  if (ha > 180) ha = ha - 360;  // -180..180, 0=on meridian
+  var haRad = ha * Math.PI / 180;
+  var latRad = OBSERVER_LATITUDE * Math.PI / 180;
+  var decRad = eclLat * Math.PI / 180;  // declination ≈ ecliptic latitude
+  // Altitude formula: sin(alt) = sin(lat)sin(dec) + cos(lat)cos(dec)cos(ha)
+  var sinAlt = Math.sin(latRad) * Math.sin(decRad) +
+               Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
+  return Math.asin(Math.max(-1, Math.min(1, sinAlt))) * 180 / Math.PI;
+}
+
+// Visibility category from altitude.
+function _moonVisCategory(altDeg){
+  if (altDeg > 60) return 'overhead';
+  if (altDeg > 30) return 'high';
+  if (altDeg > 10) return 'visible';
+  if (altDeg > 0)  return 'horizon';
+  return 'below';
+}
+
+// Labels and icons for visibility categories.
+var MOON_VIS_LABELS = {
+  overhead: { label:'Overhead',    icon:'⬆', order:0, desc:'High in the sky, directly above.' },
+  high:     { label:'High',        icon:'↗', order:1, desc:'Well above the horizon.' },
+  visible:  { label:'Visible',     icon:'→', order:2, desc:'Above the horizon, in the sky.' },
+  horizon:  { label:'On horizon',  icon:'↘', order:3, desc:'Low on the horizon.' },
+  below:    { label:'Below horizon',icon:'↓', order:4, desc:'Not visible.' }
+};
+
+// Returns an array of { moon, altitude, category, vis } for all moons,
+// sorted by altitude descending. `timeFrac` defaults to 0 (midnight).
+function _moonVisibilityAll(serial, timeFrac){
+  if (timeFrac == null) timeFrac = 0;  // default midnight
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons) return [];
+  var results = [];
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    var alt = _moonAltitude(moon, serial, timeFrac);
+    var cat = _moonVisCategory(alt);
+    var ph = moonPhaseAt(moon.name, serial);
+    results.push({
+      moon: moon,
+      altitude: Math.round(alt),
+      category: cat,
+      vis: MOON_VIS_LABELS[cat],
+      phase: ph
+    });
+  }
+  results.sort(function(a, b){ return b.altitude - a.altitude; });
+  return results;
+}
+
+// Build HTML panel for "which moons are visible now"
+function _moonVisibilityHtml(serial, timeFrac){
+  var all = _moonVisibilityAll(serial, timeFrac);
+  if (!all.length) return '';
+  var groups = {};
+  var catOrder = ['overhead','high','visible','horizon','below'];
+  for (var ci = 0; ci < catOrder.length; ci++) groups[catOrder[ci]] = [];
+  for (var i = 0; i < all.length; i++){
+    var r = all[i];
+    groups[r.category].push(r);
+  }
+  var html = '';
+  for (var gi = 0; gi < catOrder.length; gi++){
+    var cat = catOrder[gi];
+    var g = groups[cat];
+    if (!g.length) continue;
+    var vis = MOON_VIS_LABELS[cat];
+    html += '<div style="margin:3px 0;"><b>' + vis.icon + ' ' + esc(vis.label) + '</b>';
+    var names = [];
+    for (var mi = 0; mi < g.length; mi++){
+      var r = g[mi];
+      var ph = r.phase;
+      var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+      var pct = Math.round(ph.illum * 100);
+      names.push(emoji + ' ' + esc(r.moon.name) + ' <span style="opacity:.5;">(' + pct + '%)</span>');
+    }
+    html += '<div style="margin-left:12px;font-size:.88em;">' + names.join(', ') + '</div>';
+    html += '</div>';
+  }
+  return html;
 }
 
 function _clamp01(x){
@@ -8605,134 +9795,634 @@ function getLongShadowsMoons(year){
 // Weather effects still flow through getActivePlanarEffects naturally.
 
 // Planes that never flicker
-var FLICKER_SEALED = { 'Dal Quor':true, 'Xoriat':true };
+var GENERATED_SEALED = { 'Dal Quor':true };
 
-// Chance per in-world year, scaled 1..10000 (e.g. 100 = 1.00%).
-// This keeps non-canonical spikes rare while preserving flavor.
-var PLANAR_FLICKER_PROFILE = {
-  __default: { chancePer10000: 8, coterminousBiasPct: 65 }, // 0.08%/year
-  'Daanvi':   { chancePer10000: 1,   coterminousBiasPct: 50 },
-  'Dolurrh':  { chancePer10000: 3,   coterminousBiasPct: 60 },
-  'Fernia':   { chancePer10000: 6,   coterminousBiasPct: 60 },
-  'Irian':    { chancePer10000: 10,  coterminousBiasPct: 70 },
-  'Kythri':   { chancePer10000: 1800, coterminousBiasPct: 55 }, // erratic by design
-  'Lamannia': { chancePer10000: 20,  coterminousBiasPct: 70 },  // frequent annual baseline
-  'Mabar':    { chancePer10000: 1,   coterminousBiasPct: 50 },  // preserve Long Shadows rarity
-  'Risia':    { chancePer10000: 6,   coterminousBiasPct: 45 },
-  'Shavarath':{ chancePer10000: 600, coterminousBiasPct: 90 },  // known single-day spikes
-  'Syrania':  { chancePer10000: 4,   coterminousBiasPct: 55 },
-  'Thelanis': { chancePer10000: 1,   coterminousBiasPct: 60 }
+// ---------------------------------------------------------------------------
+// 21d) Non-canonical planar shifts ("anomalous movements")
+// ---------------------------------------------------------------------------
+// Planes occasionally become coterminous or remote outside their canonical
+// cycle windows. These are rare, deterministically seeded events checked
+// per-day per-plane. They represent the inherent unpredictability of the
+// planar cosmology — genuine (if unusual) shifts that scholars and mystics
+// would track and study.
+//
+// GENERATION: For each day, each plane rolls two dice:
+//   1) Trigger: 1 on a d(triggerDie) — "did something happen?"
+//   2) Confirm: 1 on a d(confirmDie) — "did it actually manifest?"
+// Both must hit for an event to start on that day.
+//
+// DURATION: d10 bell curve centered on short durations:
+//   1-3: 1 day  (30%)     4-5: 2-3 days  (20%)
+//   6-7: 4-5 days (20%)   8: 5-7 days    (10%)
+//   9: 8-10 days  (10%)   10: add 10 + reroll (rare extended events)
+//
+// PHASE: d100 vs phaseBias determines coterminous or remote.
+//
+// STATE: Zero storage cost. Everything is deterministic from the global
+// seed + plane name + serial day number.
+// ---------------------------------------------------------------------------
+
+// Per-plane rarity profiles. Combined chance per day = 1/(trigger × confirm).
+// Expected frequency shown in comments assuming 336-day year.
+//
+// Each plane also has:
+//   durationFn: optional function(serial) -> days. If absent, uses default d10 curve.
+//   phaseBias:  1-100. ≤ value = coterminous, > value = remote.
+//              50 = equal chance. Most planes use 50 (fair coin).
+//   loreNote:  flavor text explaining why this plane behaves this way.
+// ---------------------------------------------------------------------------
+// 21a) Generated planar event profiles
+// ---------------------------------------------------------------------------
+// Each plane has a unique dice mechanic for triggering off-cycle events.
+// Probabilities are derived from canonical activity densities.
+// See design doc for full derivation of each plane's dice.
+//
+// Profile fields:
+//   mechanism: 'standard' | 'linked' | 'moontied' | 'cooldown'
+//   dice: array of { die, hit } — all must hit for event to fire
+//         hit can be: number (exact), [lo,hi] (range), 'phase' (special)
+//   duration: number | { die } | { options, weights }
+//   phaseBias: number 0-100 (% coterminous) OR 'dice' (phase chosen by dice roll)
+//   phaseRule: optional function(serial, diceResults) → 'coterminous'|'remote'|null
+//   suppressDuringCanon: true (default) — skip generation when plane is already active
+//   loreNote: flavor text for display
+// ---------------------------------------------------------------------------
+
+var PLANAR_ANOMALY_PROFILE = {
+
+  // SHAVARATH — The Eternal Battleground
+  // "Frequently grows coterminous for a single day." d20 attack roll + d12 damage.
+  // d20(14-20) × d12(12). P = 7/240 ≈ 1/34. ~9.8 events/yr. 1d only. 100% coterminous.
+  // Suppressed during canonical remote year.
+  'Shavarath': {
+    expectedPerYear: 9.8,
+    mechanism: 'standard',
+    dice: [
+      { die: 20, hit: [14, 20] },
+      { die: 12, hit: 12 }
+    ],
+    duration: 1,
+    phaseBias: 100,
+    loreNote: 'Shavarath spills into the world in sudden violent bursts — single-day battle spikes that were critical for strategy during the Last War.'
+  },
+
+  // LAMANNIA — The Twilight Forest
+  // LAMANNIA — The Twilight Forest
+  // Baker: coterminous/remote "often tied to its associated moon Olarune's phases"
+  // Hybrid mechanism: ~70% moon-tied (Olarune full/new), ~30% standard dice.
+  // Moon-tied: on Olarune full days, d20 hit 18-20 (15%) → coterminous.
+  //            on Olarune new days, d20 hit 1-3 (15%) → remote.
+  //   ~10 full + ~10 new days/yr × 15% = ~3.0 moon-tied events/yr.
+  // Standard fallback: d100 hit 1 (remote) or 100 (coterminous) → ~1.2/yr.
+  // Total: ~4.2 events/yr. d3 duration.
+  'Lamannia': {
+    expectedPerYear: 4.2,
+    mechanism: 'hybrid_moon',
+    moonName: 'Olarune',
+    moonDie: 20,
+    moonFullHit: [18, 20],   // 18-20 on full → coterminous
+    moonNewHit:  [1, 3],     // 1-3 on new → remote
+    fallbackDice: [
+      { die: 100, hit: 100, remoteHit: 1 }
+    ],
+    duration: { die: 3 },
+    phaseBias: 'dice',
+    loreNote: 'Lamannia pulses with the natural world — its surges often track the phases of Olarune, the Sentinel Moon. When the moon is full, primal energy floods in. When the moon is dark, the world feels distant from nature.'
+  },
+
+  // FERNIA — The Sea of Fire (linked with Risia)
+  // Single d20: 20=Fernia, 1=Risia. Then d10: 1=remote, 10=coterminous.
+  // Per-plane P = 1/100. ~3.36 events/yr each. d3 duration. 50/50 phase.
+  // Only one of Fernia/Risia can fire per day (mutually exclusive).
+  'Fernia': {
+    expectedPerYear: 3.4,
+    mechanism: 'linked',
+    linkedWith: 'Risia',
+    selectorDie: 20, selectorHit: 20, // Fernia fires on 20
+    dice: [
+      { die: 10, hit: 10, remoteHit: 1 }
+    ],
+    duration: { die: 3 },
+    phaseBias: 'dice',
+    loreNote: 'Fernia flares are sudden and intense — eruptions of heat between canonical cycles.'
+  },
+
+  // RISIA — The Plain of Ice (linked with Fernia)
+  // Same d20 selector: 1=Risia. Then d10: 1=remote, 10=coterminous.
+  'Risia': {
+    expectedPerYear: 3.4,
+    mechanism: 'linked',
+    linkedWith: 'Fernia',
+    selectorDie: 20, selectorHit: 1, // Risia fires on 1
+    dice: [
+      { die: 10, hit: 10, remoteHit: 1 }
+    ],
+    duration: { die: 3 },
+    phaseBias: 'dice',
+    loreNote: 'Risia creeps in slowly, like frost on a windowpane — cold surges between canonical cycles.'
+  },
+
+  // THELANIS — The Faerie Court
+  // d20(20) × d12(1=remote, 12=coterminous). P = 2/240 = 1/120. ~2.8 events/yr.
+  // Duration: 3d or 7d (coin flip). Story-number durations.
+  'Thelanis': {
+    expectedPerYear: 2.8,
+    mechanism: 'standard',
+    dice: [
+      { die: 20, hit: 20 },
+      { die: 12, hit: 12, remoteHit: 1 }
+    ],
+    duration: { options: [3, 7], weights: [50, 50] },
+    phaseBias: 'dice',
+    loreNote: 'Thelanis moves to the rhythm of stories — its anomalies arrive in narrative beats of three or seven days.'
+  },
+
+  // IRIAN — The Eternal Dawn
+  // d4(4) × d4(4) × d20(1=remote, 20=coterminous). P = 2/320 = 1/160. ~2.1 events/yr.
+  // d3 duration. 50/50 phase.
+  'Irian': {
+    expectedPerYear: 2.1,
+    mechanism: 'standard',
+    dice: [
+      { die: 4,  hit: 4 },
+      { die: 4,  hit: 4 },
+      { die: 20, hit: 20, remoteHit: 1 }
+    ],
+    duration: { die: 3 },
+    phaseBias: 'dice',
+    loreNote: 'Irian surges feel like unexpected dawn — warmth and light swelling gently.'
+  },
+
+  // MABAR — The Endless Night
+  // d20(1) × d4(1), then d4(1-3=coterminous, 4=remote). P = 1/80. ~4.2 events/yr.
+  // 1 night (coterminous) or 1 day (remote) only.
+  // Coterminous events are night-only; remote events are day-only.
+  'Mabar': {
+    expectedPerYear: 4.2,
+    mechanism: 'standard',
+    dice: [
+      { die: 20, hit: 1 },
+      { die: 4,  hit: 1 }
+    ],
+    duration: 1,
+    phaseBias: 75, // 3/4 coterminous, 1/4 remote — matches 15:5 canonical ratio
+    phaseNote: { coterminous: '(night only — sundown to sunrise)', remote: '(day only — sunrise to sundown)' },
+    loreNote: 'Non-canonical Mabar surges are deeply feared. Coterminous shifts bring darkness at night; remote brings respite during the day.'
+  },
+
+  // DOLURRH — The Realm of the Dead (moon-tied to Aryth)
+  // No daily dice. On Aryth full moon: d20(11-20)=coterminous. On Aryth new moon: d20(11-20)=remote.
+  // Aryth period: 48d = 7 cycles/yr. ~3.5 cot + ~3.5 remote per year. 1d only.
+  'Dolurrh': {
+    expectedPerYear: 7.0,
+    mechanism: 'moontied',
+    moonName: 'Aryth',
+    moonDie: 20,
+    moonHitRange: [11, 20], // roll 11-20 = fires (50% on full/new day)
+    fullMoonPhase: 'coterminous',
+    newMoonPhase: 'remote',
+    duration: 1,
+    loreNote: 'Dolurrh shifts are tied to the movements of the moon Aryth — like a death saving throw at the gateway between worlds.'
+  },
+
+  // DAANVI — The Perfect Order (cooldown-based)
+  // d100 daily (100 only = 1%), then d10: 1-5=remote, 6-10=coterminous (50/50).
+  // ~3.4 events/year. 10-day events + 10-day cooldown.
+  // Balancing Act mechanic:
+  // For 10 days after an event ends, if a new event triggers, roll d10.
+  // If d10 >= (11 - days_since_last_event_ended), force opposite phase.
+  // Day 1: always forced opposite. Day 10: 10% chance. Day 11+: no forcing.
+  'Daanvi': {
+    expectedPerYear: 3.4,
+    mechanism: 'cooldown',
+    gateDie: 100, gateHitRange: [100, 100],  // 1% per day — about 3 events/year
+    phaseDie: 10, // 1-5=remote, 6-10=coterminous (50/50)
+    duration: 10,
+    balancingAct: true, // Balancing Act — favors alternation (cot->rem->cot)
+    loreNote: 'Daanvi follows orderly cycles: coterminous, nothing, remote, nothing. The 50/50 split with balancing act enforces alternation.'
+  },
+
+  // KYTHRI — The Churning Chaos
+  // d100 (100=coterminous, 1=remote). P = 2/100 = 1/50. ~6.72 events/yr.
+  // d12 duration (1-12 days). No mechanical effects.
+  'Kythri': {
+    expectedPerYear: 6.7,
+    mechanism: 'standard',
+    dice: [
+      { die: 100, hit: 100, remoteHit: 1 }
+    ],
+    duration: { die: 12 },
+    phaseBias: 'dice',
+    loreNote: 'Kythri lurches erratically — anomalies are its nature, not exceptions. No discernable effects on the Material Plane.'
+  },
+
+  // XORIAT — The Realm of Madness
+  // d100(1) × d4(1). P = 1/400. ~0.84 events/yr.
+  // d20 duration (1-20 days). Remote only. Rarer than Kythri, longer.
+  'Xoriat': {
+    expectedPerYear: 0.84,
+    mechanism: 'standard',
+    dice: [
+      { die: 100, hit: 1 },
+      { die: 4,   hit: 1 }
+    ],
+    duration: { die: 20 },
+    phaseBias: 0, // 100% remote
+    loreNote: 'Xoriat shifts are slow and creeping — the Realm of Madness seeping through the Gatekeeper seals. Remote only.'
+  },
+
+  // SYRANIA — The Azure Sky
+  // d100(100) × d4(4) × d8(1=remote, 8=coterminous). P = 2/3200 = 1/1600. ~0.21 events/yr.
+  // 1d only. 50/50 phase. Coterminous forces clear/calm weather.
+  'Syrania': {
+    expectedPerYear: 0.21,
+    mechanism: 'standard',
+    dice: [
+      { die: 100, hit: 100 },
+      { die: 4,   hit: 4 },
+      { die: 8,   hit: 8, remoteHit: 1 }
+    ],
+    duration: 1,
+    phaseBias: 'dice',
+    weatherOverride: { coterminous: { precip: 0, wind: 0 } },
+    loreNote: 'Syrania anomalies are moments of unexpected serenity — or the sudden absence of peace. Coterminous days bring clear skies.'
+  },
+
+  // DAL QUOR — The Region of Dreams (sealed — no generation)
+  'Dal Quor': { mechanism: 'sealed' },
+
+  __default: { mechanism: 'standard', dice: [{ die: 100, hit: 1 }, { die: 20, hit: 1 }], duration: { die: 3 }, phaseBias: 50 }
 };
 
-function _planarFlickerDurationDays(planeName, year, salt){
-  // Kythri is the one plane where prolonged episodes fit canon flavor.
-  if (planeName === 'Kythri'){
-    var kr = _dN(year, salt + '_kdur', 100);
-    if (kr <= 55) return _dN(year, salt + '_kdur_short', 7);           // 1-7d
-    if (kr <= 85) return 7  + _dN(year, salt + '_kdur_mid', 28);       // 8-35d
-    if (kr <= 97) return 35 + _dN(year, salt + '_kdur_long', 56);      // 36-91d
-    return 91 + _dN(year, salt + '_kdur_epic', 245);                   // 92-336d
+// Duration: resolve from new profile format.
+function _anomalyDurationDays(planeName, serial){
+  var profile = PLANAR_ANOMALY_PROFILE[planeName] || PLANAR_ANOMALY_PROFILE.__default;
+  var dur = profile.duration;
+  if (typeof dur === 'number') return dur;
+  if (dur && typeof dur.die === 'number'){
+    return Math.max(1, _dN(serial, planeName + '_gen_dur', dur.die));
+  }
+  if (dur && dur.options && dur.weights){
+    // Weighted pick from options array
+    var r = _dN(serial, planeName + '_gen_dur_pick', 100);
+    var cumul = 0;
+    for (var i = 0; i < dur.options.length; i++){
+      cumul += dur.weights[i];
+      if (r <= cumul) return dur.options[i];
+    }
+    return dur.options[dur.options.length - 1];
+  }
+  // Fallback
+  return Math.max(1, _dN(serial, planeName + '_gen_dur_fb', 3));
+}
+
+// Check whether a new generated event starts on a given serial for a given plane.
+// Supports four mechanisms: standard, linked, moontied, cooldown.
+function _anomalyStartsOnDay(planeName, serial){
+  if (GENERATED_SEALED[planeName]) return null;
+  var profile = PLANAR_ANOMALY_PROFILE[planeName] || PLANAR_ANOMALY_PROFILE.__default;
+  if (!profile || profile.mechanism === 'sealed') return null;
+
+  var salt = planeName + '_gen_' + serial;
+
+  // ── STANDARD mechanism: roll N dice, all must hit ──
+  if (profile.mechanism === 'standard'){
+    var diceArr = profile.dice || [];
+    var phaseFromDice = null;
+    for (var di = 0; di < diceArr.length; di++){
+      var d = diceArr[di];
+      var roll = _dN(serial, salt + '_d' + di, d.die);
+      var hit = false;
+      if (Array.isArray(d.hit)){
+        hit = (roll >= d.hit[0] && roll <= d.hit[1]);
+      } else {
+        hit = (roll === d.hit);
+      }
+      // Check remoteHit too
+      var remoteHit = false;
+      if (d.remoteHit != null){
+        if (Array.isArray(d.remoteHit)){
+          remoteHit = (roll >= d.remoteHit[0] && roll <= d.remoteHit[1]);
+        } else {
+          remoteHit = (roll === d.remoteHit);
+        }
+      }
+      if (!hit && !remoteHit) return null;
+      if (remoteHit && !hit) phaseFromDice = 'remote';
+      else if (hit && !remoteHit && d.remoteHit != null) phaseFromDice = 'coterminous';
+    }
+
+    var dur = _anomalyDurationDays(planeName, serial);
+    var phase;
+    if (profile.phaseBias === 'dice' && phaseFromDice){
+      phase = phaseFromDice;
+    } else if (typeof profile.phaseBias === 'number'){
+      var pRoll = _dN(serial, salt + '_phase', 100);
+      phase = (pRoll <= profile.phaseBias) ? 'coterminous' : 'remote';
+    } else {
+      phase = 'coterminous';
+    }
+
+    return {
+      startSerial: serial, endSerial: serial + dur - 1,
+      durationDays: dur, phase: phase
+    };
   }
 
-  var dr = _dN(year, salt + '_dur', 100);
-  if (dr <= 72) return 1;
-  if (dr <= 91) return 2;
-  if (dr <= 98) return 3;
-  return 3 + _dN(year, salt + '_dur2', 4); // 4-7
-}
+  // ── LINKED mechanism (Fernia/Risia): single selector die picks which plane rolls ──
+  if (profile.mechanism === 'linked'){
+    // Use a canonical salt that's the same regardless of which plane we're checking.
+    // Sort the two names alphabetically so both planes use the same selector roll.
+    var pairKey = [planeName, profile.linkedWith].sort().join('_');
+    var selRoll = _dN(serial, 'linked_' + pairKey + '_sel_' + serial, profile.selectorDie);
+    if (selRoll !== profile.selectorHit) return null;
 
-function _planarFlickerEventForYear(planeName, year){
-  if (FLICKER_SEALED[planeName]) return null;
-  var profile = PLANAR_FLICKER_PROFILE[planeName] || PLANAR_FLICKER_PROFILE.__default;
-  if (!profile) return null;
+    // This plane was selected — now roll the confirmation dice
+    var linkedDice = profile.dice || [];
+    var linkedPhase = null;
+    for (var li = 0; li < linkedDice.length; li++){
+      var ld = linkedDice[li];
+      var lRoll = _dN(serial, salt + '_ld' + li, ld.die);
+      var lHit = (lRoll === ld.hit);
+      var lRemHit = (ld.remoteHit != null && lRoll === ld.remoteHit);
+      if (!lHit && !lRemHit) return null;
+      if (lRemHit && !lHit) linkedPhase = 'remote';
+      else if (lHit && !lRemHit) linkedPhase = 'coterminous';
+    }
 
-  var chance = Math.max(0, Math.min(10000, profile.chancePer10000 | 0));
-  if (chance <= 0) return null;
+    var lDur = _anomalyDurationDays(planeName, serial);
+    return {
+      startSerial: serial, endSerial: serial + lDur - 1,
+      durationDays: lDur, phase: linkedPhase || 'coterminous'
+    };
+  }
 
-  var salt = planeName + '_flicker_y' + String(year);
-  var roll = _dN(year, salt + '_chance', 10000);
-  if (roll > chance) return null;
+  // ── MOONTIED mechanism (Dolurrh): only fires on associated moon's full/new days ──
+  if (profile.mechanism === 'moontied'){
+    try {
+      // Get moon phase on this serial
+      var moonPh = moonPhaseAt(profile.moonName, serial);
+      if (!moonPh) return null;
 
-  var yearStart = toSerial(year, 0, 1);
-  var yearLen = Math.max(1, toSerial(year + 1, 0, 1) - yearStart);
-  var startSerial = yearStart + (_dN(year, salt + '_start', yearLen) - 1);
-  var durationDays = _planarFlickerDurationDays(planeName, year, salt);
+      // Full: illum >= 0.97. New: illum < 0.03.
+      var isFull = (moonPh.illum >= 0.97);
+      var isNew  = (moonPh.illum < 0.03);
+      if (!isFull && !isNew) return null;
 
-  var bias = profile.coterminousBiasPct;
-  if (!isFinite(bias)) bias = 65;
-  bias = Math.max(0, Math.min(100, bias));
-  var phase = (_dN(year, salt + '_phase', 100) <= bias) ? 'coterminous' : 'remote';
+      // Roll the moon die (d20 death saving throw)
+      var moonRoll = _dN(serial, salt + '_moon', profile.moonDie);
+      var moonRange = profile.moonHitRange || [11, 20];
+      if (moonRoll < moonRange[0] || moonRoll > moonRange[1]) return null;
 
-  return {
-    startSerial: startSerial,
-    endSerial: startSerial + durationDays - 1,
-    durationDays: durationDays,
-    phase: phase
-  };
-}
+      var moonPhase = isFull ? (profile.fullMoonPhase || 'coterminous') :
+                               (profile.newMoonPhase || 'remote');
+      var moonDur = (typeof profile.duration === 'number') ? profile.duration : 1;
+      return {
+        startSerial: serial, endSerial: serial + moonDur - 1,
+        durationDays: moonDur, phase: moonPhase,
+        moonTriggered: true
+      };
+    } catch(e){ return null; }
+  }
 
-function _planarFlickerEventAt(planeName, serial){
-  var d = fromSerial(serial);
-  var evt = _planarFlickerEventForYear(planeName, d.year);
-  if (evt && serial >= evt.startSerial && serial <= evt.endSerial) return evt;
-  // Catch year-boundary spillover
-  evt = _planarFlickerEventForYear(planeName, d.year - 1);
-  if (evt && serial >= evt.startSerial && serial <= evt.endSerial) return evt;
+  // ── HYBRID_MOON mechanism (Lamannia): ~70% moon-tied, ~30% standard dice ──
+  // On associated moon's full days, roll d20 against moonFullHit range → coterminous.
+  // On associated moon's new days, roll d20 against moonNewHit range → remote.
+  // On non-qualifying days, fall back to standard dice with lower probability.
+  if (profile.mechanism === 'hybrid_moon'){
+    try {
+      var hmMoonPh = moonPhaseAt(profile.moonName, serial);
+      if (hmMoonPh){
+        var hmIsFull = (hmMoonPh.illum >= 0.97);
+        var hmIsNew  = (hmMoonPh.illum < 0.03);
+        if (hmIsFull || hmIsNew){
+          // Moon-qualified day: roll the moon die
+          var hmMoonRoll = _dN(serial, salt + '_hmoon', profile.moonDie);
+          var hmHitRange = hmIsFull ? profile.moonFullHit : profile.moonNewHit;
+          if (hmHitRange && hmMoonRoll >= hmHitRange[0] && hmMoonRoll <= hmHitRange[1]){
+            var hmDur = _anomalyDurationDays(planeName, serial);
+            var hmPhase = hmIsFull ? 'coterminous' : 'remote';
+            return {
+              startSerial: serial, endSerial: serial + hmDur - 1,
+              durationDays: hmDur, phase: hmPhase,
+              moonTriggered: true
+            };
+          }
+          // Moon die missed — no fallback on moon-qualified days
+          return null;
+        }
+      }
+    } catch(e){}
+
+    // Non-moon-qualified day: standard fallback dice (same logic as 'standard' mechanism)
+    var hmFbDice = profile.fallbackDice || [];
+    var hmFbPhaseFromDice = null;
+    for (var hfi = 0; hfi < hmFbDice.length; hfi++){
+      var hfd = hmFbDice[hfi];
+      var hfRoll = _dN(serial, salt + '_hfb' + hfi, hfd.die);
+      var hfHit = false;
+      if (Array.isArray(hfd.hit)){
+        hfHit = (hfRoll >= hfd.hit[0] && hfRoll <= hfd.hit[1]);
+      } else {
+        hfHit = (hfRoll === hfd.hit);
+      }
+      var hfRemHit = false;
+      if (hfd.remoteHit != null){
+        if (Array.isArray(hfd.remoteHit)){
+          hfRemHit = (hfRoll >= hfd.remoteHit[0] && hfRoll <= hfd.remoteHit[1]);
+        } else {
+          hfRemHit = (hfRoll === hfd.remoteHit);
+        }
+      }
+      if (!hfHit && !hfRemHit) return null;
+      if (hfRemHit && !hfHit) hmFbPhaseFromDice = 'remote';
+      else if (hfHit && !hfRemHit && hfd.remoteHit != null) hmFbPhaseFromDice = 'coterminous';
+    }
+
+    var hmFbDur = _anomalyDurationDays(planeName, serial);
+    var hmFbPhase;
+    if (profile.phaseBias === 'dice' && hmFbPhaseFromDice){
+      hmFbPhase = hmFbPhaseFromDice;
+    } else {
+      var hmFbPhaseRoll = _dN(serial, salt + '_hfb_phase', 100);
+      hmFbPhase = (hmFbPhaseRoll <= 50) ? 'coterminous' : 'remote';
+    }
+    return {
+      startSerial: serial, endSerial: serial + hmFbDur - 1,
+      durationDays: hmFbDur, phase: hmFbPhase
+    };
+  }
+
+  // ── COOLDOWN mechanism (Daanvi): d100 gate → phase pick, with Balancing Act ──
+  if (profile.mechanism === 'cooldown'){
+    var gateRoll = _dN(serial, salt + '_gate', profile.gateDie);
+    var gRange = profile.gateHitRange || [100, 100];
+    if (gateRoll < gRange[0] || gateRoll > gRange[1]) return null;
+
+    var phDie = _dN(serial, salt + '_phaseDie', profile.phaseDie);
+    // Phase split: lower half = remote, upper half = coterminous (50/50)
+    var halfPoint = Math.floor(profile.phaseDie / 2);
+    var coolPhase = (phDie <= halfPoint) ? 'remote' : 'coterminous';
+
+    var coolDur = (typeof profile.duration === 'number') ? profile.duration : 10;
+
+    // Daanvi Balancing Act: check if a previous event ended recently
+    if (profile.balancingAct){
+      // Scan backward to find the most recent event's end
+      var scanLimit = coolDur + 12; // event(10d) + balance window(10d) + buffer
+      for (var bScan = 1; bScan <= scanLimit; bScan++){
+        var prevCheck = serial - bScan;
+        // Quick check: did an event START at prevCheck?
+        var prevGate = _dN(prevCheck, planeName + '_gen_' + prevCheck + '_gate', profile.gateDie);
+        if (prevGate < gRange[0] || prevGate > gRange[1]) continue;
+        var prevPhDie = _dN(prevCheck, planeName + '_gen_' + prevCheck + '_phaseDie', profile.phaseDie);
+        var prevHalf = Math.floor(profile.phaseDie / 2);
+        var prevPhase = (prevPhDie <= prevHalf) ? 'remote' : 'coterminous';
+        var prevEnd = prevCheck + coolDur - 1;
+        var daysSinceEnd = serial - prevEnd;
+        if (daysSinceEnd >= 1 && daysSinceEnd <= 10){
+          // Within balancing window. Roll d10.
+          var balanceRoll = _dN(serial, salt + '_balance', 10);
+          var threshold = 11 - daysSinceEnd; // day 1→10, day 2→9, ..., day 10→1
+          if (balanceRoll >= threshold){
+            // Force opposite phase
+            coolPhase = (prevPhase === 'coterminous') ? 'remote' : 'coterminous';
+          }
+        }
+        break; // Only check the most recent event
+      }
+    }
+
+    return {
+      startSerial: serial, endSerial: serial + coolDur - 1,
+      durationDays: coolDur, phase: coolPhase
+    };
+  }
+
   return null;
 }
 
-// Returns the next flicker episode within maxDays, if any.
-// { phase, daysUntilStart, durationDays, startSerial, endSerial, activeNow }
-function _nextPlanarFlickerForecast(planeName, serial, maxDays){
-  if (FLICKER_SEALED[planeName]) return null;
-  maxDays = Math.max(0, maxDays|0);
-  if (maxDays <= 0) return null;
+// Check whether a plane is in a generated event state on a given serial.
+// Scans backward to find events whose duration covers this day.
+var _ANOMALY_MAX_SCAN = 30; // Xoriat can last d20 days
 
-  var ypd = Math.max(1, _planarYearDays());
-  var y0 = fromSerial(serial).year;
-  var yearsToCheck = Math.max(1, Math.ceil(maxDays / ypd) + 1);
-  var best = null;
-
-  for (var y = y0 - 1; y <= y0 + yearsToCheck; y++){
-    var evt = _planarFlickerEventForYear(planeName, y);
-    if (!evt) continue;
-    if (evt.endSerial < serial) continue;
-    if (evt.startSerial > serial + maxDays) continue;
-
-    var activeNow = (evt.startSerial <= serial && evt.endSerial >= serial);
-    var daysUntilStart = activeNow ? 0 : Math.max(0, evt.startSerial - serial);
-    if (!best || daysUntilStart < best.daysUntilStart){
-      best = {
-        phase: evt.phase,
-        daysUntilStart: daysUntilStart,
-        durationDays: evt.durationDays,
-        startSerial: evt.startSerial,
-        endSerial: evt.endSerial,
-        activeNow: activeNow
-      };
-    }
+function _generatedEventAt(planeName, serial){
+  if (GENERATED_SEALED[planeName]) return null;
+  var profile = PLANAR_ANOMALY_PROFILE[planeName];
+  if (profile && profile.mechanism === 'sealed') return null;
+  var evt = _anomalyStartsOnDay(planeName, serial);
+  if (evt) return evt;
+  for (var offset = 1; offset <= _ANOMALY_MAX_SCAN; offset++){
+    evt = _anomalyStartsOnDay(planeName, serial - offset);
+    if (evt && serial <= evt.endSerial) return evt;
   }
-
-  return best;
+  return null;
 }
 
-function isPlanarFlickering(planeName, serial){
-  if (FLICKER_SEALED[planeName]) return false;
-
-  // Check for GM override or anchor — suppress if present
+function isGeneratedShift(planeName, serial){
+  if (GENERATED_SEALED[planeName]) return false;
+  // Global toggle: off-cycle planar movement can be disabled
+  try { if (ensureSettings().offCyclePlanes === false) return false; } catch(e){ return false; }
+  // Suppress if GM has an active override or anchor
   try {
     var ps = getPlanesState();
     if (ps && ps.overrides && ps.overrides[planeName]) return false;
     if (ps && ps.anchors && ps.anchors[planeName]) return false;
+    // Check if this event has been individually suppressed
+    if (ps && ps.suppressedEvents && ps.suppressedEvents[planeName]){
+      var evt = _generatedEventAt(planeName, serial);
+      if (evt && ps.suppressedEvents[planeName][evt.startSerial]) return false;
+    }
+    // GM custom events suppress generated events as if they were canon.
+    // For each GM custom event on this plane, find the nearest generated
+    // event and suppress it. This prevents double-stacking when a GM
+    // manually creates a planar event near a generated one.
+    if (ps && ps.gmCustomEvents && ps.gmCustomEvents[planeName]){
+      var gmEvts = ps.gmCustomEvents[planeName];
+      var thisEvt = _generatedEventAt(planeName, serial);
+      if (thisEvt && gmEvts.length > 0){
+        // Check if this generated event is the nearest one to any GM custom event
+        var profile = PLANAR_ANOMALY_PROFILE[planeName];
+        var expectedPerYear = (profile && profile.expectedPerYear) || 3;
+        // Max suppression reach: half a year divided by expected events
+        // This prevents suppression from reaching too far
+        var maxReach = Math.round(168 / Math.max(1, expectedPerYear));
+        for (var gci = 0; gci < gmEvts.length; gci++){
+          var gmSer = gmEvts[gci].serial;
+          var distToGm = Math.abs(thisEvt.startSerial - gmSer);
+          if (distToGm <= maxReach){
+            // Is this the NEAREST generated event to this GM event?
+            // Scan forward and backward to check
+            var isNearest = true;
+            for (var scan = 1; scan <= maxReach; scan++){
+              var before = _generatedEventAt(planeName, gmSer - scan);
+              if (before && before.startSerial !== thisEvt.startSerial &&
+                  Math.abs(before.startSerial - gmSer) < distToGm){
+                isNearest = false; break;
+              }
+              var after = _generatedEventAt(planeName, gmSer + scan);
+              if (after && after.startSerial !== thisEvt.startSerial &&
+                  Math.abs(after.startSerial - gmSer) < distToGm){
+                isNearest = false; break;
+              }
+            }
+            if (isNearest) return false; // suppress this generated event
+          }
+        }
+      }
+    }
   } catch(e){ return false; }
 
-  return !!_planarFlickerEventAt(planeName, serial);
+  // Suppress during canonical coterminous/remote phases
+  // (don't stack generated events on top of canonical ones)
+  try {
+    var canonState = getPlanarState(planeName, serial, { ignoreGenerated: true });
+    if (canonState && !canonState.overridden &&
+        (canonState.phase === 'coterminous' || canonState.phase === 'remote')){
+      // For fixed planes (Kythri/Xoriat), the fixed phase IS canonical — don't suppress.
+      // Only suppress for cyclic planes that are currently in an active canonical phase.
+      var planeData = _getPlaneData(planeName);
+      if (planeData && planeData.type === 'cyclic') return false;
+    }
+  } catch(e){}
+
+  return !!_generatedEventAt(planeName, serial);
 }
 
-// Returns the flicker type: 'coterminous' or 'remote' (seeded coin flip)
-function _flickerPhase(planeName, serial){
-  var evt = _planarFlickerEventAt(planeName, serial);
+function _generatedPhase(planeName, serial){
+  var evt = _generatedEventAt(planeName, serial);
   return (evt && evt.phase) ? evt.phase : 'coterminous';
+}
+
+// Find next anomalous event within maxDays for forecast displays.
+function _nextGeneratedForecast(planeName, serial, maxDays){
+  if (GENERATED_SEALED[planeName]) return null;
+  try { if (ensureSettings().offCyclePlanes === false) return null; } catch(e){ return null; }
+  maxDays = Math.max(0, maxDays|0);
+  if (maxDays <= 0) return null;
+
+  var current = _generatedEventAt(planeName, serial);
+  if (current){
+    return {
+      phase: current.phase, daysUntilStart: 0,
+      durationDays: current.durationDays,
+      startSerial: current.startSerial, endSerial: current.endSerial,
+      activeNow: true
+    };
+  }
+
+  for (var d = 1; d <= maxDays; d++){
+    var evt = _anomalyStartsOnDay(planeName, serial + d);
+    if (evt){
+      return {
+        phase: evt.phase, daysUntilStart: d,
+        durationDays: evt.durationDays,
+        startSerial: evt.startSerial, endSerial: evt.endSerial,
+        activeNow: false
+      };
+    }
+  }
+  return null;
 }
 
 
@@ -8751,6 +10441,60 @@ function handleMoonCommand(m, args){
     }
   }
 
+  // !cal moon lore [name] — available to everyone, whispered to querier
+  if (sub === 'lore' || sub === 'info'){
+    var loreSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    if (!loreSys || !loreSys.moons) return whisper(m.who, 'No moon data available.');
+    var loreName = String(args[2] || '').trim();
+    if (!loreName){
+      // Show all moons as buttons
+      var loreButtons = loreSys.moons.map(function(moon){
+        return button(moon.name, 'moon lore ' + moon.name);
+      });
+      loreButtons.push(button('💎 Ring of Siberys', 'moon lore siberys'));
+      return whisper(m.who, _menuBox('🌙 Moon Lore',
+        '<div style="margin-bottom:4px;">Select a moon to learn about:</div>' +
+        loreButtons.join(' ')
+      ));
+    }
+    // Ring of Siberys special case
+    if (loreName.toLowerCase() === 'siberys' || loreName.toLowerCase() === 'ring'){
+      return whisper(m.who, _siberysLoreHtml());
+    }
+    var resolvedLore = _moonParseMoonName(loreName, loreSys);
+    if (!resolvedLore) return whisper(m.who, 'Unknown moon: <b>'+esc(loreName)+'</b>. Try <code>!cal moon lore</code> for a list.');
+    var loreHtml = _moonLoreHtml(resolvedLore);
+    if (!loreHtml) return whisper(m.who, 'No lore available for <b>'+esc(resolvedLore)+'</b>.');
+    return whisper(m.who, loreHtml);
+  }
+
+  // !cal moon sky [time] — available to everyone, shows which moons are visible
+  // time: 'midnight' (default), 'morning', 'noon', 'evening', 'dusk', 'dawn'
+  if (sub === 'sky' || sub === 'visible' || sub === 'up'){
+    moonEnsureSequences();
+    var today = todaySerial();
+    var timeArg = String(args[2] || '').toLowerCase().trim();
+    var timeFrac = 0;  // default midnight
+    var timeLabel = 'Midnight';
+    if (timeArg === 'morning' || timeArg === 'dawn')    { timeFrac = 0.75; timeLabel = 'Dawn'; }
+    else if (timeArg === 'noon' || timeArg === 'midday'){ timeFrac = 0.50; timeLabel = 'Noon'; }
+    else if (timeArg === 'afternoon')                   { timeFrac = 0.375; timeLabel = 'Afternoon'; }
+    else if (timeArg === 'evening' || timeArg === 'dusk'){ timeFrac = 0.25; timeLabel = 'Dusk'; }
+    var dateLabel = dateLabelFromSerial(today);
+    var visHtml = _moonVisibilityHtml(today, timeFrac);
+    if (!visHtml) visHtml = '<div style="opacity:.6;">No visibility data available.</div>';
+    var timeButtons =
+      button('Midnight','moon sky midnight') + ' ' +
+      button('Dawn','moon sky dawn') + ' ' +
+      button('Noon','moon sky noon') + ' ' +
+      button('Dusk','moon sky dusk');
+    return whisper(m.who, _menuBox(
+      '🌙 Sky at ' + esc(timeLabel) + ' — ' + esc(dateLabel),
+      visHtml +
+      '<div style="margin-top:6px;font-size:.82em;">' + timeButtons + '</div>'
+    ));
+  }
+
   // Player self-query mode (read-only, knowledge-limited).
   if (!playerIsGM(m.playerid)){
     if (sub === 'on' || sub === 'date'){
@@ -8763,7 +10507,7 @@ function handleMoonCommand(m, args){
       var pToday = todaySerial();
       var pHorizon = parseInt(getMoonState().revealHorizonDays, 10) || 7;
       if (pSerial < pToday || pSerial > (pToday + pHorizon)){
-        return whisper(m.who, 'That date is outside your known lunar horizon ('+esc(_rangeLabel(pHorizon))+').');
+        return whisper(m.who, 'That date is beyond your lunar knowledge.');
       }
       moonEnsureSequences(pSerial, pHorizon + 30);
       return whisper(m.who, moonPlayerPanelHtml(pSerial));
@@ -8776,14 +10520,17 @@ function handleMoonCommand(m, args){
   // !cal moon send <mundane|magical> [1w|1m|3m|6m|10m]
   if (sub === 'send'){
     var tierRaw = String(args[2] || '').toLowerCase();
+    // Legacy aliases
+    if (tierRaw === 'mundane') tierRaw = 'medium';
+    if (tierRaw === 'magical') tierRaw = 'high';
     if (!tierRaw)
-      return whisper(m.who, 'Usage: <code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
     var tierArg = MOON_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tierArg)
-      return whisper(m.who, 'Usage: <code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
     var reqHorizon = _parseMoonRevealRange(args[3], tierArg);
     if (!reqHorizon)
-      return whisper(m.who, 'Usage: <code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
 
     moonEnsureSequences(todaySerial(), reqHorizon + 30);
     var ms0  = getMoonState();
@@ -8834,7 +10581,7 @@ function handleMoonCommand(m, args){
       return whisper(m.who, 'Usage: <code>!cal moon on &lt;dateSpec&gt;</code> (example: <code>!cal moon on Rhaan 14 998</code>)');
     }
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
-    moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.magicalDays);
+    moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
     return whisper(m.who, moonPanelHtml(serialOn));
   }
 
@@ -8952,6 +10699,7 @@ var PLANE_DATA = {
       orbitYears: 400,   coterminousDays: null, remoteDays: null,
       coterminousYears: 100, remoteYears: 100,
       anchorYear: 800, anchorPhase: 'coterminous',
+      seedAnchor: true,
       associatedMoon: 'Nymm',
       note: 'Traditional cycle: coterminous for a century, then remote for a century one hundred years later.',
       effects: {
@@ -8970,8 +10718,9 @@ var PLANE_DATA = {
       orbitYears: 100,   coterminousDays: null, remoteDays: null,
       coterminousYears: 1, remoteYears: 1,
       anchorYear: 950, anchorPhase: 'coterminous',
+      seedAnchor: true,
       associatedMoon: 'Aryth',
-      note: 'Traditional cycle: coterminous for 1 year once per century; 50 years later it is remote for 1 year. Can also have shorter phases tied to Aryth.',
+      note: 'Slow canonical cycle: coterminous for 1 year once per century; 50 years later, remote for 1 year. Also has shorter coterminous/remote phases tied to the moon Aryth. (TODO: Generated events should be tied to Aryth full/new moons rather than independent dice rolls.)',
       effects: {
         coterminous: 'Ghosts more easily slip into the Material Plane, especially near Dolurrhi manifest zones. Raise-dead effects can draw unwanted spirits (Dolurrhi mishaps).',
         remote: 'Traditional resurrection magic cannot pull spirits back from Dolurrh. Recovering the dead requires retrieving the shade in Dolurrh; deaths with intense emotion or unfinished business more often leave ghosts behind.'
@@ -8982,6 +10731,7 @@ var PLANE_DATA = {
       orbitYears: 5,     coterminousDays: 28, remoteDays: 28,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 7,
+      seedAnchor: true,
       seasonHint: 'midsummer',
       associatedMoon: 'Eyre',
       note: 'Traditional cycle: coterminous during Lharvion once every five years; remote during Zarantyr once every five years, exactly 2.5 years later.',
@@ -8995,9 +10745,11 @@ var PLANE_DATA = {
       orbitYears: 3,     coterminousDays: 10, remoteDays: 10,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 4, anchorDay: 1,
+      seedAnchor: true,
+      floatingStartDay: { min: 1, max: 19 },
       seasonHint: 'spring',
       associatedMoon: 'Barrakas',
-      note: 'Traditional cycle: coterminous for 10 days in Eyre and remote for 10 days in Sypheros, once every 3 years (remote is 1.5 years after coterminous).',
+      note: 'Coterminous for 10 days in Eyre and remote for 10 days in Sypheros, once every 3 years. The remote cycle comes 1.5 years after coterminous. The start day within the month varies between occurrences.',
       effects: {
         coterminous: 'Life blossoms. Health and fertility are enhanced, positive energy flows freely, and Radiant Power applies across Eberron. All creatures have advantage on saves against disease, poison, and fear.',
         remote: 'Colors seem to fade and psychic numbness pervades the world. All creatures have disadvantage on saves against fear and resistance to radiant damage. Hit point restoration is halved, except long rests still restore full hit points.'
@@ -9016,10 +10768,10 @@ var PLANE_DATA = {
       type:'cyclic',
       orbitYears: 1,     coterminousDays: 7, remoteDays: 7,
       coterminousYears: null, remoteYears: null,
-      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 7, anchorDay: 11,
-      seasonHint: 'late spring',
+      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 6, anchorDay: 24,
+      seasonHint: 'summer solstice',
       associatedMoon: 'Olarune',
-      note: 'Traditionally coterminous for a week around the summer solstice and remote for a week during the winter solstice.',
+      note: 'Coterminous for a week centered on the summer solstice (Nymm 24–Lharvion 2) and remote for a week centered on the winter solstice (Vult 24–Zarantyr 2). Both occur every year.',
       effects: {
         coterminous: 'Lamannian manifest zone effects are enhanced. In unspoiled nature, fertility of plants and animals rises and beasts conceived in this period are often exceptionally strong and healthy. Spells targeting beasts or elementals with duration 1 minute or longer are doubled; durations of 24 hours or longer are unaffected.',
         remote: 'Fertility rates drop and beasts born in this period are often weak or sickly; animals are uneasy. Spells affecting beasts or elementals have their duration halved, to a minimum of 1 round.'
@@ -9027,12 +10779,13 @@ var PLANE_DATA = {
     },
     { name:'Mabar',     title:'The Endless Night',
       type:'cyclic',
-      orbitYears: 5,     coterminousDays: 3, remoteDays: 5,
+      orbitYears: 1,     coterminousDays: 4, remoteDays: 0,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 12, anchorDay: 26,
       seasonHint: 'winter solstice',
       associatedMoon: 'Sypheros',
-      note: 'Traditional cycle: coterminous for 3 nights in Vult (the new moon nights closest to the winter solstice, called Long Shadows). Remote for 5 days around the summer solstice, once every 5 years.',
+      remoteOrbitYears: 5, remoteDaysSpecial: 5, remoteSeasonHint: 'summer solstice',
+      note: 'Long Shadows: coterminous for 3 nights each year — begins at sundown on Vult 26, ends at sunrise on Zarantyr 1 (4 calendar days, 3 nights centered on winter solstice). Remote for 5 days around the summer solstice (begins sunrise Nymm 25, ends sunset Lharvion 1), once every 5 years.',
       effects: {
         coterminous: 'Necrotic Power encompasses the world and all light source radii are halved. In regions steeped in despair or misery, deep darkness can open gateways to Mabar, releasing shadows and other horrors. This manifests only at night and ends at dawn.',
         remote: 'All creatures gain resistance to necrotic damage. Undead have disadvantage on saves vs being turned or frightened.'
@@ -9042,10 +10795,11 @@ var PLANE_DATA = {
       type:'cyclic',
       orbitYears: 5,     coterminousDays: 28, remoteDays: 28,
       coterminousYears: null, remoteYears: null,
-      anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 1,
+      anchorYear: 996, anchorPhase: 'coterminous', anchorMonth: 1,
+      seedAnchor: true, linkedTo: 'Fernia',
       seasonHint: 'midwinter',
       associatedMoon: 'Dravago',
-      note: 'Traditional cycle: coterminous for the full month of Zarantyr once every five years; remote during Lharvion once every five years, exactly 2.5 years later. Historians record anomalous extensions, including a 3-year coterminous phase in 657 YK.',
+      note: 'Exactly opposite Fernia on the same 5-year cycle. Coterminous in midwinter (Zarantyr), remote in midsummer (Lharvion). Risia is coterminous when Fernia is remote and vice versa.',
       effects: {
         coterminous: 'Temperatures drop sharply. Areas that are normally merely chilly can take on Lethal Cold, Empowered Ice, and Stillness of Flesh properties. Rarely, creatures caught in exceptionally intense cold can be transported to Risia.',
         remote: 'Intense cold loses some of its bite. Creatures have advantage on saves against extreme cold and on saves against spells that deal cold damage.'
@@ -9056,6 +10810,7 @@ var PLANE_DATA = {
       orbitYears: 36,    coterminousDays: null, remoteDays: null,
       coterminousYears: 1, remoteYears: 1,
       anchorYear: 990, anchorPhase: 'coterminous',
+      seedAnchor: true,
       associatedMoon: 'Vult',
       note: 'Traditional cycle: coterminous for 1 year every 36 years and remote for 1 year every 36 years. It also frequently has single-day coterminous spikes; remote periods suppress these spikes.',
       effects: {
@@ -9068,6 +10823,7 @@ var PLANE_DATA = {
       orbitYears: 10,    coterminousDays: 1, remoteDays: 1,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 9, anchorDay: 9,
+      seedAnchor: true,
       associatedMoon: 'Therendor',
       note: 'Traditionally coterminous on 9 Rhaan once every 10 years and remote on the same day 5 years later. This is celebrated as Boldrei’s Feast, with especially grand celebrations on coterminous years.',
       effects: {
@@ -9080,6 +10836,7 @@ var PLANE_DATA = {
       orbitYears: 225,   coterminousDays: null, remoteDays: null,
       coterminousYears: 7, remoteYears: 7,
       anchorYear: 800, anchorPhase: 'coterminous',
+      seedAnchor: true,
       associatedMoon: 'Rhaan',
       note: 'Traditional cycle: coterminous for 7 years every 225 years, remote for 7 years halfway between. Evidence suggests this cycle has been disrupted (possibly by the Mourning), and no one knows when Thelanis will next become coterminous or how long it will last.',
       effects: {
@@ -9112,9 +10869,12 @@ function getPlanesState(){
   var ps = root.planes;
   if (!ps.overrides) ps.overrides = {};
   if (!ps.anchors) ps.anchors = {};
-  if (!ps.revealTier) ps.revealTier = 'mundane';
+  if (!ps.floatingDays) ps.floatingDays = {};  // planeName -> { phase, startDay, orbitNum }
+  if (!ps.suppressedEvents) ps.suppressedEvents = {}; // planeName -> { serial: true }
+  if (!ps.gmCustomEvents) ps.gmCustomEvents = {};     // planeName -> [ {serial, phase, durationDays, note} ]
+  if (!ps.seedOverrides) ps.seedOverrides = {};       // planeName -> anchorYear  if (!ps.revealTier) ps.revealTier = 'medium';
   ps.revealTier = String(ps.revealTier || '').toLowerCase();
-  if (ps.revealTier !== 'mundane' && ps.revealTier !== 'magical') ps.revealTier = 'mundane';
+  if (!PLANE_REVEAL_TIERS[ps.revealTier]) ps.revealTier = 'medium';
   ps.revealHorizonDays = parseInt(ps.revealHorizonDays, 10);
   if (!isFinite(ps.revealHorizonDays) || ps.revealHorizonDays < baselineHorizon) ps.revealHorizonDays = baselineHorizon;
   return ps;
@@ -9148,11 +10908,11 @@ function _planarYearDays(){
 }
 
 // Calculate the current phase of a cyclic plane at a given serial day.
-// opts.ignoreFlicker=true returns canonical cycle state without seeded flickers.
+// opts.ignoreGenerated=true returns canonical cycle state without seeded flickers.
 // Returns { phase, daysIntoPhase, daysUntilNextPhase, phaseDuration, nextPhase }
 function getPlanarState(planeName, serial, opts){
   opts = opts || {};
-  var ignoreFlicker = !!opts.ignoreFlicker;
+  var ignoreGenerated = !!opts.ignoreGenerated;
   var plane = _getPlaneData(planeName);
   if (!plane) return null;
 
@@ -9189,10 +10949,10 @@ function getPlanarState(planeName, serial, opts){
     var fixedPhase = plane.fixedPhase || 'remote';
     var fixedNote = plane.note || '';
 
-    // Check for spontaneous planar flicker
-    if (!ignoreFlicker && isPlanarFlickering(plane.name, serial)){
-      fixedPhase = _flickerPhase(plane.name, serial);
-      fixedNote = esc(plane.name) + ' flicker \u2014 brief ' + fixedPhase + ' episode!';
+    // Check for off-cycle generated shift
+    if (!ignoreGenerated && isGeneratedShift(plane.name, serial)){
+      fixedPhase = _generatedPhase(plane.name, serial);
+      fixedNote = 'Anomalous ' + fixedPhase + ' shift';
     }
 
     return {
@@ -9225,7 +10985,7 @@ function getPlanarState(planeName, serial, opts){
     { name:'waxing',      dur: transitionDays }
   ];
 
-  // Anchor: use GM override anchor or default
+  // Anchor: use GM override anchor, then plane default, then seed-based offset
   var anchor = ps.anchors[plane.name];
   var anchorSerial;
   if (anchor){
@@ -9235,6 +10995,34 @@ function getPlanarState(planeName, serial, opts){
     var anchorDay = (plane.anchorDay != null) ? (plane.anchorDay | 0) : 1;
     if (anchorDay < 1) anchorDay = 1;
     anchorSerial = toSerial(plane.anchorYear || 998, anchorMi, anchorDay);
+    // For planes flagged seedAnchor, offset the anchor by a seed-derived amount.
+    // This gives each campaign different timing for long-cycle planes.
+    // GM can override with !cal planes seed <name> <year> to pin a specific anchor year.
+    // linkedTo: derive seed from the linked plane's name (keeps pairs in sync).
+    // If anchorMonth is set (seasonal plane), offset by whole years to preserve season.
+    if (plane.seedAnchor){
+      try {
+        var ps2 = getPlanesState();
+        var seedOverride = (ps2.seedOverrides && ps2.seedOverrides[plane.name]);
+        if (seedOverride != null){
+          // GM-pinned anchor year: replace the base anchor year entirely
+          anchorSerial = toSerial(seedOverride, anchorMi, anchorDay);
+        } else {
+          var epoch = ensureSettings().epochSeed || 0;
+          var seedName = plane.linkedTo || plane.name;
+          if (plane.anchorMonth != null){
+            var yearOff = _dN(epoch, seedName + '_anchor_offset', plane.orbitYears || 1) - 1;
+            anchorSerial += yearOff * ypd;
+          } else {
+            var seedOffset = _dN(epoch, seedName + '_anchor_offset', orbitDays);
+            anchorSerial += seedOffset;
+          }
+        }
+      } catch(e){}
+    }
+
+    // floatingStartDay planes: the start day within the month drifts between
+    // occurrences. Handled after the standard phase walk — see below.
   }
 
   // Find which phase the anchor starts in
@@ -9262,14 +11050,152 @@ function getPlanarState(planeName, serial, opts){
       var cyclicPhase = ph.name;
       var cyclicNote = '';
 
-      // Spontaneous flicker: can override waning/waxing to coterminous/remote
+      // Off-cycle generated shift: can override waning/waxing to coterminous/remote
       // Only triggers during transition phases (not when already coterminous/remote)
-      if (!ignoreFlicker &&
+      if (!ignoreGenerated &&
           (cyclicPhase === 'waning' || cyclicPhase === 'waxing') &&
-          isPlanarFlickering(plane.name, serial)){
-        var flickPhase = _flickerPhase(plane.name, serial);
-        cyclicNote = esc(plane.name) + ' flicker \u2014 brief ' + flickPhase + ' episode!';
-        cyclicPhase = flickPhase;
+          isGeneratedShift(plane.name, serial)){
+        var genPhase = _generatedPhase(plane.name, serial);
+        cyclicNote = 'Anomalous ' + genPhase + ' shift';
+        cyclicPhase = genPhase;
+      }
+
+      // ── Mabar special case: annual cot + 5-year remote cycle ──
+      // Mabar is coterminous every year (Long Shadows) but remote only once
+      // every 5 years around the summer solstice. The standard cyclic calc gives
+      // us the annual cot; we override waning/waxing based on the remote cycle.
+      if (plane.remoteOrbitYears && plane.remoteDaysSpecial){
+        var remoteDur = plane.remoteDaysSpecial;
+        // Summer solstice = Nymm 27 (month 6, day 27) — opposite winter solstice Vult 27
+        var _solstice = 5 * 28 + 26; // month index 5 (Nymm), day 27 (0-based: 26)
+        var _di = fromSerial(serial);
+        var _yearStart = toSerial(_di.year, 0, 1);
+        var _dayOfYear = serial - _yearStart;
+
+        // Determine remote years using the same seed-based anchor offset
+        var _remoteBaseYear = (plane.anchorYear || 998) + 1;
+        if (plane.seedAnchor){
+          try {
+            var _ep = ensureSettings().epochSeed || 0;
+            var _sn = plane.linkedTo || plane.name;
+            // Use the same seed as the primary anchor, but for the remote sub-cycle
+            // Offset by 0 to (remoteOrbitYears-1) whole years
+            var _rOff = _dN(_ep, _sn + '_remote_anchor_offset', plane.remoteOrbitYears) - 1;
+            _remoteBaseYear += _rOff;
+          } catch(e2){}
+        }
+        var _remoteYearsSince = _di.year - _remoteBaseYear;
+        var _isRemoteYear = (_remoteYearsSince >= 0 && (_remoteYearsSince % plane.remoteOrbitYears) === 0);
+        var _remoteStart = _solstice - Math.floor(remoteDur / 2);
+        var _remoteEnd   = _remoteStart + remoteDur - 1;
+
+        // If currently in the remote window of a remote year, return remote phase
+        if (cyclicPhase !== 'coterminous' && _isRemoteYear &&
+            _dayOfYear >= _remoteStart && _dayOfYear <= _remoteEnd){
+          return {
+            plane: plane,
+            phase: 'remote',
+            daysIntoPhase: _dayOfYear - _remoteStart,
+            daysUntilNextPhase: _remoteEnd - _dayOfYear + 1,
+            phaseDuration: remoteDur,
+            nextPhase: 'waxing',
+            overridden: false,
+            note: 'Mabar remote \u2014 5-year cycle (sunrise Nymm 25 through sunset Lharvion 1)'
+          };
+        }
+
+        // Fix waxing/waning based on what's next:
+        // - If NOT a remote year (or remote already past): always waxing toward next Long Shadows
+        // - If IS a remote year and remote is still ahead: waning toward remote
+        // - If IS a remote year and remote is past: waxing toward next Long Shadows
+        if (cyclicPhase === 'waning' || cyclicPhase === 'waxing'){
+          if (_isRemoteYear && _dayOfYear < _remoteStart){
+            cyclicPhase = 'waning';
+          } else {
+            cyclicPhase = 'waxing';
+          }
+        }
+      }
+
+      // ── Floating start day: drift within the month per occurrence ──
+      // For planes like Irian where the start day shifts between occurrences.
+      // We store the next phase's start day in ps.floatingDays[planeName].
+      // The standard calc used anchorDay as the fixed start; we adjust here.
+      if (plane.floatingStartDay && !anchor){
+        var _fMin = plane.floatingStartDay.min || 1;
+        var _fMax = plane.floatingStartDay.max || 19;
+        var _fRange = _fMax - _fMin + 1;
+        var _daysSinceAnch = serial - anchorSerial;
+        var _orbitNum = Math.floor(_daysSinceAnch / orbitDays);
+        if (_daysSinceAnch < 0) _orbitNum -= 1;
+
+        // Determine stored start day for this orbit's coterminous
+        // and for this orbit's remote (half-orbit later).
+        // Use seed + orbit number to generate deterministically.
+        var _fKey = plane.name;
+        if (!ps.floatingDays[_fKey]) ps.floatingDays[_fKey] = {};
+        var _fd = ps.floatingDays[_fKey];
+
+        // Generate start days for this orbit if not yet stored
+        var _cotKey = 'cot_' + _orbitNum;
+        var _remKey = 'rem_' + _orbitNum;
+        try {
+          var _fEp = ensureSettings().epochSeed || 0;
+          if (_fd[_cotKey] == null){
+            // d20 reroll 20s: roll d20, if 20, roll again (effectively d19 + uniform)
+            var _roll = _dN(_fEp, plane.name + '_float_cot_' + _orbitNum, 20);
+            if (_roll >= 20) _roll = _dN(_fEp, plane.name + '_float_cot_' + _orbitNum + '_reroll', 19);
+            _fd[_cotKey] = _fMin + ((_roll - 1) % _fRange);
+          }
+          if (_fd[_remKey] == null){
+            var _rRoll = _dN(_fEp, plane.name + '_float_rem_' + _orbitNum, 20);
+            if (_rRoll >= 20) _rRoll = _dN(_fEp, plane.name + '_float_rem_' + _orbitNum + '_reroll', 19);
+            _fd[_remKey] = _fMin + ((_rRoll - 1) % _fRange);
+          }
+        } catch(e3){}
+
+        // Compute drift: how many days the actual start shifts from the anchor day
+        var _baseDay = (plane.anchorDay != null) ? plane.anchorDay : 1;
+        var _cotDrift = ((_fd[_cotKey] || _baseDay) - _baseDay);
+        var _remDrift = ((_fd[_remKey] || _baseDay) - _baseDay);
+
+        // Which half of the orbit are we in?
+        // First half = coterminous + waning; second half = remote + waxing
+        var _halfOrbit = orbitDays / 2;
+        var _offsetInOrbit = _daysSinceAnch - (_orbitNum * orbitDays);
+        if (_offsetInOrbit < 0) _offsetInOrbit += orbitDays;
+
+        if (_offsetInOrbit < _halfOrbit){
+          // First half: cot then waning
+          var _cotStart = _cotDrift; // offset within orbit where cot begins
+          if (_cotStart < 0) _cotStart = 0;
+          var _cotEnd = _cotStart + coterminousDays;
+          if (_offsetInOrbit >= _cotStart && _offsetInOrbit < _cotEnd){
+            cyclicPhase = 'coterminous';
+            into = _offsetInOrbit - _cotStart;
+          } else if (_offsetInOrbit < _cotStart){
+            // Before cot starts in this orbit — waxing from previous orbit
+            cyclicPhase = 'waxing';
+            into = _offsetInOrbit;
+          } else {
+            cyclicPhase = 'waning';
+            into = _offsetInOrbit - _cotEnd;
+          }
+        } else {
+          // Second half: remote then waxing
+          var _remStart = _halfOrbit + _remDrift;
+          var _remEnd = _remStart + remoteDays;
+          if (_offsetInOrbit >= _remStart && _offsetInOrbit < _remEnd){
+            cyclicPhase = 'remote';
+            into = _offsetInOrbit - _remStart;
+          } else if (_offsetInOrbit < _remStart){
+            cyclicPhase = 'waning';
+            into = _offsetInOrbit - _halfOrbit;
+          } else {
+            cyclicPhase = 'waxing';
+            into = _offsetInOrbit - _remEnd;
+          }
+        }
       }
 
       return {
@@ -9388,44 +11314,90 @@ var PLANE_PHASE_LABELS = {
   waxing:      'Waxing'
 };
 
-var PLANE_REVEAL_TIERS = { mundane:1, magical:2 };
+var PLANE_PHASE_EMOJI = {
+  coterminous: '🔴',
+  waning:      '🟠',
+  remote:      '🔵',
+  waxing:      '🟢'
+};
+
+var PLANE_REVEAL_TIERS = { low:1, medium:2, high:3 };
 var PLANE_SOURCE_LABELS = {
   mundane:  'Mundane Forecast',
   magical:  'Magical Forecast'
 };
 var PLANE_PREDICTION_LIMITS = {
-  mundaneDays: 3360,      // max mundane horizon (10 years)
-  magicalDays: 3360,      // about ten years
-  magicalExactDays: 336   // exact-by-day confidence window for magical flicker foresight
+  // Low: present day only for generated events. Fixed annual canon always known.
+  lowDays: 0,
+  // Medium: canon events for current year (336 days). Generated events by button.
+  mediumCanonDays: 336,
+  mediumMaxDays: 3360,   // up to 10 years for generated
+  // High: full knowledge including generated events.
+  highMaxDays: 3360,
+  // Within this range, high-tier flicker predictions are exact.
+  highExactDays: 336
 };
-var PLANE_FLICKER_LOOKAHEAD = {
-  gmDays: 672
+var PLANE_GENERATED_LOOKAHEAD = {
+  gmDays: 1680   // 5 years at 336 days/year
 };
+
+// Medium presets: canon for the full year is free; generated events for N days.
+var PLANE_MEDIUM_PRESETS = [
+  { label:'1d',  days:1,   dc:'DC 10' },
+  { label:'3d',  days:3,   dc:'DC 15' },
+  { label:'6d',  days:6,   dc:'DC 20' },
+  { label:'10d', days:10,  dc:'DC 25' }
+];
+// High presets: full knowledge (canon + generated) for N months.
+var PLANE_HIGH_PRESETS = [
+  { label:'1m',  days:28,  dc:'DC 10' },
+  { label:'3m',  days:84,  dc:'DC 15' },
+  { label:'6m',  days:168, dc:'DC 20' },
+  { label:'10m', days:280, dc:'DC 25' }
+];
+
 var PLANE_REVEAL_RANGE_OPTIONS = {
-  '1y': 1,
-  '3y': 3,
-  '6y': 6,
-  '10y': 10
+  '1m': 28, '3m': 84, '6m': 168, '10m': 280,
+  // Legacy year-based options (converted to days)
+  '1y': 336, '3y': 1008, '6y': 2016, '10y': 3360
 };
 
 function _normalizePlaneRevealTier(tier){
   var t = String(tier || '').toLowerCase();
+  // Legacy aliases
+  if (t === 'mundane') return 'medium';
+  if (t === 'magical') return 'high';
   if (PLANE_REVEAL_TIERS[t]) return t;
-  return 'mundane';
+  return 'medium';
 }
 
 function _parsePlaneRevealRange(token, tier){
   tier = _normalizePlaneRevealTier(tier);
-  var ypd = Math.max(1, _planarYearDays());
-  var maxAllowed = (tier === 'magical') ? PLANE_PREDICTION_LIMITS.magicalDays : PLANE_PREDICTION_LIMITS.mundaneDays;
+  var maxAllowed = (tier === 'high') ? PLANE_PREDICTION_LIMITS.highMaxDays
+    : PLANE_PREDICTION_LIMITS.mediumMaxDays;
   var t = String(token || '').toLowerCase().trim();
-  if (!t) return Math.min(maxAllowed, ypd);
-  if (PLANE_REVEAL_RANGE_OPTIONS[t]) return Math.min(maxAllowed, PLANE_REVEAL_RANGE_OPTIONS[t] * ypd);
-  if (t === '1w') return Math.min(maxAllowed, ypd); // legacy alias
 
-  var n = parseInt(t, 10);
-  if (!isFinite(n) || n < 1) return null;
-  return Math.min(maxAllowed, n);
+  // Default if no token given
+  if (!t) return Math.min(maxAllowed, 28);  // 1 month default
+
+  // Named range options (now in days)
+  if (PLANE_REVEAL_RANGE_OPTIONS[t]) return Math.min(maxAllowed, PLANE_REVEAL_RANGE_OPTIONS[t]);
+
+  // Day suffix: "28d"
+  var dayMatch = t.match(/^(\d+)d$/);
+  if (dayMatch) return Math.min(maxAllowed, parseInt(dayMatch[1], 10));
+
+  // Week suffix: "4w"
+  var weekMatch = t.match(/^(\d+)w$/);
+  if (weekMatch) return Math.min(maxAllowed, parseInt(weekMatch[1], 10) * 7);
+
+  // Plain number = days
+  if (/^\d+$/.test(t)){
+    var n = parseInt(t, 10);
+    if (isFinite(n) && n >= 1) return Math.min(maxAllowed, n);
+  }
+
+  return null;
 }
 
 function _planeRangeLabel(days){
@@ -9469,41 +11441,28 @@ function _planePredictionWindowDays(plane, daysAhead, tier){
     else base += 12;
   }
 
-  var profile = PLANAR_FLICKER_PROFILE[(plane && plane.name) || ''] || PLANAR_FLICKER_PROFILE.__default || { chancePer10000:0 };
-  var chance = Math.max(0, profile.chancePer10000 || 0);
-  base += Math.ceil(chance / 300);
+  var profile = PLANAR_ANOMALY_PROFILE[(plane && plane.name) || ''] || PLANAR_ANOMALY_PROFILE.__default || { triggerDie:100, confirmDie:20 };
+  var dailyChance = 1 / ((profile.triggerDie || 100) * (profile.confirmDie || 20));
+  base += Math.max(1, Math.ceil(dailyChance * 336 * 3));
 
   if (plane && /disrupted|anomal|no one knows|unpredictable/i.test(String(plane.note || ''))){
-    base += (tier === 'magical') ? 3 : 8;
+    base += (tier === 'high') ? 3 : 8;
   }
 
-  if (tier === 'magical'){
-    if (daysAhead <= PLANE_PREDICTION_LIMITS.magicalExactDays) return 0;
-    return Math.max(1, base + Math.floor((daysAhead - PLANE_PREDICTION_LIMITS.magicalExactDays) / 336));
+  if (tier === 'high'){
+    if (daysAhead <= PLANE_PREDICTION_LIMITS.highExactDays) return 0;
+    return Math.max(1, base + Math.floor((daysAhead - PLANE_PREDICTION_LIMITS.highExactDays) / 336));
   }
 
   return Math.max(2, base + Math.floor(daysAhead / 168));
 }
 
-function _planeNextInfoForTier(ps, tier, horizonDays){
-  if (!ps || ps.daysUntilNextPhase == null || !ps.nextPhase) return '';
-  tier = _normalizePlaneRevealTier(tier);
-  var d = Math.max(0, ps.daysUntilNextPhase | 0);
-  var nextLabel = PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase;
-  var cap = (tier === 'magical') ? PLANE_PREDICTION_LIMITS.magicalDays : PLANE_PREDICTION_LIMITS.mundaneDays;
-  var horizon = parseInt(horizonDays, 10);
-  if (!isFinite(horizon) || horizon < 1) horizon = _planarYearDays();
-  horizon = Math.min(cap, horizon);
-  if (d > horizon) return nextLabel + ' beyond ' + _planeRangeLabel(horizon);
-  return nextLabel + ' in ' + d + 'd';
-}
-
 function _nextCanonicalPhaseStart(planeName, serial, targetPhase, horizonDays){
   var cap = Math.max(1, horizonDays|0);
-  var prev = getPlanarState(planeName, serial, { ignoreFlicker: true });
+  var prev = getPlanarState(planeName, serial, { ignoreGenerated: true });
   if (!prev) return null;
   for (var s = serial + 1; s <= serial + cap; s++){
-    var cur = getPlanarState(planeName, s, { ignoreFlicker: true });
+    var cur = getPlanarState(planeName, s, { ignoreGenerated: true });
     if (!cur){ prev = cur; continue; }
     if (cur.phase === targetPhase && prev.phase !== targetPhase){
       return { serial: s, daysUntil: s - serial, state: cur };
@@ -9515,7 +11474,7 @@ function _nextCanonicalPhaseStart(planeName, serial, targetPhase, horizonDays){
 
 function _canonicalPhaseKnowledgeSummary(planeName, serial, horizonDays){
   var h = Math.max(1, horizonDays|0);
-  var now = getPlanarState(planeName, serial, { ignoreFlicker: true });
+  var now = getPlanarState(planeName, serial, { ignoreGenerated: true });
   if (!now) return '';
 
   var c = _nextCanonicalPhaseStart(planeName, serial, 'coterminous', h);
@@ -9529,7 +11488,7 @@ function _canonicalPhaseKnowledgeSummary(planeName, serial, horizonDays){
   return 'Cycle: C ' + cTxt + ' \u00B7 R ' + rTxt;
 }
 
-function _planesMiniCalEvents(startSerial, endSerial, includeFlickers){
+function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
   var out = [];
   var planes = _getAllPlaneData();
   if (!planes || !planes.length) return out;
@@ -9538,53 +11497,61 @@ function _planesMiniCalEvents(startSerial, endSerial, includeFlickers){
   var end = endSerial|0;
   if (end < start){ var t = start; start = end; end = t; }
   var prevCanon = {};
-  var prevFlick = {};
+  var prevGen = {};
 
   for (var i = 0; i < planes.length; i++){
     var pname = planes[i].name;
-    prevCanon[pname] = getPlanarState(pname, start - 1, { ignoreFlicker: true });
-    if (includeFlickers){
+    prevCanon[pname] = getPlanarState(pname, start - 1, { ignoreGenerated: true });
+    if (includeGenerated){
       var prevActual = getPlanarState(pname, start - 1);
-      prevFlick[pname] = !!(prevActual && _isFlickerNote(prevActual.note));
+      prevGen[pname] = prevActual ? { phase: prevActual.phase, gen: !!_isGeneratedNote(prevActual.note) } : null;
     }
   }
 
   for (var ser = start; ser <= end; ser++){
     for (var j = 0; j < planes.length; j++){
       var name = planes[j].name;
-      var curCanon = getPlanarState(name, ser, { ignoreFlicker: true });
+
+      // Canonical phase transitions
+      var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
       var prvCanon = prevCanon[name];
-      if (curCanon && prvCanon && curCanon.phase !== prvCanon.phase &&
-          (curCanon.phase === 'coterminous' || curCanon.phase === 'remote')){
-        out.push({
-          serial: ser,
-          name: name + ': ' + (PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase) + ' begins',
-          color: '#80CBC4'
-        });
+      if (curCanon && prvCanon && curCanon.phase !== prvCanon.phase){
+        var emoji = PLANE_PHASE_EMOJI[curCanon.phase] || '⚪';
+        var label = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
+        if (curCanon.phase === 'coterminous' || curCanon.phase === 'remote'){
+          out.push({ serial: ser, name: emoji + ' ' + name + ': ' + label + ' begins', color: '#80CBC4' });
+        } else {
+          // Waxing/waning transitions (ending an active phase)
+          var endedPhase = PLANE_PHASE_LABELS[prvCanon.phase] || prvCanon.phase;
+          out.push({ serial: ser, name: emoji + ' ' + name + ': ' + endedPhase + ' ends', color: '#80CBC4' });
+        }
       }
       prevCanon[name] = curCanon;
 
-      if (includeFlickers){
+      // Generated (off-cycle) event transitions
+      if (includeGenerated){
         var curActual = getPlanarState(name, ser);
-        var curFlick = !!(curActual && _isFlickerNote(curActual.note));
-        if (curFlick && !prevFlick[name]){
+        var curIsGen = !!(curActual && _isGeneratedNote(curActual.note));
+        var prevWasGen = prevGen[name] && prevGen[name].gen;
+
+        if (curIsGen && !prevWasGen){
+          // Generated event starts
+          var gEmoji = PLANE_PHASE_EMOJI[curActual.phase] || '🟣';
           out.push({
             serial: ser,
-            name: name + ': Flicker ' + (PLANE_PHASE_LABELS[curActual.phase] || curActual.phase),
+            name: gEmoji + '✨ ' + name + ': Anomalous ' + (PLANE_PHASE_LABELS[curActual.phase] || curActual.phase),
             color: '#BA68C8'
           });
+        } else if (!curIsGen && prevWasGen){
+          // Generated event ends
+          out.push({
+            serial: ser,
+            name: '⚪ ' + name + ': Anomaly fades',
+            color: '#CE93D8'
+          });
         }
-        prevFlick[name] = curFlick;
+        prevGen[name] = { phase: curActual ? curActual.phase : null, gen: curIsGen };
       }
-    }
-
-    var notes = _planarNotableToday(ser);
-    for (var ni = 0; ni < notes.length; ni++){
-      out.push({
-        serial: ser,
-        name: _stripHtmlTags(notes[ni]),
-        color: '#80CBC4'
-      });
     }
   }
 
@@ -9594,16 +11561,20 @@ function _planesMiniCalEvents(startSerial, endSerial, includeFlickers){
 function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
   var planes = _getAllPlaneData();
   if (!planes || !planes.length) return '';
-  var cot = 0, rem = 0, activeFlick = 0;
+  var cot = 0, rem = 0, activeGen = 0;
   var next = null;
-  var canonicalOnlyView = (!isGM && viewTier !== 'magical');
+  // Low: canon only. Canon non-annual events (Fernia's 5-year cycle) are
+  // recognized when happening — "oh right, this is the cycle" — because
+  // they're canon. Generated events are never recognized at low.
+  // Medium+: show generated within horizon. GM/High: show all.
+  var ignGen = (!isGM && viewTier === 'low');
 
   for (var i = 0; i < planes.length; i++){
-    var ps = getPlanarState(planes[i].name, today, canonicalOnlyView ? { ignoreFlicker:true } : null);
+    var ps = getPlanarState(planes[i].name, today, ignGen ? { ignoreGenerated:true } : null);
     if (!ps) continue;
     if (ps.phase === 'coterminous') cot++;
     if (ps.phase === 'remote') rem++;
-    if (_isFlickerNote(ps.note)) activeFlick++;
+    if (_isGeneratedNote(ps.note)) activeGen++;
     if (ps.daysUntilNextPhase != null && ps.nextPhase){
       var d = Math.max(0, ps.daysUntilNextPhase|0);
       if (d <= viewHorizon && (!next || d < next.days)){
@@ -9613,7 +11584,7 @@ function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
   }
 
   var bits = ['Coterminous '+cot, 'Remote '+rem];
-  if (activeFlick) bits.push('Flickers active ' + activeFlick);
+  if (activeGen) bits.push('Anomalous shifts ' + activeGen);
   if (next) bits.push('Next: ' + next.plane + ' ' + next.phase + ' in ' + next.days + 'd');
   return '<div style="font-size:.8em;opacity:.72;margin:2px 0 6px 0;">'+esc(bits.join(' · '))+'</div>';
 }
@@ -9622,7 +11593,7 @@ function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
 // 21f) Panel HTML — GM and player views
 // ---------------------------------------------------------------------------
 
-function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
+function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, generatedHorizonDays){
   var st = ensureSettings();
   if (st.planesEnabled === false){
     return _menuBox('\uD83C\uDF00 Planes',
@@ -9631,11 +11602,18 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
     );
   }
 
-  var viewTier = isGM ? 'magical' : _normalizePlaneRevealTier(revealTier || getPlanesState().revealTier || 'mundane');
+  var viewTier = isGM ? 'high' : _normalizePlaneRevealTier(revealTier || getPlanesState().revealTier || 'medium');
   var viewHorizon = parseInt(revealHorizonDays, 10);
   if (!isFinite(viewHorizon) || viewHorizon < 1){
     viewHorizon = parseInt(getPlanesState().revealHorizonDays, 10) || _planarYearDays();
   }
+  // For medium tier: canon uses viewHorizon (336d), generated uses generatedHorizon (short).
+  // For high/GM: generated uses full viewHorizon. For low: no generated.
+  var genHorizon = 0;
+  if (isGM) genHorizon = PLANE_GENERATED_LOOKAHEAD.gmDays;
+  else if (viewTier === 'high') genHorizon = viewHorizon;
+  else if (viewTier === 'medium') genHorizon = parseInt(generatedHorizonDays, 10) || parseInt(getPlanesState().generatedHorizonDays, 10) || 0;
+  // low tier: genHorizon stays 0 (no generated events except present day)
   var srcLabel = isGM ? '' : (PLANE_SOURCE_LABELS[viewTier] || '');
   var planes = _getAllPlaneData();
   var today  = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
@@ -9644,7 +11622,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
   var verbose = _subsystemIsVerbose();
   var rows   = [];
   var pr = _monthRangeFromSerial(today);
-  var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, isGM || viewTier === 'magical');
+  var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, isGM || genHorizon > 0);
   var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
@@ -9670,23 +11648,103 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
   }
 
   for (var i = 0; i < planes.length; i++){
-    var canonicalOnlyView = (!isGM && viewTier !== 'magical');
-    var ps = getPlanarState(planes[i].name, today, canonicalOnlyView ? { ignoreFlicker: true } : null);
+    // Low: canon only — generated never shown. Canon includes non-annual
+    // cycles (Fernia 5-year), recognized when happening.
+    // Medium: canon always + generated within genHorizon.
+    // High/GM: everything.
+    var pIgnGen = (!isGM && genHorizon <= 0);
+    var ps = getPlanarState(planes[i].name, today, pIgnGen ? { ignoreGenerated: true } : null);
     if (!ps) continue;
 
     var emoji = PLANE_PHASE_EMOJI[ps.phase] || '\u26AA';
     var label = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
     var name  = ps.plane.name;
-    var title = ps.plane.title;
+    var isNotable = (ps.phase === 'coterminous' || ps.phase === 'remote');
+    var isFixed   = !!(ps.plane.sealed || ps.plane.fixed);
 
-    // Next transition info
-    var nextInfo = '';
-    if (ps.daysUntilNextPhase != null && ps.nextPhase){
-      if (isGM){
-        var nextLabel = PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase;
-        nextInfo = nextLabel + ' in ' + ps.daysUntilNextPhase + 'd';
+    // Override indicator
+    var overrideTag = ps.overridden
+      ? ' <span style="font-size:.75em;color:#E65100;">[override]</span>'
+      : '';
+
+    // Anomalous shift detection
+    var hasGenNow = !!(ps.note && /anomalous/i.test(ps.note));
+    var anomalyTag = '';
+    if (hasGenNow){
+      anomalyTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(non-canonical)</span>';
+    } else if (!ps.overridden && isGM){
+      var lookahead = PLANE_GENERATED_LOOKAHEAD.gmDays;
+      var ff = _nextGeneratedForecast(name, today, lookahead);
+      if (ff){
+        var ffLabel = PLANE_PHASE_LABELS[ff.phase] || ff.phase;
+        var ffText = ff.activeNow ? (ffLabel + ' shift active')
+          : ('Anomalous ' + ffLabel + ' in ' + ff.daysUntilStart + 'd');
+        if (ff.durationDays > 1) ffText += ' (~' + ff.durationDays + 'd)';
+        anomalyTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(ffText)+'</span>';
+      }
+    } else if (!hasGenNow && !ps.overridden && !isGM && genHorizon > 0){
+      var pLookahead = genHorizon;
+      if (pLookahead > 0){
+        var pff = _nextGeneratedForecast(name, today, pLookahead);
+        if (pff){
+          var pffLabel = PLANE_PHASE_LABELS[pff.phase] || pff.phase;
+          var pffText;
+          if (pff.activeNow){
+            pffText = pffLabel + ' shift active';
+          } else {
+            var pffWin = _planePredictionWindowDays(ps.plane, pff.daysUntilStart, 'high');
+            if (pffWin <= 0){
+              pffText = 'Anomalous ' + pffLabel + ' in ' + pff.daysUntilStart + 'd';
+            } else {
+              var pffLo = Math.max(1, pff.daysUntilStart - pffWin);
+              var pffHi = pff.daysUntilStart + pffWin;
+              pffText = (pffLo === pffHi)
+                ? ('Anomalous ' + pffLabel + ' in ~' + pffLo + 'd')
+                : ('Anomalous ' + pffLabel + ' ~' + pffLo + '\u2013' + pffHi + 'd');
+            }
+          }
+          if (pff.durationDays > 1) pffText += ' (~' + pff.durationDays + 'd)';
+          anomalyTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(pffText)+'</span>';
+        }
       }
     }
+
+    // Next transition (GM only, compact)
+    var nextTag = '';
+    if (isGM && ps.daysUntilNextPhase != null && ps.nextPhase){
+      nextTag = ' <span style="opacity:.4;font-size:.8em;">' +
+        esc(PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase) + ' in ' + ps.daysUntilNextPhase + 'd</span>';
+    }
+
+    // Fixed/sealed planes: skip when not notable
+    if (isFixed && !isNotable && !hasGenNow) continue;
+
+    // For waxing/waning planes: one compact line
+    if (!isNotable && !hasGenNow){
+      rows.push(
+        '<div style="margin:1px 0;line-height:1.3;font-size:.9em;opacity:.65;">'+
+          emoji+' <span style="min-width:78px;display:inline-block;">'+esc(name)+'</span> '+
+          esc(label) + overrideTag + nextTag + anomalyTag +
+        '</div>'
+      );
+      continue;
+    }
+
+    // Notable planes (coterminous/remote/active flicker): full detail
+    var effectHtml = '';
+    if (ps.phase === 'coterminous' || ps.phase === 'remote'){
+      var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || '';
+      if (eff){
+        effectHtml = '<div style="font-size:.78em;opacity:.55;margin-left:14px;margin-top:1px;">'+esc(eff)+'</div>';
+      }
+    }
+
+    var noteHtml = '';
+    if (ps.note && isGM){
+      noteHtml = '<div style="font-size:.75em;opacity:.45;margin-left:14px;font-style:italic;">'+esc(ps.note)+'</div>';
+    }
+
+    // Player cycle summary
     var cycleSummaryHtml = '';
     if (!isGM){
       var cycTxt = _canonicalPhaseKnowledgeSummary(name, today, viewHorizon);
@@ -9695,81 +11753,20 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
       }
     }
 
-    // Effect text for coterminous/remote
-    var effectHtml = '';
-    if (isGM && (ps.phase === 'coterminous' || ps.phase === 'remote')){
-      var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || '';
-      if (eff){
-        effectHtml = '<div style="font-size:.78em;opacity:.55;margin-left:14px;margin-top:1px;">'+esc(eff)+'</div>';
-      }
-    }
-
-    // Override indicator
-    var overrideTag = ps.overridden
-      ? ' <span style="font-size:.75em;color:#E65100;">[override]</span>'
-      : '';
-
-    // Note for fixed planes
-    var noteHtml = '';
-    if (ps.note && isGM){
-      noteHtml = '<div style="font-size:.75em;opacity:.45;margin-left:14px;font-style:italic;">'+esc(ps.note)+'</div>';
-    }
-
-    // Upcoming seeded flicker advisory.
-    // Mundane view excludes flicker foresight.
-    // Magical player view includes flickers within the revealed horizon.
-    var flickerHtml = '';
-    var hasFlickerNow = !!(ps.note && /flicker/i.test(ps.note));
-    if (hasFlickerNow && !isGM && viewTier === 'magical'){
-      flickerHtml = '<div style="font-size:.75em;opacity:.48;margin-left:14px;">⚡ Flicker active now</div>';
-    } else if (!hasFlickerNow && !ps.overridden){
-      var lookahead = isGM ? PLANE_FLICKER_LOOKAHEAD.gmDays
-                           : (viewTier === 'magical' ? viewHorizon : 0);
-      if (lookahead > 0){
-        var ff = _nextPlanarFlickerForecast(name, today, lookahead);
-        if (ff){
-          var ffLabel = PLANE_PHASE_LABELS[ff.phase] || ff.phase;
-          var ffText;
-          if (ff.activeNow){
-            ffText = 'Flicker ' + ffLabel + ' now';
-          } else if (isGM){
-            ffText = 'Flicker ' + ffLabel + ' in ' + ff.daysUntilStart + 'd';
-          } else {
-            var ffWin = _planePredictionWindowDays(ps.plane, ff.daysUntilStart, 'magical');
-            if (ffWin <= 0){
-              ffText = 'Flicker ' + ffLabel + ' in ' + ff.daysUntilStart + 'd';
-            } else {
-              var ffLo = Math.max(1, ff.daysUntilStart - ffWin);
-              var ffHi = ff.daysUntilStart + ffWin;
-              ffText = (ffLo === ffHi)
-                ? ('Flicker ' + ffLabel + ' in ' + ffLo + 'd')
-                : ('Flicker ' + ffLabel + ' in about ' + ffLo + '\u2013' + ffHi + 'd');
-            }
-          }
-          if (ff.durationDays > 1) ffText += ' (~' + ff.durationDays + 'd)';
-          flickerHtml = '<div style="font-size:.75em;opacity:.48;margin-left:14px;">⚡ '+esc(ffText)+'</div>';
-        }
-      }
-    }
-
     rows.push(
       '<div style="margin:3px 0;line-height:1.4;">'+
         emoji+' <b style="min-width:82px;display:inline-block;">'+esc(name)+'</b>'+
         '<span style="opacity:.85;">'+esc(label)+'</span>'+
-        overrideTag+
-        (nextInfo ? '<span style="opacity:.4;font-size:.82em;margin-left:8px;">'+esc(nextInfo)+'</span>' : '')+
+        overrideTag + nextTag + anomalyTag +
       '</div>'+
-      effectHtml+
-      cycleSummaryHtml+
-      noteHtml+
-      flickerHtml
+      effectHtml + cycleSummaryHtml + noteHtml
     );
   }
 
   // Long Shadows special: when Mabar is coterminous, show which moons are dark
   var longShadowsHtml = '';
   try {
-    var mabarState = getPlanarState('Mabar', today, (!isGM && viewTier !== 'magical') ? { ignoreFlicker: true } : null);
+    var mabarState = getPlanarState('Mabar', today, (!isGM && viewTier !== 'high') ? { ignoreGenerated: true } : null);
     if (mabarState && mabarState.phase === 'coterminous'){
       var c = getCal().current;
       var lsMoons = getLongShadowsMoons(c.year);
@@ -9789,36 +11786,24 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
     }
   } catch(e){}
 
-  // GM-only controls
+  // GM-only controls — compact
   var gmControls = '';
   if (isGM){
+    var pSendBtns = PLANE_MEDIUM_PRESETS.map(function(p){
+      return button(p.label + ' (' + p.dc + ')', 'planes send medium ' + p.days + 'd');
+    }).join(' ');
+    var pHighBtns = PLANE_HIGH_PRESETS.map(function(p){
+      return button(p.label + ' (' + p.dc + ')', 'planes send high ' + p.days + 'd');
+    }).join(' ');
+
     gmControls =
       '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
-        '<div style="font-size:.8em;opacity:.75;margin-bottom:2px;">Mundane share:</div>'+
-        '<div>'+
-          button('1y','planes send mundane 1y')+' '+
-          button('3y','planes send mundane 3y')+' '+
-          button('6y','planes send mundane 6y')+' '+
-          button('10y','planes send mundane 10y')+
+        '<div style="font-size:.82em;margin-bottom:2px;">Send Medium: '+pSendBtns+'</div>'+
+        '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
+        button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
+        '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
+          'CLI: <code>!cal planes send (low|medium|high) [28d|1m|3m|6m|10m]</code>'+
         '</div>'+
-        '<div style="font-size:.8em;opacity:.75;margin:3px 0 2px 0;">Magical share:</div>'+
-        '<div>'+
-          button('1y','planes send magical 1y')+' '+
-          button('3y','planes send magical 3y')+' '+
-          button('6y','planes send magical 6y')+' '+
-          button('10y','planes send magical 10y')+
-        '</div>'+
-        '<div style="margin-top:4px;">'+
-          button('Upcoming (2y)','planes upcoming 2y')+
-        '</div>'+
-        (verbose
-          ? '<div style="font-size:.8em;opacity:.6;">'+
-              'Query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code><br>'+
-              'Override: <code>!cal planes set &lt;name&gt; &lt;phase&gt; [days]</code><br>'+
-              'Anchor: <code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code><br>'+
-              'Clear: <code>!cal planes clear &lt;name&gt;</code>'+
-            '</div>'
-          : '')+
       '</div>';
   }
 
@@ -9826,16 +11811,12 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
     ? '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:6px;">'+esc(srcLabel)+'</div>'
     : '';
   var horizonLine = (!isGM)
-    ? '<div style="font-size:.75em;opacity:.4;margin-top:2px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>'+
-      (verbose ? '<div style="font-size:.75em;opacity:.4;">Query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code></div>' : '')
+    ? '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:4px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>'
     : '';
   var body = '';
   if (displayMode !== 'list'){
     body += planesMiniCal;
-    body += _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '⚡ Flicker']);
-    if (verbose){
-      body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">Planar shifts are marked on the month view; hover days for details.</div>';
-    }
+    body += _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Anomalous shift']);
   }
   if (displayMode !== 'calendar'){
     body += rows.join('');
@@ -9852,33 +11833,33 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays){
   );
 }
 
-function _isFlickerNote(note){
-  return /flicker/i.test(String(note || ''));
+function _isGeneratedNote(note){
+  return /anomalous/i.test(String(note || ''));
 }
 
 function _planarUpcomingRows(daysAhead, opts){
   opts = opts || {};
-  var includeFlickers = (opts.includeFlickers !== false);
+  var includeGenerated = (opts.includeGenerated !== false);
   var today = todaySerial();
   var end = today + Math.max(1, daysAhead|0);
   var planes = _getAllPlaneData();
   var rows = [];
   var prevCanon = {};
-  var prevFlick = {};
+  var prevGen = {};
 
   for (var i = 0; i < planes.length; i++){
     var pName = planes[i].name;
-    prevCanon[pName] = getPlanarState(pName, today, { ignoreFlicker: true });
-    if (includeFlickers){
+    prevCanon[pName] = getPlanarState(pName, today, { ignoreGenerated: true });
+    if (includeGenerated){
       var pNow = getPlanarState(pName, today);
-      prevFlick[pName] = !!(pNow && _isFlickerNote(pNow.note));
+      prevGen[pName] = !!(pNow && _isGeneratedNote(pNow.note));
     }
   }
 
   for (var ser = today + 1; ser <= end; ser++){
     for (var j = 0; j < planes.length; j++){
       var name = planes[j].name;
-      var curCanon = getPlanarState(name, ser, { ignoreFlicker: true });
+      var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
       var prvCanon = prevCanon[name];
       if (!curCanon || !prvCanon){
         prevCanon[name] = curCanon;
@@ -9895,21 +11876,21 @@ function _planarUpcomingRows(daysAhead, opts){
         prevCanon[name] = curCanon;
       }
 
-      if (includeFlickers){
+      if (includeGenerated){
         var curActual = getPlanarState(name, ser);
-        var curFlick = !!(curActual && _isFlickerNote(curActual.note));
-        var hadFlick = !!prevFlick[name];
-        if (curFlick && !hadFlick){
-          var fe = _planarFlickerEventAt(name, ser);
+        var curGen = !!(curActual && _isGeneratedNote(curActual.note));
+        var hadFlick = !!prevGen[name];
+        if (curGen && !hadFlick){
+          var fe = _generatedEventAt(name, ser);
           var durTxt = (fe && fe.durationDays > 1) ? (' (~'+fe.durationDays+'d)') : '';
           rows.push({
             serial: ser,
             plane: name,
-            kind: 'Flicker',
+            kind: 'Anomalous',
             detail: (PLANE_PHASE_LABELS[curActual.phase] || curActual.phase) + durTxt
           });
         }
-        prevFlick[name] = curFlick;
+        prevGen[name] = curGen;
       }
     }
   }
@@ -9923,12 +11904,12 @@ function _planarUpcomingRows(daysAhead, opts){
 
 function planesUpcomingHtml(daysAhead, opts){
   opts = opts || {};
-  var includeFlickers = (opts.includeFlickers !== false);
-  var rows = _planarUpcomingRows(daysAhead, { includeFlickers: includeFlickers });
+  var includeGenerated = (opts.includeGenerated !== false);
+  var rows = _planarUpcomingRows(daysAhead, { includeGenerated: includeGenerated });
   var title = opts.title || 'Upcoming Planar Events';
   if (!rows.length){
     return _menuBox(title,
-      '<div style="opacity:.7;">No '+(includeFlickers ? '' : 'canonical ')+'coterminous/remote transitions'+(includeFlickers ? ' or flickers' : '')+' in the next '+daysAhead+' days.</div>'+
+      '<div style="opacity:.7;">No '+(includeGenerated ? '' : 'canonical ')+'coterminous/remote transitions'+(includeGenerated ? ' or generated shifts' : '')+' in the next '+daysAhead+' days.</div>'+
       '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
     );
   }
@@ -9972,11 +11953,12 @@ function handlePlanesCommand(m, args){
   var isGM = playerIsGM(m.playerid);
 
   var psView = getPlanesState();
-  var playerTier = _normalizePlaneRevealTier(psView.revealTier || 'mundane');
+  var playerTier = _normalizePlaneRevealTier(psView.revealTier || 'medium');
   var playerHorizon = parseInt(psView.revealHorizonDays, 10) || _planarYearDays();
+  var playerGenHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
 
   if (!sub || sub === 'show'){
-    return whisper(m.who, isGM ? planesPanelHtml(true) : planesPanelHtml(false, playerTier, null, playerHorizon));
+    return whisper(m.who, isGM ? planesPanelHtml(true) : planesPanelHtml(false, playerTier, null, playerHorizon, playerGenHorizon));
   }
 
   // Player self-query mode (read-only, knowledge-limited).
@@ -9990,9 +11972,9 @@ function handlePlanesCommand(m, args){
       var pSerial = toSerial(pPref.year, pPref.mHuman - 1, pPref.day);
       var pToday = todaySerial();
       if (pSerial < pToday || pSerial > (pToday + playerHorizon)){
-        return whisper(m.who, 'That date is outside your known planar horizon ('+esc(_planeRangeLabel(playerHorizon))+').');
+        return whisper(m.who, 'That date is beyond your planar knowledge.');
       }
-      return whisper(m.who, planesPanelHtml(false, playerTier, pSerial, playerHorizon));
+      return whisper(m.who, planesPanelHtml(false, playerTier, pSerial, playerHorizon, playerGenHorizon));
     }
 
     if (sub === 'upcoming' || sub === 'list'){
@@ -10000,10 +11982,10 @@ function handlePlanesCommand(m, args){
       if (!pSpan){
         return whisper(m.who, 'Usage: <code>!cal planes upcoming [span]</code> (up to your horizon)');
       }
-      var pIncludeFlickers = (playerTier === 'magical');
-      var pTitle = pIncludeFlickers ? 'Your Planar Forecast' : 'Your Canonical Planar Forecast';
+      var pIncludeGen = (playerTier === 'high');
+      var pTitle = pIncludeGen ? 'Your Planar Forecast' : 'Your Canonical Planar Forecast';
       return whisper(m.who, planesUpcomingHtml(pSpan, {
-        includeFlickers: pIncludeFlickers,
+        includeGenerated: pIncludeGen,
         title: pTitle
       }));
     }
@@ -10032,7 +12014,7 @@ function handlePlanesCommand(m, args){
     if (!spanDays){
       return whisper(m.who, 'Usage: <code>!cal planes upcoming [days|4w|2y|10y]</code>');
     }
-    return whisper(m.who, planesUpcomingHtml(spanDays, { includeFlickers: true }));
+    return whisper(m.who, planesUpcomingHtml(spanDays, { includeGenerated: true }));
   }
 
   // !cal planes set <n> <phase> [days]  — force override a plane's phase
@@ -10052,6 +12034,17 @@ function handlePlanesCommand(m, args){
     if (durationDays > 0) overrideObj.durationDays = durationDays;
     ps.overrides[plane.name] = overrideObj;
 
+    // Register this as a GM custom event so generated events near it
+    // are automatically suppressed (treated like canon for suppression).
+    if (!ps.gmCustomEvents) ps.gmCustomEvents = {};
+    if (!ps.gmCustomEvents[plane.name]) ps.gmCustomEvents[plane.name] = [];
+    ps.gmCustomEvents[plane.name].push({
+      serial: setToday,
+      phase: setPhase,
+      durationDays: durationDays || 0,
+      note: 'GM override'
+    });
+
     var durMsg = durationDays > 0 ? ' for <b>'+durationDays+'</b> day'+(durationDays>1?'s':'') : ' (indefinite)';
     whisper(m.who, '<b>'+esc(plane.name)+'</b> forced to <b>'+esc(PLANE_PHASE_LABELS[setPhase])+'</b>'+durMsg+'.');
     return whisper(m.who, planesPanelHtml(true));
@@ -10064,6 +12057,7 @@ function handlePlanesCommand(m, args){
     if (!clearName){
       psC.overrides = {};
       psC.anchors = {};
+      psC.gmCustomEvents = {};
       whisper(m.who, 'All planar overrides and anchor overrides cleared.');
       return whisper(m.who, planesPanelHtml(true));
     }
@@ -10071,6 +12065,7 @@ function handlePlanesCommand(m, args){
     if (!planeC) return whisper(m.who, 'Unknown plane: <b>'+esc(clearName)+'</b>');
     delete psC.overrides[planeC.name];
     delete psC.anchors[planeC.name];
+    delete psC.gmCustomEvents[planeC.name];
     whisper(m.who, 'Override cleared for <b>'+esc(planeC.name)+'</b>.');
     return whisper(m.who, planesPanelHtml(true));
   }
@@ -10113,11 +12108,14 @@ function handlePlanesCommand(m, args){
     return whisper(m.who, planesPanelHtml(true));
   }
 
-  // !cal planes send [mundane|magical] [1y|3y|6y|10y]
+  // !cal planes send [low|medium|high] [1m|3m|6m|10m]
   // Without a tier, shows GM-only snapshot.
   // With a tier, broadcasts a player-facing planar forecast and upgrades stored tier.
   if (sub === 'send'){
     var tierRaw = String(args[2] || '').toLowerCase();
+    // Legacy aliases
+    if (tierRaw === 'mundane') tierRaw = 'medium';
+    if (tierRaw === 'magical') tierRaw = 'high';
     if (!tierRaw){
       var planes = _getAllPlaneData();
       var today  = todaySerial();
@@ -10146,39 +12144,123 @@ function handlePlanesCommand(m, args){
 
     var tier = PLANE_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tier){
-      return whisper(m.who, 'Usage: <code>!cal planes send [mundane|magical] [1y|3y|6y|10y]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m]</code>');
     }
     var reqHorizon = _parsePlaneRevealRange(args[3], tier);
     if (!reqHorizon){
-      return whisper(m.who, 'Usage: <code>!cal planes send [mundane|magical] [1y|3y|6y|10y]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m]</code>');
     }
 
     var psSend = getPlanesState();
-    var curTier = _normalizePlaneRevealTier(psSend.revealTier || 'mundane');
+    var curTier = _normalizePlaneRevealTier(psSend.revealTier || 'medium');
     var curRank = PLANE_REVEAL_TIERS[curTier] || 1;
     var newRank = PLANE_REVEAL_TIERS[tier] || 1;
     if (newRank > curRank) psSend.revealTier = tier;
     var effectiveTier = _normalizePlaneRevealTier(psSend.revealTier || tier);
-    if (newRank > curRank){
-      psSend.revealHorizonDays = reqHorizon;
-    } else if (newRank === curRank){
-      psSend.revealHorizonDays = Math.max(parseInt(psSend.revealHorizonDays,10)||_planarYearDays(), reqHorizon);
-    }
-    var effectiveHorizon = parseInt(psSend.revealHorizonDays,10) || reqHorizon;
 
-    sendToAll(planesPanelHtml(false, effectiveTier, null, effectiveHorizon));
-    warnGM('Sent '+titleCase(effectiveTier)+' planar forecast to players ('+_planeRangeLabel(effectiveHorizon)+').');
+    // Medium: canon horizon is always 336d (one year). reqHorizon = generated window (short).
+    // High: reqHorizon applies to everything (canon + generated).
+    // Low: canon for fixed annual only, present-day generated.
+    var canonHorizon, genHorizon;
+    if (effectiveTier === 'high'){
+      canonHorizon = reqHorizon;
+      genHorizon = reqHorizon;
+    } else if (effectiveTier === 'medium'){
+      canonHorizon = PLANE_PREDICTION_LIMITS.mediumCanonDays;
+      genHorizon = reqHorizon;
+    } else {
+      canonHorizon = PLANE_PREDICTION_LIMITS.mediumCanonDays; // annual canon always
+      genHorizon = 0; // low: present day only (handled by getPlanarState)
+    }
+
+    // Upgrade-only: expand horizons, never shrink
+    psSend.revealHorizonDays = Math.max(parseInt(psSend.revealHorizonDays,10)||0, canonHorizon);
+    psSend.generatedHorizonDays = Math.max(parseInt(psSend.generatedHorizonDays,10)||0, genHorizon);
+
+    var effectiveCanonHorizon = parseInt(psSend.revealHorizonDays,10) || canonHorizon;
+    var effectiveGenHorizon = parseInt(psSend.generatedHorizonDays,10) || genHorizon;
+
+    sendToAll(planesPanelHtml(false, effectiveTier, null, effectiveCanonHorizon, effectiveGenHorizon));
+    var rangeNote = (effectiveTier === 'medium')
+      ? 'canon ' + _planeRangeLabel(effectiveCanonHorizon) + ', generated ' + effectiveGenHorizon + 'd'
+      : _planeRangeLabel(effectiveCanonHorizon);
+    warnGM('Sent '+titleCase(effectiveTier)+' planar forecast to players ('+rangeNote+').');
     whisper(m.who, planesPanelHtml(true));
     return;
   }
 
+  // !cal planes suppress <name> [dateSpec]
+  // Suppress a specific generated event. If no dateSpec, suppress whatever is active today.
+  if (sub === 'suppress'){
+    var suppName = String(args[2] || '');
+    var suppPlane = _getPlaneData(suppName);
+    if (!suppPlane){
+      return whisper(m.who,
+        'Usage: <code>!cal planes suppress &lt;name&gt; [dateSpec]</code><br>'+
+        'Suppresses a specific generated event without disabling the whole system.');
+    }
+    var suppSerial = todaySerial();
+    if (args.length > 3){
+      var suppToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+      var suppPref = parseDatePrefixForAdd(suppToks);
+      if (suppPref){
+        suppSerial = toSerial(suppPref.year, suppPref.mHuman - 1, suppPref.day);
+      }
+    }
+    var suppEvt = _generatedEventAt(suppPlane.name, suppSerial);
+    if (!suppEvt){
+      return whisper(m.who, 'No generated event found for <b>'+esc(suppPlane.name)+'</b> on that date.');
+    }
+    var psSup = getPlanesState();
+    if (!psSup.suppressedEvents[suppPlane.name]) psSup.suppressedEvents[suppPlane.name] = {};
+    psSup.suppressedEvents[suppPlane.name][suppEvt.startSerial] = true;
+    var suppDateLabel = dateLabelFromSerial(suppEvt.startSerial);
+    whisper(m.who,
+      'Suppressed <b>'+esc(suppPlane.name)+'</b> generated '+esc(suppEvt.phase)+
+      ' event starting '+esc(suppDateLabel)+' ('+suppEvt.durationDays+'d).');
+    return whisper(m.who, planesPanelHtml(true));
+  }
+
+  // !cal planes seed <name> <year>
+  // Override the seed-derived anchor year for a specific plane.
+  // This lets GMs pin when a plane's canonical cycle hits without affecting other planes.
+  if (sub === 'seed'){
+    var seedName = String(args[2] || '');
+    var seedPlane = _getPlaneData(seedName);
+    if (!seedPlane || !seedPlane.seedAnchor){
+      return whisper(m.who,
+        'Usage: <code>!cal planes seed &lt;name&gt; &lt;year&gt;</code><br>'+
+        'Override the seed-based anchor year for a cyclic plane. Only works for seed-anchored planes.');
+    }
+    var seedYear = parseInt(args[3], 10);
+    if (String(args[3] || '').toLowerCase() === 'clear'){
+      var psSeedClear = getPlanesState();
+      if (psSeedClear.seedOverrides) delete psSeedClear.seedOverrides[seedPlane.name];
+      whisper(m.who, '<b>'+esc(seedPlane.name)+'</b> seed anchor override removed. Using epoch-derived anchor.');
+      return whisper(m.who, planesPanelHtml(true));
+    }
+    if (!isFinite(seedYear)){
+      return whisper(m.who, 'Please provide a year. Example: <code>!cal planes seed '+esc(seedPlane.name)+' 998</code>');
+    }
+    var psSeed = getPlanesState();
+    if (!psSeed.seedOverrides) psSeed.seedOverrides = {};
+    psSeed.seedOverrides[seedPlane.name] = seedYear;
+    whisper(m.who,
+      '<b>'+esc(seedPlane.name)+'</b> seed anchor overridden to year <b>'+seedYear+'</b>.<br>'+
+      (seedPlane.linkedTo ? '<i>Note: linked plane '+esc(seedPlane.linkedTo)+' will derive from its own setting.</i><br>' : '')+
+      'Use <code>!cal planes seed '+esc(seedPlane.name)+' clear</code> to remove.');
+    return whisper(m.who, planesPanelHtml(true));
+  }
+
   whisper(m.who,
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
-    '<code>!cal planes send [mundane|magical] [1y|3y|6y|10y]</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes upcoming [span]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes seed &lt;name&gt; &lt;year&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes suppress &lt;name&gt; [dateSpec]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes clear [&lt;name&gt;]</code>'
   );
 }
