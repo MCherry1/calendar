@@ -12283,7 +12283,7 @@ on("ready", function(){
   log(sysLabelReady + ' Running, current date: ' + currentDate);
   sendChat(script_name,
     '/direct '+
-    '<div>'+esc(sysLabelReady)+'Calendar Initialized</div>'+
+    '<div>'+esc(sysLabelReady)+' Calendar Initialized</div>'+
     '<div>Current date: '+esc(currentDate)+'</div>'+
     '<div>Use <code>!cal</code> to view the calendar.</div>'+
     '<div>Use <code>!cal help</code> for help.</div>'
