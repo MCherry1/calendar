@@ -1,10 +1,13 @@
 # Eberron Calendar (Roll20 API Script)
 
-A calendar and event system (currently) tailored for **Eberron** that tracks the current date, renders mini-calendars in Roll20 chat, and supports event management.
+A calendar and event system primarily tailored for **Eberron** that tracks the current date, renders mini-calendars in Roll20 chat, and supports event management.
+
+It also supports the **Forgotten Realms** setting's Harptos calendar and the standard Gregorian calendar.
 
 **Author:** Matthew Cherry (github.com/mcherry1/calendar)
----
 
+---
+Dorky quote:
 > Game time is of utmost importance.
 > ...
 > YOU CAN NOT HAVE A MEANINGFUL CAMPAIGN IF STRICT TIME RECORDS ARE NOT KEPT.
@@ -14,15 +17,20 @@ A calendar and event system (currently) tailored for **Eberron** that tracks the
 ---
 ## Purpose
 
-I put this script together to encourage interaction with, and awareness of, the in-game calendar. Towards that end, these are my primary goals:
+I put this script together to solve a few problems:
+  * Keep simple track of in-game days and the passage of time.
+  * Allow players access to the same calendar as the GM.
+  * Keep track of fantasy settings that have different holidays, moons, etc.
+
+I also wanted to encourage interaction with, and awareness of, the in-game calendar. Towards that end, these are my primary goals:
   1. Easy for GMs to manage.
   2. Easy for players to use *without* needing the GM.
-
-That's really it.
+  3. Clean appearance for easy information.
+  4. Helpful prompts so you (or I) never need to read a document like this one again.
 
 There are other fantasy calendars.  Plenty of GMs track time in their own notes. Sometimes players do, too. But it can be challenging to keep everything sychronized; and it can be frustrating as a player to not know where or how to find the calendar.
   
-Besides, plenty of players might be unfamiliar with the calendar, or the setting entirely.
+Plenty of players might be unfamiliar with the calendar or the setting entirely.
   
 ---
 ## Highlights
@@ -36,8 +44,6 @@ Besides, plenty of players might be unfamiliar with the calendar, or the setting
    * `!cal send list` or `!cal send events` to broadcast the event list. *(GM only)*
    * `!cal advance`, `!cal retreat`, `!cal set Nymm 2004` to manage the current date.  *(GM only)*
 * **Smart Semantics :** Interprets your intention with tons of shortcuts, aliases, and various smart-parsing to cut down on required command text. (See logic further down.)
-* **Pretty Displays:** Mini-calendars rendered in chat with color themes, cell highlights, contrasting text, etc.
-* **Useful Displays:** Current date highlights, event-day hover text, faded past dates, and more.
 * **Infinite Variations:** Call any month, any year, any time.
 * **Event Management:**
    * Default set of Eberron events loaded.
@@ -92,7 +98,7 @@ Besides, plenty of players might be unfamiliar with the calendar, or the setting
   * **Thronehold** — Aryth 11
   * **Long Shadows** — Vult 26-28
 
-> ⚙️ Removing a default event marks it as **suppressed** so it won’t be resurrected on refresh.
+> Removing a default event marks it as **suppressed** so it won’t be resurrected on refresh.
 
 ---
 
@@ -380,8 +386,7 @@ Hover a date to see a **title tooltip** listing all event names for that day.
 * **Change weekday names** and **month names/days/season/colors** in the `defaults` block.
 * **Add/adjust default events** in `defaults.events`. Ranges like `"18-19"` or `all` are supported.
 * **Era label** (`YK`) lives in `LABELS.era`.
-* I don't have leap year (Gregorian) or Intercalery days (Forgotten Realms) programmed yet. 
-
+  
 ---
 
 ## Known Behaviors & Edge Cases
@@ -400,13 +405,4 @@ I'm just a kid and life is a nightmare.
 
 ---
 
-## Support / Feedback
-
-Open an issue in the repo with:
-
-* Script version
-* A copy of the command you ran
-* What you expected vs what happened
-* If relevant, a snippet of your custom `defaults` config
-
-Happy calendaring in Eberron! 🗓️✨
+Happy calendaring in Eberron!
