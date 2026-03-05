@@ -69,7 +69,7 @@ var CONFIG_DEFAULTS = {
 var CALENDAR_SYSTEMS = {
   eberron: {
     label:          'Galifar',
-    description:    '12 months of 28 days. 7-day week. Moons share month names.',
+    description:    '12 months of 28 days. 7-day week. Default Eberron Campaign Setting calendar.',
     weekdays:       ['Sul','Mol','Zol','Wir','Zor','Far','Sar'],
     monthDays:      [28,28,28,28,28,28,28,28,28,28,28,28],
     structure:      null,
@@ -104,7 +104,7 @@ var CALENDAR_SYSTEMS = {
   },
   faerunian: {
     label:          'Harptos',
-    description:    '12 months of 30 days, 5 festival days, Shieldmeet every 4 years.',
+    description:    '12 months of 30 days, split into three tendays. 5 festival days occuring between months. Shieldmeet every 4 years.',
     weekdays:       ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
     weekdayAbbr:    { Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
                       Thursday:'Thu', Friday:'Fri', Saturday:'Sat' },
@@ -172,11 +172,13 @@ var CONFIG_WEATHER_SEED_STRENGTH = 1;
 // Temperature mechanics per stage (0-10).
 var CONFIG_WEATHER_MECHANICS = {
   temp: {
-    0:  'DC 25 Con save or exhaustion. Dex checks/saves/attacks at disadvantage. Heavy armor required.',
-    1:  'DC 20 Con save or exhaustion. Dex checks and saves at disadvantage. Medium or heavy armor required.',
-    2:  'DC 15 Con save or exhaustion. Dex checks at disadvantage.',
+    0:  'DC 25 Con save or exhaustion. Heavy armor proficiency required for Cold Weather Clothing.',
+    1:  'DC 20 Con save or exhaustion. Medium or heavy armor proficiency required for Cold Weather Clothing.',
+    2:  'DC 15 Con save or exhaustion. Light, medium, or heavy armor proficiency required for Cold Weather Clothing.',
     3:  'DC 10 Con save or exhaustion.',
-    4:  null, 5: null, 6: null,
+    4:  null,
+    5:  null,
+    6:  null,
     7:  'DC 10 Con save or exhaustion.',
     8:  'DC 15 Con save or exhaustion. Heavy armor wearers at disadvantage.',
     9:  'DC 20 Con save or exhaustion. Medium and heavy armor wearers at disadvantage.',
@@ -185,10 +187,10 @@ var CONFIG_WEATHER_MECHANICS = {
   wind: {
     0: null,
     1: null,
-    2: 'Ranged attacks at disadvantage. Long range auto-miss. Fogs and gases dispersed.',
-    3: 'All ranged attacks auto-miss. Flying creatures: DC 15 Str or half speed and must land. Open flames extinguished.',
-    4: 'All ranged attacks auto-miss. Flying impossible. Small creatures: DC 12 Str or knocked prone. Structures creak and groan.',
-    5: 'All ranged attacks auto-miss. Flying impossible. All creatures: DC 15 Str each round or knocked prone and pushed 10ft. Unsecured objects become projectiles (2d6 bludgeoning).'
+    2: 'Fogs and gases dispersed.',
+    3: 'Disadvantage on ranged attack rolls. Long range attacks automatically miss. Flying is difficult terrain. Open flames extinguished.',
+    4: 'Ranged attack rolls automatically miss. Flying speeds reduced to 0. Walking is difficult terrain.',
+    5: 'DC15 Strength check or fall prone. Small trees uprooted. Projectiles '
   }
   // Precip mechanics are now fully derived per-condition by _deriveConditions.
   // See CONFIG_WEATHER_FLAVOR for narrative and that function for visibility rules.
@@ -201,8 +203,8 @@ var CONFIG_WEATHER_LABELS = {
     'Extreme Cold','Frigid','Freezing','Cold','Chilly',
     'Mild','Warm','Hot','Sweltering','Blistering','Extreme Heat'
   ],
-  wind:   ['Calm','Breezy','Windy','Storm','Gale','Hurricane'],
-  precip: ['Clear','Partly Cloudy','Overcast','Precipitation','Heavy Precipitation','Deluge']
+  wind:   ['Calm','Breezy','Moderate Wind','Strong Winds','Gale','Storm'],
+  precip: ['Clear','Partly Cloudy','Overcast','Light Precipitation','Moderate Precipitation','Heavy Precipitation']
 };
 
 /* --- Weather Flavor Text --------------------------------------------------*/
