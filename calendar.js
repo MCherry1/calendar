@@ -245,7 +245,7 @@ var CONFIG_WEATHER_FLAVOR = {
   'hot|4':   'Intense heat and driving rain. Tropical storm conditions.',
   'hot|5':   'Catastrophic heat storm. Flash flooding and dangerous lightning.'
 };
-
+  
 /* ============================================================================
  * END USER CONFIGURATION
  * ==========================================================================*/
