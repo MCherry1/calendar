@@ -38,3 +38,4 @@ This document defines weather-facing mechanics for the Eberron calendar tool: ba
 - [ ] Zarantyr full moon can produce lightning without storm preconditions.
 - [ ] Storm preconditions still produce higher lightning rates than clear-sky cases.
 - [ ] Today weather section contains only active/current effects.
+# weather
