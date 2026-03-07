@@ -7506,6 +7506,52 @@ function register(){ on('chat:message', handleInput); }
 // 20a) Moon data
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// 20a-i) Eberron moon mapping ambiguities (needs resolution)
+// ---------------------------------------------------------------------------
+// Canon in this script: color, diameter, and mean orbital distance.
+// The remaining orbital traits (eccentricity, inclination, albedo, etc.) are
+// adapted from real-world candidate moons. Where analog intent can be read as
+// more than one possibility, track it here for future adjudication.
+var EBERRON_MOON_AMBIGUITIES = [
+  {
+    moon: 'Lharvion',
+    currentReferenceMoon: 'Nereid (Neptune)',
+    alternateSeenInOlderLore: 'Phoebe (Saturn)',
+    reason: 'Current orbital parameters (eccentricity 0.7507, inclination 7.23°) match Nereid, but older lore text referenced Phoebe.'
+  }
+];
+
+// ---------------------------------------------------------------------------
+// 20a-ii) Eberron moon core data (campaign baseline)
+// ---------------------------------------------------------------------------
+// Canonical Eberron moon values used in this script.
+// Fields centralized here for quick reference and to avoid drift:
+//   color               -> display color for moon UI badges/chips
+//   diameter            -> moon diameter in miles
+//   avgOrbitalDistance  -> average orbital distance from Eberron in miles
+// NOTE: This section intentionally excludes candidate/reference moon mapping data;
+// keep that in Eberron-moons.md under the Candidate moons table.
+var EBERRON_MOON_CORE_DATA = {
+  Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
+  Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
+  Therendor: { referenceMoon:'Europa (Jupiter)',  color:'#D3D3D3', diameter:1100, avgOrbitalDistance:39000 },
+  Eyre:      { referenceMoon:'Hyperion (Saturn)', color:'#C0C0C0', diameter:1200, avgOrbitalDistance:52000 },
+  Dravago:   { referenceMoon:'Tethys (Saturn)',   color:'#E6E6FA', diameter:2000, avgOrbitalDistance:77500 },
+  Nymm:      { referenceMoon:'Ganymede (Jupiter)',color:'#FFD96B', diameter:900,  avgOrbitalDistance:95000 },
+  Lharvion:  { referenceMoon:'Nereid (Neptune)',  color:'#F5F5F5', diameter:1350, avgOrbitalDistance:125000 },
+  Barrakas:  { referenceMoon:'Enceladus (Saturn)',color:'#F0F8FF', diameter:1500, avgOrbitalDistance:144000 },
+  Rhaan:     { referenceMoon:'Miranda (Uranus)',  color:'#9AC0FF', diameter:800,  avgOrbitalDistance:168000 },
+  Sypheros:  { referenceMoon:'Phoebe (Saturn)',   color:'#696969', diameter:1100, avgOrbitalDistance:183000 },
+  Aryth:     { referenceMoon:'Iapetus (Saturn)',  color:'#FF4500', diameter:1300, avgOrbitalDistance:195000 },
+  Vult:      { referenceMoon:'Oberon (Uranus)',   color:'#A9A9A9', diameter:1800, avgOrbitalDistance:252000 }
+};
+
+function _eberronMoonCore(moonName){
+  return EBERRON_MOON_CORE_DATA[moonName] || { referenceMoon:'Unknown', color:'#CCCCCC', diameter:1000, avgOrbitalDistance:100000 };
+}
+
 var MOON_SYSTEMS = {
   eberron: {
     id: 'eberron',
@@ -7515,8 +7561,8 @@ var MOON_SYSTEMS = {
       // moderate eccentricity, wide inclination sweep. Closest and most
       // influential on tides. Kythri = chaos; storms rage when full.
       // Real Luna: ecc 0.0549, inc 5.145°, albedo 0.12.
-      { name:'Zarantyr',  title:'The Storm Moon',    color:'#F5F5FA', associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
-        synodicPeriod:27.32, diameter:1250, distance:14300,
+      { name:'Zarantyr', referenceMoon:_eberronMoonCore('Zarantyr').referenceMoon,  title:'The Storm Moon',    color:_eberronMoonCore('Zarantyr').color, associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
+        synodicPeriod:27.32, diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,
         inclination:5.145, eccentricity:0.0549, albedo:0.12,
         variation:{ shape:'random', amplitude:1.4 },
         epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} } },
@@ -7526,8 +7572,8 @@ var MOON_SYSTEMS = {
       // methane rain, seasons, lakes. Orange haze hides the surface from
       // view: the sentinel who watches unseen. Low inclination, steady.
       // Real Titan: ecc 0.0288, inc 0.33°, albedo 0.22.
-      { name:'Olarune',   title:'The Sentinel Moon', color:'#FFC68A', associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
-        synodicPeriod:34.0, diameter:1000, distance:18000,
+      { name:'Olarune', referenceMoon:_eberronMoonCore('Olarune').referenceMoon,   title:'The Sentinel Moon', color:_eberronMoonCore('Olarune').color, associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
+        synodicPeriod:34.0, diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,
         inclination:0.33, eccentricity:0.0288, albedo:0.22,
         variation:{ shape:'random', amplitude:1.7 },
         epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} } },
@@ -7539,8 +7585,8 @@ var MOON_SYSTEMS = {
       // (healing). In 1:2:4 resonance with Ganymede/Nymm → connected
       // to order. Bright reflective ice = gentle healing light.
       // Real Europa: ecc 0.0094, inc 0.47°, albedo 0.67.
-      { name:'Therendor', title:"The Healer's Moon", color:'#D3D3D3', associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
-        synodicPeriod:24.0, diameter:1100, distance:39000,
+      { name:'Therendor', referenceMoon:_eberronMoonCore('Therendor').referenceMoon, title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
+        synodicPeriod:24.0, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
         inclination:0.47, eccentricity:0.0094, albedo:0.67,
         variation:{ shape:'random', amplitude:1.2 },
         epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
@@ -7554,8 +7600,8 @@ var MOON_SYSTEMS = {
       // to apoapsis. In 4:3 resonance with Titan/Olarune → nature feeds
       // the forge. Silver = white-hot metal from Fernia's flame.
       // Real Hyperion: ecc 0.1230, inc 0.43°, albedo 0.30.
-      { name:'Eyre',      title:'The Anvil',         color:'#C0C0C0', associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
-        synodicPeriod:21.0, diameter:1200, distance:52000,
+      { name:'Eyre', referenceMoon:_eberronMoonCore('Eyre').referenceMoon,      title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
+        synodicPeriod:21.0, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
         inclination:0.43, eccentricity:0.1230, albedo:0.30,
         variation:{ shape:'random', amplitude:1.0 },
         epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
@@ -7568,8 +7614,8 @@ var MOON_SYSTEMS = {
       // watches from a crystalline vantage, unmoving as the ice plains.
       // Largest moon by diameter. Lavender = planar tint over ice.
       // Real Tethys: ecc 0.0001, inc 1.09°, albedo 1.229.
-      { name:'Dravago',   title:"The Herder's Moon", color:'#E6E6FA', associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
-        synodicPeriod:42.0, diameter:2000, distance:77500,
+      { name:'Dravago', referenceMoon:_eberronMoonCore('Dravago').referenceMoon,   title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
+        synodicPeriod:42.0, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
         inclination:1.09, eccentricity:0.0001, albedo:1.229,
         variation:{ shape:'random', amplitude:2.1 },
         epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
@@ -7582,8 +7628,8 @@ var MOON_SYSTEMS = {
       // perfection = Daanvi. Near-circular orbit, near-equatorial.
       // Gold = Daanvi's planar influence, not geology.
       // Real Ganymede: ecc 0.0013, inc 0.20°, albedo 0.43.
-      { name:'Nymm',      title:'The Crown',         color:'#FFD96B', associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
-        synodicPeriod:28.0, diameter:900, distance:95000,
+      { name:'Nymm', referenceMoon:_eberronMoonCore('Nymm').referenceMoon,      title:'The Crown',         color:_eberronMoonCore('Nymm').color, associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
+        synodicPeriod:28.0, diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance,
         inclination:0.20, eccentricity:0.0013, albedo:0.43,
         variation:{ shape:'random', amplitude:1.4 },
         epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
@@ -7599,8 +7645,8 @@ var MOON_SYSTEMS = {
       // Uses standard random variation like all moons.
       // Dull white with 750-mile black chasm → the Eye.
       // Real Nereid: ecc 0.7507, inc 7.23°, albedo 0.155.
-      { name:'Lharvion',  title:'The Eye',           color:'#F5F5F5', associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
-        synodicPeriod:30.0, diameter:1350, distance:125000,
+      { name:'Lharvion', referenceMoon:_eberronMoonCore('Lharvion').referenceMoon,  title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
+        synodicPeriod:30.0, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
         inclination:7.23, eccentricity:0.7507, albedo:0.155,
         variation:{ shape:'random', amplitude:1.5 },
         epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
@@ -7613,8 +7659,8 @@ var MOON_SYSTEMS = {
       // of Irian needs no magical amplification: real physics already
       // gives it supernatural brightness. Slight ecc for gentle pulsing.
       // Real Enceladus: ecc 0.0047, inc 0.02°, albedo 1.375.
-      { name:'Barrakas',  title:'The Lantern',       color:'#DCDCDC', associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
-        synodicPeriod:22.0, diameter:1500, distance:144000,
+      { name:'Barrakas', referenceMoon:_eberronMoonCore('Barrakas').referenceMoon,  title:'The Lantern',       color:_eberronMoonCore('Barrakas').color, associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
+        synodicPeriod:22.0, diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance,
         inclination:0.02, eccentricity:0.0047, albedo:1.375,
         variation:{ shape:'random', amplitude:1.1 },
         epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} } },
@@ -7632,8 +7678,8 @@ var MOON_SYSTEMS = {
       // Smallest Eberron moon. Blue = Thelanis fey light through
       // ancient stone. The Book carries every story on its skin.
       // Real Miranda: ecc 0.0013, inc 4.34°, albedo 0.32.
-      { name:'Rhaan',     title:'The Book',          color:'#9AC0FF', associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
-        synodicPeriod:37.0, diameter:800, distance:168000,
+      { name:'Rhaan', referenceMoon:_eberronMoonCore('Rhaan').referenceMoon,     title:'The Book',          color:_eberronMoonCore('Rhaan').color, associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
+        synodicPeriod:37.0, diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance,
         inclination:4.34, eccentricity:0.0013, albedo:0.32,
         variation:{ shape:'random', amplitude:1.9 },
         epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} } },
@@ -7646,8 +7692,8 @@ var MOON_SYSTEMS = {
       // literally spreads darkness to others. Eccentricity 0.1635
       // gives an erratic, lurking presence. Mabar = Endless Night.
       // Real Phoebe: ecc 0.1635, inc 175.3° (retro), albedo 0.06.
-      { name:'Sypheros',  title:'The Shadow',        color:'#696969', associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
-        synodicPeriod:67.0, diameter:1100, distance:183000,
+      { name:'Sypheros', referenceMoon:_eberronMoonCore('Sypheros').referenceMoon,  title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
+        synodicPeriod:67.0, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
         inclination:175.3, eccentricity:0.1635, albedo:0.06,
         variation:{ shape:'random', amplitude:3.4 } },
 
@@ -7661,8 +7707,8 @@ var MOON_SYSTEMS = {
       // side matches #FF4500 burnt orange-red. Coated in dark material
       // shed by Phoebe/Sypheros: the Shadow marks the Gateway.
       // Real Iapetus: ecc 0.0283, inc 7.57°, albedo 0.05 (leading).
-      { name:'Aryth',     title:'The Gateway',       color:'#FF4500', associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
-        synodicPeriod:48.0, diameter:1300, distance:195000,
+      { name:'Aryth', referenceMoon:_eberronMoonCore('Aryth').referenceMoon,     title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
+        synodicPeriod:48.0, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
         inclination:7.57, eccentricity:0.0283, albedo:0.05,
         variation:{ shape:'random', amplitude:2.4 },
         epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
@@ -7676,8 +7722,8 @@ var MOON_SYSTEMS = {
       // warrior-king who holds the line. Near-circular, near-equatorial
       // = disciplined, unwavering patrol. Gray with reddish tint.
       // Real Oberon: ecc 0.0014, inc 0.07°, albedo 0.23.
-      { name:'Vult',      title:'The Warding Moon',  color:'#A9A9A9', associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
-        synodicPeriod:56.0, diameter:1800, distance:252000,
+      { name:'Vult', referenceMoon:_eberronMoonCore('Vult').referenceMoon,      title:'The Warding Moon',  color:_eberronMoonCore('Vult').color, associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
+        synodicPeriod:56.0, diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance,
         inclination:0.07, eccentricity:0.0014, albedo:0.23,
         variation:{ shape:'random', amplitude:2.8 },
         epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} } }
@@ -8996,18 +9042,18 @@ function _moonParseMoonName(str, sys){
 //   (Enceladus 1.375, Tethys 1.229) due to backscattering from pure ice.
 //   Sypheros/Phoebe retrograde inc 175.3° handled in illumination calc.
 var MOON_ORBITAL_DATA = {
-  Zarantyr:  { diameter:1250, distance:14300,  angularSizeVsSun: 9.08, albedo: 0.12 },
-  Olarune:   { diameter:1000, distance:18000,  angularSizeVsSun: 5.73, albedo: 0.22 },
-  Therendor: { diameter:1100, distance:39000,  angularSizeVsSun: 2.91, albedo: 0.67 },
-  Eyre:      { diameter:1200, distance:52000,  angularSizeVsSun: 2.38, albedo: 0.30 },
-  Dravago:   { diameter:2000, distance:77500,  angularSizeVsSun: 2.66, albedo: 1.229 },
-  Nymm:      { diameter:900,  distance:95000,  angularSizeVsSun: 0.98, albedo: 0.43 },
-  Lharvion:  { diameter:1350, distance:125000, angularSizeVsSun: 1.11, albedo: 0.155 },
-  Barrakas:  { diameter:1500, distance:144000, angularSizeVsSun: 1.07, albedo: 1.375 },
-  Rhaan:     { diameter:800,  distance:168000, angularSizeVsSun: 0.49, albedo: 0.32 },
-  Sypheros:  { diameter:1100, distance:183000, angularSizeVsSun: 0.62, albedo: 0.06 },
-  Aryth:     { diameter:1300, distance:195000, angularSizeVsSun: 0.69, albedo: 0.05 },
-  Vult:      { diameter:1800, distance:252000, angularSizeVsSun: 0.74, albedo: 0.23 }
+  Zarantyr:  { diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,  angularSizeVsSun: 9.08, albedo: 0.12 },
+  Olarune:   { diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,  angularSizeVsSun: 5.73, albedo: 0.22 },
+  Therendor: { diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,  angularSizeVsSun: 2.91, albedo: 0.67 },
+  Eyre:      { diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,  angularSizeVsSun: 2.38, albedo: 0.30 },
+  Dravago:   { diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,  angularSizeVsSun: 2.66, albedo: 1.229 },
+  Nymm:      { diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance, angularSizeVsSun: 0.98, albedo: 0.43 },
+  Lharvion:  { diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance, angularSizeVsSun: 1.11, albedo: 0.155 },
+  Barrakas:  { diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance, angularSizeVsSun: 1.07, albedo: 1.375 },
+  Rhaan:     { diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance, angularSizeVsSun: 0.49, albedo: 0.32 },
+  Sypheros:  { diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance, angularSizeVsSun: 0.62, albedo: 0.06 },
+  Aryth:     { diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance, angularSizeVsSun: 0.69, albedo: 0.05 },
+  Vult:      { diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance, angularSizeVsSun: 0.74, albedo: 0.23 }
 };
 
 // ---------------------------------------------------------------------------
