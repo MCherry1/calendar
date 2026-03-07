@@ -38,3 +38,4 @@ This document captures rendering and formatting rules for each calendar mode.
 - [ ] Update Harptos grid generator to 10-column tenday layout.
 - [ ] Update date formatter for DR output string.
 - [ ] Regression-check moon/plane/event overlays after layout change.
+# calendar-structures
