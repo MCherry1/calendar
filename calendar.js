@@ -104,10 +104,11 @@ var CALENDAR_SYSTEMS = {
   },
   faerunian: {
     label:          'Harptos',
-    description:    '12 months of 30 days, split into three tendays. 5 festival days occuring between months. Shieldmeet every 4 years.',
-    weekdays:       ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
-    weekdayAbbr:    { Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
-                      Thursday:'Thu', Friday:'Fri', Saturday:'Sat' },
+    description:    '12 months of 30 days, split into three tendays. 5 festival days occur between months. Shieldmeet follows Midsummer every 4 years.',
+    weekdays:       ['Firstday','Secondday','Thirdday','Fourthday','Fifthday','Sixthday','Seventhday','Eighthday','Ninthday','Tenthday'],
+    weekdayAbbr:    { Firstday:'1st', Secondday:'2nd', Thirdday:'3rd', Fourthday:'4th',
+                      Fifthday:'5th', Sixthday:'6th', Seventhday:'7th', Eighthday:'8th',
+                      Ninthday:'9th', Tenthday:'10th' },
     monthDays:      [30,30,30,30,30,30,30,30,30,30,30,30],
     structure:      'harptos',
     defaultSeason:  'faerun',
@@ -2138,7 +2139,32 @@ function yearHTMLFor(targetYear, dimActive){
 
 function formatDateLabel(y, mi, d, includeYear){
   var cal=getCal();
-  var lbl = esc(cal.months[mi].name)+' '+d;
+  var st  = ensureSettings();
+  var mobj = cal.months[mi] || {};
+
+  function ordinal(n){
+    n = n|0;
+    var v = n % 100;
+    if (v >= 11 && v <= 13) return n + 'th';
+    switch (n % 10){
+      case 1: return n + 'st';
+      case 2: return n + 'nd';
+      case 3: return n + 'rd';
+      default: return n + 'th';
+    }
+  }
+
+  var lbl;
+  if (st.calendarSystem === 'faerunian'){
+    // Harptos is commonly written as "16th of Eleasis, 1491 DR".
+    // Intercalary days are written by festival name only.
+    lbl = mobj.isIntercalary
+      ? esc(mobj.name)
+      : (ordinal(d) + ' of ' + esc(mobj.name));
+  } else {
+    lbl = esc(mobj.name)+' '+d;
+  }
+
   if (includeYear) lbl += ', '+esc(String(y))+' '+LABELS.era;
   return lbl;
 }
