@@ -92,11 +92,11 @@
 
 - [ ] Review solar-eclipse math where eclipses appear on multiple consecutive days unexpectedly.
 - [ ] Add time-of-day tagging for eclipses:
-  - [ ] Early hours `0–6`
+  - [ ] Early Morning `0–6`
   - [ ] Morning `6–12`
-  - [ ] Afternoon `12–5`
-  - [ ] Evening `5–10`
-  - [ ] Night `10–0`
+  - [ ] Afternoon `12–6`
+  - [ ] Evening `6–10`
+  - [ ] Late Night `10–0`
 - [ ] Apply same time-of-day treatment to moon-crossing events.
 
 ## 9) UI polish / visualization fixes
