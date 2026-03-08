@@ -105,12 +105,13 @@ Leap festival:
 - **Week length:** 7 days.
 - **Weekdays:** Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday.
 - **Weekday abbreviations:** Sun, Mon, Tue, Wed, Thu, Fri, Sat.
-- **Intercalary days:** none.
+- **Intercalary days:** Leap Day (intercalary; after February; leap years only).
 
-### Leap handling note (as currently implemented)
+### Leap handling
 
-- The script currently uses a fixed February length of 28 and no Gregorian leap-day rule.
-- That means the Gregorian implementation is a **365-day, non-leap simplification** in current code.
+- Gregorian includes **Leap Day** as a 1-day intercalary entry after February.
+- Leap Day appears every 4 years (`year % 4 === 0`).
+- Total year length is 365 days normally, 366 on leap years.
 
 ### Era + date format
 
@@ -138,4 +139,4 @@ Leap festival:
 - ✅ Eberron (Galifar) layout and weekday naming match script definitions.
 - ✅ Harptos month/intercalary/tenday behavior matches script definitions.
 - ✅ Gregorian month and weekday naming now documented in the same unified layout file.
-- ⚠️ Gregorian leap-day behavior is documented as the current script simplification (no leap years).
+- ✅ Gregorian leap-day behavior is documented with its every-4-years implementation.
