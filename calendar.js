@@ -7532,7 +7532,7 @@ var EBERRON_MOON_AMBIGUITIES = [
 //   diameter            -> moon diameter in miles
 //   avgOrbitalDistance  -> average orbital distance from Eberron in miles
 // NOTE: This section intentionally excludes candidate/reference moon mapping data;
-// keep that in Eberron-moons.md under the Candidate moons table.
+// keep that in moons.md under the Candidate moons table.
 var EBERRON_MOON_CORE_DATA = {
   Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
   Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
