@@ -8,8 +8,7 @@ This repository contains a Roll20 API calendar engine (`calendar.js`) and a set 
 ## Repository map
 
 - `calendar.js` — executable script and source of truth.
-- `calendar-structures.md` — calendar layout mechanics (month length models, intercalary behavior, leap handling).
-- `calendar-era-labels.md` — era/year label conventions.
+- `calendar-layout.md` — unified calendar layout + era/date conventions for Eberron, Harptos, and Gregorian systems.
 - `events.md` — event subsystem design document.
 - `moons.md` — moon subsystem design document.
 - `weather.md` — weather subsystem design document.

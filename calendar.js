@@ -129,7 +129,7 @@ var CALENDAR_SYSTEMS = {
     weekdayAbbr:    { Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
                       Thursday:'Thu', Friday:'Fri', Saturday:'Sat' },
     monthDays:      [31,28,31,30,31,30,31,31,30,31,30,31],
-    structure:      null,
+    structure:      'gregorian',
     defaultSeason:  'gregorian',
     defaultVariant: 'standard',
     variants: {
@@ -350,6 +350,23 @@ var CALENDAR_STRUCTURE_SETS = {
     { isIntercalary:true, name:'Highharvestide',  days:1 },
     { regularIndex:11 },
     { isIntercalary:true, name:'Feast of the Moon', days:1 }
+  ],
+  // Gregorian with leap day every 4 years, inserted after February.
+  // Total: 365 days non-leap, 366 days leap.
+  gregorian: [
+    { regularIndex: 0 },
+    { regularIndex: 1 },
+    { isIntercalary:true, name:'Leap Day', days:1, leapEvery:4 },
+    { regularIndex: 2 },
+    { regularIndex: 3 },
+    { regularIndex: 4 },
+    { regularIndex: 5 },
+    { regularIndex: 6 },
+    { regularIndex: 7 },
+    { regularIndex: 8 },
+    { regularIndex: 9 },
+    { regularIndex:10 },
+    { regularIndex:11 }
   ]
 };
 /* --- Color themes ---------------------------------------------------------*/
