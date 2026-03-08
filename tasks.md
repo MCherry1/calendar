@@ -10,6 +10,8 @@ Canonicalized task list aligned to `notes.md` (notes are source of truth).
 
 ### Weather
 
+
+- Refactor all temperature generators for all locations and the rntire system to account for the recently updated, new tempersture sacle from -5 to 15. 
 - [ ] Apply Daanvi probability correction exactly as described:
   - [ ] Replace `d100 (1)` gate with `d20 (1)` gate
   - Addressed by ChatGPT Codex (GPT-5.2-Codex).
