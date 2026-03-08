@@ -2,10 +2,10 @@
 
 This file compares the current implementation in `calendar.js` against subsystem design docs:
 
-- `moons.md`
-- `alternate-planes.md`
-- `events.md`
-- `weather.md`
+- `moons-system-design.md`
+- `alternate-planes-system-design.md`
+- `events-system-design.md`
+- `weather-system-design.md`
 
 Scope of discrepancy reporting:
 1. **Documented but implemented differently / partially**
@@ -13,7 +13,7 @@ Scope of discrepancy reporting:
 
 ---
 
-## 1) Moons (`moons.md` vs `calendar.js`)
+## 1) Moons (`moons-system-design.md` vs `calendar.js`)
 
 ### A. Documented, but implemented differently or only partially
 
@@ -21,7 +21,7 @@ Scope of discrepancy reporting:
    - The design doc lists dedicated crossing-proximity output as a modeled secondary phenomenon.
    - The script models *lunar conjunction* events through the eclipse/conjunction engine and can surface notable conjunctions, but there is not a clearly named, standalone “moon crossing proximity” report/command in the moon UI.
 
-### B. Implemented, but not currently documented in `moons.md`
+### B. Implemented, but not currently documented in `moons-system-design.md`
 
 1. **Moon sky visibility command family**
    - `!cal moon sky [time]` / aliases (`visible`, `up`) provide time-of-day visibility output (dawn/noon/dusk/midnight).
@@ -41,13 +41,13 @@ Scope of discrepancy reporting:
 
 ---
 
-## 2) Alternate Planes (`alternate-planes.md` vs `calendar.js`)
+## 2) Alternate Planes (`alternate-planes-system-design.md` vs `calendar.js`)
 
 ### A. Documented, but implemented differently or only partially
 
 No major behavior-level mismatches were found in this audit. Core claims in the design doc (canonical phase model, off-cycle anomalies, suppression behavior, reveal tiers, anchors/overrides, and weather hooks) are represented in the script.
 
-### B. Implemented, but not currently documented in `alternate-planes.md`
+### B. Implemented, but not currently documented in `alternate-planes-system-design.md`
 
 1. **Dual short-range and long-range send options**
    - Usage supports both day-based and month-based ranges in `!cal planes send` (e.g., `1d/3d/6d/10d` and `1m/3m/6m/10m`), while docs summarize this more generically.
@@ -60,7 +60,7 @@ No major behavior-level mismatches were found in this audit. Core claims in the 
 
 ---
 
-## 3) Events (`events.md` vs `calendar.js`)
+## 3) Events (`events-system-design.md` vs `calendar.js`)
 
 ### A. Documented, but implemented differently or only partially
 
@@ -73,7 +73,7 @@ No major behavior-level mismatches were found in this audit. Core claims in the 
    - Doc describes settings storage as `eventSourceEnabled` + `eventSourcePriority`.
    - Implementation uses suppression maps (`suppressedSources`, `suppressedDefaults`) plus `eventSourcePriority`.
 
-### B. Implemented, but not currently documented in `events.md`
+### B. Implemented, but not currently documented in `events-system-design.md`
 
 1. **Expanded remove/restore UX**
    - `remove list`, grouped recurring-series removal affordances, and restore-list workflows are implemented and richer than the doc’s short command summary.
@@ -86,13 +86,13 @@ No major behavior-level mismatches were found in this audit. Core claims in the 
 
 ---
 
-## 4) Weather (`weather.md` vs `calendar.js`)
+## 4) Weather (`weather-system-design.md` vs `calendar.js`)
 
 ### A. Documented, but implemented differently or only partially
 
 No major behavior-level mismatches were found in this audit for the weather processing model, reveal model, stale/resurrection handling, and wizard workflow.
 
-### B. Implemented, but not currently documented in `weather.md`
+### B. Implemented, but not currently documented in `weather-system-design.md`
 
 1. **Additional operational commands**
    - `!cal weather history`
