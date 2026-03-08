@@ -1,4 +1,4 @@
-# Eberron-moons
+# moons
 
 ## Purpose
 

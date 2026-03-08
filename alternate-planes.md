@@ -1,4 +1,4 @@
-# Eberron Planar System Reference (Extracted from `calendar.js`)
+# alternate planes
 
 This document is a code-level extraction of **all planar-system behavior currently implemented** in the calendar script, including:
 
