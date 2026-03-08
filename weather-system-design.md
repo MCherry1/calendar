@@ -6,9 +6,10 @@
 2. [Design Goals](#2-design-goals)
 3. [Core Mechanics at a Glance](#3-core-mechanics-at-a-glance)
    1. [Temperature Scale (0–10), 15°F Bands, and Mechanics](#31-temperature-scale-010-15f-bands-and-mechanics)
-   2. [Wind Scale (0–5)](#32-wind-scale-05)
-   3. [Precipitation Scale (0–5)](#33-precipitation-scale-05)
-   4. [Temperature × Precipitation Type Conversion](#34-temperature--precipitation-type-conversion)
+   2. [Script-Ready Expanded Temperature Bands (−5 to 15)](#32-script-ready-expanded-temperature-bands-5-to-15)
+   3. [Wind Scale (0–5)](#33-wind-scale-05)
+   4. [Precipitation Scale (0–5)](#34-precipitation-scale-05)
+   5. [Temperature × Precipitation Type Conversion](#35-temperature--precipitation-type-conversion)
 4. [D&D 5e Mechanical Effects](#4-dd-5e-mechanical-effects)
    1. [Temperature and Armor/Clothing Interaction](#41-temperature-and-armorclothing-interaction)
    2. [Wind Combat/Movement Effects](#42-wind-combatmovement-effects)
@@ -77,7 +78,33 @@ Temperature stages are mapped to **15°F bands** beginning at **−25°F**, with
 
 > Temperature bands used by flavor/mechanics conversion: **cold (0–3), cool (4), mild (5–6), warm (7), hot (8–10)**.
 
-### 3.2 Wind Scale (0–5)
+### 3.2 Script-Ready Expanded Temperature Bands (−5 to 15)
+
+To support finer-grain thermal scripting while preserving the active 0–10 generator, the script now contains a canonical expanded band table (`WEATHER_TEMPERATURE_BANDS_F`) plus companion rules dictionaries:
+
+- `WEATHER_COLD_CLOTHING_TIERS`
+- `WEATHER_HEAT_ARMOR_RULES`
+- `WEATHER_TEMPERATURE_SYSTEM_RULES`
+
+Design intent:
+
+- Keep **legacy runtime behavior** stable (current weather generation and condition derivation continue to use temp stage 0–10).
+- Provide **drop-in data definitions** for future migration to expanded thermal modeling.
+- Centralize DC/clothing/armor semantics so design docs and script constants stay synchronized.
+
+Expanded thermal span summary:
+
+- **Band −5** (`≤ −46°F`): unholy cold, DC 30, special protection required.
+- **Bands −4 to −3** (`−45°F` to `−26°F`): severe cold, DC 25, heavy cold-weather clothing required.
+- **Bands −2 to −1** (`−25°F` to `−6°F`): high cold risk, DC 20, medium cold-weather clothing required.
+- **Bands 0 to 1** (`−5°F` to `14°F`): meaningful cold checks, DC 15, light cold-weather clothing required.
+- **Bands 2 to 3** (`15°F` to `34°F`): cold checks, DC 10, warm clothing required.
+- **Bands 4 to 6** (`35°F` to `64°F`): generally no direct thermal hazard.
+- **Bands 7 to 9** (`65°F` to `94°F`): reintroduced heat checks (DC 10→15 under compounding factors).
+- **Bands 10 to 14** (`95°F` to `144°F`): escalating heat burden and armor disadvantage constraints.
+- **Band 15** (`≥ 145°F`): infernal heat, DC 30, mundane gear insufficient.
+
+### 3.3 Wind Scale (0–5)
 
 | Wind Stage | Label | Mechanical Core |
 |---|---|---|
@@ -88,7 +115,7 @@ Temperature stages are mapped to **15°F bands** beginning at **−25°F**, with
 | 4 | Gale | Ranged attacks auto-miss; flying speed becomes 0; walking costs +1 ft movement per ft |
 | 5 | Storm | DC 15 Strength check or fall prone; small trees uprooted; severe projectile/wind hazard context |
 
-### 3.3 Precipitation Scale (0–5)
+### 3.4 Precipitation Scale (0–5)
 
 | Precip Stage | Baseline Sky/Precip Meaning |
 |---|---|
@@ -99,7 +126,7 @@ Temperature stages are mapped to **15°F bands** beginning at **−25°F**, with
 | 4 | Heavy precipitation |
 | 5 | Extreme precipitation / deluge-class |
 
-### 3.4 Temperature × Precipitation Type Conversion
+### 3.5 Temperature × Precipitation Type Conversion
 
 Precipitation type is not fixed by precip alone; it is derived from **temperature zone + precip stage**:
 
@@ -191,6 +218,10 @@ These are guidance outputs intended for GM adjudication rather than rigid auto-r
   - `CONFIG_WEATHER_MECHANICS`
   - `CONFIG_WEATHER_LABELS`
   - `CONFIG_WEATHER_FLAVOR`
+  - `WEATHER_TEMPERATURE_BANDS_F` (script-ready expanded Fahrenheit bands)
+  - `WEATHER_COLD_CLOTHING_TIERS`
+  - `WEATHER_HEAT_ARMOR_RULES`
+  - `WEATHER_TEMPERATURE_SYSTEM_RULES`
 - Generation model tables:
   - `WEATHER_CLIMATE_BASE`
   - `WEATHER_GEO_MOD`
