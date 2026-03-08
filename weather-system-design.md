@@ -5,7 +5,7 @@
 1. [Executive Summary](#1-executive-summary)
 2. [Design Goals](#2-design-goals)
 3. [Core Mechanics at a Glance](#3-core-mechanics-at-a-glance)
-   1. [Temperature Scale (0–10)](#31-temperature-scale-010)
+   1. [Temperature Scale (0–10), 15°F Bands, and Mechanics](#31-temperature-scale-010-15f-bands-and-mechanics)
    2. [Wind Scale (0–5)](#32-wind-scale-05)
    3. [Precipitation Scale (0–5)](#33-precipitation-scale-05)
    4. [Temperature × Precipitation Type Conversion](#34-temperature--precipitation-type-conversion)
@@ -57,21 +57,23 @@ The model combines deterministic season/location baselines with stochastic rolls
 
 ## 3) Core Mechanics at a Glance
 
-### 3.1 Temperature Scale (0–10)
+### 3.1 Temperature Scale (0–10), 15°F Bands, and Mechanics
 
-| Temp Stage | Label | Approximate Band | Mechanical Core |
+Temperature stages are mapped to **15°F bands** beginning at **−25°F**, with open-ended cold/hot extremes.
+
+| Temp Stage | Label | Fahrenheit Band | Mechanical Core |
 |---|---|---|---|
-| 0 | Extreme Cold | ≤20°F class | DC 25 Con save or exhaustion; disadvantage without heavy cold-weather clothing |
-| 1 | Frigid | ≤20°F class | DC 20 Con save or exhaustion; disadvantage without medium/heavy cold-weather clothing |
-| 2 | Freezing | ≤20°F class | DC 15 Con save or exhaustion; disadvantage without light/medium/heavy cold-weather clothing |
-| 3 | Cold | ≤20°F class | DC 10 Con save or exhaustion |
-| 4 | Chilly | ~35°F class | No direct temperature save |
-| 5 | Mild | ~50°F class | No direct temperature save |
-| 6 | Warm | ~65°F class | No direct temperature save |
-| 7 | Hot | ~80°F class | DC 10 Con save or exhaustion |
-| 8 | Sweltering | ~95°F+ class | DC 15 Con save or exhaustion; heavy armor wearers at disadvantage |
-| 9 | Blistering | ~95°F+ class | DC 20 Con save or exhaustion; medium/heavy armor wearers at disadvantage |
-| 10 | Extreme Heat | ~95°F+ class | DC 25 Con save or exhaustion; all armor wearers at disadvantage |
+| 0 | Extreme Cold | ≤ −25°F | DC 25 Con save or exhaustion; disadvantage without heavy cold-weather clothing |
+| 1 | Frigid | −24°F to −10°F | DC 20 Con save or exhaustion; disadvantage without medium/heavy cold-weather clothing |
+| 2 | Freezing | −9°F to 5°F | DC 15 Con save or exhaustion; disadvantage without light/medium/heavy cold-weather clothing |
+| 3 | Cold | 6°F to 20°F | DC 10 Con save or exhaustion |
+| 4 | Chilly | 21°F to 35°F | No direct temperature save |
+| 5 | Mild | 36°F to 50°F | No direct temperature save |
+| 6 | Warm | 51°F to 65°F | No direct temperature save |
+| 7 | Hot | 66°F to 80°F | DC 10 Con save or exhaustion |
+| 8 | Sweltering | 81°F to 95°F | DC 15 Con save or exhaustion; heavy armor wearers at disadvantage |
+| 9 | Blistering | 96°F to 110°F | DC 20 Con save or exhaustion; medium/heavy armor wearers at disadvantage |
+| 10 | Extreme Heat | ≥ 111°F | DC 25 Con save or exhaustion; all armor wearers at disadvantage |
 
 > Temperature bands used by flavor/mechanics conversion: **cold (0–3), cool (4), mild (5–6), warm (7), hot (8–10)**.
 
