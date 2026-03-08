@@ -12,12 +12,18 @@ Canonicalized task list aligned to `notes.md` (notes are source of truth).
 
 - [ ] Apply Daanvi probability correction exactly as described:
   - [ ] Replace `d100 (1)` gate with `d20 (1)` gate
+  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
   - [ ] Then split with `d10`: `1–5 = remote`, `6–10 = coterminous`
+  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
 - [ ] Verify long-run target remains ~16.8 Daanvi events/year with ~10-day durations
+  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
 - [ ] Keep balancing behavior that biases toward flipping planar state
+  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
 - [ ] Add Zarantyr full-moon lightning/thunderstorm boost, including clear-sky strike possibility
+  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
 - [ ] Remove any Zarantyr-only wind/precipitation bonus
 - [ ] Remove any Shavarath wind effect entirely
+  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
 
 ### Moons and orbital behavior
 

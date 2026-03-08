@@ -3837,7 +3837,6 @@ function _activePlanarWeatherShiftLines(serial){
       if (e.plane === 'Mabar'  && e.phase === 'coterminous') out.push('Mabar coterminous: temperature -1');
       if (e.plane === 'Irian'  && e.phase === 'coterminous') out.push('Irian coterminous: temperature +1');
       if (e.plane === 'Lamannia'&& e.phase === 'coterminous')out.push('Lamannia coterminous: precipitation +1');
-      if (e.plane === 'Shavarath'&& e.phase === 'coterminous')out.push('Shavarath coterminous: wind +1');
     }
   } catch(e2){}
   return out;
@@ -5743,7 +5742,6 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 1;
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = 0; finalVals.wind = 0; }
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
-        if (_ppe.plane === 'Shavarath' && _ppe.phase === 'coterminous') finalVals.wind = Math.min(5, finalVals.wind + 1);
       }
     } catch(e){ /* planar system not ready */ }
   }
@@ -5995,6 +5993,24 @@ var EXTREME_EVENTS = {
     playerMsg: function(loc){ return 'The storm reaches a violent peak. Lightning splits the sky — this is not a safe time to be in the open.'; }
   },
 
+  clear_sky_strike: {
+    name:     'Clear-Sky Lightning',
+    emoji:    '🌩️',
+    // Trigger: uncommon atmospheric discharge with little/no precipitation.
+    // Enhanced during Zarantyr full moon via _evaluateExtremeEvents.
+    check: function(f, loc, sa, wa){
+      if (f.precip > 1 || f.wind > 2) return 0;
+      var p = 0.02;
+      if (f.temp >= 7) p += 0.02;
+      if (f.temp >= 8) p += 0.01;
+      return Math.min(0.06, p);
+    },
+    duration:  'Instantaneous strike or short burst (minutes)',
+    mechanics: 'An unexpected bolt strikes with little warning. Creatures in exposed outdoor terrain make DC 13 Dex save or take 3d10 lightning damage (half on success). Tall isolated objects are preferential targets.',
+    aftermath: 'Potential localized fire or structural scorch at strike site.',
+    playerMsg: function(loc){ return 'A jagged bolt tears from a clear sky. Thunder follows seconds later.'; }
+  },
+
   flash_freeze: {
     name:     'Flash Freeze',
     emoji:    '🧊',
@@ -6057,12 +6073,22 @@ function _evaluateExtremeEvents(rec){
   var loc = rec.location || {};
   var sa  = !!rec.snowAccumulated;
   var wa  = !!rec.wetAccumulated;
+  var zarantyrFull = _isZarantyrFull(rec.serial);
   var qualified = [];
   var keys = Object.keys(EXTREME_EVENTS);
   for (var i=0; i<keys.length; i++){
     var key = keys[i];
     var evt = EXTREME_EVENTS[key];
     var p   = evt.check(f, loc, sa, wa);
+
+    if (key === 'lightning_storm' && zarantyrFull){
+      p = Math.min(0.65, p + 0.20);
+    }
+    if (key === 'clear_sky_strike'){
+      if (!zarantyrFull) p = 0;
+      else p = Math.min(0.15, p + 0.05);
+    }
+
     if (p > 0) qualified.push({ key: key, event: evt, probability: p });
   }
   return qualified;
@@ -6076,7 +6102,18 @@ function _rollExtremeEvent(key, rec){
   var f   = rec.final;
   var loc = rec.location || {};
   var p   = evt.check(f, loc, !!rec.snowAccumulated, !!rec.wetAccumulated);
+  var zarantyrFull = _isZarantyrFull(rec.serial);
+  if (key === 'lightning_storm' && zarantyrFull) p = Math.min(0.65, p + 0.20);
+  if (key === 'clear_sky_strike'){
+    if (!zarantyrFull) p = 0;
+    else p = Math.min(0.15, p + 0.05);
+  }
   return (_rollDie(100) <= Math.round(p * 100));
+}
+
+function _isZarantyrFull(serial){
+  var ph = moonPhaseAt('Zarantyr', serial);
+  return !!(ph && ph.illum >= 0.97);
 }
 
 // Render the extreme event panel for the GM Today view.
@@ -7120,7 +7157,7 @@ function weatherLocationWizardHtml(step, partial){
       '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Atmospheric zones:</div>'+
       '<div style="margin:3px 0;">'+button('Syrania (clear skies, precip −1)','weather location zone syrania')+'</div>'+
       '<div style="margin:3px 0;">'+button('Kythri (chaotic, random swings)','weather location zone kythri')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Shavarath (stormy, wind +1)','weather location zone shavarath')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Shavarath (martial resonance, no weather effect)','weather location zone shavarath')+'</div>'+
       '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Flavor zones (no weather effect):</div>'+
       '<div style="margin:3px 0;">'+button('Daanvi (orderly)','weather location zone daanvi')+'</div>'+
       '<div style="margin:3px 0;">'+button('Dolurrh (deathly)','weather location zone dolurrh')+'</div>'+
@@ -7422,7 +7459,7 @@ function handleWeatherCommand(m, args){
         else if (zoneKey === 'lamannia') mz = { name:'Lamannia',  precipMod:1 };
         else if (zoneKey === 'syrania')  mz = { name:'Syrania',   precipMod:-1 };
         else if (zoneKey === 'kythri')   mz = { name:'Kythri',    chaotic:true };
-        else if (zoneKey === 'shavarath')mz = { name:'Shavarath', windMod:1 };
+        else if (zoneKey === 'shavarath')mz = { name:'Shavarath' };
         else if (zoneKey === 'daanvi')   mz = { name:'Daanvi' };
         else if (zoneKey === 'dolurrh')  mz = { name:'Dolurrh' };
         else if (zoneKey === 'thelanis') mz = { name:'Thelanis' };
@@ -10077,16 +10114,16 @@ var PLANAR_ANOMALY_PROFILE = {
   },
 
   // DAANVI — The Perfect Order (cooldown-based)
-  // d100 daily (100 only = 1%), then d10: 1-5=remote, 6-10=coterminous (50/50).
-  // ~3.4 events/year. 10-day events + 10-day cooldown.
+  // d20 daily (1 only = 5%), then d10: 1-5=remote, 6-10=coterminous (50/50).
+  // ~16.8 events/year. 10-day events + 10-day cooldown.
   // Balancing Act mechanic:
   // For 10 days after an event ends, if a new event triggers, roll d10.
   // If d10 >= (11 - days_since_last_event_ended), force opposite phase.
   // Day 1: always forced opposite. Day 10: 10% chance. Day 11+: no forcing.
   'Daanvi': {
-    expectedPerYear: 3.4,
+    expectedPerYear: 16.8,
     mechanism: 'cooldown',
-    gateDie: 100, gateHitRange: [100, 100],  // 1% per day — about 3 events/year
+    gateDie: 20, gateHitRange: [1, 1],  // 5% per day — about 16.8 events/year
     phaseDie: 10, // 1-5=remote, 6-10=coterminous (50/50)
     duration: 10,
     balancingAct: true, // Balancing Act — favors alternation (cot->rem->cot)
