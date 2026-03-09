@@ -121,6 +121,46 @@ Leap festival:
 
 ---
 
+## Presentation + inline imagery in GitHub Markdown
+
+Yes—this is fully possible. GitHub renders inline images in Markdown when they are committed to the repository and referenced by relative path.
+
+### What GitHub Markdown can do
+
+- Display inline raster or vector files (`.png`, `.jpg`, `.gif`, `.svg`).
+- Keep images in-repo (versioned and reviewable in pull requests).
+- Mix prose and visuals in a white paper/manual style section-by-section.
+
+### What GitHub Markdown cannot do by itself
+
+- It cannot execute `!cal` or any runtime API command directly from the Markdown page.
+- The image must be generated ahead of time (manually, script-generated, or exported) and committed.
+
+### Suggested workflow
+
+1. Run the calendar API/script for the target scenario (default month, intercalary placement, shoulder strips).
+2. Capture or export image artifacts.
+3. Save artifacts in `assets/calendar-layout/`.
+4. Embed in Markdown with standard image syntax.
+
+### Command-to-view overview
+
+![Command flow from !cal to rendered calendar view](assets/calendar-layout/command-to-view-flow.svg)
+
+### Intercalary day implementation (example)
+
+![Harptos intercalary day placement for Midsummer and Shieldmeet](assets/calendar-layout/intercalary-day-view.svg)
+
+### Single-month default calendar view (example)
+
+![Single month calendar grid example](assets/calendar-layout/single-month-grid.svg)
+
+### Adjacent shoulder week strip view (example)
+
+![Shoulder week strips for previous and next month context](assets/calendar-layout/shoulder-week-strip.svg)
+
+---
+
 ## Shared implementation notes
 
 - Calendar systems are defined in `CALENDAR_SYSTEMS`.
@@ -140,3 +180,4 @@ Leap festival:
 - ✅ Harptos month/intercalary/tenday behavior matches script definitions.
 - ✅ Gregorian month and weekday naming now documented in the same unified layout file.
 - ✅ Gregorian leap-day behavior is documented with its every-4-years implementation.
+- ✅ The layout spec now includes inline image examples for command flow, intercalary days, single-month view, and shoulder week strips.
