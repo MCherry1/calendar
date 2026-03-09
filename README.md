@@ -1,61 +1,224 @@
-# Calendar Script Design Notes
+# Eberron Calendar — Roll20 API Script
 
-This repository contains a Roll20 API calendar engine (`calendar.js`) and a set of design documents that explain the system at two levels:
+A Roll20 API script for managing a fantasy campaign calendar with integrated weather, moon phase tracking, planar forecasting, and nighttime lighting.
 
-1. **Core calendar mechanics** (calendar systems, month/week structure, era labeling).
-2. **Subsystem mechanics** layered on top of the date engine (events, moons, weather, alternate planes).
+**Primary support:** Eberron setting. Also supports Faerûnian (Harptos) and Gregorian calendar systems.
 
-## Repository map
+---
 
-- `calendar.js` — executable script and source of truth.
-- `calendar-layout-design.md` — unified calendar layout + era/date conventions for Eberron, Harptos, and Gregorian systems.
-- `events-system-design.md` — event subsystem design document.
-- `moons-system-design.md` — moon subsystem design document.
-- `weather-system-design.md` — weather subsystem design document.
-- `alternate-planes-system-design.md` — planar subsystem design document.
-- `tasks.md` — working task list.
+## Installation
 
-## Architectural layers
+1. In Roll20, open your campaign's **API Scripts** page (Game Settings → API Scripts).
+2. Create a new script and paste in the contents of `calendar.js`.
+3. Save the script. It initializes automatically on first load.
+4. Type `!cal` in the chat to open the calendar.
 
-### 1) Base calendar engine
+---
 
-The base layer handles:
+## Quick Start
 
-- Calendar-system definitions (`eberron`, `faerunian`, `gregorian`).
-- Month/weekday naming variants.
-- Year/day serial conversion and date parsing.
-- Month rendering and range rendering.
+| Command | What it does |
+|---|---|
+| `!cal` | Open the current month calendar |
+| `!cal today` | Full summary of today — weather, moons, planes, events |
+| `!cal upcoming` | 7-day strip with subsystem highlights |
+| `!cal weather` | Current weather panel |
+| `!cal moon` | Moon phase panel |
+| `!cal planes` | Planar state panel |
 
-This layer is intentionally system-agnostic and drives all downstream subsystems.
+---
 
-### 2) Subsystem layer
+## Calendar Navigation
 
-Each subsystem consumes the current date/serial timeline and projects additional game-facing state:
+The main `!cal` view shows a mini-calendar for the current month.
 
-- **Events**: fixed/recurring observances and custom campaign entries.
-- **Moons**: phase calculations, reveal horizons, eclipse/light/tide hooks.
-- **Weather**: deterministic+stochastic daily weather with forecast/reveal controls.
-- **Alternate planes**: canonical cycles plus optional generated anomalies.
+**GM button bar:**
+```
+⏮ Back  |  ⏭ Forward  |  📣 Send
+📋 Today  |  📅 Upcoming  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
+⚙ Admin
+```
 
-### 3) Presentation and command layer
+- **Back / Forward** — move one month at a time
+- **Send** — send the current calendar view to players
+- **Today** — deep-dive summary for the current in-game date
+- **Upcoming** — 7-day preview strip
+- **Admin** — settings, date management, calendar system selection
 
-The script exposes all systems through `!cal` commands and panel UIs with GM/player reveal controls.
+---
 
-## Design intent
+## Date Commands
 
-- Keep the core date engine reusable.
-- Keep subsystem behavior explicit and tunable in data tables.
-- Preserve deterministic behavior where possible (seeded/randomized but reproducible).
-- Support multiple campaign styles through toggles, reveal tiers, and source filtering.
+```
+!cal <day>              — jump to next occurrence of that day number
+!cal <month> <day>      — jump to specific month and day
+!cal <month> <day> <year> — jump to exact date
+!cal Olarune            — jump to the next Olarune (month name works as a shortcut)
+```
 
-## Documentation standard used in subsystem docs
+---
 
-Each subsystem document follows the same structure:
+## Weather
 
-1. Overview and scope.
-2. Design goals and inspirations.
-3. Data model (constants/state).
-4. Processing pipeline.
-5. Commands and operator controls.
-6. Cross-subsystem interactions.
-7. Tuning/extension guidance.
+### Setting Your Location
+
+```
+!cal weather location                          — open location wizard
+!cal weather location climate <key>            — set climate (arctic, temperate, tropical, etc.)
+!cal weather location geography <key>          — set geography (coastal, mountain, plains, etc.)
+!cal weather location terrain <key>            — set terrain (forest, city, open, etc.)
+!cal weather location zone <key|none>          — set manifest zone (or clear it)
+```
+
+### Viewing Weather
+
+```
+!cal weather                    — today's weather
+!cal weather forecast [n]       — n-day forecast (default 10)
+!cal weather history            — recent past weather
+!cal weather mechanics          — D&D mechanical effects for today's conditions
+```
+
+### GM Controls
+
+```
+!cal weather generate           — generate/extend the forecast window
+!cal weather reroll <serial>    — reroll weather for a specific date
+!cal weather lock <serial>      — lock weather for a date (no rerolls)
+!cal weather event trigger <key> — trigger a specific weather event
+!cal weather event roll <key>   — roll for a weather event
+```
+
+### Sending Weather to Players
+
+```
+!cal weather send low           — today + rough tomorrow (Common Knowledge)
+!cal weather send medium        — 3-day forecast (Skilled Forecast)
+!cal weather send high          — 10-day forecast with mechanics (Expert Forecast)
+```
+
+---
+
+## Moons
+
+### Viewing Moon Phases
+
+```
+!cal moon                       — moon phase panel for today
+!cal moon on <date>             — moon phases on a specific date
+!cal moon upcoming [span]       — upcoming notable moon events
+!cal moon sky [time]            — sky visibility at a time of day (dawn/noon/dusk/midnight)
+!cal moon lore [moonName]       — lore for a specific moon
+```
+
+### Sending Moon Info to Players
+
+```
+!cal moon send low              — today + 2 days (Common Knowledge)
+!cal moon send medium [range]   — preset ranges: 1m, 3m, 6m, 10m (Skilled Forecast)
+!cal moon send high [range]     — full exact knowledge: 1m, 3m, 6m, 10m (Expert Forecast)
+```
+
+Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
+
+### GM Moon Controls
+
+```
+!cal moon seed <word>                     — set moon generation seed
+!cal moon full <MoonName> <date>          — anchor a moon's full phase to a date
+!cal moon new <MoonName> <date>           — anchor a moon's new phase to a date
+!cal moon reset [<MoonName>]              — clear phase anchors
+```
+
+---
+
+## Planes
+
+### Viewing Planar State
+
+```
+!cal planes                     — current planar phase panel
+!cal planes on <date>           — planar state on a specific date
+!cal planes upcoming [span]     — upcoming planar events
+```
+
+### Sending Plane Info to Players
+
+```
+!cal planes send low            — annual fixed canon events (Common Knowledge)
+!cal planes send medium [range] — canon + generated short window: 1d, 3d, 6d, 10d (Skilled Forecast)
+!cal planes send high [range]   — full canon + generated: 1m, 3m, 6m, 10m (Expert Forecast)
+```
+
+Examples: `!cal planes send medium 6d` · `!cal planes send high 3m`
+
+### GM Plane Controls
+
+```
+!cal planes set <name> <phase> [days]     — manually set a plane's phase
+!cal planes clear [<name>]               — clear manual override
+!cal planes anchor <name> <phase> <date> — anchor canonical cycle to a date
+!cal planes seed <name> <year|clear>     — set generation seed for a plane
+!cal planes suppress <name> [date]       — suppress generated events for a plane
+```
+
+---
+
+## Events
+
+### Adding Events
+
+```
+!cal add <date> <name> [color]            — add a one-time event
+!cal addmonthly <day> <name> [color]      — add a monthly recurring event
+!cal addyearly <month> <day> <name> [color] — add a yearly recurring event
+```
+
+### Managing Events
+
+```
+!cal list                                 — list all events
+!cal remove [list|key|series|name]        — remove an event
+!cal restore [all] [exact] <name>         — restore a removed default event
+!cal restore key <KEY>                    — restore by key
+```
+
+### Event Sources
+
+```
+!cal source list                          — list available event source packs
+!cal source enable <name>                 — enable a source pack
+!cal source disable <name>                — disable a source pack
+!cal source up <name>                     — raise source priority
+!cal source down <name>                   — lower source priority
+```
+
+---
+
+## Knowledge Tiers
+
+All subsystems use the same three-tier system:
+
+| Tier | Label | What Players Know |
+|---|---|---|
+| `low` | Common Knowledge | Today only; rough guess for tomorrow |
+| `medium` | Skilled Forecast | Several days; some uncertainty at range |
+| `high` | Expert Forecast | Full precision for weeks/months |
+
+Knowledge is **upgrade-only** — once revealed, it never downgrades. Players retain the best tier of knowledge they've been given for each date.
+
+---
+
+## Calendar Systems
+
+Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
+
+- **Eberron** — 12 months × 28 days, YK era, 7-day weeks
+- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + festival days, DR era, tenday columns
+- **Gregorian** — Standard Earth calendar
+
+---
+
+## Design Reference
+
+For the full mechanical design, data tables, design decisions, and pending work, see **[DESIGN.md](DESIGN.md)**.

@@ -2,7 +2,7 @@
 
 **Repository:** `mcherry1/calendar`
 
-Canonicalized task list aligned to `notes.md` (notes are source of truth).
+See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks implementation work only.
 
 ---
 
@@ -10,48 +10,36 @@ Canonicalized task list aligned to `notes.md` (notes are source of truth).
 
 ### Weather
 
-
-- Refactor all temperature generators for all locations and the rntire system to account for the recently updated, new tempersture sacle from -5 to 15. 
-- [ ] Apply Daanvi probability correction exactly as described:
-  - [ ] Replace `d100 (1)` gate with `d20 (1)` gate
-  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
-  - [ ] Then split with `d10`: `1–5 = remote`, `6–10 = coterminous`
-  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
-- [ ] Verify long-run target remains ~16.8 Daanvi events/year with ~10-day durations
-  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
-- [ ] Keep balancing behavior that biases toward flipping planar state
-  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
-- [ ] Add Zarantyr full-moon lightning/thunderstorm boost, including clear-sky strike possibility
-  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
-- [ ] Remove any Zarantyr-only wind/precipitation bonus
-- [ ] Remove any Shavarath wind effect entirely
-  - Addressed by ChatGPT Codex (GPT-5.2-Codex).
+- [ ] Refactor all temperature generators to the new −5 to 15 scale (all locations and the entire system). The −5 to 15 data tables (`WEATHER_TEMPERATURE_BANDS_F`, `WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) are already in the script as drop-in definitions.
+- [ ] Apply Daanvi probability correction:
+  - [ ] Replace `d100 (1)` gate with `d20 (20)` gate (5% per day)
+  - [ ] Split with `d10`: 1–5 = remote, 6–10 = coterminous
+  - [ ] Verify long-run target: ~16.8 events/year with ~10-day durations
+  - [ ] Preserve balancing behavior that biases toward flipping planar state after each event
+- [ ] Add Zarantyr full-moon lightning/thunderstorm boost — flat chance regardless of weather conditions, including clear-sky strike possibility
+- [ ] Remove any Zarantyr wind/precipitation bonus (Zarantyr's effect is lightning only)
+- [ ] Remove any Shavarath wind effect from manifest zones entirely
 
 ### Moons and orbital behavior
 
-- [ ] Remove legacy names/aliases (safe to delete compatibility references)
-- [ ] Stop clamping Lharvion eccentricity
-  - [ ] If needed, change Lharvion reference moon instead of modifying eccentricity
-  - [ ] Check whether current issue is orbit overlap and resolve without clamping
-- [ ] Update Barrakas/Therendor to have closely matched inclinations (more frequent eclipses)
+- [ ] Remove legacy moon name aliases and compatibility references
+- [ ] Stop clamping Lharvion eccentricity — select a different reference moon if orbit overlap occurs; do not modify the parameter
+- [ ] Update Barrakas/Therendor to have closely matched inclinations (more frequent eclipses per lore)
 - [ ] Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock
-- [ ] Give Dravago the highest inclination ("typically keeps distance" from other moons)
-- [ ] Revisit all moon reference selections with new lore constraints
-- [ ] Extend moon-comparison table with adjusted scaled-period details for **all** moons
-  - [ ] Use scaled real-world reference periods to Eberron year length
-  - [ ] Apply explicit arbitrary multipliers (default integer multipliers unless a better approach is chosen)
-  - [ ] Mirror the Zarantyr/Luna treatment across the rest of the moons
-- [ ] Audit full/new thresholds to avoid repeated multi-day full/new triggers unless explicitly intended
+- [ ] Give Dravago the highest inclination of any moon ("typically keeps at a distance")
+- [ ] Revisit all moon reference selections with full lore constraints applied
+- [ ] Extend moon reference table with scaled-period details for all moons:
+  - [ ] Reference moon raw period
+  - [ ] Scaled period (to 336-day year)
+  - [ ] Integer multiplier
+  - [ ] Final synodic period used
+- [ ] Audit full/new phase thresholds — multiple consecutive-day "full" reports suggest thresholds (≥97% / ≤3%) may be too wide
 
 ### Eclipses and crossings
 
 - [ ] Revisit solar/moon eclipse math for consecutive-day anomalies
 - [ ] Add time-of-day labels to eclipses and moon-crossing events:
-  - [ ] Early hours `0–6`
-  - [ ] Morning `6–12`
-  - [ ] Afternoon `12–5`
-  - [ ] Evening `5–10`
-  - [ ] Night `10–0`
+  - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
 
 ---
 
@@ -59,12 +47,11 @@ Canonicalized task list aligned to `notes.md` (notes are source of truth).
 
 ### Planes
 
-- [ ] Add independent toggle for **generated planar events**
-- [ ] Keep existing master planar-system toggle separate
-- [ ] Planes view bubble/status system:
-  - [ ] Green = Coterminous
-  - [ ] Red = Remote
-  - [ ] Up/Down arrow for waxing/waning
+- [ ] Add independent toggle for generated planar events (separate from the master planes-system toggle)
+- [ ] Planes view status display:
+  - [ ] Green bubble = Coterminous
+  - [ ] Red bubble = Remote
+  - [ ] Up/down arrow for waxing/waning
 
 ### Manifest zones
 
@@ -72,54 +59,52 @@ Canonicalized task list aligned to `notes.md` (notes are source of truth).
 - [ ] Add **Set Manifest Zone** button below **Set Location**
 - [ ] Manifest zone chooser UI:
   - [ ] 2-column table
-  - [ ] Column A: `None` + 12 zone names (13 options total)
+  - [ ] Column A: `None` + 13 zone names
   - [ ] Column B: per-zone toggle button showing `On` or `Off`
 - [ ] Support multiple simultaneously active manifest zones
-- [ ] Visual state in zone list:
-  - [ ] Active zones in bold
-  - [ ] Inactive zones fainter + italic
+- [ ] Visual state in zone list: active zones bold, inactive zones faint + italic
 - [ ] Clear all active manifest zones whenever location changes
 - [ ] Append clear-summary to location update message (`X, Y, Z Manifest Zone(s) cleared`)
 - [ ] Add moon-summary reminder: `Aryth is full. Consider a manifest zone.`
-- [ ] Store flag if any zone was activated while Aryth was full
-- [ ] On date advance after Aryth is no longer full, show warning:
-  - [ ] `Aryth is no longer full, consider deactivating Manifest Zone(s): X, Y, Z, ...`
+- [ ] Store flag in state if any zone was activated while Aryth was full
+- [ ] On date advance past Aryth full, show warning: `Aryth is no longer full, consider deactivating Manifest Zone(s): X, Y, Z`
 - [ ] Include manifest-zone status in Today view (always visible when active)
 - [ ] Do **not** include manifest-zone forecasting
-- [ ] Keep existing Fernia/Risia temperature ± effects wired through this manifest-zone mechanic
+- [ ] Wire Fernia/Risia temperature ±effects through manifest-zone mechanic
 
 ---
 
 ## Phase 3 — UI and presentation cleanup
 
 - [ ] Fix Today view to omit extreme-event output when no extreme event is set
-- [ ] Reduce Today-view clutter (defer exact redesign direction)
-- [ ] Ensure players can use `!cal` for:
-  - [ ] Basic calendar view
-  - [ ] Buttons to access additional calendar views (similar access surface to GM, with permissions as needed)
-  - [ ] Today view listing all current-day effects
+- [ ] Reduce Today-view clutter (specific redesign to be directed)
+- [ ] Ensure players can use `!cal` for: basic calendar view, subsystem views (permission-gated), Today view
 - [ ] Add tooltip line breaks between entries
 - [ ] Fix mini-calendar bottom-row clipping on Y-axis
-- [ ] Remove moon monikers from moon-tooltips
-- [ ] Simplify Moons mini-calendar:
+- [ ] Remove moon monikers/titles from moon tooltips
+- [ ] Simplify moon mini-calendar:
   - [ ] Remove cell shading
   - [ ] Yellow dot if any moon is full
   - [ ] Black dot if at least one moon is new
 - [ ] Ensure highlight ranges fill all days between start and end (not only endpoints)
+- [ ] Remove all legacy tier aliases from code (`mundane`, `magical`, `abridged`, `survival`, `magic`) — canonical names are `low`, `medium`, `high`
 
 ---
 
 ## Phase 4 — Calendar and lore formatting
 
-- [ ] Confirm Ring of Siberys presentation:
-  - [ ] Stretches over the equator
-  - [ ] Clearly visible in daytime
-- [ ] Correct Calendar of Harptos implementation:
-  - [ ] Use **tendays** (not weekdays)
-  - [ ] Each month is 3 tendays => display as 3 rows × 10 columns
-  - [ ] Column labels are `1st` through `10th`
+- [ ] Confirm Ring of Siberys presentation: equatorial placement (inclination 0°), "stands out in daylight" visually reflected
+- [ ] Correct Harptos display:
+  - [ ] Use tendays (not weekdays)
+  - [ ] Each month = 3 rows × 10 columns
+  - [ ] Column labels: `1st` through `10th`
   - [ ] Date format: `16th of <Month>, <Year> DR`
-  - [ ] Era label for Harptos uses Dalereckoning (`DR`)
+
+---
+
+## Architecture (no phase)
+
+- [ ] Specific-date weather reveals: GM generates to target date, reveals single date only (not everything in between), then changes location back. No UI noise about other-location data.
 
 ---
 
