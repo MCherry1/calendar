@@ -1,275 +1,272 @@
 # Moon Reference Selection
 
-**Status:** open
-**Blocking:** tasks.md — Phase 1 moon tasks (orbital parameters, Barrakas/Therendor, Dravago, Lharvion)
+**Status:** open — Barrakas multiplier, Sypheros reference, and Dravago reference pending
+**Blocking:** tasks.md — Phase 1 moon tasks (orbital parameters)
 
 ---
 
 ## Design Parameters
 
-**What comes from the reference moon:**
-- Inclination (orbital tilt)
-- Eccentricity (orbital ellipse shape) — `distanceSwingPct` in `MOON_MOTION_TUNING` = `2 × eccentricity`
-- Albedo (reflectivity, feeds lux calculation)
+**What comes from the reference moon (locked):** inclination, eccentricity, albedo.
 
-**What does NOT come from the reference moon:**
-- Synodic period — designed independently for game playability. Real synodic periods scaled to a 336-day year are too short to be useful. Eberron periods are designed values.
-- Color — set in `EBERRON_MOON_CORE_DATA`. Completely independent of the reference moon. Albedo (from reference) affects brightness; color is visual description only.
-- Diameter and mean orbital distance — designed values in `EBERRON_MOON_CORE_DATA`.
-- Nodal precession rate (`nodePrecessionDegPerYear`) — designed value in `MOON_MOTION_TUNING`. How fast the orbital plane "hula hoops" around the planet. The reference moon's inclination sets the tilt angle; the precession rate is a separate design decision.
-- Apsidal precession rate (`apsisPrecessionDegPerYear`) — designed value. How fast the ellipse itself rotates within its orbital plane.
+**What does NOT come from the reference moon:** synodic period (designed), color (in `EBERRON_MOON_CORE_DATA`), diameter, mean distance, nodal precession rate, apsidal precession rate.
 
-**The rule on modification:** Reference moon parameters (inclination, eccentricity, albedo) are taken as-is. If a reference causes a problem, pick a different reference — do not adjust the values.
+**The rule on modification:** Reference moon parameters are taken as-is. Pick a different reference rather than adjusting values.
 
-**Period:** the one exception. Eberron uses designed synodic periods, not scaled real ones. The period scaling table is kept for design transparency only.
+**Exception — Barrakas only:** Barrakas may use an integer multiplier N on its reference albedo to match "The Lantern" lore. This is a one-time exception, not a general rule. Multiplier choice is pending (see Barrakas section below).
+
+**Eccentricity in the script:** `distanceSwingPct = 2 × eccentricity` in `MOON_MOTION_TUNING`.
 
 ---
 
 ## Precession Model (Already in Script)
 
-`MOON_MOTION_TUNING` in the script contains per-moon precession parameters. Both types of precession are already modeled:
+`MOON_MOTION_TUNING` supports both precession types per moon:
+- `nodePrecessionDegPerYear` — orbital plane rotates (the "hula hoop" effect)
+- `apsisPrecessionDegPerYear` — ellipse rotates within its plane
 
-- `nodePrecessionDegPerYear` — the orbital **plane** rotates around the planet (the "hula hoop" effect). High inclination + fast precession = dramatic sky sweep.
-- `apsisPrecessionDegPerYear` — the **ellipse** rotates within its plane (the apsis rotates). Relevant to the bellows character of Eyre.
-
-Current Eyre tuning from the script:
+Current Eyre tuning:
 ```
-nodePrecessionDegPerYear:  2      ← very slow (360° over 180 years)
-apsisPrecessionDegPerYear: 120    ← fastest of any moon (360° over 3 years)
-distanceSwingPct:          0.246  ← = 2 × Hyperion eccentricity 0.1230
+nodePrecessionDegPerYear:  2      ← very slow (180-year cycle)
+apsisPrecessionDegPerYear: 120    ← fastest of any moon (3-year cycle)
+distanceSwingPct:          0.246  ← = 2 × Hyperion ecc 0.1230
 ```
 
-So Eyre **already** has the hula hoop — but set to 2°/year, which is nearly imperceptible. And it has the fastest apsidal precession of any moon: the forge ellipse spins a full cycle every 3 years. The coding task for Eyre should increase `nodePrecessionDegPerYear` alongside the reference change.
+Eyre already has the fastest apsidal precession (forge ellipse spins every 3 years). Nodal precession is nearly imperceptible at 2°/year. Changing Eyre's reference to Elara (26.6° inclination) makes nodal precession visually significant — the implementation task should increase `nodePrecessionDegPerYear` to 15–20.
 
 ---
 
 ## Eberron Moon Canon Data
 
-Colors are from `EBERRON_MOON_CORE_DATA` in the script (authoritative). Diameters and distances are designed values.
+Colors from `EBERRON_MOON_CORE_DATA` in script (authoritative).
 
-| Moon | Title | Plane | Dragonmark | Color (hex) | Visual | Diameter (mi) | Mean Distance (mi) | Synodic Period (days) |
-|---|---|---|---|---|---|---:|---:|---:|
-| Zarantyr | The Storm Moon | Kythri | Mark of Storm | `#F5F5FA` | Pearl white | 1,250 | 14,300 | 27.32 |
-| Olarune | The Sentinel Moon | Lamannia | Mark of Sentinel | `#FFC68A` | Warm orange | 1,000 | 18,000 | 34.0 |
-| Therendor | The Healer's Moon | Syrania | Mark of Healing | `#D3D3D3` | Silver-gray | 1,100 | 39,000 | 24.0 |
-| Eyre | The Anvil | Fernia | Mark of Making | `#C0C0C0` | Silver-metallic | 1,200 | 52,000 | 21.0 |
-| Dravago | The Herder's Moon | Risia | Mark of Handling | `#E6E6FA` | Lavender | 2,000 | 77,500 | 42.0 |
-| Nymm | The Crown | Daanvi | Mark of Hospitality | `#FFD96B` | Gold | 900 | 95,000 | 28.0 |
-| Lharvion | The Eye | Xoriat | Mark of Detection | `#F5F5F5` | Near-white | 1,350 | 125,000 | 30.0 |
-| Barrakas | The Lantern | Irian | Mark of Finding | `#F0F8FF` | Ice-white | 1,500 | 144,000 | 22.0 |
-| Rhaan | The Book | Thelanis | Mark of Scribing | `#9AC0FF` | Pale blue | 800 | 168,000 | 37.0 |
-| Sypheros | The Shadow | Mabar | Mark of Shadow | `#696969` | Dim gray | 1,100 | 183,000 | 67.0 |
-| Aryth | The Gateway | Dolurrh | Mark of Passage | `#FF4500` | Orange-red | 1,300 | 195,000 | 48.0 |
-| Vult | The Warding Moon | Shavarath | Mark of Warding | `#A9A9A9` | Medium gray | 1,800 | 252,000 | 56.0 |
-
-> **Aryth color note:** The script has Aryth as `#FF4500` (orange-red), consistent with its autumnal associations (month 11, harvest/ending). This is the canonical value in the script regardless of any prior verbal description.
+| Moon | Title | Color (hex) | Visual | Diameter (mi) | Mean Distance (mi) | Synodic Period (days) |
+|---|---|---|---|---:|---:|---:|
+| Zarantyr | The Storm Moon | `#F5F5FA` | Pearl white | 1,250 | 14,300 | 27.32 |
+| Olarune | The Sentinel Moon | `#FFC68A` | Warm orange | 1,000 | 18,000 | 34.0 |
+| Therendor | The Healer's Moon | `#D3D3D3` | Silver-gray | 1,100 | 39,000 | 24.0 |
+| Eyre | The Anvil | `#C0C0C0` | Silver-metallic | 1,200 | 52,000 | 21.0 |
+| Dravago | The Herder's Moon | `#E6E6FA` | Lavender | 2,000 | 77,500 | 42.0 |
+| Nymm | The Crown | `#FFD96B` | Gold | 900 | 95,000 | 28.0 |
+| Lharvion | The Eye | `#F5F5F5` | Near-white | 1,350 | 125,000 | 30.0 |
+| Barrakas | The Lantern | `#F0F8FF` | Ice-white | 1,500 | 144,000 | 22.0 |
+| Rhaan | The Book | `#9AC0FF` | Pale blue | 800 | 168,000 | 37.0 |
+| Sypheros | The Shadow | `#696969` | Dim gray | 1,100 | 183,000 | 67.0 |
+| Aryth | The Gateway | `#FF4500` | Orange-red | 1,300 | 195,000 | 48.0 |
+| Vult | The Warding Moon | `#A9A9A9` | Medium gray | 1,800 | 252,000 | 56.0 |
 
 ---
 
-## Current Reference Mapping — Parameters
+## Lux Analysis
 
-| Eberron Moon | Reference | Host | Inclination | Eccentricity | Albedo | Status |
-|---|---|---|---:|---:|---:|---|
-| Zarantyr | Luna | Earth | 5.145° | 0.0549 | 0.12 | ✓ keep |
-| Olarune | Titan | Saturn | 0.33° | 0.0288 | 0.22 | ✓ keep |
-| Therendor | Europa | Jupiter | 0.47° | 0.0094 | 0.67 | ✗ inclination too different from Barrakas |
-| Eyre | Hyperion | Saturn | 0.43° | 0.1230 | 0.30 | ✗ eccentricity not high enough; nodal precession too low to be useful at this inclination |
-| Dravago | Tethys | Saturn | 1.09° | 0.0001 | 1.229 | ✗ inclination must be highest; 1.09° fails; Tethys is nearly white but inclination is wrong |
-| Nymm | Ganymede | Jupiter | 0.20° | 0.0013 | 0.43 | ✓ keep |
-| Lharvion | Nereid | Neptune | 7.23° | 0.7507 | 0.155 | ✗ eccentricity causes orbital band overlap with Therendor (see math below) |
-| Barrakas | Enceladus | Saturn | 0.02° | 0.0047 | 1.375 | ✓ keep |
-| Rhaan | Miranda | Uranus | 4.34° | 0.0013 | 0.32 | ✓ keep |
-| Sypheros | Phoebe | Saturn | 175.3° | 0.1635 | 0.06 | ✓ keep (retrograde, dark, Shadow) |
-| Aryth | Iapetus | Saturn | 7.57° | 0.0283 | 0.05–0.50 | ✓ keep reference; albedo treatment open |
-| Vult | Oberon | Uranus | 0.07° | 0.0014 | 0.23 | ✓ keep |
+Lux contribution at full phase ∝ albedo × (diameter / distance)². **Proximity dominates** — distance matters far more than albedo. Baseline: Zarantyr = 10.30 lux.
 
----
+Values below use proposed/confirmed references. Barrakas shown at 1× (reference) and 7× (recommended multiplier). Sypheros shown at both candidates. Dravago shown at Triton (current) and Tethys (alternate).
 
-## Orbit Overlap Math
+| Rank | Moon | Reference | Albedo | Lux | Tier |
+|---:|---|---|---:|---:|---|
+| 1\* | Barrakas (7×) | Enceladus ×7 | 9.625 | **11.73** | Bright |
+| 2 | Zarantyr | Luna | 0.12 | 10.30 | Bright |
+| 3 | Therendor | Dione | 0.99 | 8.85 | Bright |
+| 4 | Olarune | Titan | 0.22 | 7.63 | Bright |
+| 5 | Dravago | Triton | 0.76 | 5.69 | Bright |
+| 5\* | Dravago | Tethys | 0.80 | 5.98 | Bright |
+| 6 | Barrakas (1×) | Enceladus | 1.375 | 1.68 | Bright |
+| 7 | Nymm | Ganymede | 0.43 | 0.43 | Dim |
+| 8 | Lharvion | Hyperion | 0.30 | 0.39 | Dim |
+| 9 | Eyre | Elara | 0.05 | 0.30 | Dim |
+| 10 | Aryth | Iapetus avg | 0.275 | 0.137 | Faint |
+| 11 | Vult | Oberon | 0.23 | 0.132 | Faint |
+| 12 | Rhaan | Miranda | 0.32 | 0.082 | Faint |
+| 13 | Sypheros | Phoebe | 0.06 | 0.024 | Dark |
+| 13\* | Sypheros | Caliban | 0.04 | 0.016 | Dark |
 
-`periapsis = d × (1 − e)` · `apoapsis = d × (1 + e)` · overlap when inner apoapsis > outer periapsis.
+Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 
-**Lharvion / Nereid (e = 0.7507, d = 125,000 mi):**
-```
-periapsis = 31,163 mi
-```
-Therendor apoapsis (Europa, e = 0.0094): `39,367 mi` → Lharvion periapsis 31,163 < 39,367 = **orbital bands overlap**. Script was clamping; design rule says pick a different reference instead.
+**Key findings:**
+- At 7×, Barrakas (11.73) surpasses Zarantyr (10.30) as the single brightest night-sky object. Fitting for an Irian lantern.
+- Dravago ranks 5th regardless of Triton vs Tethys choice — the ~0.3 lux difference is negligible to gameplay.
+- Aryth (0.137) with averaged albedo is no longer negligible — it's faint but visible, between Vult and Rhaan.
+- Sypheros at Caliban (0.016) is clearly the lowest lux in the system. At Phoebe (0.024) it's still lowest, but only marginally above the dark threshold.
 
-**Sypheros / Phoebe (e = 0.1635, d = 183,000 mi) — pre-existing, acceptable:**
-```
-periapsis = 153,080 mi < Rhaan apoapsis 168,218 mi  (overlap with Rhaan)
-apoapsis  = 212,921 mi > Aryth periapsis 189,482 mi  (overlap with Aryth)
-```
-Sypheros (175.3° retrograde) is nearly perpendicular to all prograde moons. The 2D band overlaps exist but the moons never physically approach each other. This was true in the original mapping and is unchanged.
+### Barrakas multiplier options
 
----
-
-## Candidate Analysis
-
-### Dravago — highest inclination, lavender, must be bright
-
-**Constraints:**
-1. Inclination must exceed every other moon in the system
-2. Canon color is lavender (`#E6E6FA`) — the moon sheds purple dust; it must be visibly bright
-
-**The tension:** High-inclination moons in the Solar System are captured irregular objects — dark (albedo 0.04–0.08). Bright moons are regular moons formed in the protoplanetary disk — low inclination. These properties don't co-occur naturally.
-
-**The retrograde solution — Triton:**
-
-Triton (Neptune) is a captured Kuiper Belt object, retrograde at 156.8°, but unlike other captured irregulars it has been tidally heated and resurfaced with nitrogen ice — making it one of the brightest moons in the Solar System (albedo 0.76). It's the only high-inclination moon that is also genuinely bright.
-
-| Property | Triton |
-|---|---|
-| Host | Neptune |
-| Inclination | 156.8° (retrograde) |
-| Eccentricity | 0.00002 (nearly perfect circle) |
-| Albedo | 0.76 |
-| Surface | Nitrogen ice, cantaloupe terrain, active geysers |
-
-**Orbit check (e ≈ 0, d = 77,500 mi):** periapsis ≈ apoapsis ≈ 77,499 mi. Adjacent gap to Nymm (95,000 mi) = 17,375 mi. ✓ Plenty of room.
-
-**Thematic fit:**
-- Risia (Plain of Ice) + Triton (nitrogen ice, coldest active world in the Solar System): strong match
-- "Keeps at a distance from other moons" → retrograde orbit travels opposite to all other moons; rather than being high above/below, it passes them head-on and always moves away
-- Lavender color + bright albedo 0.76 → visibly illuminates at night sky ✓
-
-**On having two retrograde moons:** Sypheros (175.3°) and Dravago (156.8°) would both be retrograde. They're clearly distinguishable in inclination and will appear to move backward across the sky but at different rates and paths. This is unusual and can be presented as a feature: these are the two moons that "go against the grain."
-
-**Orbit check — full system with Dravago as Triton and Eyre as Elara:**
-
-| Adjacent pair | Inner apo | Outer peri | Gap | Status |
-|---|---:|---:|---:|---|
-| Therendor / Eyre | 39,086 | 40,716 | 1,630 mi | ✓ (tight but clear) |
-| Eyre / Dravago | 63,284 | 77,498 | 14,214 mi | ✓ |
-| Dravago / Nymm | 77,502 | 94,877 | 17,375 mi | ✓ |
-| Nymm / Lharvion | 95,124 | 109,625 | 14,501 mi | ✓ |
-| Lharvion / Barrakas | 140,375 | 143,323 | 2,948 mi | ✓ (tight but clear) |
-
-**Recommendation: Triton**
+| N | Albedo | Lux | Notes |
+|--:|-------:|----:|---|
+| 1 | 1.375 | 1.68 | Reference value. Barely above bright threshold. |
+| 2 | 2.75 | 3.35 | |
+| 4 | 5.50 | 6.70 | |
+| 6 | 8.25 | 10.05 | Near-equal to Zarantyr. |
+| **7** | **9.625** | **11.73** | Surpasses Zarantyr. Closest to old "albedo 10" system. **Recommended.** |
+| 8 | 11.00 | 13.41 | |
 
 ---
 
-### Therendor — needs inclination matching Barrakas (Enceladus, 0.02°)
+## Full Moon Review
 
-**Recommendation unchanged: Dione** (Saturn, 0.03°, 0.0022 ecc, 0.99 albedo)
+### ✓ Zarantyr → Luna
+*Why this reference was chosen:* Luna is the canonical baseline — Eberron's year was designed so Luna's period scales cleanly. No other moon has Eberron so visibly tuned to it. Moderate eccentricity (0.0549), meaningful inclination (5.145°), the dominant night-light source by proximity. The Storm Moon as the central reference is structurally necessary.
 
-Dione's 0.03° is essentially co-planar with Enceladus's 0.02°. Albedo 0.99 makes Therendor very bright — fitting for Syrania/healing. Two bright moons (Therendor + Barrakas) orbiting nearly the same plane, with frequent mutual eclipses.
+### ✓ Olarune → Titan
+*Why this reference was chosen:* Titan's orange atmospheric haze is a direct color match for Olarune's warm orange (#FFC68A). Very low inclination (0.33°) and eccentricity (0.0288) make it steady and reliable — the Sentinel always watches, never wavers. No other moon has both the right color and the orbital stillness.
+
+### ✓ Therendor → Dione *(changed from Europa)*
+*Why this reference was chosen:* Dione's inclination (0.03°) nearly matches Barrakas/Enceladus (0.02°) — a lore requirement for frequent mutual eclipses between The Healer's Moon and The Lantern. Dione's albedo (0.99) makes Therendor visually brilliant, the second-brightest moon in the sky. Europa's inclination (0.47°) was too far from Barrakas to maintain the co-planar pair. Dione provides both the orbital alignment and the visual brilliance that Syrania (healing, light) demands.
+
+### ⚠ Eyre → Elara *(confirmed, implementation pending)*
+*Why this reference was chosen:* Eyre is The Anvil, tuned for a forge-bellows effect — an eccentric orbit that swings dramatically in and out. Elara (Jupiter prograde irregular) provides 0.217 eccentricity (the highest available without orbit overlap) and 26.6° inclination for visible nodal precession ("hula hoop"). Hyperion was the previous reference but is structurally required for Lharvion. Siarnaq (ecc 0.296, higher swing) was ruled out: its periapsis at Eyre's scale falls inside Therendor's apoapsis (orbital overlap). Elara is the only viable high-eccentricity candidate.
+
+**Implementation note:** Set `nodePrecessionDegPerYear` to 15–20 when updating Eyre's reference. Current value (2°/year) is nearly imperceptible.
+
+### ⚠ Dravago — open (two candidates)
+*The Herder's Moon: the lavender moon that moves widely across the sky, guiding the others. Higher inclination is desirable, but not so wide that it abandons the herd.*
+
+| Candidate | Host | Type | Inclination | Ecc | Albedo | Lux |
+|---|---|---|---:|---:|---:|---:|
+| **Triton** | Neptune | Retrograde irregular | 156.8° | 0.00002 | 0.76 | 5.69 |
+| **Tethys** | Saturn | Regular prograde | 1.09° | 0.0001 | 0.80 | 5.98 |
+| **Himalia** | Jupiter | Prograde irregular | 29.6° | 0.162 | 0.04 | 0.30 |
+
+**Trade-off:**
+- Wide inclination AND bright → must accept retrograde (Triton). Goes opposite all other moons. The "sheepdog circles the outside of the flock" reading works narratively, but 156.8° is the most extreme possible wander.
+- Prograde AND bright → Tethys (nearly equatorial; barely wanders). Tethys has a lore advantage: it has two co-orbital shepherd moons (Telesto and Calypso riding its L4/L5 Lagrange points). A Herder's Moon that literally has followers. But it doesn't range widely.
+- Prograde AND wide wander → Himalia (29.6°, ecc 0.162). The inclination is meaningful, but the dark albedo (0.04) makes it invisible as a lavender beauty — this option is ruled out by Dravago's visual character.
+
+**Summary:** Choice is between Triton (wanders very far, retrograde) and Tethys (stays close, prograde, has shepherd companions). Himalia is eliminated by dark albedo.
+
+Also note: Tethys and Enceladus (Barrakas) are both Saturn regular moons with nearly identical inclinations (~0.02–1.09°). Adding Tethys as Dravago creates a second co-planar pair alongside Therendor/Barrakas. Whether that's meaningful or redundant is a narrative call.
+
+**⚠ Decision required.**
+
+### ✓ Nymm → Ganymede
+*Why this reference was chosen:* Ganymede is the largest moon in the Solar System — fitting for the crowned moon of perfect order (Daanvi). Very circular orbit (0.0013 ecc), very low inclination (0.20°). Orderly, stable, and massive. No ambiguity.
+
+### ✓ Lharvion → Hyperion *(changed from Nereid)*
+*Why this reference was chosen:* Structurally required. Lharvion's eccentricity ceiling is hard at 0.1466 — Barrakas's orbital band is an inner wall (see math below). Hyperion (0.1230 ecc) is the only available reference that fits within this ceiling AND carries a strong thematic case: Hyperion is the Solar System's most chaotically tumbling body, never settling into stable spin. Its orientation is genuinely unpredictable. Perfect for the Realm of Madness (Xoriat). Nereid (0.7507 ecc, previous reference) caused orbit overlap and had to be clamped — that's not acceptable.
+
+**Lharvion eccentricity ceiling math:**
+- Barrakas mean distance: 144,000 mi; ecc 0.0047 → apoapsis ≈ 144,677 mi
+- Lharvion periapsis must exceed 144,677 mi
+- Lharvion mean distance: 125,000 mi → ecc ceiling = (125,000 − 144,677) / 125,000... negative, so use:
+  - periapsis = 125,000 × (1 − ecc) > 144,677
+  - 1 − ecc > 1.1574 → impossible!
+
+  Wait — re-check: Lharvion (125,000 mi) is *inside* Barrakas (144,000 mi). Lharvion is the closer moon. So Lharvion's **apoapsis** must stay inside Barrakas's **periapsis**:
+  - Barrakas periapsis = 144,000 × (1 − 0.0047) = 143,323 mi
+  - Lharvion apoapsis = 125,000 × (1 + ecc) < 143,323
+  - ecc < (143,323 − 125,000) / 125,000 = 0.1466 ✓
+
+  Hyperion (0.1230) satisfies this. Nereid (0.7507) would give Lharvion apoapsis = 218,838 mi — far outside Barrakas.
+
+### ⚠ Barrakas → Enceladus (multiplier pending)
+*Why this reference was chosen:* Enceladus is the most reflective body in the Solar System (albedo 1.375, exceeding 1.0 due to active resurfacing). The Lantern moon demanded the most brilliant reference available. Enceladus's nearly circular orbit (0.0047 ecc) and near-equatorial inclination (0.02°) place it co-planar with Therendor/Dione (0.03°) — enabling the frequent mutual eclipses that lore suggests.
+
+**At reference albedo (1×):** Barrakas gives 1.68 lux — above the bright threshold but not distinctively dominant.
+
+**Multiplier decision:** An integer multiplier N on the reference albedo may be applied to match "bright enough for hunters to hunt by" lore. See table in the Lux Analysis section above. **Recommended: 7× (albedo 9.625, 11.73 lux)** — this makes Barrakas the single brightest object in the night sky, surpassing Zarantyr, which is the correct reading for an Irian lantern. Closest to the old "albedo 10" from previous system iterations.
+
+**⚠ Multiplier decision required.**
+
+### ✓ Rhaan → Miranda
+*Why this reference was chosen:* Miranda (Uranus) has uniquely bizarre geology — deep canyons, mixed ancient and young terrain, a surface like nowhere else in the Solar System. This chaos reflects Thelanis (the Faerie Court) where the rules are strange and the landscape follows dream logic. Moderate inclination (4.34°) gives it a slightly unusual path. Pale blue (#9AC0FF) matches Uranus-family coloring.
+
+### ⚠ Sypheros — open (two candidates)
+*The Shadow, associated with Mabar (the endless night). Dim, lurking, retrograde. Must have the lowest albedo in the system.*
+
+| Candidate | Host | Type | Inclination | Ecc | Albedo | Sypheros lux | Orbit check |
+|---|---|---|---:|---:|---:|---:|---|
+| **Phoebe** | Saturn | Retrograde irregular | 175.3° | 0.1635 | 0.06 | 0.024 lux | periapsis 153,079 mi > 144,677 ✓ |
+| **Caliban** | Uranus | Retrograde irregular | 140.9° | 0.159 | 0.04 | 0.016 lux | periapsis 153,897 mi > 144,677 ✓ |
+
+Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (1 − ecc).
+
+Both candidates satisfy the orbit constraint. Both are retrograde. Caliban is 33% darker (0.04 vs 0.06). At 0.016 lux, Caliban-Sypheros is clearly the lowest lux in the system — the next-lowest at Phoebe would be 0.024. Phoebe's near-perfect retrograde (175.3° is nearly 180°) is more extreme; Caliban's (140.9°) is still retrograde but less so.
+
+**Why Caliban fits:** Caliban is genuinely obscure — a captured irregular with negligible brightness, orbiting backwards in the outer darkness. "A dim rock difficult to even pick out in the night sky" describes it precisely.
+
+**Recommendation: Caliban.** More visually dim (albedo 0.04), clearly the lowest in the system, still retrograde. Phoebe included for comparison.
+
+**⚠ Decision required.**
+
+### ⚠ Aryth → Iapetus *(albedo resolved: averaged)*
+*Why this reference was chosen:* Iapetus's 7.57° inclination gives Aryth a noticeably angled path — The Gateway moon has an unusual sky presence. Its eccentricity (0.0283) is moderate. Critically, Iapetus's two-tone surface (dark leading face 0.05, bright trailing face 0.50) maps onto Aryth's association with Dolurrh (the Realm of the Dead) as a threshold — one face is darkness, one is passage.
+
+**Albedo treatment:** Aryth is treated as *not* tidally locked to Eberron; both faces are always visible from any point on the planet. Average = (0.05 + 0.50) / 2 = **0.275**. This gives 0.137 lux — faint but visible, appropriate for a moon associated with a transition realm rather than pure darkness.
+
+**This decision is resolved.** Albedo = 0.275.
+
+### ✓ Vult → Oberon
+*Why this reference was chosen:* The Warding Moon (Shavarath) is the eternal sentinel — steady, reliable, predictable. Oberon (Uranus) has nearly circular orbit (0.0014 ecc), very low inclination (0.07°). It barely moves from its set path. A ward does not wander.
 
 ---
 
-### Eyre — higher eccentricity, meaningful inclination for nodal precession
+## Eyre — Confirmed: Elara
 
-**What the user wants:** forge-bellows behavior (swings dramatically closer and farther) and a "hula hoop" orbital plane swing. The model already supports both via `MOON_MOTION_TUNING`.
-
-**What the current reference gives:** Hyperion (0.43°, 0.1230 ecc) → the inclination is too low for nodal precession to be visually meaningful, and eccentricity only moderate. The apsidal precession (120°/year) is already the fastest of any moon.
-
-To get visible nodal precession, inclination should be substantial — at least 15°, ideally higher. Higher eccentricity satisfies the bellows. Both point toward a prograde irregular moon.
-
-**Candidates:**
-
-| Candidate | Host | Inclination | Eccentricity | Albedo | Notes |
-|---|---|---:|---:|---:|---|
-| **Elara** | Jupiter | 26.6° | 0.217 | 0.05 | Prograde irregular; ecc 77% higher than Hyperion |
-| **Siarnaq** | Saturn | 45.8° | 0.296 | ~0.05 | Prograde irregular; ecc 140% higher than Hyperion; not in current pool |
-| Himalia | Jupiter | 27.5° | 0.16 | 0.05 | Prograde; 30% higher than Hyperion; less dramatic bellows |
-| Hyperion | Saturn | 0.43° | 0.1230 | 0.30 | Current; keeps Eyre brighter but minimal nodal precession |
-
-**Orbit checks (with Dravago as Triton, d 77,500 mi nearly circular):**
-- All four candidates clear Olarune and Dravago (see table above — inner gap ≥ 18,090 mi, outer gap ≥ 10,106 mi for the most extreme case)
-- Elara/Eyre → Therendor inner gap: 1,630 mi (clear but tight)
-
-**The albedo tradeoff:** Elara and Siarnaq both have albedo ~0.05 — Eyre would be very dark (dim silver metallic moon). The silver color (`#C0C0C0`) with dark albedo means the forge moon is dim in the night sky. This has a thematic argument: the cold anvil is dark until fire touches it. But if you want Eyre to be visually present in night-sky descriptions, this is worth knowing.
-
-**On nodal precession rate:** After choosing a reference with meaningful inclination, the `nodePrecessionDegPerYear` in `MOON_MOTION_TUNING` should be set to something visible — current value is 2 (nearly imperceptible). A value of 15–20°/year gives a full hula-hoop cycle in 18–24 years (visible over a campaign). This is a coding decision, not a reference selection decision.
-
-**Recommendation: Elara** (higher eccentricity + meaningful inclination for hula hoop). Siarnaq if you want even more dramatic bellows.
-
----
-
-### Lharvion — no orbit overlap, Xoriat / The Eye / madness
-
-With Eyre taking Elara, **Hyperion is available** for Lharvion (it was freed from Eyre).
-
-Hyperion is an unusually good thematic match for Xoriat: it's the most chaotic rotator in the Solar System, never settling into stable spin — genuinely unpredictable tumbling. This maps naturally to the Realm of Madness and The Eye that observes in alien ways.
-
-**Orbit check (Hyperion ecc 0.1230, d 125,000 mi):** periapsis 109,625 mi, apoapsis 140,375 mi. Gap to Nymm (apoapsis 95,124): 14,501 mi ✓. Gap to Barrakas (periapsis 143,323): 2,948 mi ✓. No overlap.
-
-**Recommendation: Hyperion**
+See Full Moon Review above. Decision resolved. Siarnaq ruled out by orbital overlap. Elara is the only viable candidate.
 
 ---
 
 ## Proposed Final Mapping
 
-Five changes. Seven unchanged.
+| Eberron Moon | Reference | Change | Inclination | Ecc | Albedo | Status |
+|---|---|---|---:|---:|---:|---|
+| Zarantyr | Luna | — | 5.145° | 0.0549 | 0.12 | ✓ confirmed |
+| Olarune | Titan | — | 0.33° | 0.0288 | 0.22 | ✓ confirmed |
+| Therendor | **Dione** | Europa → Dione | 0.03° | 0.0022 | 0.99 | ✓ confirmed |
+| Eyre | **Elara** | Hyperion → Elara | 26.6° | 0.217 | 0.05 | ✓ confirmed |
+| Dravago | **Tethys or Triton** | Tethys → Triton | *see above* | *see above* | *see above* | ⚠ open |
+| Nymm | Ganymede | — | 0.20° | 0.0013 | 0.43 | ✓ confirmed |
+| Lharvion | **Hyperion** | Nereid → Hyperion | 0.43° | 0.1230 | 0.30 | ✓ confirmed |
+| Barrakas | Enceladus ×N | — (multiplier pending) | 0.02° | 0.0047 | 1.375 × N | ⚠ open |
+| Rhaan | Miranda | — | 4.34° | 0.0013 | 0.32 | ✓ confirmed |
+| Sypheros | **Phoebe or Caliban** | — | *see above* | *see above* | *see above* | ⚠ open |
+| Aryth | Iapetus | — (albedo resolved: 0.275) | 7.57° | 0.0283 | 0.275 | ✓ confirmed |
+| Vult | Oberon | — | 0.07° | 0.0014 | 0.23 | ✓ confirmed |
 
-| Eberron Moon | Proposed Reference | Change | Inclination | Eccentricity | Albedo |
-|---|---|---|---:|---:|---:|
-| Zarantyr | Luna | — | 5.145° | 0.0549 | 0.12 |
-| Olarune | Titan | — | 0.33° | 0.0288 | 0.22 |
-| Therendor | **Dione** | Europa → Dione | **0.03°** | **0.0022** | **0.99** |
-| Eyre | **Elara** | Hyperion → Elara | **26.6°** | **0.217** | **0.05** |
-| Dravago | **Triton** | Tethys → Triton | **156.8° (retro)** | **0.00002** | **0.76** |
-| Nymm | Ganymede | — | 0.20° | 0.0013 | 0.43 |
-| Lharvion | **Hyperion** | Nereid → Hyperion | **0.43°** | **0.1230** | **0.30** |
-| Barrakas | Enceladus | — | 0.02° | 0.0047 | 1.375 |
-| Rhaan | Miranda | — | 4.34° | 0.0013 | 0.32 |
-| Sypheros | Phoebe | — | 175.3° (retro) | 0.1635 | 0.06 |
-| Aryth | Iapetus | — | 7.57° | 0.0283 | 0.05–0.275 |
-| Vult | Oberon | — | 0.07° | 0.0014 | 0.23 |
-
-**Retrograde moons:** Sypheros (175.3°) and Dravago (156.8°) — both go against the grain, clearly distinguishable.
-**Highest prograde inclination:** Eyre at 26.6° (Elara), or Lharvion at 0.43° if Elara not used.
-**Brightest pair:** Therendor (0.99) + Barrakas (1.375) in nearly the same orbital plane.
+7 confirmed. 3 open decisions: Dravago reference, Barrakas multiplier, Sypheros reference.
 
 ---
 
-## Remaining Open Questions
+## Remaining Open Decisions
 
-**1. Eyre albedo (Elara):** Elara has albedo 0.05 — Eyre (#C0C0C0, silver) would be very dim in the sky. The cold-anvil-in-darkness interpretation works thematically. But if Eyre should be dramatically visible, consider Siarnaq (same eccentricity class, same albedo problem) or revisit whether Hyperion's 0.30 albedo and slower bellows is acceptable.
-
-**2. Aryth albedo (Iapetus two-tone):** Iapetus is tidally locked to Saturn. Whether Aryth is tidally locked to Eberron is a design choice. Options:
-  - **Not tidally locked** → both faces visible over orbit → averaged albedo: `(0.05 + 0.50) / 2 = 0.275`
-  - **Different reference** → Callisto (Jupiter, 0.28°, 0.0074 ecc, 0.20 albedo) — ancient, heavily cratered; "realm of the dead" aesthetic; simpler uniform albedo
-  - Script currently uses 0.05 (dark face only)
-
-**3. Eyre nodal precession rate:** Once reference is chosen, `nodePrecessionDegPerYear` in `MOON_MOTION_TUNING` needs to be set to something visible (suggest 15–20°/year). This is a coding decision, not a reference selection. Flag for the implementation task.
-
-**4. Siarnaq availability:** Siarnaq (Saturn, 45.8°, 0.296 ecc, albedo ~0.05) is not currently in the candidate pool in DESIGN.md §7.12. If Elara is shortlisted, add Siarnaq to the pool for comparison. Same albedo issue, higher eccentricity (96% more than Hyperion vs Elara's 77%).
+**1. Dravago reference:** Triton (retrograde, wide wander, bright) vs Tethys (prograde, equatorial, bright + shepherd companions)?
+**2. Barrakas multiplier:** N× Enceladus albedo (1.375). Recommend 7× = 9.625 albedo, 11.73 lux.
+**3. Sypheros reference:** Caliban (darker, 0.04) vs Phoebe (current, 0.06). Both retrograde, both orbit-safe. Recommend Caliban.
 
 ---
 
 ## Period Scaling Reference
 
-Informational — Eberron periods are designed values and are not changed.
+Informational — Eberron periods are designed values.
 
-| Eberron Moon | Designed Period | Reference | Real Synodic (days, Earth) | Scaled to 336d year | Best Integer × | Result |
+| Eberron Moon | Designed Period | Reference | Real Synodic (days, Earth) | Scaled to 336d year | Best Int × | Result |
 |---|---:|---|---:|---:|---:|---:|
-| Zarantyr | 27.32 | Luna | 29.53 | 27.17 | ×1 | 27.17 |
-| Olarune | 34.0 | Titan | ~383 (sidereal ~15.9d) | ~14.6 | ×2 | 29.2 |
-| Therendor | 24.0 | **Dione** | ~2.74 | 2.52 | ×10 | 25.2 |
+| Zarantyr | 27.32 | Luna | 29.53 | 27.17 | ×1 | 27.2 |
+| Olarune | 34.0 | Titan | ~15.9d (sidereal) | ~14.6 | ×2 | 29.2 |
+| Therendor | 24.0 | **Dione** | 2.74 | 2.52 | ×10 | 25.2 |
 | Eyre | 21.0 | **Elara** | ~260 (sidereal) | ~239 | ÷11 | 21.7 |
-| Dravago | 42.0 | **Triton** | ~5.88 | 5.41 | ×8 | 43.3 |
-| Nymm | 28.0 | Ganymede | ~7.16 | 6.59 | ×4 | 26.4 |
-| Lharvion | 30.0 | **Hyperion** | ~21.28 | 19.58 | ×2 | 39.2 |
-| Barrakas | 22.0 | Enceladus | ~1.37 | 1.26 | ×17 | 21.4 |
-| Rhaan | 37.0 | Miranda | ~1.41 | 1.30 | ×28 | 36.4 |
-| Sypheros | 67.0 | Phoebe | ~548 (sidereal) | ~504 | ÷8 | 63.0 |
-| Aryth | 48.0 | Iapetus | ~79.3 | 72.9 | ÷2 | 36.5 |
-| Vult | 56.0 | Oberon | ~13.46 | 12.38 | ×5 | 61.9 |
+| Dravago | 42.0 | **Triton/Tethys** | 5.88 / 1.89 | 5.41 / 1.74 | ×8 / ×24 | 43.3 / 41.8 |
+| Nymm | 28.0 | Ganymede | 7.16 | 6.59 | ×4 | 26.4 |
+| Lharvion | 30.0 | **Hyperion** | 21.28 | 19.58 | ×2 | 39.2 |
+| Barrakas | 22.0 | Enceladus | 1.37 | 1.26 | ×17 | 21.4 |
+| Rhaan | 37.0 | Miranda | 1.41 | 1.30 | ×28 | 36.4 |
+| Sypheros | 67.0 | Phoebe/Caliban | ~550 / ~580 | ~506 / ~533 | ÷8 / ÷8 | 63.3 / 66.6 |
+| Aryth | 48.0 | Iapetus | 79.3 | 72.9 | ÷2 | 36.5 |
+| Vult | 56.0 | Oberon | 13.46 | 12.38 | ×5 | 61.9 |
 
 ---
 
 ## Resulting Actions
 
-When the three open questions above are resolved:
+When the three open decisions above are resolved:
 
-- [ ] Add Siarnaq to candidate pool in DESIGN.md §7.12 (if comparing against Elara for Eyre)
 - [ ] Update DESIGN.md §7.4 with final reference mapping table
-- [ ] Update DESIGN.md §7.3 Aryth color note (orange-red `#FF4500` is the canonical script value)
 - [ ] Add task: "Update Therendor reference to Dione (0.03°, 0.0022 ecc, 0.99 albedo)"
-- [ ] Add task: "Update Eyre reference to Elara/Siarnaq; set `nodePrecessionDegPerYear` to ~15–20; keep `apsisPrecessionDegPerYear: 120`"
-- [ ] Add task: "Update Dravago reference to Triton (156.8°, 0.00002 ecc, 0.76 albedo)"
-- [ ] Add task: "Update Lharvion reference to Hyperion (0.43°, 0.1230 ecc, 0.30 albedo); verify no clamping"
-- [ ] Add task: "Set Aryth albedo: [0.275 if not tidally locked / 0.20 if Callisto]"
+- [ ] Add task: "Update Eyre reference to Elara (26.6°, 0.217 ecc, 0.05 albedo); set nodePrecessionDegPerYear to 15–20; keep apsisPrecessionDegPerYear: 120"
+- [ ] Add task: "Update Dravago reference to [Triton/Tethys]"
+- [ ] Add task: "Update Lharvion reference to Hyperion (0.43°, 0.1230 ecc, 0.30 albedo); remove eccentricity clamping"
+- [ ] Add task: "Set Barrakas albedo multiplier to N× in script"
+- [ ] Add task: "Update Sypheros reference to [Caliban/Phoebe]"
+- [ ] Add task: "Set Aryth albedo to 0.275 (averaged Iapetus)"
 - [ ] Add task: "Add weak anti-phase coupling between Therendor and Barrakas"
-- [ ] Add task: "Update period scaling table in DESIGN.md with final values"
+- [ ] Add task: "Update period scaling table in DESIGN.md with final multipliers"
