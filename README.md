@@ -1,13 +1,13 @@
 # Calendar — Roll20 API Script
 
 A Roll20 API script for managing a fantasy campaign calendar with:
-- graphical mini-calendar displayed in chat
-- events, like holidays
-- moon phase tracking
-	- nighttime lighting based on ambient light
-- integrated, location-based, generated weather
+- graphical mini-calendar displayed in chat, with toggle-able subsystems:
+	- events tracking
+	- moon phase tracking
+	- location-based, generated weather, with mechanical effects (homebrewed system)
+	- planar movements (Eberron setting)
 
-**Primary support:** Eberron setting. Also supports Faerûnian (Harptos) and Gregorian calendar systems.
+**Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
 
 ---
 
@@ -15,14 +15,20 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 1. In Roll20, open your campaign's **API Scripts** page (Game Settings → API Scripts).
 2. Create a new script and paste in the contents of `calendar.js`.
-3. Save the script. It initializes automatically on first load.
-4. Type `!cal` in the chat to open the calendar.
+3. Save. It initializes automatically on first load.
 
 ---
 
 ## Quick Start
 
+Startup message should appear in game:
+> Galifar Calendar Initialized
+> Current Date: 
+
+In the chat window:
 `!cal`
+
+Add a macro for even easier use.
 
 ---
 
@@ -46,10 +52,17 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 - **Upcoming** — 7-day preview strip
 - **Admin** — change displays, settings, and everything else related to the script
 
-#### Player Buttons
+### Player Buttons
+```
+⏮ Previous  |  ⏭ Next
+📋 Today  |  📅 Upcoming
+🌤 Weather
+🌙 Moons
+🌀 Planes
+```
 
 ---
-# Commands
+## Commands
 - All command formatting is whispered when needed, in game. You don't need to come back to this document.
 - Additionally, almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window. That includes almost all of the commands presented in this section. The buttons execute the command.
 	- However, the buttons are "hard-coded". A small set of the calendar's functions require specific typed commands.
