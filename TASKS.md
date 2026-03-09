@@ -13,6 +13,8 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 
 
 ---
+## User-Generated
+- Check README for accuracy against the script implementation, add section at the top of README that lists which sections are not how the script is currently implemented.
 
 ## Phase 1 — Core math and simulation
 

@@ -47,9 +47,10 @@ The main `!cal` view shows a mini-calendar for the current month.
 
 ---
 # Commands
-- Most of the script can be interacted with exclusively through the buttons generated in the in-game chat window.
-- As the buttons are "hard-coded", some of the calendar's functions require specific typed commands.
 - All command formatting is whispered when needed, in game. You don't need to come back to this document.
+- Additionally, almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window. That includes almost all of the commands presented in this section. The buttons execute the command.
+	- However, the buttons are "hard-coded". A small set of the calendar's functions require specific typed commands.
+
 ## Dates
 
 ```
@@ -115,8 +116,12 @@ The main `!cal` view shows a mini-calendar for the current month.
 
 ```
 !cal moon send low              — today + 2 days (Common Knowledge)
-!cal moon send medium [range]   — preset ranges: 1m, 3m, 6m, 10m (Skilled Forecast)
-!cal moon send high [range]     — full exact knowledge: 1m, 3m, 6m, 10m (Expert Forecast)
+
+!cal moon send medium [range]   — includes marginal uncertainty, with preset ranges of:
+	1m, 3m, 6m, 10m (Skilled Forecast, typically gated behind a DC 10, 15, 20, 25 Skill Check)
+
+!cal moon send high [range]     — full exact knowledge, with preset ranges of :
+	1m, 3m, 6m, 10m (Expert Forecast, typically gated behind magic or a tool-assisted forecast)
 ```
 
 Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
@@ -124,7 +129,7 @@ Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
 ### GM Moon Controls
 
 ```
-!cal moon seed <word>                     — set moon generation seed
+!cal moon seed <word>                     — set moon generation seed, overriding system-wide seed used
 !cal moon full <MoonName> <date>          — anchor a moon's full phase to a date
 !cal moon new <MoonName> <date>           — anchor a moon's new phase to a date
 !cal moon reset [<MoonName>]              — clear phase anchors
