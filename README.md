@@ -62,6 +62,9 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ```
 
 ---
+### Events
+---
+
 ## Commands
 - All command formatting is whispered when needed, in game. You don't need to come back to this document.
 - Additionally, almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window. That includes almost all of the commands presented in this section. The buttons execute the command.
