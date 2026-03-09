@@ -1,10 +1,10 @@
 # Calendar — Roll20 API Script
 
 A Roll20 API script for managing a fantasy campaign calendar with:
-- graphical mini-calendar displayed in chat, with toggle-able subsystems:
+- graphical mini-calendar displayed in chat, with toggleable subsystems:
 	- events tracking
 	- moon phase tracking
-	- location-based, generated weather, with mechanical effects (homebrewed system)
+	- location-based, generated weather, with mechanical effects (homebrew system)
 	- planar movements (Eberron setting)
 
 **Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
@@ -35,7 +35,7 @@ Add a macro for even easier use.
 ## Calendar Navigation
 
 The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
-### GM Buttons:
+### GM Buttons
 ```
 ⏮ Previous  |  ⏭ Next
 📣 Send
@@ -45,13 +45,6 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 🌀 Planes
 ⚙ Admin
 ```
-
-- **Previous / Next** — see adjacent months
-- **Send** — send the current date's calendar to players
-- **Today** — deep-dive summary for the current in-game date
-- **Upcoming** — 7-day preview strip
-- **Admin** — change displays, settings, and everything else related to the script
-
 ### Player Buttons
 ```
 ⏮ Previous  |  ⏭ Next
@@ -60,13 +53,47 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 🌙 Moons
 🌀 Planes
 ```
+- **Previous / Next** — see adjacent months
+- **Send** — sends the current date's calendar to players in public chat
+- **Today** — summary for the current in-game date
+- **Upcoming** — preview strip
+- **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
+- **Admin** — change displays, settings, and everything else related to the script
+---
+## Events
+### General
+- Individual cells within the minical are color-filled on the day of an event.
+- For days with multiple events, small colored dots appear beneath the numbered date.
+- Each cell can be hovered over with a mouse to show a tooltip containing the event information.
+### Pre-Included
+* All published holidays are pre-included in the script. Each is assigned a color.
+* Every pre-included holiday can be individually toggled on or off.
+* Additionally, holidays are grouped by Source, allowing for entire categories to be toggled on or off.
+* Switching between calendar systems automatically toggles appropriate Sources.
+### GM Generated
+- GMs can create their own events, which are then stored in state.
+- There is no limit to the number of events created. They can be deleted as necessary.
+- If no color is assigned at creation, a random color is assigned.
+---
+## Moons
+- **Earth**
+	- Insert Luna parameters here. Include anchor date for correct phase.
+- **Faerun**
+	- Insert Selune parameters here. Include anchor date for correct phase.
+- **Eberron**
+	- Eberron's moons are vastly more important to the setting, more complex, and less-defined.
+	- Each moon has a canon color, approximate diameter, and mean orbital distance.
+	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
+	- Each moon was matched with a real-world moon from our own Solar System to 
+---
+## Weather
+- Included is a homebrew system for managing the weather.
+- This system can be toggled on or off as desired.
 
 ---
-### Events
-* All published holidays are pre-included in the script.
-* Source controls allow for 
----
+## Planes
 
+---
 ## Commands
 - All command formatting is whispered when needed, in game. You don't need to come back to this document.
 - Additionally, almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window. That includes almost all of the commands presented in this section. The buttons execute the command.
