@@ -22,17 +22,9 @@ See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks impl
 
 ### Moons and orbital behavior
 
+> **Note:** Reference moon selection tasks are blocked on `design/moon-reference-selection.md`. The tasks below that depend on specific reference choices will be added to this file once that design discussion concludes. The phase-threshold and eclipse tasks are independent and ready now.
+
 - [ ] Remove legacy moon name aliases and compatibility references
-- [ ] Stop clamping Lharvion eccentricity — select a different reference moon if orbit overlap occurs; do not modify the parameter
-- [ ] Update Barrakas/Therendor to have closely matched inclinations (more frequent eclipses per lore)
-- [ ] Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock
-- [ ] Give Dravago the highest inclination of any moon ("typically keeps at a distance")
-- [ ] Revisit all moon reference selections with full lore constraints applied
-- [ ] Extend moon reference table with scaled-period details for all moons:
-  - [ ] Reference moon raw period
-  - [ ] Scaled period (to 336-day year)
-  - [ ] Integer multiplier
-  - [ ] Final synodic period used
 - [ ] Audit full/new phase thresholds — multiple consecutive-day "full" reports suggest thresholds (≥97% / ≤3%) may be too wide
 
 ### Eclipses and crossings
