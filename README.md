@@ -10,6 +10,11 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 **Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
 
 ---
+## Table of Contents
+- [ ] need to fill this in
+- [ ] can we make the sections start auto-collapsed, and open when the ToC link. is clicked?
+
+---
 
 ## Installation
 
@@ -19,16 +24,15 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 ---
 
-## Quick Start
+## How to Use
 
 Startup message should appear in game:
 > Galifar Calendar Initialized
 > Current Date: 
 
-In the chat window:
+In the chat window, type:
 `!cal`
-
-Add a macro for even easier use.
+*Tip: Add a macro for even easier use.*
 
 ---
 
