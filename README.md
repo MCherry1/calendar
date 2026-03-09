@@ -1,6 +1,11 @@
-# Eberron Calendar — Roll20 API Script
+# Calendar — Roll20 API Script
 
-A Roll20 API script for managing a fantasy campaign calendar with integrated weather, moon phase tracking, planar forecasting, and nighttime lighting.
+A Roll20 API script for managing a fantasy campaign calendar with:
+- graphical mini-calendar displayed in chat
+- events, like holidays
+- moon phase tracking
+	- nighttime lighting based on ambient light
+- integrated, location-based, generated weather
 
 **Primary support:** Eberron setting. Also supports Faerûnian (Harptos) and Gregorian calendar systems.
 
@@ -17,25 +22,21 @@ A Roll20 API script for managing a fantasy campaign calendar with integrated wea
 
 ## Quick Start
 
-| Command         | What it does                                                 |
-| --------------- | ------------------------------------------------------------ |
-| `!cal`          | Open the current month calendar. Includes events if enabled. |
-| `!cal today`    | Full summary of today — weather, moons, planes, events       |
-| `!cal upcoming` | 7-day strip with subsystem highlights                        |
-| `!cal weather`  | Current weather panel                                        |
-| `!cal moon`     | Moon phase panel                                             |
-| `!cal planes`   | Planar state panel                                           |
+`!cal`
 
 ---
 
 ## Calendar Navigation
 
-The main `!cal` view shows a mini-calendar for the current month.
-
-**GM button bar:**
+The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
+### GM Buttons:
 ```
-⏮ Previous  |  ⏭ Next  |  📣 Send
-📋 Today  |  📅 Upcoming  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
+⏮ Previous  |  ⏭ Next
+📣 Send
+📋 Today  |  📅 Upcoming
+🌤 Weather
+🌙 Moons
+🌀 Planes
 ⚙ Admin
 ```
 
@@ -44,6 +45,8 @@ The main `!cal` view shows a mini-calendar for the current month.
 - **Today** — deep-dive summary for the current in-game date
 - **Upcoming** — 7-day preview strip
 - **Admin** — change displays, settings, and everything else related to the script
+
+#### Player Buttons
 
 ---
 # Commands
