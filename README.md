@@ -17,14 +17,14 @@ A Roll20 API script for managing a fantasy campaign calendar with integrated wea
 
 ## Quick Start
 
-| Command | What it does |
-|---|---|
-| `!cal` | Open the current month calendar |
-| `!cal today` | Full summary of today — weather, moons, planes, events |
-| `!cal upcoming` | 7-day strip with subsystem highlights |
-| `!cal weather` | Current weather panel |
-| `!cal moon` | Moon phase panel |
-| `!cal planes` | Planar state panel |
+| Command         | What it does                                                 |
+| --------------- | ------------------------------------------------------------ |
+| `!cal`          | Open the current month calendar. Includes events if enabled. |
+| `!cal today`    | Full summary of today — weather, moons, planes, events       |
+| `!cal upcoming` | 7-day strip with subsystem highlights                        |
+| `!cal weather`  | Current weather panel                                        |
+| `!cal moon`     | Moon phase panel                                             |
+| `!cal planes`   | Planar state panel                                           |
 
 ---
 
@@ -34,30 +34,30 @@ The main `!cal` view shows a mini-calendar for the current month.
 
 **GM button bar:**
 ```
-⏮ Back  |  ⏭ Forward  |  📣 Send
+⏮ Previous  |  ⏭ Next  |  📣 Send
 📋 Today  |  📅 Upcoming  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
 ⚙ Admin
 ```
 
-- **Back / Forward** — move one month at a time
-- **Send** — send the current calendar view to players
+- **Previous / Next** — see adjacent months
+- **Send** — send the current date's calendar to players
 - **Today** — deep-dive summary for the current in-game date
 - **Upcoming** — 7-day preview strip
-- **Admin** — settings, date management, calendar system selection
+- **Admin** — change displays, settings, and everything else related to the script
 
 ---
-
-## Date Commands
+# Commands
+- Most of the script can be interacted with exclusively through the buttons generated in the in-game chat window.
+- As the buttons are "hard-coded", some of the calendar's functions require specific typed commands.
+- All command formatting is whispered when needed, in game. You don't need to come back to this document.
+## Dates
 
 ```
-!cal <day>              — jump to next occurrence of that day number
-!cal <month> <day>      — jump to specific month and day
+!cal <day>                — jump to next instance of that day number
+!cal <month> <day>        — jump to next instance of specific month and day
 !cal <month> <day> <year> — jump to exact date
-!cal Olarune            — jump to the next Olarune (month name works as a shortcut)
+!cal Olarune              — jump to the next Olarune (month name works as a shortcut)
 ```
-
----
-
 ## Weather
 
 ### Setting Your Location
