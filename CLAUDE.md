@@ -1,9 +1,47 @@
 # Eberron Calendar — Roll20 API Script
 
 ## What This Is
-A Roll20 API script (`eberron-calendar.js`) for managing an Eberron campaign calendar. It integrates calendar display, weather generation, moon phase tracking, planar event forecasting, and nighttime lighting into a single GM tool with player-facing reveals.
+A Roll20 API script (`calendar.js`) for managing an Eberron campaign calendar. It integrates calendar display, weather generation, moon phase tracking, planar event forecasting, and nighttime lighting into a single GM tool with player-facing reveals.
 
 **Primary canon source**: Keith Baker's published Eberron material. Lore fidelity is a hard constraint.
+
+---
+
+## Development Workflow
+
+This project is developed entirely with coding agents. Before doing any work, orient yourself with the files below.
+
+### The three files you need
+
+**`DESIGN.md`** — Authoritative design document. Architectural decisions, mechanical systems, complete data tables, development history. Read the relevant section before implementing anything. Do not implement something differently from what DESIGN.md says unless the discrepancy is explicitly noted.
+
+**`tasks.md`** — Implementation backlog. Every item here is ready to code — the design is decided and the approach is clear. Work from this file. When you complete a task, mark it `[x]`. Do not add tasks here without a decided design.
+
+**`design/`** — Active design discussions. Each file is a topic where the design is NOT yet decided. Do not implement anything described only in `design/` — it is there specifically because it is not ready for coding. When a discussion concludes, the agent updates DESIGN.md and adds tasks to tasks.md.
+
+### Pipeline: idea → code
+
+```
+Undecided question
+  → create design/<topic>.md
+  → design-discussion agent researches and decides
+  → update DESIGN.md with decision
+  → add implementation tasks to tasks.md
+  → delete or archive the design/ file
+
+Ready task
+  → coding agent implements from tasks.md
+  → marks task [x] when done
+```
+
+### Rules
+
+- **Only implement from tasks.md.** If something is only in `design/`, it is not ready.
+- **Read DESIGN.md first.** Don't guess at architectural intent — it's documented.
+- **Don't add tasks to tasks.md for undecided design.** If you discover something that needs a design decision, create a `design/` file for it.
+- **Upgrade-only for DESIGN.md.** Design decisions are additive. Don't remove content from DESIGN.md unless explicitly asked.
+
+---
 
 ## Architecture Overview
 
@@ -22,7 +60,7 @@ All subsystems use unified tier names. No legacy "mundane/magical/abridged" in n
 
 **Source labels** (player-facing, non-magical language):
 - Low → "Common Knowledge"
-- Medium → "Skilled Forecast"  
+- Medium → "Skilled Forecast"
 - High → "Expert Forecast"
 
 #### Weather Tiers
@@ -65,8 +103,5 @@ Button bar (three rows):
 - **Manifest zones** are parallel to location (set separately, cleared on location change)
 
 ## File Structure
-Single file: `eberron-calendar.js` (~12,300 lines)
+Single file: `calendar.js` (~12,300 lines)
 All state stored in Roll20's `state` object.
-
-## Current Known Issues / TODO
-See DESIGN.md for the full todo list and pending design decisions.
