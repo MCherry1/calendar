@@ -63,6 +63,8 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 
 ---
 ### Events
+* All published holidays are pre-included in the script.
+* Source controls allow for 
 ---
 
 ## Commands
