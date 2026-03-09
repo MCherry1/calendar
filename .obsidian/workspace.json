@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "TASKS.md",
+                "file": "design/moon-reference-selection.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "TASKS"
+              "title": "moon-reference-selection"
             }
           }
         ],
@@ -109,7 +109,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "TASKS.md",
+                "file": "design/moon-reference-selection.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -119,7 +119,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for TASKS"
+              "title": "Backlinks for moon-reference-selection"
             }
           },
           {
@@ -128,12 +128,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "TASKS.md",
+                "file": "design/moon-reference-selection.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from TASKS"
+              "title": "Outgoing links from moon-reference-selection"
             }
           },
           {
@@ -171,13 +171,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "TASKS.md",
+                "file": "design/moon-reference-selection.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of TASKS"
+              "title": "Outline of moon-reference-selection"
             }
           },
           {
@@ -212,6 +212,9 @@
   },
   "active": "82e1a3f18ba552aa",
   "lastOpenFiles": [
+    "TASKS.md",
+    "DESIGN.md",
+    "README.md",
     "Test.md",
     "design/moon-reference-selection.md"
   ]

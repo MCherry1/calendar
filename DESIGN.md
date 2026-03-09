@@ -32,12 +32,15 @@ This is a Roll20 API script (`calendar.js`) for managing a fantasy campaign cale
 
 - Multi-system calendar display (Eberron, Faerûnian/Harptos, Gregorian)
 - Procedural, location-based weather generation
-- 12-moon orbital mechanics with phase tracking, eclipses, and tidal/lighting effects
+- Moon orbital mechanics with phase tracking, eclipses, and tidal/lighting effects
+	- 12 moons of Eberron
+	- 1 moon of Faerun (Selune)
+	- 1 moon of Earth
 - 13 planes of existence with canonical cycles and generated anomalous events
-- Nighttime lighting calculation from real photometry
+- Nighttime lighting calculation
 - Campaign events and observances with GM/player reveal controls
 
-**Primary canon source:** Keith Baker's published Eberron material. Lore fidelity is a hard constraint.
+**Primary canon source:** Published WotC books, coupled with Keith Baker's published Eberron material.
 
 **Design philosophy:**
 - Core date engine is system-agnostic and drives all subsystems
@@ -65,15 +68,6 @@ All systems exposed through `!cal` commands and panel UIs with GM/player reveal 
 
 `!cal` → current month mini-calendar with subsystem highlights (weather one-liner, notable moons, planar state). GM gets navigation buttons; players get a simpler view.
 
-### Key Architectural Decisions
-
-- **All moons random walk**: No special variation shapes. Every moon drifts the same way.
-- **Generated vs. canon**: Categorically distinct. Generated events gated behind higher knowledge tiers.
-- **Low-tier planes**: Generated events NEVER shown, even for the present day. Canon recognized when active.
-- **Location-scoped weather**: Generate for active location only. Present for active location only. No cross-location UI noise.
-- **Upgrade-only reveals**: Knowledge only grows, never shrinks.
-- **Non-magical source labels**: "Skilled Forecast" not "Mundane Forecast". Method-agnostic.
-- **Lore fidelity is a hard constraint**: Mechanical systems reflect narrative logic.
 
 ---
 
@@ -90,7 +84,7 @@ All systems exposed through `!cal` commands and panel UIs with GM/player reveal 
 ### 3.2 Faerûnian / Harptos (Forgotten Realms)
 
 - 12 months × 30 days + 5 festival intercalary days + Shieldmeet leap day
-- Uses **tendays**, not weekdays. Each month = 3 tendays = 30 days.
+- Uses **tendays**. Each month = 3 tendays = 30 days.
 - Mini-calendar renders 10 columns labeled: 1st, 2nd, 3rd, 4th, 5th, 6th, 7th, 8th, 9th, 10th
 - Date format: `16th of Mirtul, 1492 DR`
 - Era label: DR (Dalereckoning)

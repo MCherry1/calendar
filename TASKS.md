@@ -4,6 +4,14 @@
 
 See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks implementation work only.
 
+As these tasks are taken care of, remove them from this list.
+
+If there is design ambiguity in this tasks list: keep the task intact and add a comment to the **Needs Design Input** section.
+
+---
+## Needs Design Input
+
+
 ---
 
 ## Phase 1 — Core math and simulation
@@ -25,11 +33,13 @@ See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks impl
 > **Note:** Reference moon selection tasks are blocked on `design/moon-reference-selection.md`. The tasks below that depend on specific reference choices will be added to this file once that design discussion concludes. The phase-threshold and eclipse tasks are independent and ready now.
 
 - [ ] Remove legacy moon name aliases and compatibility references
-- [ ] Audit full/new phase thresholds — multiple consecutive-day "full" reports suggest thresholds (≥97% / ≤3%) may be too wide
+- [ ] Audit full/new phase thresholds — multiple consecutive-day "full" reports suggest thresholds (≥97% / ≤3%) may be too wide. Ultimately the only concern is what calendar-day bin the full/new maximizes at, so that the script can mention "X full".
 
 ### Eclipses and crossings
 
-- [ ] Revisit solar/moon eclipse math for consecutive-day anomalies
+- [ ] Revisit solar/moon eclipse math for anomalies.
+	- [ ] Issues with potential multiple day eclipses.
+	- [ ] Eclipses need to include percentage coverage, which will depend on relative angular sizes. Potentially this should include a change of terminolgy to accurately reflect the moment. (Like, X is traversing the sun in the evening tonight.)
 - [ ] Add time-of-day labels to eclipses and moon-crossing events:
   - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
 
@@ -44,6 +54,7 @@ See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks impl
   - [ ] Green bubble = Coterminous
   - [ ] Red bubble = Remote
   - [ ] Up/down arrow for waxing/waning
+- [ ] In weather display, show when a plane or manifest zone or moon is currently influencing the weather
 
 ### Manifest zones
 
@@ -51,18 +62,19 @@ See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks impl
 - [ ] Add **Set Manifest Zone** button below **Set Location**
 - [ ] Manifest zone chooser UI:
   - [ ] 2-column table
-  - [ ] Column A: `None` + 13 zone names
-  - [ ] Column B: per-zone toggle button showing `On` or `Off`
+  - [ ] Column A titled Zone:`None` + 13 zone names
+  - [ ] Column B titled Currently: per-zone toggle button showing `On` or `Off`
+  - [ ] When a button is clicked, don't send the whole table again. Just post to chat "X Manifest Zone Toggled On/Off"
 - [ ] Support multiple simultaneously active manifest zones
 - [ ] Visual state in zone list: active zones bold, inactive zones faint + italic
 - [ ] Clear all active manifest zones whenever location changes
 - [ ] Append clear-summary to location update message (`X, Y, Z Manifest Zone(s) cleared`)
 - [ ] Add moon-summary reminder: `Aryth is full. Consider a manifest zone.`
 - [ ] Store flag in state if any zone was activated while Aryth was full
-- [ ] On date advance past Aryth full, show warning: `Aryth is no longer full, consider deactivating Manifest Zone(s): X, Y, Z`
+- [ ] On date advance past Aryth full, show warning: `Aryth is no longer full, consider deactivating Manifest Zone(s): X, Y, Z` where X, Y, Z were manifest zones that were enabled while Aryth was full.
 - [ ] Include manifest-zone status in Today view (always visible when active)
 - [ ] Do **not** include manifest-zone forecasting
-- [ ] Wire Fernia/Risia temperature ±effects through manifest-zone mechanic
+- [ ] Wire Fernia/Risia temperature ±effects through manifest-zone mechanic. (likely also need to refactor for new temperature scale from -5 to 15. plus minus 3 seems good.)
 
 ---
 
@@ -75,28 +87,34 @@ See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks impl
 - [ ] Fix mini-calendar bottom-row clipping on Y-axis
 - [ ] Remove moon monikers/titles from moon tooltips
 - [ ] Simplify moon mini-calendar:
-  - [ ] Remove cell shading
+  - [ ] Remove cell coloring. It prioritizes certain moons and ends up really cluttered and confusing.
   - [ ] Yellow dot if any moon is full
   - [ ] Black dot if at least one moon is new
-- [ ] Ensure highlight ranges fill all days between start and end (not only endpoints)
+  - [ ] Tooltip on hover needs to have line breaks between moons, so it appears as a readable list.
+- [ ] Ensure highlight ranges fill all days between start and end (not only endpoints). Specifically for the planes minical. It may also already be done in the events system. Likely the same approach should be used for both.
 - [ ] Remove all legacy tier aliases from code (`mundane`, `magical`, `abridged`, `survival`, `magic`) — canonical names are `low`, `medium`, `high`
 
 ---
 
 ## Phase 4 — Calendar and lore formatting
 
-- [ ] Confirm Ring of Siberys presentation: equatorial placement (inclination 0°), "stands out in daylight" visually reflected
+- [ ] Confirm Ring of Siberys presentation: equatorial placement (inclination 0°), "stands out in daylight" visually reflected.
+	- [ ] update readme to mention the relative albedo used or contribution to the lighting. Should mimic saturns rings, scaled to earth's radius. also include relative height above the planet's surface, and some quant/qual comments like "above the ISS", edge of LEO, etc.
 - [ ] Correct Harptos display:
   - [ ] Use tendays (not weekdays)
   - [ ] Each month = 3 rows × 10 columns
   - [ ] Column labels: `1st` through `10th`
   - [ ] Date format: `16th of <Month>, <Year> DR`
+- [ ] The leap day in gregorian setting is not really "intercalery". It's a part of February, and should be shown as such. No additional information is needed (like always posting "Leap Year"). The presence of the 29th of February is the only indication needed.
 
 ---
 
 ## Architecture (no phase)
 
-- [ ] Specific-date weather reveals: GM generates to target date, reveals single date only (not everything in between), then changes location back. No UI noise about other-location data.
+- [ ] Specific-date weather reveals: GM switches location, generates to target date, reveals single date only (not everything in between), then changes location back. No UI noise about other-location data.
+	- [ ] This is for the game-mechanic of "divination magic" revealing e.g. what will be the weather on the mountain top in 37 days? It should not reveal everything in between, but the generation engine needs to generate it for the yesterday-seeding we use. This should also accept ranges for revealing the forecast. And the reveal should use the same week-strip presentation used elsewhere for weather, with blank cells where no information is available.
+	- [ ] From the player's perspective, the "forecast" command should only reveal known information to the correct threshold at the system's current location. That location information should also be included in the posted text, so players "know where they are." The reveal weather command (might need a better name, but that's at least clear) should be available to GMs only, but needs a way to input a custom range, building a minical as big as needed to present that range. This should have some reasonable limits, like 3 months or so, to avoid mistakenly sending 1000 years of data to the chat window. This should always just use the currently set location, or it gets too confusing. So GMs can change the location for the purposes of any planning, then switch back to the "actual" location the game is currently in. Weather data is stored in state with tags for the location, and pruned when "stale" or old, so there's no problem with this switching. There is no need to store multiple versions of the same "location", (like storing the himalayas and the alps might use the same location, but that's just not needed as a mechanic to have differentiators at the expense of clarity.)
+	- [ ] There should be a "quick switch" function in the Location setting menu that lists the last 3 locations used, and is updated on location change. So when GMs go to switch location, they can jump back previous without needing to click through each set again.
 
 ---
 

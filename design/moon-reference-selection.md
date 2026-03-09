@@ -45,10 +45,9 @@ See DESIGN.md sections 7.3–7.5 for full context. Summary of the constraints th
 These are not preferences — they must be satisfied:
 
 1. **Barrakas and Therendor** share similar orbits → closely matched inclinations → frequent mutual eclipses
-2. **Therendor/Barrakas coupling** → weak tendency toward opposite phases (Therendor full ↔ Barrakas new) without hard lock
-3. **Dravago** "typically keeps at a distance from other moons" → **must have the highest inclination of any moon** (higher than all others)
-4. **Lharvion** eccentricity → **do NOT clamp**. If chosen reference causes orbit overlap, pick a different reference. Do not modify the eccentricity value.
-5. **Sypheros** retrograde → reference must be a retrograde moon (inclination > 90°). Phoebe is currently correct for this.
+2. **Therendor/Barrakas coupling** → weak tendency toward opposite phases (Therendor full ↔ Barrakas new) without hard lock.
+3. **Dravago** "typically keeps at a distance from other moons" → **must have the highest inclination of any moon.**
+	1. For retrograde moons, subtract 180° from their inclinations. The design goal is for Dravago to move further from the elliptic than any other moon.
 
 ---
 
@@ -61,8 +60,10 @@ These are not preferences — they must be satisfied:
 3. **Lharvion** — Nereid (7.23°, eccentricity 0.7507) has a highly elliptical orbit that may cause distance overlap with inner moons. Is Nereid still the right choice, or does the overlap issue force a different pick? If different: what? Phoebe is taken by Sypheros. Himalia (eccentricity 0.16) is an option but less extreme.
 
 4. **Eyre** — Hyperion (eccentricity 0.123) gives meaningful eccentricity, which fits Eyre's association with Fernia (volcanic, chaotic). Is this intentional and correct?
+	1. ANSWER: Yes.
 
 5. **Aryth / Iapetus** — Iapetus has albedo 0.05–0.50 (two-tone surface). The albedo used in the script is 0.05 (the dark face). Given Aryth's association with Dolurrh (passage, death), is the dark-face albedo the right choice? Or should it be the bright face (0.50)?
+	1. ANSWER: Use the midpoint.
 
 6. **Lore review:** Are there any other moons whose reference feel wrong or out of character? Each Eberron moon has a title and planar association — the reference should feel appropriate.
 
