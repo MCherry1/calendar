@@ -89,6 +89,19 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ## Weather
 - Included is a homebrew system for managing the weather.
 - This system can be toggled on or off as desired.
+### Temperature
+
+| Temperature | °F Approx. | Mechanical Effect |
+| :---------: | :--------: | :---------------: |
+|     -5      |            |                   |
+|     -4      | {-45, -34} |                   |
+|     -3      |            |                   |
+|     -2      |            |                   |
+|     -1      |            |                   |
+|      0      |   -5 — 4   |                   |
+|      1      |   5 — 14   |                   |
+
+### Location
 
 ---
 ## Planes
