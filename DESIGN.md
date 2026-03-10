@@ -459,31 +459,33 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 ### 7.4 Reference Moon Mapping (Eberron)
 
-Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity, and albedo are taken from the reference as-is. Exception: Barrakas may use an integer multiplier N on reference albedo (pending decision — see `design/moon-reference-selection.md`).
+Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity, and albedo are taken from the reference as-is. All 12 reference moons confirmed — see `design/moon-reference-selection.md` for full analysis and rationale.
 
-**Confirmed references** (5 changed from original; 3 open — see design discussion):
+**All references confirmed:**
 
 | Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo | Notes |
 |---|---|---|---:|---:|---:|---|
 | Zarantyr | Luna | Earth | 5.145 | 0.0549 | 0.12 | |
 | Olarune | Titan | Saturn | 0.33 | 0.0288 | 0.22 | |
 | Therendor | **Dione** | Saturn | **0.03** | **0.0022** | **0.99** | Changed from Europa; co-planar with Barrakas |
-| Eyre | **Elara** | Jupiter | **26.6** | **0.217** | **0.05** | Changed from Hyperion; forge-bellows ecc |
-| Dravago | **TBD** | — | — | — | — | Tethys vs Triton; see design discussion |
+| Eyre | **Mimas** | Saturn | **1.53** | **0.0196** | **0.96** | Changed from Hyperion → Elara → Mimas; mythological: slain by Hephaestus |
+| Dravago | **Triton** | Neptune | **156.8†** | **0.000016** | **0.76** | Retrograde; always moving opposite to every other moon |
 | Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 | |
 | Lharvion | **Hyperion** | Saturn | **0.43** | **0.1230** | **0.30** | Changed from Nereid; ecc ceiling 0.1466 |
-| Barrakas | Enceladus ×N | Saturn | 0.02 | 0.0047 | 1.375 ×N | Multiplier N pending; recommend 7× |
+| Barrakas | Enceladus ×1 | Saturn | 0.02 | 0.0047 | **1.375** | No multiplier; ×7 option (9.625, 11.73 lux) documented in design/moon-reference-selection.md |
 | Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 | |
-| Sypheros | **TBD** | — | — | — | — | Phoebe vs Caliban; see design discussion |
+| Sypheros | **Phobos** | Mars | **1.08** | **0.0151** | **0.071** | Doomed inward spiral (inside Roche limit); entropy/Mabar |
 | Aryth | Iapetus | Saturn | 7.57 | 0.0283 | **0.275** | Albedo = averaged (not tidally locked) |
 | Vult | Oberon | Uranus | 0.07 | 0.0014 | 0.23 | |
+
+† Triton is retrograde (156.8°) = 23.2° effective ecliptic deviation.
 
 **Reference table should include:** Eberron moon, reference moon, raw period, scaled period (to 336-day year), integer multiplier, final synodic period. This extended table is an open task.
 
 ### 7.5 Lore-Driven Constraints on Reference Selection
 
 - **Barrakas and Therendor** share similar orbits (lore) → more frequent eclipses of Barrakas by Therendor. Therendor/Dione (0.03°) and Barrakas/Enceladus (0.02°) are now co-planar. Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock.
-- **Dravago** "typically keeps at a distance from other moons" → give it the highest inclination of any moon. Candidate decision in progress.
+- **Dravago** "typically keeps at a distance from other moons" → resolved as retrograde motion (Triton): Dravago literally moves opposite to every other moon, always departing. Effective ecliptic deviation 23.2° (second in system). The strict "highest deviation" reading was over-specified; the behavioral retrograde character is the correct interpretation.
 - **Lharvion** — do NOT clamp eccentricity vs. reference. If the reference moon's eccentricity causes orbit overlap, select a different reference rather than modifying the parameter. Resolved: Hyperion (0.1230) stays within the hard ceiling of 0.1466.
 
 ### 7.6 Orbital Mechanics Summary
@@ -560,7 +562,8 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 | Himalia | Jupiter | 27.5 | 0.16 | 0.05 | Irregular prograde |
 | Pasiphae | Jupiter | 151.4 | 0.38 | 0.04 | Irregular retrograde |
 | Sinope | Jupiter | 158.1 | 0.25 | 0.04 | Irregular retrograde |
-| Mimas | Saturn | 1.53 | 0.0196 | 0.96 | Mid-sized icy |
+| Mimas | Saturn | 1.53 | 0.0196 | 0.96 | Mid-sized icy; Herschel crater; hidden internal ocean (2024) |
+| Prometheus | Saturn | 0.01 | 0.0022 | ~0.60 | Shepherd moon; shapes F ring on every orbit; name: fire-stealer, craft patron |
 | Enceladus | Saturn | 0.02 | 0.0047 | 1.375 | Bright, cryovolcanic |
 | Tethys | Saturn | 1.09 | 0.0001 | 1.229 | Very circular orbit |
 | Dione | Saturn | 0.03 | 0.0022 | 0.99 | Mid-sized icy |
