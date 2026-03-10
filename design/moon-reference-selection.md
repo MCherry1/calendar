@@ -133,11 +133,11 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 ### ⚠ Dravago — open (two candidates)
 *The Herder's Moon: the lavender moon that moves widely across the sky, guiding the others. Higher inclination is desirable, but not so wide that it abandons the herd.*
 
-| Candidate | Host | Type | Incl. | Eff. dev. | Ecc | Albedo | Lux | Special |
-|---|---|---|---:|---:|---:|---:|---:|---|
-| **Triton** | Neptune | Retrograde irregular | 156.8° | **23.2°** | 0.000016 | 0.76 | 5.69 | Captured KBO; geysers; will eventually break up (inside Roche limit); nearly circular orbit |
-| **Tethys** | Saturn | Regular prograde | 1.09° | **1.09°** | 0.0001 | 0.80 | 5.98 | Two Trojan companions (Telesto L4, Calypso L5); both follow Tethys at 60° intervals |
-| **Himalia** | Jupiter | Prograde irregular | 29.6° | **29.6°** | 0.162 | 0.04 | 0.30 | Eliminated — dark albedo incompatible with Dravago's lavender visual |
+| Candidate   | Host    | Type                 |  Incl. | Eff. dev. |      Ecc | Albedo |  Lux | Special                                                                                     |
+| ----------- | ------- | -------------------- | -----: | --------: | -------: | -----: | ---: | ------------------------------------------------------------------------------------------- |
+| **Triton**  | Neptune | Retrograde irregular | 156.8° | **23.2°** | 0.000016 |   0.76 | 5.69 | Captured KBO; geysers; will eventually break up (inside Roche limit); nearly circular orbit |
+| **Tethys**  | Saturn  | Regular prograde     |  1.09° | **1.09°** |   0.0001 |   0.80 | 5.98 | Two Trojan companions (Telesto L4, Calypso L5); both follow Tethys at 60° intervals         |
+| **Himalia** | Jupiter | Prograde irregular   |  29.6° | **29.6°** |    0.162 |   0.04 | 0.30 | Eliminated — dark albedo incompatible with Dravago's lavender visual                        |
 
 *Eff. dev. = ecliptic deviation using `180° − inclination` for retrograde moons.*
 
