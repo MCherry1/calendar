@@ -177,7 +177,7 @@ To satisfy the constraint, Dravago needs effective deviation > 26.6°, i.e.:
 **⚠ Decision required — including constraint resolution.**
 
 ### ✓ Nymm → Ganymede
-*Why this reference was chosen:* Ganymede is the largest moon in the Solar System — fitting for the crowned moon of perfect order (Daanvi). Very circular orbit (0.0013 ecc), very low inclination (0.20°). Orderly, stable, and massive. No ambiguity.
+*Why this reference was chosen:* Ganymede is the largest moon in the Solar System — fitting for the crowned moon of perfect order (Daanvi). Very circular orbit (0.0013 ecc), very low inclination (0.20°). Orderly, stable, and massive. No ambiguity. Makes its own magnetic field, establishing order around it.
 
 ### ✓ Lharvion → Hyperion *(changed from Nereid)*
 *Why this reference was chosen:* Structurally required. Lharvion's eccentricity ceiling is hard at 0.1466 — Barrakas's orbital band is an inner wall (see math below). Hyperion (0.1230 ecc) is the only available reference that fits within this ceiling AND carries a strong thematic case: Hyperion is the Solar System's most chaotically tumbling body, never settling into stable spin. Its orientation is genuinely unpredictable. Perfect for the Realm of Madness (Xoriat). Nereid (0.7507 ecc, previous reference) caused orbit overlap and had to be clamped — that's not acceptable.
