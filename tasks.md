@@ -22,7 +22,19 @@ See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks impl
 
 ### Moons and orbital behavior
 
-> **Note:** Reference moon selection tasks are blocked on `design/moon-reference-selection.md`. The tasks below that depend on specific reference choices will be added to this file once that design discussion concludes. The phase-threshold and eclipse tasks are independent and ready now.
+> **Note:** Reference moon selection is partially decided. Confirmed reference changes are listed below. Three decisions remain open in `design/moon-reference-selection.md` (Dravago, Barrakas multiplier, Sypheros). Tasks marked *(pending design)* will be updated once those decisions are made.
+
+**Confirmed reference changes:**
+- [ ] Update Therendor reference to Dione: inclination 0.03°, ecc 0.0022, albedo 0.99; update `distanceSwingPct = 0.0044`
+- [ ] Update Eyre reference to Elara: inclination 26.6°, ecc 0.217, albedo 0.05; set `nodePrecessionDegPerYear` to 15–20; keep `apsisPrecessionDegPerYear: 120`; update `distanceSwingPct = 0.434`
+- [ ] Update Lharvion reference to Hyperion: inclination 0.43°, ecc 0.1230, albedo 0.30; update `distanceSwingPct = 0.246`; remove any eccentricity clamping for Lharvion
+- [ ] Set Aryth albedo to 0.275 (averaged Iapetus — not tidally locked, both faces visible)
+- [ ] Add weak anti-phase coupling between Therendor and Barrakas (Therendor full → more likely Barrakas new, without hard lock)
+
+**Pending design decisions:**
+- [ ] *(pending design)* Update Dravago reference: Tethys (1.09°, 0.0001 ecc, 0.80 albedo) or Triton (156.8°, 0.00002 ecc, 0.76 albedo)
+- [ ] *(pending design)* Set Barrakas albedo multiplier: N × 1.375 (recommend 7× = 9.625 albedo)
+- [ ] *(pending design)* Update Sypheros reference: Caliban (140.9°, 0.159 ecc, 0.04 albedo) or keep Phoebe (175.3°, 0.1635 ecc, 0.06 albedo)
 
 - [ ] Remove legacy moon name aliases and compatibility references
 - [ ] Audit full/new phase thresholds — multiple consecutive-day "full" reports suggest thresholds (≥97% / ≤3%) may be too wide
