@@ -430,20 +430,20 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 #### Eberron — 12 Moons
 
-| Moon | Title | Plane | Dragonmark | Synodic Period (days) | Diameter (mi) | Distance (mi) | Inclination (°) | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
-|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---|---|
-| Zarantyr | The Storm Moon | Kythri | Mark of Storm | 27.32 | 1250 | 14,300 | 5.145 | 0.0549 | 0.12 | random | 1.4 | kythri | 998-01-01 |
-| Olarune | The Sentinel Moon | Lamannia | Mark of Sentinel | 34.0 | 1000 | 18,000 | 0.33 | 0.0288 | 0.22 | random | 1.7 | lamannia | 998-01-01 |
-| Therendor | The Healer's Moon | Syrania | Mark of Healing | 24.0 | 1100 | 39,000 | 0.47 | 0.0094 | 0.67 | random | 1.2 | syrania | 998-01-01 |
-| Eyre | The Anvil | Fernia | Mark of Making | 21.0 | 1200 | 52,000 | 0.43 | 0.1230 | 0.30 | random | 1.0 | fernia | 998-01-01 |
-| Dravago | The Herder's Moon | Risia | Mark of Handling | 42.0 | 2000 | 77,500 | 1.09 | 0.0001 | 1.229 | random | 2.1 | risia | 998-01-01 |
-| Nymm | The Crown | Daanvi | Mark of Hospitality | 28.0 | 900 | 95,000 | 0.20 | 0.0013 | 0.43 | random | 1.4 | daanvi | 998-01-01 |
-| Lharvion | The Eye | Xoriat | Mark of Detection | 30.0 | 1350 | 125,000 | 7.23 | 0.7507 | 0.155 | random | 1.5 | xoriat | 998-01-01 |
-| Barrakas | The Lantern | Irian | Mark of Finding | 22.0 | 1500 | 144,000 | 0.02 | 0.0047 | 1.375 | random | 1.1 | irian | 998-01-01 |
-| Rhaan | The Book | Thelanis | Mark of Scribing | 37.0 | 800 | 168,000 | 4.34 | 0.0013 | 0.32 | random | 1.9 | thelanis | 998-01-01 |
-| Sypheros | The Shadow | Mabar | Mark of Shadow | 67.0 | 1100 | 183,000 | 175.3° (retrograde) | 0.1635 | 0.06 | random | 3.4 | *(none)* | *(none)* |
-| Aryth | The Gateway | Dolurrh | Mark of Passage | 48.0 | 1300 | 195,000 | 7.57 | 0.0283 | 0.05 | random | 2.4 | dolurrh | 998-01-01 |
-| Vult | The Warding Moon | Shavarath | Mark of Warding | 56.0 | 1800 | 252,000 | 0.07 | 0.0014 | 0.23 | random | 2.8 | shavarath | 998-01-01 |
+| Moon      | Title             | Plane     | Dragonmark          | Synodic Period (days) | Diameter (mi) | Distance (mi) |     Inclination (°) | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
+| --------- | ----------------- | --------- | ------------------- | --------------------: | ------------: | ------------: | ------------------: | -----------: | -----: | --------- | --------: | ---------- | ---------- |
+| Zarantyr  | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |          1250 |        14,300 |               5.145 |       0.0549 |   0.12 | random    |       1.4 | kythri     | 998-01-01  |
+| Olarune   | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |          1000 |        18,000 |                0.33 |       0.0288 |   0.22 | random    |       1.7 | lamannia   | 998-01-01  |
+| Therendor | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |          1100 |        39,000 |                0.47 |       0.0094 |   0.67 | random    |       1.2 | syrania    | 998-01-01  |
+| Eyre      | The Anvil         | Fernia    | Mark of Making      |                  21.0 |          1200 |        52,000 |                0.43 |       0.1230 |   0.30 | random    |       1.0 | fernia     | 998-01-01  |
+| Dravago   | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |          2000 |        77,500 |                1.09 |       0.0001 |  1.229 | random    |       2.1 | risia      | 998-01-01  |
+| Nymm      | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |           900 |        95,000 |                0.20 |       0.0013 |   0.43 | random    |       1.4 | daanvi     | 998-01-01  |
+| Lharvion  | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |          1350 |       125,000 |                7.23 |       0.7507 |  0.155 | random    |       1.5 | xoriat     | 998-01-01  |
+| Barrakas  | The Lantern       | Irian     | Mark of Finding     |                  22.0 |          1500 |       144,000 |                0.02 |       0.0047 |  1.375 | random    |       1.1 | irian      | 998-01-01  |
+| Rhaan     | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |           800 |       168,000 |                4.34 |       0.0013 |   0.32 | random    |       1.9 | thelanis   | 998-01-01  |
+| Sypheros  | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |          1100 |       183,000 | 175.3° (retrograde) |       0.1635 |   0.06 | random    |       3.4 | mabar      | 998-01-01  |
+| Aryth     | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |          1300 |       195,000 |                7.57 |       0.0283 |   0.05 | random    |       2.4 | dolurrh    | 998-01-01  |
+| Vult      | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |          1800 |       252,000 |                0.07 |       0.0014 |   0.23 | random    |       2.8 | shavarath  | 998-01-01  |
 
 #### Faerûnian (Toril)
 
@@ -459,35 +459,34 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 ### 7.4 Reference Moon Mapping (Eberron)
 
-Each Eberron moon mapped to a real Solar System moon based on lore characteristics:
+Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity, and albedo are taken from the reference as-is. All 12 reference moons confirmed — see `design/moon-reference-selection.md` for full analysis and rationale.
 
-| Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo |
-|---|---|---|---:|---:|---:|
-| Zarantyr | Luna | Earth | 5.145 | 0.0549 | 0.12 |
-| Olarune | Titan | Saturn | 0.33 | 0.0288 | 0.22 |
-| Therendor | Europa | Jupiter | 0.47 | 0.0094 | 0.67 |
-| Eyre | Hyperion | Saturn | 0.43 | 0.1230 | 0.30 |
-| Dravago | Tethys | Saturn | 1.09 | 0.0001 | 1.229 |
-| Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 |
-| Lharvion | Nereid | Neptune | 7.23 | 0.7507 | 0.155 |
-| Barrakas | Enceladus | Saturn | 0.02 | 0.0047 | 1.375 |
-| Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 |
-| Sypheros | Phoebe | Saturn | 175.3 | 0.1635 | 0.06 |
-| Aryth | Iapetus | Saturn | 7.57 | 0.0283 | 0.05 |
-| Vult | Oberon | Uranus | 0.07 | 0.0014 | 0.23 |
+**All references confirmed:**
+
+| Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo | Notes |
+|---|---|---|---:|---:|---:|---|
+| Zarantyr | Luna | Earth | 5.145 | 0.0549 | 0.12 | |
+| Olarune | Titan | Saturn | 0.33 | 0.0288 | 0.22 | |
+| Therendor | **Dione** | Saturn | **0.03** | **0.0022** | **0.99** | Changed from Europa; co-planar with Barrakas |
+| Eyre | **Mimas** | Saturn | **1.53** | **0.0196** | **0.96** | Changed from Hyperion → Elara → Mimas; mythological: slain by Hephaestus |
+| Dravago | **Triton** | Neptune | **156.8†** | **0.000016** | **0.76** | Retrograde; always moving opposite to every other moon |
+| Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 | |
+| Lharvion | **Hyperion** | Saturn | **0.43** | **0.1230** | **0.30** | Changed from Nereid; ecc ceiling 0.1466. God of Observation. |
+| Barrakas | Enceladus ×1 | Saturn | 0.02 | 0.0047 | **1.375** | No multiplier; ×7 option (9.625, 11.73 lux) documented in design/moon-reference-selection.md |
+| Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 | |
+| Sypheros | **Phobos** | Mars | **1.08** | **0.0151** | **0.071** | Doomed inward spiral (inside Roche limit); entropy/Mabar |
+| Aryth | Iapetus | Saturn | 7.57 | 0.0283 | **0.275** | Albedo = averaged (not tidally locked) |
+| Vult | Oberon | Uranus | 0.07 | 0.0014 | 0.23 | |
+
+† Triton is retrograde (156.8°) = 23.2° effective ecliptic deviation.
 
 **Reference table should include:** Eberron moon, reference moon, raw period, scaled period (to 336-day year), integer multiplier, final synodic period. This extended table is an open task.
 
 ### 7.5 Lore-Driven Constraints on Reference Selection
 
-- **Barrakas and Therendor** share similar orbits (lore) → more frequent eclipses of Barrakas by Therendor. Match their inclinations closely. Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock.
-- **Dravago** "typically keeps at a distance from other moons" → give it the highest inclination of any moon.
-- **Lharvion** — do NOT clamp eccentricity vs. reference. If the reference moon's eccentricity causes orbit overlap, select a different reference rather than modifying the parameter.
-
-**Lharvion ambiguity (tracked):**
-- Current reference: Nereid (Neptune) — eccentricity 0.7507, inclination 7.23°
-- Older lore reference: Phoebe (Saturn) — inclination 175.3°
-- Current numeric profile matches Nereid. This reference selection is open for revisit.
+- **Barrakas and Therendor** share similar orbits (lore) → more frequent eclipses of Barrakas by Therendor. Therendor/Dione (0.03°) and Barrakas/Enceladus (0.02°) are now co-planar. Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock.
+- **Dravago** "typically keeps at a distance from other moons" → resolved as retrograde motion (Triton): Dravago literally moves opposite to every other moon, always departing. Effective ecliptic deviation 23.2° (second in system). The strict "highest deviation" reading was over-specified; the behavioral retrograde character is the correct interpretation.
+- **Lharvion** — do NOT clamp eccentricity vs. reference. If the reference moon's eccentricity causes orbit overlap, select a different reference rather than modifying the parameter. Resolved: Hyperion (0.1230) stays within the hard ceiling of 0.1466.
 
 ### 7.6 Orbital Mechanics Summary
 
@@ -563,7 +562,8 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 | Himalia | Jupiter | 27.5 | 0.16 | 0.05 | Irregular prograde |
 | Pasiphae | Jupiter | 151.4 | 0.38 | 0.04 | Irregular retrograde |
 | Sinope | Jupiter | 158.1 | 0.25 | 0.04 | Irregular retrograde |
-| Mimas | Saturn | 1.53 | 0.0196 | 0.96 | Mid-sized icy |
+| Mimas | Saturn | 1.53 | 0.0196 | 0.96 | Mid-sized icy; Herschel crater; hidden internal ocean (2024) |
+| Prometheus | Saturn | 0.01 | 0.0022 | ~0.60 | Shepherd moon; shapes F ring on every orbit; name: fire-stealer, craft patron |
 | Enceladus | Saturn | 0.02 | 0.0047 | 1.375 | Bright, cryovolcanic |
 | Tethys | Saturn | 1.09 | 0.0001 | 1.229 | Very circular orbit |
 | Dione | Saturn | 0.03 | 0.0022 | 0.99 | Mid-sized icy |

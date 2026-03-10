@@ -38,7 +38,17 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 
 ### Moons and orbital behavior
 
-> **Note:** Reference moon selection tasks are blocked on `design/moon-reference-selection.md`. The tasks below that depend on specific reference choices will be added to this file once that design discussion concludes. The phase-threshold and eclipse tasks are independent and ready now.
+> All reference moon decisions are resolved. See `design/moon-reference-selection.md` and `DESIGN.md §7.4` for the full mapping and rationale.
+
+**Reference updates — all confirmed:**
+- [ ] Update Therendor reference to Dione: inclination 0.03°, ecc 0.0022, albedo 0.99; `distanceSwingPct = 0.0044`
+- [ ] Update Eyre reference to Mimas: inclination 1.53°, ecc 0.0196, albedo 0.96; `distanceSwingPct = 0.0392`; `nodePrecessionDegPerYear = 2`; keep `apsisPrecessionDegPerYear: 120`
+- [ ] Update Dravago reference to Triton: inclination 156.8° (retrograde), ecc 0.000016, albedo 0.76; `distanceSwingPct ≈ 0`
+- [ ] Update Lharvion reference to Hyperion: inclination 0.43°, ecc 0.1230, albedo 0.30; `distanceSwingPct = 0.246`; remove any eccentricity clamping
+- [ ] Update Sypheros reference to Phobos: inclination 1.08°, ecc 0.0151, albedo 0.071; `distanceSwingPct = 0.0302`
+- [ ] Set Barrakas albedo to 1.375 (Enceladus ×1 — no multiplier)
+- [ ] Set Aryth albedo to 0.275 (averaged Iapetus — not tidally locked, both faces visible)
+- [ ] Add weak anti-phase coupling between Therendor and Barrakas (Therendor full → more likely Barrakas new, without hard lock)
 
 - [ ] Remove legacy moon name aliases and compatibility references
 - [ ] Audit full/new phase thresholds — multiple consecutive-day "full" reports suggest thresholds (≥97% / ≤3%) may be too wide. Ultimately the only concern is what calendar-day bin the full/new maximizes at, so that the script can mention "X full".
