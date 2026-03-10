@@ -215,11 +215,11 @@ A real oil lantern (~30 cd) at 10 m produces 30 / 10² = **0.30 lux** — dim li
 ### ⚠ Sypheros — open (two candidates)
 *The Shadow, associated with Mabar (the endless night). Dim, lurking, retrograde. Must have the lowest albedo in the system.*
 
-| Candidate | Host | Type | Incl. | Ecc | Albedo | Sypheros lux | Orbit check | Notes |
-|---|---|---|---:|---:|---:|---:|---|---|
-| **Phoebe** | Saturn | Retrograde irregular | 175.3° | 0.1635 | 0.06 | 0.024 lux | 153,079 mi ✓ | Nearly perfectly retrograde (eff. dev. 4.7°); well-characterized |
+| Candidate   | Host   | Type                 |  Incl. |        Ecc |     Albedo | Sypheros lux | Orbit check    | Notes                                                            |
+| ----------- | ------ | -------------------- | -----: | ---------: | ---------: | -----------: | -------------- | ---------------------------------------------------------------- |
+| **Phoebe**  | Saturn | Retrograde irregular | 175.3° |     0.1635 |       0.06 |    0.024 lux | 153,079 mi ✓   | Nearly perfectly retrograde (eff. dev. 4.7°); well-characterized |
 | **Caliban** | Uranus | Retrograde irregular | 141.5° | 0.05–0.16† | 0.04–0.22† | 0.007–0.040† | ✓ (either ecc) | †Albedo/ecc conflict between sources — see note; eff. dev. 38.5° |
-| **Phobos** | Mars | Regular prograde | 1.08° | 0.0151 | 0.071 | 0.029 lux | 179,235 mi ✓ | Equatorial prograde; doomed (inside Roche limit, ~30–50 Myr) |
+| **Phobos**  | Mars   | Regular prograde     |  1.08° |     0.0151 |      0.071 |    0.029 lux | 179,235 mi ✓   | Equatorial prograde; doomed (inside Roche limit, ~30–50 Myr)     |
 
 Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (1 − ecc).
 
@@ -258,20 +258,20 @@ See Full Moon Review above. Decision resolved. Siarnaq ruled out by orbital over
 
 ## Proposed Final Mapping
 
-| Eberron Moon | Reference | Change | Inclination | Ecc | Albedo | Status |
-|---|---|---|---:|---:|---:|---|
-| Zarantyr | Luna | — | 5.145° | 0.0549 | 0.12 | ✓ confirmed |
-| Olarune | Titan | — | 0.33° | 0.0288 | 0.22 | ✓ confirmed |
-| Therendor | **Dione** | Europa → Dione | 0.03° | 0.0022 | 0.99 | ✓ confirmed |
-| Eyre | **Elara** | Hyperion → Elara | 26.6° | 0.217 | 0.05 | ✓ confirmed |
-| Dravago | **Tethys or Triton** | Tethys → Triton | *see above* | *see above* | *see above* | ⚠ open |
-| Nymm | Ganymede | — | 0.20° | 0.0013 | 0.43 | ✓ confirmed |
-| Lharvion | **Hyperion** | Nereid → Hyperion | 0.43° | 0.1230 | 0.30 | ✓ confirmed |
-| Barrakas | Enceladus ×N | — (multiplier pending) | 0.02° | 0.0047 | 1.375 × N | ⚠ open |
-| Rhaan | Miranda | — | 4.34° | 0.0013 | 0.32 | ✓ confirmed |
-| Sypheros | **Phoebe or Caliban** | — | *see above* | *see above* | *see above* | ⚠ open |
-| Aryth | Iapetus | — (albedo resolved: 0.275) | 7.57° | 0.0283 | 0.275 | ✓ confirmed |
-| Vult | Oberon | — | 0.07° | 0.0014 | 0.23 | ✓ confirmed |
+| Eberron Moon | Reference             | Change                     | Inclination |         Ecc |      Albedo | Status                                                 |
+| ------------ | --------------------- | -------------------------- | ----------: | ----------: | ----------: | ------------------------------------------------------ |
+| Zarantyr     | Luna                  | —                          |      5.145° |      0.0549 |        0.12 | ✓ confirmed                                            |
+| Olarune      | Titan                 | —                          |       0.33° |      0.0288 |        0.22 | ✓ confirmed                                            |
+| Therendor    | **Dione**             | Europa → Dione             |       0.03° |      0.0022 |        0.99 | ✓ confirmed                                            |
+| Eyre         | **Elara**             | Hyperion → Elara           |       26.6° |       0.217 |        0.05 | still open. unhappy with the albedo. unhappy with the  |
+| Dravago      | **Tethys or Triton**  | Tethys → Triton            | *see above* | *see above* | *see above* | ⚠ open                                                 |
+| Nymm         | Ganymede              | —                          |       0.20° |      0.0013 |        0.43 | ✓ confirmed                                            |
+| Lharvion     | **Hyperion**          | Nereid → Hyperion          |       0.43° |      0.1230 |        0.30 | ✓ confirmed                                            |
+| Barrakas     | Enceladus ×N          | — (multiplier pending)     |       0.02° |      0.0047 |   1.375 × N | ⚠ open                                                 |
+| Rhaan        | Miranda               | —                          |       4.34° |      0.0013 |        0.32 | ✓ confirmed                                            |
+| Sypheros     | **Phoebe or Caliban** | —                          | *see above* | *see above* | *see above* | ⚠ open                                                 |
+| Aryth        | Iapetus               | — (albedo resolved: 0.275) |       7.57° |      0.0283 |       0.275 | ✓ confirmed                                            |
+| Vult         | Oberon                | —                          |       0.07° |      0.0014 |        0.23 | ✓ confirmed                                            |
 
 7 confirmed. 3 open decisions: Dravago reference, Barrakas multiplier, Sypheros reference.
 
