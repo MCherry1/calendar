@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "c512fdf76aaae6ea",
+        "id": "d0bc4f64cc566d20",
         "type": "tabs",
         "children": [
           {
-            "id": "2df04999a503a622",
+            "id": "a5dbef297cf53805",
             "type": "leaf",
             "state": {
               "type": "empty",
@@ -191,7 +191,7 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "35b8e0bf7f289d3b",
+  "active": "a5dbef297cf53805",
   "lastOpenFiles": [
     "TASKS.md",
     "README.md",
