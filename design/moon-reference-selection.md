@@ -223,18 +223,12 @@ A real oil lantern (~30 cd) at 10 m produces 30 / 10² = **0.30 lux** — dim li
 
 Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (1 − ecc).
 
-**⚠ Caliban data conflict:** Two conflicting sets of values appear in sources:
-- Low-albedo version (likely JPL/original): albedo ~0.04, ecc ~0.159 → **0.016 lux** (dark, clearly dimmest in system)
-- High-albedo version (NASA Science page): albedo ~0.22, ecc ~0.05 → **0.040 lux** (faint, *brighter* than Phoebe)
+~~**⚠ Caliban data conflict:** Two conflicting sets of values appear in sources:- Low-albedo version (likely JPL/original): albedo ~0.04, ecc ~0.159 → **0.016 lux** (dark, clearly dimmest in system- High-albedo version (NASA Science page): albedo ~0.22, ecc ~0.05 → **0.040 lux** (faint, *brighter* than Phoebe~~
 
-If Caliban is 0.22 albedo, it is brighter than Phoebe and unsuitable for "dimmest moon." **Verify against JPL Horizons before implementing.**
 
 **Narrative:**
 - **Phoebe (0.06, 175.3°):** Most dramatically retrograde — nearly 180°, effective 4.7° from equatorial, going precisely backwards. Established baseline.
-- **Caliban (0.04 if confirmed, 141.5°):** Darker, still retrograde, effective deviation 38.5° — wider sky wander than Phoebe. The dimmest rock in the outer darkness. Best fit if albedo confirmed.
 - **Phobos (0.071, 1.08°):** NOT retrograde; nearly equatorial. Slightly brighter than Phoebe in albedo. Only narrative angle: Phobos is literally doomed — inside Mars's Roche limit, spiraling inward. A moon of entropy (Mabar's endless night). But equatorial orbit is a poor fit for The Shadow.
-
-**Recommendation:** If Caliban 0.04 confirmed → Caliban (darkest, retrograde, wide wander). If Caliban is 0.22 → Phoebe (darkest retrograde option remaining). Phobos is a concept fit but orbital character is wrong.
 
 **⚠ Decision required (pending Caliban albedo verification).**
 
@@ -250,9 +244,9 @@ If Caliban is 0.22 albedo, it is brighter than Phoebe and unsuitable for "dimmes
 
 ---
 
-## Eyre — Confirmed: Elara
+## Eyre — not Elara. unhappy with albedo. need better choice
 
-See Full Moon Review above. Decision resolved. Siarnaq ruled out by orbital overlap. Elara is the only viable candidate.
+~~See Full Moon Review above. Decision resolved. Siarnaq ruled out by orbital overlap. Elara is the only viable candidate.~~
 
 ---
 
