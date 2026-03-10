@@ -459,35 +459,32 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 ### 7.4 Reference Moon Mapping (Eberron)
 
-Each Eberron moon mapped to a real Solar System moon based on lore characteristics:
+Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity, and albedo are taken from the reference as-is. Exception: Barrakas may use an integer multiplier N on reference albedo (pending decision — see `design/moon-reference-selection.md`).
 
-| Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo |
-|---|---|---|---:|---:|---:|
-| Zarantyr | Luna | Earth | 5.145 | 0.0549 | 0.12 |
-| Olarune | Titan | Saturn | 0.33 | 0.0288 | 0.22 |
-| Therendor | Europa | Jupiter | 0.47 | 0.0094 | 0.67 |
-| Eyre | Hyperion | Saturn | 0.43 | 0.1230 | 0.30 |
-| Dravago | Tethys | Saturn | 1.09 | 0.0001 | 1.229 |
-| Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 |
-| Lharvion | Nereid | Neptune | 7.23 | 0.7507 | 0.155 |
-| Barrakas | Enceladus | Saturn | 0.02 | 0.0047 | 1.375 |
-| Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 |
-| Sypheros | Phoebe | Saturn | 175.3 | 0.1635 | 0.06 |
-| Aryth | Iapetus | Saturn | 7.57 | 0.0283 | 0.05 |
-| Vult | Oberon | Uranus | 0.07 | 0.0014 | 0.23 |
+**Confirmed references** (5 changed from original; 3 open — see design discussion):
+
+| Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo | Notes |
+|---|---|---|---:|---:|---:|---|
+| Zarantyr | Luna | Earth | 5.145 | 0.0549 | 0.12 | |
+| Olarune | Titan | Saturn | 0.33 | 0.0288 | 0.22 | |
+| Therendor | **Dione** | Saturn | **0.03** | **0.0022** | **0.99** | Changed from Europa; co-planar with Barrakas |
+| Eyre | **Elara** | Jupiter | **26.6** | **0.217** | **0.05** | Changed from Hyperion; forge-bellows ecc |
+| Dravago | **TBD** | — | — | — | — | Tethys vs Triton; see design discussion |
+| Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 | |
+| Lharvion | **Hyperion** | Saturn | **0.43** | **0.1230** | **0.30** | Changed from Nereid; ecc ceiling 0.1466 |
+| Barrakas | Enceladus ×N | Saturn | 0.02 | 0.0047 | 1.375 ×N | Multiplier N pending; recommend 7× |
+| Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 | |
+| Sypheros | **TBD** | — | — | — | — | Phoebe vs Caliban; see design discussion |
+| Aryth | Iapetus | Saturn | 7.57 | 0.0283 | **0.275** | Albedo = averaged (not tidally locked) |
+| Vult | Oberon | Uranus | 0.07 | 0.0014 | 0.23 | |
 
 **Reference table should include:** Eberron moon, reference moon, raw period, scaled period (to 336-day year), integer multiplier, final synodic period. This extended table is an open task.
 
 ### 7.5 Lore-Driven Constraints on Reference Selection
 
-- **Barrakas and Therendor** share similar orbits (lore) → more frequent eclipses of Barrakas by Therendor. Match their inclinations closely. Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock.
-- **Dravago** "typically keeps at a distance from other moons" → give it the highest inclination of any moon.
-- **Lharvion** — do NOT clamp eccentricity vs. reference. If the reference moon's eccentricity causes orbit overlap, select a different reference rather than modifying the parameter.
-
-**Lharvion ambiguity (tracked):**
-- Current reference: Nereid (Neptune) — eccentricity 0.7507, inclination 7.23°
-- Older lore reference: Phoebe (Saturn) — inclination 175.3°
-- Current numeric profile matches Nereid. This reference selection is open for revisit.
+- **Barrakas and Therendor** share similar orbits (lore) → more frequent eclipses of Barrakas by Therendor. Therendor/Dione (0.03°) and Barrakas/Enceladus (0.02°) are now co-planar. Add weak anti-phase coupling so Therendor full aligns more often with Barrakas new, without hard phase lock.
+- **Dravago** "typically keeps at a distance from other moons" → give it the highest inclination of any moon. Candidate decision in progress.
+- **Lharvion** — do NOT clamp eccentricity vs. reference. If the reference moon's eccentricity causes orbit overlap, select a different reference rather than modifying the parameter. Resolved: Hyperion (0.1230) stays within the hard ceiling of 0.1466.
 
 ### 7.6 Orbital Mechanics Summary
 
