@@ -22,7 +22,7 @@ Albedo for Barrakas has a similar approach to manage the supernaturally bright m
 ## Precession Model (Already in Script)
 
 `MOON_MOTION_TUNING` supports both precession types per moon:
-- `nodePrecessionDegPerYear` — orbital plane rotates (the "hula hoop" effect)
+- `nodePrecessionDegPerYear` — orbital plane rotates
 - `apsisPrecessionDegPerYear` — ellipse rotates within its plane
 
 Current Eyre tuning:
@@ -34,7 +34,7 @@ distanceSwingPct:          0.246  ← = 2 × Hyperion ecc 0.1230
 
 Eyre already has the fastest apsidal precession (forge ellipse spins every 3 years). Nodal precession is nearly imperceptible at 2°/year. Changing Eyre's reference to Elara (26.6° inclination) makes nodal precession visually significant — the implementation task should increase `nodePrecessionDegPerYear` to 15–20.
 
-**QUESTR
+**QUESTION**: Does this mean the apparent inclinations as designed are shifting over time?
 
 ---
 
@@ -60,6 +60,7 @@ Colors from `EBERRON_MOON_CORE_DATA` in script (authoritative).
 **Lore constraints on reference selection (authoritative):**
 
 1. **Barrakas and Therendor** share similar orbits → closely matched inclinations → frequent mutual eclipses. *(Resolved: Dione 0.03° ≈ Enceladus 0.02°.)*
+	1. **QUESTION**: do these m
 2. **Therendor/Barrakas coupling** → weak tendency toward opposite phases (Therendor full ↔ Barrakas new) without hard lock. *(Implementation task, not reference selection.)*
 3. **Dravago** "typically keeps at a distance from other moons" → **must have the highest ecliptic deviation of any moon.** For retrograde moons, use `180° − inclination` to compare deviation. The goal is Dravago moves the furthest from the equatorial plane. *(See constraint analysis below.)*
 
