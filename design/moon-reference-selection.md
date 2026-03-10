@@ -170,39 +170,6 @@ To satisfy the constraint, Dravago needs effective deviation > 26.6°, i.e.:
 
 **⚠ Decision required — including constraint resolution.**
 
-### ✓ Nymm → Ganymede
-*Why this reference was chosen:* Ganymede is the largest moon in the Solar System — fitting for the crowned moon of perfect order (Daanvi). Very circular orbit (0.0013 ecc), very low inclination (0.20°). Orderly, stable, and massive. No ambiguity. Makes its own magnetic field, establishing order around it.
-
-### ✓ Lharvion → Hyperion *(changed from Nereid)*
-*Why this reference was chosen:* Structurally required. Lharvion's eccentricity ceiling is hard at 0.1466 — Barrakas's orbital band is an inner wall (see math below). Hyperion (0.1230 ecc) is the only available reference that fits within this ceiling AND carries a strong thematic case: Hyperion is the Solar System's most chaotically tumbling body, never settling into stable spin. Its orientation is genuinely unpredictable. Perfect for the Realm of Madness (Xoriat). Nereid (0.7507 ecc, previous reference) caused orbit overlap and had to be clamped — that's not acceptable.
-
-**Lharvion eccentricity ceiling math:**
-- Barrakas mean distance: 144,000 mi; ecc 0.0047 → apoapsis ≈ 144,677 mi
-- Lharvion periapsis must exceed 144,677 mi
-- Lharvion mean distance: 125,000 mi → ecc ceiling = (125,000 − 144,677) / 125,000... negative, so use:
-  - periapsis = 125,000 × (1 − ecc) > 144,677
-  - 1 − ecc > 1.1574 → impossible!
-
-  Wait — re-check: Lharvion (125,000 mi) is *inside* Barrakas (144,000 mi). Lharvion is the closer moon. So Lharvion's **apoapsis** must stay inside Barrakas's **periapsis**:
-  - Barrakas periapsis = 144,000 × (1 − 0.0047) = 143,323 mi
-  - Lharvion apoapsis = 125,000 × (1 + ecc) < 143,323
-  - ecc < (143,323 − 125,000) / 125,000 = 0.1466 ✓
-
-  Hyperion (0.1230) satisfies this. Nereid (0.7507) would give Lharvion apoapsis = 218,838 mi — far outside Barrakas.
-
-### ⚠ Barrakas → Enceladus (multiplier pending)
-*Why this reference was chosen:* Enceladus is the most reflective body in the Solar System (albedo 1.375, exceeding 1.0 due to active resurfacing). The Lantern moon demanded the most brilliant reference available. Enceladus's nearly circular orbit (0.0047 ecc) and near-equatorial inclination (0.02°) place it co-planar with Therendor/Dione (0.03°) — enabling the frequent mutual eclipses that lore suggests.
-
-**At reference albedo (1×):** Barrakas gives 1.68 lux — above the bright threshold but not distinctively dominant.
-
-**Multiplier decision:** An integer multiplier N on the reference albedo may be applied to match "bright enough for hunters to hunt by" lore. See table in the Lux Analysis section above. **Recommended: 7× (albedo 9.625, 11.73 lux)** — this makes Barrakas the single brightest object in the night sky, surpassing Zarantyr, which is the correct reading for an Irian lantern. Closest to the old "albedo 10" from previous system iterations.
-
-**Real-world lux context (script calibration):** The script uses `NIGHTLIGHT_EARTH_MOON_LUX = 0.25` (Earth's full moon at zenith = 0.25 lux) with a 0.50 overhead fraction. Bright threshold = 1.0 lux; script note: "1 lux ≈ a candle at 1 meter."
-
-A real oil lantern (~30 cd) at 10 m produces 30 / 10² = **0.30 lux** — dim light, not bright. Barrakas at 7× = **11.73 lux**, equivalent to being ~1.5 m from that same lantern. This is not moonlight that vaguely helps you see — it is the moon *acting as a lantern*, providing active bright-light conditions across the entire sky below it. That is the correct reading for an Irian moon named The Lantern.
-
-**⚠ Multiplier decision required.**
-
 ### ✓ Rhaan → Miranda
 *Why this reference was chosen:* Miranda (Uranus) has uniquely bizarre geology — deep canyons, mixed ancient and young terrain, a surface like nowhere else in the Solar System. This chaos reflects Thelanis (the Faerie Court) where the rules are strange and the landscape follows dream logic. Moderate inclination (4.34°) gives it a slightly unusual path. Pale blue (#9AC0FF) matches Uranus-family coloring.
 
@@ -226,15 +193,7 @@ Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (
 
 **⚠ Decision required (pending Caliban albedo verification).**
 
-### ⚠ Aryth → Iapetus *(albedo resolved: averaged)*
-*Why this reference was chosen:* Iapetus's 7.57° inclination gives Aryth a noticeably angled path — The Gateway moon has an unusual sky presence. Its eccentricity (0.0283) is moderate. Critically, Iapetus's two-tone surface (dark leading face 0.05, bright trailing face 0.50) maps onto Aryth's association with Dolurrh (the Realm of the Dead) as a threshold — one face is darkness, one is passage.
 
-**Albedo treatment:** Aryth is treated as *not* tidally locked to Eberron; both faces are always visible from any point on the planet. Average = (0.05 + 0.50) / 2 = **0.275**. This gives 0.137 lux — faint but visible, appropriate for a moon associated with a transition realm rather than pure darkness.
-
-**This decision is resolved.** Albedo = 0.275.
-
-### ✓ Vult → Oberon
-*Why this reference was chosen:* The Warding Moon (Shavarath) is the eternal sentinel — steady, reliable, predictable. Oberon (Uranus) has nearly circular orbit (0.0014 ecc), very low inclination (0.07°). It barely moves from its set path. A ward does not wander.
 
 ---
 
