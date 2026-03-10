@@ -14,7 +14,7 @@
               "type": "markdown",
               "state": {
                 "file": "design/moon-reference-selection.md",
-                "mode": "source",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
@@ -197,11 +197,11 @@
   },
   "active": "2df04999a503a622",
   "lastOpenFiles": [
-    "TASKS.md",
-    "README.md",
     "DESIGN.md",
     "CLAUDE.md",
     "design/moon-reference-selection.md",
+    "TASKS.md",
+    "README.md",
     "Test.md"
   ]
 }
