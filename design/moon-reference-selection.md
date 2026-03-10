@@ -1,7 +1,7 @@
 # Moon Reference Selection
 
-**Status:** open — Eyre albedo, Barrakas multiplier, Sypheros reference, and Dravago reference pending
-**Blocking:** tasks.md — Phase 1 moon tasks (orbital parameters)
+**Status:** resolved — all 12 reference moons confirmed
+**Blocking:** ~~tasks.md — Phase 1 moon tasks (orbital parameters)~~ → unblocked; see Resulting Actions
 
 ---
 
@@ -71,46 +71,52 @@ Lux contribution at full phase ∝ albedo × (diameter / distance)². **Proximit
 
 Values below use proposed/confirmed references. Barrakas shown at 1× (reference) and 7× (recommended multiplier). Sypheros shown at both candidates. Dravago shown at Triton (current) and Tethys (alternate).
 
+Confirmed selections only. Barrakas 7× shown as an alternative to the confirmed 1×.
+
 | Rank | Moon | Reference | Albedo | Lux | Tier |
 |---:|---|---|---:|---:|---|
-| 1\* | Barrakas (7×) | Enceladus ×7 | 9.625 | **11.73** | Bright |
-| 2 | Zarantyr | Luna | 0.12 | 10.30 | Bright |
-| 3 | Therendor | Dione | 0.99 | 8.85 | Bright |
-| 4 | Olarune | Titan | 0.22 | 7.63 | Bright |
-| 5 | Dravago | Triton | 0.76 | 5.69 | Bright |
-| 5\* | Dravago | Tethys | 0.80 | 5.98 | Bright |
-| 6 | Barrakas (1×) | Enceladus | 1.375 | 1.68 | Bright |
+| 1 | Zarantyr | Luna | 0.12 | 10.30 | Bright |
+| 2 | Therendor | Dione | 0.99 | 8.85 | Bright |
+| 3 | Olarune | Titan | 0.22 | 7.63 | Bright |
+| 4 | Eyre | **Mimas** | **0.96** | **5.74** | Bright |
+| 5 | Dravago | **Triton** | 0.76 | 5.69 | Bright |
+| 6 | Barrakas | Enceladus ×1 | 1.375 | 1.68 | Bright |
+| 6† | Barrakas | Enceladus ×7 | 9.625 | **11.73** | Bright† |
 | 7 | Nymm | Ganymede | 0.43 | 0.43 | Dim |
 | 8 | Lharvion | Hyperion | 0.30 | 0.39 | Dim |
-| 9 | Eyre | Elara | 0.05 | 0.30 | Dim |
-| 10 | Aryth | Iapetus avg | 0.275 | 0.137 | Faint |
-| 11 | Vult | Oberon | 0.23 | 0.132 | Faint |
-| 12 | Rhaan | Miranda | 0.32 | 0.082 | Faint |
-| 13 | Sypheros | Phoebe | 0.06 | 0.024 | Dark |
-| 13\* | Sypheros | Phobos | 0.071 | 0.029 | Dark |
-| 13\*\* | Sypheros | Deimos | 0.08 | 0.032 | Faint |
+| 9 | Aryth | Iapetus avg | 0.275 | 0.137 | Faint |
+| 10 | Vult | Oberon | 0.23 | 0.132 | Faint |
+| 11 | Rhaan | Miranda | 0.32 | 0.082 | Faint |
+| 12 | Sypheros | **Phobos** | 0.071 | 0.029 | Dark |
+
+† Barrakas ×7 alternative: 11.73 lux surpasses Zarantyr to become the single brightest object in the night sky.
 
 Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 
 **Key findings:**
-- At 7×, Barrakas (11.73) surpasses Zarantyr (10.30) as the single brightest night-sky object. Fitting for an Irian lantern.
-- Dravago ranks 5th regardless of Triton vs Tethys choice — the ~0.3 lux difference is negligible to gameplay.
-- Aryth (0.137) with averaged albedo is no longer negligible — it's faint but visible, between Vult and Rhaan.
-- Sypheros: Phoebe (0.024) and Phobos (0.029) are both dark; Deimos (0.032) sits just above the dark threshold in faint. All three are lowest lux in the system.
+- Eyre/Mimas (5.74) and Dravago/Triton (5.69) are essentially tied at rank 4/5 — a bright pair in the mid-distance range.
+- Barrakas at 1× (1.68) is a comfortably bright moon, just below the Eyre/Dravago cluster. At 7× it surpasses Zarantyr to dominate the night sky.
+- Aryth (0.137) is faint but visible, between Vult and Rhaan.
+- Sypheros/Phobos (0.029) is in the dark tier — barely below the faint threshold.
 
-**Design decisions confirmed via notes:**
-- Eyre's eccentricity (Hyperion/Elara) is intentional and correct — forge-bellows effect fits Fernia. *(Eyre → Elara confirmed.)*
-- Aryth albedo = midpoint of Iapetus two-tone surface = (0.05 + 0.50) / 2 = **0.275**. *(Resolved.)*
+**Confirmed decisions:**
+- Eyre → Mimas *(mythological: slain by Hephaestus; forge-scarred anvil with hidden internal fire)*
+- Dravago → Triton *(retrograde: always moving away from every other moon)*
+- Sypheros → Phobos *(doomed inward spiral; entropy/Mabar)*
+- Barrakas → Enceladus ×1 *(1.375 albedo, 1.68 lux; 7× = 11.73 lux kept as an option)*
+- Aryth → Iapetus avg albedo 0.275 *(averaged two-tone surface)*
 
 ### Barrakas multiplier options
 
+**Confirmed: 1× (albedo 1.375, lux 1.68).** Keeps Barrakas as a distinctly bright moon without dominating the sky. 7× kept as the "lantern of Irian" alternative — if you want The Lantern to be the most brilliant object in the night sky, surpassing Zarantyr.
+
 | N | Albedo | Lux | Notes |
 |--:|-------:|----:|---|
-| 1 | 1.375 | 1.68 | Reference value. Barely above bright threshold. |
+| **1** | **1.375** | **1.68** | **Confirmed.** Bright, above the 1.0 threshold, below the bright cluster. |
 | 2 | 2.75 | 3.35 | |
 | 4 | 5.50 | 6.70 | |
 | 6 | 8.25 | 10.05 | Near-equal to Zarantyr. |
-| **7** | **9.625** | **11.73** | Surpasses Zarantyr. Closest to old "albedo 10" system. **Recommended.** |
+| 7 | 9.625 | 11.73 | Surpasses Zarantyr. Single brightest object. Closest to old "albedo 10" system. |
 | 8 | 11.00 | 13.41 | |
 
 ---
@@ -120,47 +126,48 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 ### ✓ Therendor → Dione *(changed from Europa)*
 *Why this reference was chosen:* Dione's inclination (0.03°) nearly matches Barrakas/Enceladus (0.02°) — a lore requirement for frequent mutual eclipses between The Healer's Moon and The Lantern. Dione's albedo (0.99) makes Therendor visually brilliant, the second-brightest moon in the sky. Europa's inclination (0.47°) was too far from Barrakas to maintain the co-planar pair. Dione provides both the orbital alignment and the visual brilliance that Syrania (healing, light) demands.
 
-### ⚠ Eyre → Elara *(orbital parameters confirmed; albedo open)*
+### ✓ Eyre → Mimas *(confirmed)*
 
-*Why this reference was chosen:* Eyre is The Anvil, tuned for a forge-bellows effect — an eccentric orbit that swings dramatically in and out. Elara (Jupiter prograde irregular) provides 0.217 eccentricity (the highest available without orbit overlap) and 26.6° inclination for visible nodal precession ("hula hoop"). Hyperion was the previous reference but is structurally required for Lharvion. Siarnaq (ecc 0.296, higher swing) was ruled out: its periapsis at Eyre's scale falls inside Therendor's apoapsis (orbital overlap). Elara is the only viable high-eccentricity candidate.
+*Why this reference was chosen:* The goal for Eyre is narrative fit to The Anvil — rhythmic forge character, fire and brightness, transformation, "never staying the same." The core tension was that high-eccentricity moons (good orbital swing) are dark captured rocks, while bright moons are regular icy moons with nearly circular orbits. Mimas was chosen for mythology and character over orbital mechanics.
 
-**Implementation note:** Set `nodePrecessionDegPerYear` to 15–20 when updating Eyre's reference. Current value (2°/year) is nearly imperceptible.
+**Mythological fit:** Mimas was a Giant of Greek mythology, killed by Hephaestus — the god of the forge — with red-hot metal missiles during the Gigantomachy. The Giant bears the mark of the Forge God's blow. For a moon called The Anvil: Mimas literally IS the anvil, scarred by the hammer of the forge deity. The Herschel crater (one-third of Mimas's diameter, 5 km deep walls) is that mark — visible, enormous, defining.
 
-**⚠ Albedo concern:** Elara's eccentricity and inclination are exactly what Eyre needs. But albedo 0.05 gives 0.30 lux — barely dim, 9th in the system. A silver-metallic moon associated with Fernia's forge should be brighter than that.
+**Physical character:** Brilliant albedo (0.96 — nearly perfect reflectivity from icy surface). Lux 5.74 — bright tier, rank 4 in the system, essentially tied with Dravago. The 2024 Cassini data revealed an unexpected internal ocean 20–30 km beneath the surface, driven by an unknown heating source. A moon that looks frozen and dead but contains hidden fire. The forge that never cools.
 
-The problem is structural: high-eccentricity moons are captured irregular bodies with dark surfaces. Bright moons are regular icy moons with nearly circular orbits. There is no natural moon with both high eccentricity and high albedo that fits within the orbital-overlap constraint (periapsis > 39,100 mi).
+**What changes:** Eyre moves from dim (Elara, 0.30 lux) to the bright cluster (Mimas, 5.74 lux). The forge-bellows orbital swing (eccentricity) is reduced from 0.217 to 0.0196 — a meaningful decrease. The hula-hoop nodal precession (26.6° → 1.53° inclination) is lost. The fast apsidal precession (`apsisPrecessionDegPerYear: 120`) is retained as a tuning parameter — it does not come from the reference. Eyre's rhythmic orbital character is now expressed through that precession, not orbital eccentricity.
 
-Two paths forward:
+| Parameter | Elara (rejected) | **Mimas (confirmed)** |
+|---|---:|---:|
+| Inclination | 26.6° | **1.53°** |
+| Eccentricity | 0.217 | **0.0196** |
+| Albedo | 0.05 | **0.96** |
+| Lux | 0.30 (Dim, rank 9) | **5.74 (Bright, rank 4)** |
 
-**Option A — Elara with albedo multiplier** *(preserves all orbital character)*
+**Implementation:** Update Eyre reference to Mimas (1.53°, 0.0196 ecc, 0.96 albedo); set `distanceSwingPct = 0.0392`; set `nodePrecessionDegPerYear` to 2 (low — not a hula-hoop moon); keep `apsisPrecessionDegPerYear: 120`.
 
-Same reference, amplified albedo. Fernia's fire justifies a hotter, more reflective surface — same narrative logic as Barrakas/Enceladus.
+---
 
-| N | Albedo | Lux | Tier | Notes |
-|--:|-------:|----:|---|---|
-| 1× | 0.05 | 0.30 | Dim | Reference value. Barely visible. |
-| 2× | 0.10 | 0.60 | Dim | |
-| 3× | 0.15 | 0.90 | Dim | |
-| 4× | 0.20 | 1.20 | **Bright** | Enters bright tier |
-| 5× | 0.25 | 1.49 | **Bright** | Near Lharvion-level |
-| 6× | 0.30 | 1.79 | **Bright** | Matches Hyperion/Lharvion albedo exactly |
+**Alternatives considered and preserved:**
 
-**Option B — High-albedo circular reference** *(sacrifice forge-bellows)*
+**Io (Jupiter)** — Most volcanically active body in the Solar System. 400+ active volcanoes; surface continuously repaved by lava flows; never the same landscape twice. Tidal rhythm from the 1:2:4 Laplace resonance with Europa and Ganymede creates rhythmic internal squeezing — a gravitational forge hammer that operates on every orbit. Good albedo (0.63, lux 3.77). What you lose: nearly circular orbit (ecc 0.0041), very low inclination (0.04°). No forge mythology in the name — Io is a priestess of Hera. Best fit if the identity is *forge fire and transformation* rather than *the scarred anvil*.
 
-Gain brightness; lose the dramatic orbital swing. Eyre becomes visually prominent but both defining characteristics (eccentricity and high inclination) are gone. Not recommended unless the decision is made to redefine Eyre's orbital identity.
+**Prometheus (Saturn)** — Shapes Saturn's F ring through gravitational interaction; carves streamers and channels on every orbit — a moon that literally makes things. Albedo ~0.60, lux ~3.59. What you lose: very circular orbit (ecc 0.0022), essentially zero inclination. Name mythology: Prometheus stole fire from the gods and gave it to humanity — the patron of craft and foresight. Best fit if the identity is *craft, making, the gift of fire* — which closely matches Eyre's dragonmark (Mark of Making) and plane (Fernia).
 
-| Candidate | Host | Incl. | Ecc | Albedo | Eyre lux | Notes |
-|---|---|---:|---:|---:|---:|---|
-| **Mimas** | Saturn | 1.53° | 0.0196 | 0.96 | **5.74** | Massive crater (Herschel); most prominent icy moon |
-| **Rhea** | Saturn | 0.35° | 0.0010 | 0.95 | **5.68** | Brilliant icy regular |
-| **Janus** | Saturn | 0.16° | 0.0068 | 0.71 | **4.25** | Co-orbital shepherd with Epimetheus |
-| **Ariel** | Uranus | 0.04° | 0.0012 | 0.56 | **3.35** | Brightest Uranian; geologically active |
-| **Umbriel** | Uranus | 0.13° | 0.0039 | 0.26 | **1.56** | Darker Uranian; still bright tier |
+| Candidate | Incl. | Ecc | Albedo | Lux | Identity |
+|---|---:|---:|---:|---:|---|
+| **Mimas** (confirmed) | 1.53° | 0.0196 | 0.96 | **5.74** | The scarred anvil; struck by Hephaestus; hidden fire |
+| Io | 0.04° | 0.0041 | 0.63 | 3.77 | Forge fire; volcanic transformation; tidal rhythm |
+| Prometheus | 0.01° | 0.0022 | ~0.60 | ~3.59 | Craft patron; fire-stealer; shaper of things |
 
-**⚠ Decision required: albedo multiplier N× on Elara (Option A), or new high-albedo reference (Option B)?**
+### ✓ Dravago → Triton *(confirmed)*
+*The Herder's Moon: the lavender moon that moves widely across the sky, guiding the others.*
 
-### ⚠ Dravago — open (two candidates)
-*The Herder's Moon: the lavender moon that moves widely across the sky, guiding the others. Higher inclination is desirable, but not so wide that it abandons the herd.*
+**Decision:** Triton. The lore "typically keeps at a distance from other moons" is best read as retrograde motion — Dravago literally moves opposite to every other moon, always departing. Tethys (the prograde alternative) literally has shepherd companions that follow it at 60° intervals: the opposite of keeping distance. Retrograde plus 23.2° effective deviation (second highest in system) fully satisfies the narrative.
+
+---
+*(Analysis preserved below)*
+
+---
 
 | Candidate   | Host    | Type                 |  Incl. | Eff. dev. |      Ecc | Albedo |  Lux | Special                                                                                     |
 | ----------- | ------- | -------------------- | -----: | --------: | -------: | -----: | ---: | ------------------------------------------------------------------------------------------- |
@@ -217,13 +224,20 @@ To satisfy the strict mathematical constraint, Dravago needs effective deviation
 
 **Recommendation: Triton.** Relax "highest effective deviation" to "notably high deviation + retrograde." Tethys is the moon that stays with the herd; Triton is the one that circles it going the wrong way.
 
-**⚠ Decision required — constraint interpretation sign-off needed before finalizing.**
+**✓ Resolved — Triton confirmed. Constraint relaxed from "highest effective deviation" to "notably high deviation + retrograde."**
 
 ### ✓ Rhaan → Miranda
 *Why this reference was chosen:* Miranda (Uranus) has uniquely bizarre geology — deep canyons, mixed ancient and young terrain, a surface like nowhere else in the Solar System. This chaos reflects Thelanis (the Faerie Court) where the rules are strange and the landscape follows dream logic. Moderate inclination (4.34°) gives it a slightly unusual path. Pale blue (#9AC0FF) matches Uranus-family coloring.
 
-### ⚠ Sypheros — open (three candidates)
-*The Shadow, associated with Mabar (the endless night). Dim, lurking, retrograde. Must have the lowest albedo in the system.*
+### ✓ Sypheros → Phobos *(confirmed)*
+*The Shadow, associated with Mabar (the endless night).*
+
+**Decision:** Phobos. The doomed moon — spiraling inward inside Mars's Roche limit, will break apart in ~30–50 Myr. A moon of entropy. Mabar is the endless night, the plane of entropy and consumption. Phobos is literally being consumed. Dark tier (0.029 lux — just below the faint threshold). Prograde equatorial (retrograde would have fit The Shadow better narratively, but the doomed-inward-spiral is the stronger Mabar angle).
+
+---
+*(Candidate analysis preserved below)*
+
+---
 
 | Candidate  | Host   | Type                 |  Incl. |    Ecc | Albedo | Sypheros lux | Orbit check  | Notes                                                            |
 | ---------- | ------ | -------------------- | -----: | -----: | -----: | -----------: | ------------ | ---------------------------------------------------------------- |
@@ -243,7 +257,7 @@ Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (
 
 **Phobos vs Deimos:** Both Mars moons; both lose Phoebe's retrograde character. Phobos's doomed inward spiral fits Mabar entropy. Phobos is darker (0.029 lux, dark tier) while Deimos (0.032 lux) barely reaches faint — a meaningful distinction if The Shadow should sit just below visible.
 
-**⚠ Decision required — Phoebe (retrograde, darkest), Phobos (doomed, dark), or Deimos (distinct fate, faint)?**
+**✓ Resolved — Phobos confirmed.**
 
 
 
@@ -251,31 +265,30 @@ Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (
 
 ## Proposed Final Mapping
 
-| Eberron Moon | Reference             | Change                     | Inclination |         Ecc |      Albedo | Status                                                |
-| ------------ | --------------------- | -------------------------- | ----------: | ----------: | ----------: | ----------------------------------------------------- |
-| Zarantyr     | Luna                  | —                          |      5.145° |      0.0549 |        0.12 | ✓ confirmed                                           |
-| Olarune      | Titan                 | —                          |       0.33° |      0.0288 |        0.22 | ✓ confirmed                                           |
-| Therendor    | **Dione**             | Europa → Dione             |       0.03° |      0.0022 |        0.99 | ✓ confirmed                                           |
-| Eyre         | **Elara**             | Hyperion → Elara           |       26.6° |       0.217 |        0.05 | ⚠ open — orbital parameters confirmed; albedo multiplier pending |
-| Dravago      | **Tethys or Triton**  | Tethys → Triton            | *see above* | *see above* | *see above* | ⚠ open                                                |
-| Nymm         | Ganymede              | —                          |       0.20° |      0.0013 |        0.43 | ✓ confirmed                                           |
-| Lharvion     | **Hyperion**          | Nereid → Hyperion          |       0.43° |      0.1230 |        0.30 | ✓ confirmed                                           |
-| Barrakas     | Enceladus ×N          | — (multiplier pending)     |       0.02° |      0.0047 |   1.375 × N | ⚠ open                                                |
-| Rhaan        | Miranda               | —                          |       4.34° |      0.0013 |        0.32 | ✓ confirmed                                           |
-| Sypheros     | **Phoebe, Phobos, or Deimos** | —                  | *see above* | *see above* | *see above* | ⚠ open                                                |
-| Aryth        | Iapetus               | — (albedo resolved: 0.275) |       7.57° |      0.0283 |       0.275 | ✓ confirmed                                           |
-| Vult         | Oberon                | —                          |       0.07° |      0.0014 |        0.23 | ✓ confirmed                                           |
+| Eberron Moon | Reference        | Change                 | Inclination |    Ecc |  Albedo | Status       |
+| ------------ | ---------------- | ---------------------- | ----------: | -----: | ------: | ------------ |
+| Zarantyr     | Luna             | —                      |      5.145° | 0.0549 |    0.12 | ✓ confirmed  |
+| Olarune      | Titan            | —                      |       0.33° | 0.0288 |    0.22 | ✓ confirmed  |
+| Therendor    | **Dione**        | Europa → Dione         |       0.03° | 0.0022 |    0.99 | ✓ confirmed  |
+| Eyre         | **Mimas**        | Hyperion → Elara → **Mimas** |  1.53° | 0.0196 |    0.96 | ✓ confirmed  |
+| Dravago      | **Triton**       | (Tethys ruled out)     |     156.8°† | 0.000016 |  0.76 | ✓ confirmed  |
+| Nymm         | Ganymede         | —                      |       0.20° | 0.0013 |    0.43 | ✓ confirmed  |
+| Lharvion     | **Hyperion**     | Nereid → Hyperion      |       0.43° | 0.1230 |    0.30 | ✓ confirmed  |
+| Barrakas     | Enceladus ×1     | — (×7 option retained) |       0.02° | 0.0047 |   1.375 | ✓ confirmed  |
+| Rhaan        | Miranda          | —                      |       4.34° | 0.0013 |    0.32 | ✓ confirmed  |
+| Sypheros     | **Phobos**       | —                      |       1.08° | 0.0151 |   0.071 | ✓ confirmed  |
+| Aryth        | Iapetus          | albedo averaged 0.275  |       7.57° | 0.0283 |   0.275 | ✓ confirmed  |
+| Vult         | Oberon           | —                      |       0.07° | 0.0014 |    0.23 | ✓ confirmed  |
 
-6 confirmed (orbital parameters), 4 open decisions: Eyre albedo multiplier, Dravago reference, Barrakas multiplier, Sypheros reference.
+† Triton is retrograde; 156.8° inclination = 23.2° effective ecliptic deviation.
+
+**All 12 reference moons confirmed.**
 
 ---
 
 ## Remaining Open Decisions
 
-**1. Eyre albedo:** Orbital parameters (Elara ecc 0.217, incl 26.6°) confirmed. Albedo 0.05 unsatisfactory for a silver-metallic moon. Recommend an albedo multiplier (see Option A above). 4× (1.20 lux, bright) or 5× (1.49 lux, bright) are the practical range.
-**2. Dravago reference:** Triton (retrograde, 23.2° effective deviation, 0.76 albedo) recommended. Tethys (prograde equatorial, bright, shepherd companions) is the opposite of the lore description. Constraint interpretation sign-off needed.
-**3. Barrakas multiplier:** N× Enceladus albedo (1.375). 7× = 9.625 albedo, 11.73 lux. Confirmed preferred.
-**4. Sypheros reference:** Phoebe (retrograde, darkest at 0.024 lux), Phobos (doomed/entropy, dark at 0.029 lux), or Deimos (faint at 0.032 lux). Phobos and Deimos are both prograde equatorial.
+None. All 12 reference moons confirmed. See Proposed Final Mapping above.
 
 ---
 
@@ -294,7 +307,7 @@ Informational — Eberron periods are designed values.
 | Lharvion | 30.0 | **Hyperion** | 21.28 | 19.58 | ×2 | 39.2 |
 | Barrakas | 22.0 | Enceladus | 1.37 | 1.26 | ×17 | 21.4 |
 | Rhaan | 37.0 | Miranda | 1.41 | 1.30 | ×28 | 36.4 |
-| Sypheros | 67.0 | Phoebe/Caliban | ~550 / ~580 | ~506 / ~533 | ÷8 / ÷8 | 63.3 / 66.6 |
+| Sypheros | 67.0 | **Phobos** | ~0.32 days (sidereal) | ~0.29 | ×230 | ~67.0 | *Period does not derive from Phobos; 67d is a designed value* |
 | Aryth | 48.0 | Iapetus | 79.3 | 72.9 | ÷2 | 36.5 |
 | Vult | 56.0 | Oberon | 13.46 | 12.38 | ×5 | 61.9 |
 
@@ -302,15 +315,15 @@ Informational — Eberron periods are designed values.
 
 ## Resulting Actions
 
-When the four open decisions above are resolved:
+All decisions resolved. Tasks added to tasks.md.
 
-- [ ] Update DESIGN.md §7.4 with final reference mapping table
-- [ ] Add task: "Update Therendor reference to Dione (0.03°, 0.0022 ecc, 0.99 albedo)"
-- [ ] Add task: "Update Eyre reference to Elara (26.6°, 0.217 ecc, albedo = 0.05 × N); set nodePrecessionDegPerYear to 15–20; keep apsisPrecessionDegPerYear: 120"
-- [ ] Add task: "Update Dravago reference to [Triton/Tethys]"
-- [ ] Add task: "Update Lharvion reference to Hyperion (0.43°, 0.1230 ecc, 0.30 albedo); remove eccentricity clamping"
-- [ ] Add task: "Set Barrakas albedo multiplier to N× in script"
-- [ ] Add task: "Update Sypheros reference to [Caliban/Phoebe]"
-- [ ] Add task: "Set Aryth albedo to 0.275 (averaged Iapetus)"
-- [ ] Add task: "Add weak anti-phase coupling between Therendor and Barrakas"
-- [ ] Add task: "Update period scaling table in DESIGN.md with final multipliers"
+- [x] Update DESIGN.md §7.4 with final reference mapping table
+- [x] Add task: Update Therendor reference to Dione (0.03°, 0.0022 ecc, 0.99 albedo)
+- [x] Add task: Update Eyre reference to Mimas (1.53°, 0.0196 ecc, 0.96 albedo); distanceSwingPct 0.0392; nodePrecessionDegPerYear 2; keep apsisPrecessionDegPerYear 120
+- [x] Add task: Update Dravago reference to Triton (156.8° retrograde, 0.000016 ecc, 0.76 albedo)
+- [x] Add task: Update Lharvion reference to Hyperion (0.43°, 0.1230 ecc, 0.30 albedo); remove eccentricity clamping
+- [x] Add task: Set Barrakas albedo to 1.375 (Enceladus ×1); no multiplier
+- [x] Add task: Update Sypheros reference to Phobos (1.08°, 0.0151 ecc, 0.071 albedo)
+- [x] Add task: Set Aryth albedo to 0.275 (averaged Iapetus)
+- [x] Add task: Add weak anti-phase coupling between Therendor and Barrakas
+- [x] Add task: Update period scaling table in DESIGN.md with final multipliers
