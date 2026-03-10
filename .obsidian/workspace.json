@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "design/moon-reference-selection.md",
+                "file": "DESIGN.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "moon-reference-selection"
+              "title": "DESIGN"
             }
           }
         ]
@@ -197,9 +197,9 @@
   },
   "active": "2df04999a503a622",
   "lastOpenFiles": [
+    "design/moon-reference-selection.md",
     "DESIGN.md",
     "CLAUDE.md",
-    "design/moon-reference-selection.md",
     "TASKS.md",
     "README.md",
     "Test.md"
