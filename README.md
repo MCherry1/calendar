@@ -11,8 +11,30 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 ---
 ## Table of Contents
-- [ ] need to fill this in
-- [ ] can we make the sections start auto-collapsed, and open when the ToC link. is clicked?
+
+- [Installation](#installation)
+- [How to Use](#how-to-use)
+- [Calendar Navigation](#calendar-navigation)
+- [Events](#events)
+- [Moons](#moons)
+- [Weather](#weather)
+  - [Temperature](#temperature)
+  - [Wind](#wind)
+  - [Precipitation](#precipitation)
+  - [Location](#location)
+  - [Forecasting](#forecasting)
+- [Planes](#planes)
+- [Commands](#commands)
+  - [Dates](#dates)
+  - [Weather](#weather-1)
+  - [Moons](#moons-1)
+  - [Planes](#planes-1)
+  - [Events](#events-1)
+- [Knowledge Tiers](#knowledge-tiers)
+- [Calendar Systems](#calendar-systems)
+- [Design Reference](#design-reference)
+
+> **Note:** GitHub markdown supports collapsible sections via HTML `<details>` tags. Sections can be wrapped in `<details><summary>Section Title</summary>…</details>` if you want them collapsed by default. Not implemented here yet — worth deciding before the README is finalized.
 
 ---
 
@@ -81,48 +103,96 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ---
 ## Moons
 - **Earth**
-	- Insert Luna parameters here. Include anchor date for correct phase.
-- **Faerun**
-	- Insert Selune parameters here. Include anchor date for correct phase.
+	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
+- **Faerûn**
+	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01.
 - **Eberron**
-	- Eberron's moons are vastly more important to the setting, more complex, and less-defined.
+	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canon color, approximate diameter, and mean orbital distance.
 	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
-	- Each moon was matched with a real-world moon from our own Solar System to 
+	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. The reference moon's values are used as-is, with one exception: Barrakas applies an albedo multiplier for supernatural brightness (its association with Irian, the plane of life and light).
+	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
 ---
 ## Weather
 - Included is a homebrew system for managing the weather.
 - This system can be toggled on or off as desired.
 ### Temperature
 
-| Temperature |  °F Approx.  | Mechanical Effect |
-| :---------: | :----------: | :---------------: |
-|     -5      |              |                   |
-|     -4      | [-45 .. -34] |                   |
-|     -3      |              |                   |
-|     -2      |              |                   |
-|     -1      |              |                   |
-|      0      |  [-5 .. 4]   |                   |
-|      1      |  [5 .. 14]   |                   |
+> **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
+
+| Temperature |   °F Approx.   | Mechanical Effect |
+| :---------: | :------------: | :---------------- |
+|     −5      |    ≤ −46°F     | DC 30 Con save or exhaustion; special cold-weather protection required |
+|     −4      | [−45 .. −36]   | DC 25 Con save or exhaustion; heavy cold-weather clothing required |
+|     −3      | [−35 .. −26]   | DC 25 Con save or exhaustion; heavy cold-weather clothing required |
+|     −2      | [−25 .. −16]   | DC 20 Con save or exhaustion; medium cold-weather clothing required |
+|     −1      | [−15 .. −6]    | DC 20 Con save or exhaustion; medium cold-weather clothing required |
+|      0      |  [−5 .. 4]     | DC 15 Con save or exhaustion; light cold-weather clothing sufficient |
+|      1      |  [5 .. 14]     | DC 15 Con save or exhaustion; light cold-weather clothing sufficient |
+|      2      |  [15 .. 24]    | DC 10 Con save or exhaustion |
+|      3      |  [25 .. 34]    | DC 10 Con save or exhaustion |
+|      4      |  [35 .. 44]    | No direct thermal hazard |
+|      5      |  [45 .. 54]    | No direct thermal hazard |
+|      6      |  [55 .. 64]    | No direct thermal hazard |
+|      7      |  [65 .. 74]    | DC 10 Con save or exhaustion (compounding factors) |
+|      8      |  [75 .. 84]    | DC 10 Con save or exhaustion |
+|      9      |  [85 .. 94]    | DC 15 Con save or exhaustion |
+|     10      |  [95 .. 104]   | DC 20 Con save or exhaustion; medium and heavy armor at disadvantage |
+|     11      | [105 .. 114]   | DC 20 Con save or exhaustion; all armor at disadvantage |
+|     12      | [115 .. 124]   | DC 25 Con save or exhaustion; all armor at disadvantage |
+|     13      | [125 .. 134]   | DC 25 Con save or exhaustion; mundane protection insufficient |
+|     14      | [135 .. 144]   | DC 30 Con save or exhaustion; mundane protection insufficient |
+|     15      |    ≥ 145°F     | DC 30 Con save or exhaustion; special protection required |
 ### Wind
 
-|     |     |
-| --- | --- |
-|     |     |
+| Wind | Label | Mechanical Effect |
+| :--: | :---: | :---------------- |
+|  0   | Calm | None |
+|  1   | Breezy | None |
+|  2   | Moderate | Fogs and airborne gases dispersed |
+|  3   | Strong | Disadvantage on ranged attacks; long-range attacks auto-miss; flying costs +1 ft per ft; open flames extinguished |
+|  4   | Gale | Ranged attacks auto-miss; flying speed becomes 0; walking costs +1 ft per ft |
+|  5   | Storm | DC 15 Strength save or fall prone; small trees uprooted; severe hazard |
+
 ### Precipitation
 
-|     |     |
-| --- | --- |
-|     |     |
+| Precip | Sky / Condition | Notes |
+| :----: | :-------------- | :---- |
+|   0    | Clear | |
+|   1    | Partly Cloudy | Light atmospheric moisture |
+|   2    | Overcast | |
+|   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature |
+|   4    | Heavy Precipitation | Heavy rain, heavy snow, ice storm |
+|   5    | Extreme / Deluge | Blizzard or deluge-class precipitation |
 
 ### Location
 
+Weather is generated for a specific location profile. Set the profile with `!cal weather location`, or use the in-game location wizard. Three settings combine to determine weather baselines:
 
-| Climate | Geography | Terrain |
-| ------- | --------- | ------- |
-|         |           |         |
+| Setting | Key Examples | Effect |
+| ------- | ------------ | ------ |
+| **Climate** | arctic, temperate, tropical, arid, … | Sets overall temperature baseline and seasonal variation |
+| **Geography** | coastal, plains, hills, mountain, … | Modifies temperature and precipitation patterns |
+| **Terrain** | forest, city, open, swamp, … | Fine-tunes local conditions; affects fog frequency |
+
+A **manifest zone** can also be set independently. Manifest zones apply magical overlays on top of the location (e.g., a Syrania manifest zone forces calm, clear skies). Clear the manifest zone without changing the location when leaving the area.
+
+Run `!cal weather location` in chat for the full list of valid keys and the interactive wizard.
+
 ### Forecasting
-explain the forecasting ssytem here
+
+Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date.
+
+The generation pipeline runs per-day:
+1. **Baseline** — Climate, geography, and terrain set temperature, wind, and precipitation probabilities.
+2. **Continuity** — Each day nudges toward the previous day's conditions, producing coherent weather evolution rather than random swings.
+3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one.
+4. **Fog** — Rolls separately, with persistence across days and interaction with wind.
+5. **Overlays** — Manifest zone and planar modifiers apply last (e.g., coterminous Syrania forces calm and clear regardless of baseline).
+
+**Player reveals** are upgrade-only. Once a tier of information is given, players retain it. GMs always see full detail.
+
+GMs can extend the forecast window ahead, reroll individual dates before revealing them, or lock a date's weather to prevent future changes.
 
 ---
 ## Planes

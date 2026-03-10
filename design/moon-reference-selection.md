@@ -1,6 +1,6 @@
 # Moon Reference Selection
 
-**Status:** open — Barrakas multiplier, Sypheros reference, and Dravago reference pending
+**Status:** open — Eyre albedo, Barrakas multiplier, Sypheros reference, and Dravago reference pending
 **Blocking:** tasks.md — Phase 1 moon tasks (orbital parameters)
 
 ---
@@ -87,7 +87,8 @@ Values below use proposed/confirmed references. Barrakas shown at 1× (reference
 | 11 | Vult | Oberon | 0.23 | 0.132 | Faint |
 | 12 | Rhaan | Miranda | 0.32 | 0.082 | Faint |
 | 13 | Sypheros | Phoebe | 0.06 | 0.024 | Dark |
-| 13\* | Sypheros | Caliban | 0.04 | 0.016 | Dark |
+| 13\* | Sypheros | Phobos | 0.071 | 0.029 | Dark |
+| 13\*\* | Sypheros | Deimos | 0.08 | 0.032 | Faint |
 
 Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 
@@ -95,7 +96,7 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 - At 7×, Barrakas (11.73) surpasses Zarantyr (10.30) as the single brightest night-sky object. Fitting for an Irian lantern.
 - Dravago ranks 5th regardless of Triton vs Tethys choice — the ~0.3 lux difference is negligible to gameplay.
 - Aryth (0.137) with averaged albedo is no longer negligible — it's faint but visible, between Vult and Rhaan.
-- Sypheros at Caliban (0.016) is clearly the lowest lux in the system. At Phoebe (0.024) it's still lowest, but only marginally above the dark threshold.
+- Sypheros: Phoebe (0.024) and Phobos (0.029) are both dark; Deimos (0.032) sits just above the dark threshold in faint. All three are lowest lux in the system.
 
 **Design decisions confirmed via notes:**
 - Eyre's eccentricity (Hyperion/Elara) is intentional and correct — forge-bellows effect fits Fernia. *(Eyre → Elara confirmed.)*
@@ -119,10 +120,44 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 ### ✓ Therendor → Dione *(changed from Europa)*
 *Why this reference was chosen:* Dione's inclination (0.03°) nearly matches Barrakas/Enceladus (0.02°) — a lore requirement for frequent mutual eclipses between The Healer's Moon and The Lantern. Dione's albedo (0.99) makes Therendor visually brilliant, the second-brightest moon in the sky. Europa's inclination (0.47°) was too far from Barrakas to maintain the co-planar pair. Dione provides both the orbital alignment and the visual brilliance that Syrania (healing, light) demands.
 
-### ⚠ Eyre → Elara *(confirmed, implementation pending)*
+### ⚠ Eyre → Elara *(orbital parameters confirmed; albedo open)*
+
 *Why this reference was chosen:* Eyre is The Anvil, tuned for a forge-bellows effect — an eccentric orbit that swings dramatically in and out. Elara (Jupiter prograde irregular) provides 0.217 eccentricity (the highest available without orbit overlap) and 26.6° inclination for visible nodal precession ("hula hoop"). Hyperion was the previous reference but is structurally required for Lharvion. Siarnaq (ecc 0.296, higher swing) was ruled out: its periapsis at Eyre's scale falls inside Therendor's apoapsis (orbital overlap). Elara is the only viable high-eccentricity candidate.
 
 **Implementation note:** Set `nodePrecessionDegPerYear` to 15–20 when updating Eyre's reference. Current value (2°/year) is nearly imperceptible.
+
+**⚠ Albedo concern:** Elara's eccentricity and inclination are exactly what Eyre needs. But albedo 0.05 gives 0.30 lux — barely dim, 9th in the system. A silver-metallic moon associated with Fernia's forge should be brighter than that.
+
+The problem is structural: high-eccentricity moons are captured irregular bodies with dark surfaces. Bright moons are regular icy moons with nearly circular orbits. There is no natural moon with both high eccentricity and high albedo that fits within the orbital-overlap constraint (periapsis > 39,100 mi).
+
+Two paths forward:
+
+**Option A — Elara with albedo multiplier** *(preserves all orbital character)*
+
+Same reference, amplified albedo. Fernia's fire justifies a hotter, more reflective surface — same narrative logic as Barrakas/Enceladus.
+
+| N | Albedo | Lux | Tier | Notes |
+|--:|-------:|----:|---|---|
+| 1× | 0.05 | 0.30 | Dim | Reference value. Barely visible. |
+| 2× | 0.10 | 0.60 | Dim | |
+| 3× | 0.15 | 0.90 | Dim | |
+| 4× | 0.20 | 1.20 | **Bright** | Enters bright tier |
+| 5× | 0.25 | 1.49 | **Bright** | Near Lharvion-level |
+| 6× | 0.30 | 1.79 | **Bright** | Matches Hyperion/Lharvion albedo exactly |
+
+**Option B — High-albedo circular reference** *(sacrifice forge-bellows)*
+
+Gain brightness; lose the dramatic orbital swing. Eyre becomes visually prominent but both defining characteristics (eccentricity and high inclination) are gone. Not recommended unless the decision is made to redefine Eyre's orbital identity.
+
+| Candidate | Host | Incl. | Ecc | Albedo | Eyre lux | Notes |
+|---|---|---:|---:|---:|---:|---|
+| **Mimas** | Saturn | 1.53° | 0.0196 | 0.96 | **5.74** | Massive crater (Herschel); most prominent icy moon |
+| **Rhea** | Saturn | 0.35° | 0.0010 | 0.95 | **5.68** | Brilliant icy regular |
+| **Janus** | Saturn | 0.16° | 0.0068 | 0.71 | **4.25** | Co-orbital shepherd with Epimetheus |
+| **Ariel** | Uranus | 0.04° | 0.0012 | 0.56 | **3.35** | Brightest Uranian; geologically active |
+| **Umbriel** | Uranus | 0.13° | 0.0039 | 0.26 | **1.56** | Darker Uranian; still bright tier |
+
+**⚠ Decision required: albedo multiplier N× on Elara (Option A), or new high-albedo reference (Option B)?**
 
 ### ⚠ Dravago — open (two candidates)
 *The Herder's Moon: the lavender moon that moves widely across the sky, guiding the others. Higher inclination is desirable, but not so wide that it abandons the herd.*
@@ -143,9 +178,21 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 
 **Trade-off summary:**
 - Wide deviation AND bright AND prograde → no candidate exists
-- Wide deviation AND bright → must accept retrograde (Triton), but fails the constraint vs Eyre
+- Wide deviation AND bright → must accept retrograde (Triton), but fails the strict constraint vs Eyre
 - Prograde AND bright → Tethys (stays near equator; has shepherd companions)
 - Himalia eliminated by dark albedo
+
+**Interpreting "its orbit typically keeps it at a distance from other moons":**
+
+Three possible readings:
+
+1. **High inclination** — Dravago wanders far from the celestial equator where most moons travel. When others cluster near the horizon, Dravago is elsewhere.
+2. **Retrograde motion** — Dravago moves in the opposite direction from all other moons. It is perpetually departing from them, passing through their positions only briefly before pulling away.
+3. **The Herder character** — A herder works the periphery of the flock, not the center. Circling in reverse, from the outside.
+
+Of these, retrograde motion is the most mechanically expressive. A retrograde moon is never traveling *with* any other moon — it is always the one going the other way. "Typically at a distance" becomes behavioral, not geometric: Dravago is the moon that always seems to be heading somewhere else.
+
+Note also that Tethys (the prograde option) literally has shepherd companions that follow 60° ahead and behind it. Tethys is the moon that *attracts followers and stays with the herd*. That is the opposite of the lore description.
 
 Also note: Tethys and Enceladus (Barrakas) are both Saturn regular moons with nearly identical inclinations. Adding Tethys as Dravago creates a second co-planar pair alongside Therendor/Barrakas.
 
@@ -162,44 +209,43 @@ The lore constraint (item 3 above) requires Dravago to have the *highest eclipti
 
 Triton (23.2° effective) does *not* satisfy the constraint — Elara/Eyre at 26.6° exceeds it. Tethys at 1.09° is even worse. Neither current Dravago candidate clears this bar.
 
-To satisfy the constraint, Dravago needs effective deviation > 26.6°, i.e.:
-- A prograde moon with inclination > 26.6° AND bright albedo (unlikely — prograde irregulars are dark), **or**
+To satisfy the strict mathematical constraint, Dravago needs effective deviation > 26.6°, i.e.:
+- A prograde moon with inclination > 26.6° AND bright albedo (none exist — prograde irregulars are dark), **or**
 - A retrograde moon with inclination < 153.4° AND bright albedo (nothing known fits this)
 
-**Open question:** Does "highest inclination" in the lore constraint override the reference-locked inclination rule for Dravago specifically? Or does the constraint mean we accept a slightly different interpretation (e.g., Dravago has the highest inclination among non-retrograde-near-equatorial moons)? This may require a design decision before finalizing Dravago's reference.
+**Constraint resolution:** The constraint as written ("must have the highest ecliptic deviation") was derived from the inclination reading of the lore. If the lore means retrograde motion — the behavioral sense of always keeping distance — the constraint was over-specified. Triton's retrograde character plus 23.2° effective deviation (second highest in the system) satisfies the narrative. The one moon above it (Eyre/Elara at 26.6°) has very different character: its high inclination is the forge-bellows hula-hoop, not the Herder's wandering.
 
-**⚠ Decision required — including constraint resolution.**
+**Recommendation: Triton.** Relax "highest effective deviation" to "notably high deviation + retrograde." Tethys is the moon that stays with the herd; Triton is the one that circles it going the wrong way.
+
+**⚠ Decision required — constraint interpretation sign-off needed before finalizing.**
 
 ### ✓ Rhaan → Miranda
 *Why this reference was chosen:* Miranda (Uranus) has uniquely bizarre geology — deep canyons, mixed ancient and young terrain, a surface like nowhere else in the Solar System. This chaos reflects Thelanis (the Faerie Court) where the rules are strange and the landscape follows dream logic. Moderate inclination (4.34°) gives it a slightly unusual path. Pale blue (#9AC0FF) matches Uranus-family coloring.
 
-### ⚠ Sypheros — open (two candidates)
+### ⚠ Sypheros — open (three candidates)
 *The Shadow, associated with Mabar (the endless night). Dim, lurking, retrograde. Must have the lowest albedo in the system.*
 
 | Candidate  | Host   | Type                 |  Incl. |    Ecc | Albedo | Sypheros lux | Orbit check  | Notes                                                            |
 | ---------- | ------ | -------------------- | -----: | -----: | -----: | -----------: | ------------ | ---------------------------------------------------------------- |
 | **Phoebe** | Saturn | Retrograde irregular | 175.3° | 0.1635 |   0.06 |    0.024 lux | 153,079 mi ✓ | Nearly perfectly retrograde (eff. dev. 4.7°); well-characterized |
-| **Deimos** |        |                      |        |        |        |              |              |                                                                  |
+| **Deimos** | Mars   | Regular prograde     |  1.79° | 0.0002 |   0.08 |    0.032 lux | 182,963 mi ✓ | Nearly circular; outer Mars moon; ancient cratered surface; may eventually escape Mars gravity |
 | **Phobos** | Mars   | Regular prograde     |  1.08° | 0.0151 |  0.071 |    0.029 lux | 179,235 mi ✓ | Equatorial prograde; doomed (inside Roche limit, ~30–50 Myr)     |
 
 Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (1 − ecc).
 
-~~**⚠ Caliban data conflict:** Two conflicting sets of values appear in sources:- Low-albedo version (likely JPL/original): albedo ~0.04, ecc ~0.159 → **0.016 lux** (dark, clearly dimmest in system- High-albedo version (NASA Science page): albedo ~0.22, ecc ~0.05 → **0.040 lux** (faint, *brighter* than Phoebe~~
+~~Caliban (Uranus retrograde): eliminated — conflicting albedo values in sources (0.04 vs 0.22), unresolvable.~~
 
 
 **Narrative:**
-- **Phoebe (0.06, 175.3°):** Most dramatically retrograde — nearly 180°, effective 4.7° from equatorial, going precisely backwards. Established baseline.
-- **Phobos (0.071, 1.08°):** NOT retrograde; nearly equatorial. Slightly brighter than Phoebe in albedo. Only narrative angle: Phobos is literally doomed — inside Mars's Roche limit, spiraling inward. A moon of entropy (Mabar's endless night). But equatorial orbit is a poor fit for The Shadow.
+- **Phoebe (0.06, 175.3°):** Most dramatically retrograde — nearly 180°, effective 4.7° from equatorial, going precisely backwards. Darkest option (0.024 lux).
+- **Phobos (0.071, 1.08°):** Prograde equatorial — retrograde character lost. Doomed orbit (inside Roche limit, spiraling inward, ~30–50 Myr). Entropy narrative fits Mabar. Dark tier (0.029 lux).
+- **Deimos (0.08, 1.79°):** Prograde equatorial — retrograde character also lost. Nearly circular orbit (ecc 0.0002). Slightly brighter; sits just above the dark threshold at faint (0.032 lux). May eventually escape Mars's gravity (possible anti-entropy reading, but less compelling).
 
-**⚠ Decision required (pending Caliban albedo verification).**
+**Phobos vs Deimos:** Both Mars moons; both lose Phoebe's retrograde character. Phobos's doomed inward spiral fits Mabar entropy. Phobos is darker (0.029 lux, dark tier) while Deimos (0.032 lux) barely reaches faint — a meaningful distinction if The Shadow should sit just below visible.
+
+**⚠ Decision required — Phoebe (retrograde, darkest), Phobos (doomed, dark), or Deimos (distinct fate, faint)?**
 
 
-
----
-
-## Eyre — not Elara. unhappy with albedo. need better choice
-
-~~See Full Moon Review above. Decision resolved. Siarnaq ruled out by orbital overlap. Elara is the only viable candidate.~~
 
 ---
 
@@ -210,25 +256,26 @@ Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (
 | Zarantyr     | Luna                  | —                          |      5.145° |      0.0549 |        0.12 | ✓ confirmed                                           |
 | Olarune      | Titan                 | —                          |       0.33° |      0.0288 |        0.22 | ✓ confirmed                                           |
 | Therendor    | **Dione**             | Europa → Dione             |       0.03° |      0.0022 |        0.99 | ✓ confirmed                                           |
-| Eyre         | **Elara**             | Hyperion → Elara           |       26.6° |       0.217 |        0.05 | still open. unhappy with the albedo. unhappy with the |
+| Eyre         | **Elara**             | Hyperion → Elara           |       26.6° |       0.217 |        0.05 | ⚠ open — orbital parameters confirmed; albedo multiplier pending |
 | Dravago      | **Tethys or Triton**  | Tethys → Triton            | *see above* | *see above* | *see above* | ⚠ open                                                |
 | Nymm         | Ganymede              | —                          |       0.20° |      0.0013 |        0.43 | ✓ confirmed                                           |
 | Lharvion     | **Hyperion**          | Nereid → Hyperion          |       0.43° |      0.1230 |        0.30 | ✓ confirmed                                           |
 | Barrakas     | Enceladus ×N          | — (multiplier pending)     |       0.02° |      0.0047 |   1.375 × N | ⚠ open                                                |
 | Rhaan        | Miranda               | —                          |       4.34° |      0.0013 |        0.32 | ✓ confirmed                                           |
-| Sypheros     | **Phoebe or Caliban** | —                          | *see above* | *see above* | *see above* | ⚠ open                                                |
+| Sypheros     | **Phoebe, Phobos, or Deimos** | —                  | *see above* | *see above* | *see above* | ⚠ open                                                |
 | Aryth        | Iapetus               | — (albedo resolved: 0.275) |       7.57° |      0.0283 |       0.275 | ✓ confirmed                                           |
 | Vult         | Oberon                | —                          |       0.07° |      0.0014 |        0.23 | ✓ confirmed                                           |
 
-7 confirmed. 3 open decisions: Dravago reference, Barrakas multiplier, Sypheros reference.
+6 confirmed (orbital parameters), 4 open decisions: Eyre albedo multiplier, Dravago reference, Barrakas multiplier, Sypheros reference.
 
 ---
 
 ## Remaining Open Decisions
 
-**1. Dravago reference:** Triton (retrograde, wide wander, bright) vs Tethys (prograde, equatorial, bright + shepherd companions)?
-**2. Barrakas multiplier:** N× Enceladus albedo (1.375). Recommend 7× = 9.625 albedo, 11.73 lux.
-**3. Sypheros reference:** Caliban (darker, 0.04) vs Phoebe (current, 0.06). Both retrograde, both orbit-safe. Recommend Caliban.
+**1. Eyre albedo:** Orbital parameters (Elara ecc 0.217, incl 26.6°) confirmed. Albedo 0.05 unsatisfactory for a silver-metallic moon. Recommend an albedo multiplier (see Option A above). 4× (1.20 lux, bright) or 5× (1.49 lux, bright) are the practical range.
+**2. Dravago reference:** Triton (retrograde, 23.2° effective deviation, 0.76 albedo) recommended. Tethys (prograde equatorial, bright, shepherd companions) is the opposite of the lore description. Constraint interpretation sign-off needed.
+**3. Barrakas multiplier:** N× Enceladus albedo (1.375). 7× = 9.625 albedo, 11.73 lux. Confirmed preferred.
+**4. Sypheros reference:** Phoebe (retrograde, darkest at 0.024 lux), Phobos (doomed/entropy, dark at 0.029 lux), or Deimos (faint at 0.032 lux). Phobos and Deimos are both prograde equatorial.
 
 ---
 
@@ -255,11 +302,11 @@ Informational — Eberron periods are designed values.
 
 ## Resulting Actions
 
-When the three open decisions above are resolved:
+When the four open decisions above are resolved:
 
 - [ ] Update DESIGN.md §7.4 with final reference mapping table
 - [ ] Add task: "Update Therendor reference to Dione (0.03°, 0.0022 ecc, 0.99 albedo)"
-- [ ] Add task: "Update Eyre reference to Elara (26.6°, 0.217 ecc, 0.05 albedo); set nodePrecessionDegPerYear to 15–20; keep apsisPrecessionDegPerYear: 120"
+- [ ] Add task: "Update Eyre reference to Elara (26.6°, 0.217 ecc, albedo = 0.05 × N); set nodePrecessionDegPerYear to 15–20; keep apsisPrecessionDegPerYear: 120"
 - [ ] Add task: "Update Dravago reference to [Triton/Tethys]"
 - [ ] Add task: "Update Lharvion reference to Hyperion (0.43°, 0.1230 ecc, 0.30 albedo); remove eccentricity clamping"
 - [ ] Add task: "Set Barrakas albedo multiplier to N× in script"
