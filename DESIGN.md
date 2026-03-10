@@ -430,20 +430,20 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 #### Eberron — 12 Moons
 
-| Moon | Title | Plane | Dragonmark | Synodic Period (days) | Diameter (mi) | Distance (mi) | Inclination (°) | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
-|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---|---|
-| Zarantyr | The Storm Moon | Kythri | Mark of Storm | 27.32 | 1250 | 14,300 | 5.145 | 0.0549 | 0.12 | random | 1.4 | kythri | 998-01-01 |
-| Olarune | The Sentinel Moon | Lamannia | Mark of Sentinel | 34.0 | 1000 | 18,000 | 0.33 | 0.0288 | 0.22 | random | 1.7 | lamannia | 998-01-01 |
-| Therendor | The Healer's Moon | Syrania | Mark of Healing | 24.0 | 1100 | 39,000 | 0.47 | 0.0094 | 0.67 | random | 1.2 | syrania | 998-01-01 |
-| Eyre | The Anvil | Fernia | Mark of Making | 21.0 | 1200 | 52,000 | 0.43 | 0.1230 | 0.30 | random | 1.0 | fernia | 998-01-01 |
-| Dravago | The Herder's Moon | Risia | Mark of Handling | 42.0 | 2000 | 77,500 | 1.09 | 0.0001 | 1.229 | random | 2.1 | risia | 998-01-01 |
-| Nymm | The Crown | Daanvi | Mark of Hospitality | 28.0 | 900 | 95,000 | 0.20 | 0.0013 | 0.43 | random | 1.4 | daanvi | 998-01-01 |
-| Lharvion | The Eye | Xoriat | Mark of Detection | 30.0 | 1350 | 125,000 | 7.23 | 0.7507 | 0.155 | random | 1.5 | xoriat | 998-01-01 |
-| Barrakas | The Lantern | Irian | Mark of Finding | 22.0 | 1500 | 144,000 | 0.02 | 0.0047 | 1.375 | random | 1.1 | irian | 998-01-01 |
-| Rhaan | The Book | Thelanis | Mark of Scribing | 37.0 | 800 | 168,000 | 4.34 | 0.0013 | 0.32 | random | 1.9 | thelanis | 998-01-01 |
-| Sypheros | The Shadow | Mabar | Mark of Shadow | 67.0 | 1100 | 183,000 | 175.3° (retrograde) | 0.1635 | 0.06 | random | 3.4 | *(none)* | *(none)* |
-| Aryth | The Gateway | Dolurrh | Mark of Passage | 48.0 | 1300 | 195,000 | 7.57 | 0.0283 | 0.05 | random | 2.4 | dolurrh | 998-01-01 |
-| Vult | The Warding Moon | Shavarath | Mark of Warding | 56.0 | 1800 | 252,000 | 0.07 | 0.0014 | 0.23 | random | 2.8 | shavarath | 998-01-01 |
+| Moon      | Title             | Plane     | Dragonmark          | Synodic Period (days) | Diameter (mi) | Distance (mi) |     Inclination (°) | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
+| --------- | ----------------- | --------- | ------------------- | --------------------: | ------------: | ------------: | ------------------: | -----------: | -----: | --------- | --------: | ---------- | ---------- |
+| Zarantyr  | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |          1250 |        14,300 |               5.145 |       0.0549 |   0.12 | random    |       1.4 | kythri     | 998-01-01  |
+| Olarune   | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |          1000 |        18,000 |                0.33 |       0.0288 |   0.22 | random    |       1.7 | lamannia   | 998-01-01  |
+| Therendor | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |          1100 |        39,000 |                0.47 |       0.0094 |   0.67 | random    |       1.2 | syrania    | 998-01-01  |
+| Eyre      | The Anvil         | Fernia    | Mark of Making      |                  21.0 |          1200 |        52,000 |                0.43 |       0.1230 |   0.30 | random    |       1.0 | fernia     | 998-01-01  |
+| Dravago   | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |          2000 |        77,500 |                1.09 |       0.0001 |  1.229 | random    |       2.1 | risia      | 998-01-01  |
+| Nymm      | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |           900 |        95,000 |                0.20 |       0.0013 |   0.43 | random    |       1.4 | daanvi     | 998-01-01  |
+| Lharvion  | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |          1350 |       125,000 |                7.23 |       0.7507 |  0.155 | random    |       1.5 | xoriat     | 998-01-01  |
+| Barrakas  | The Lantern       | Irian     | Mark of Finding     |                  22.0 |          1500 |       144,000 |                0.02 |       0.0047 |  1.375 | random    |       1.1 | irian      | 998-01-01  |
+| Rhaan     | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |           800 |       168,000 |                4.34 |       0.0013 |   0.32 | random    |       1.9 | thelanis   | 998-01-01  |
+| Sypheros  | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |          1100 |       183,000 | 175.3° (retrograde) |       0.1635 |   0.06 | random    |       3.4 | mabar      | 998-01-01  |
+| Aryth     | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |          1300 |       195,000 |                7.57 |       0.0283 |   0.05 | random    |       2.4 | dolurrh    | 998-01-01  |
+| Vult      | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |          1800 |       252,000 |                0.07 |       0.0014 |   0.23 | random    |       2.8 | shavarath  | 998-01-01  |
 
 #### Faerûnian (Toril)
 
@@ -471,7 +471,7 @@ Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity,
 | Eyre | **Mimas** | Saturn | **1.53** | **0.0196** | **0.96** | Changed from Hyperion → Elara → Mimas; mythological: slain by Hephaestus |
 | Dravago | **Triton** | Neptune | **156.8†** | **0.000016** | **0.76** | Retrograde; always moving opposite to every other moon |
 | Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 | |
-| Lharvion | **Hyperion** | Saturn | **0.43** | **0.1230** | **0.30** | Changed from Nereid; ecc ceiling 0.1466 |
+| Lharvion | **Hyperion** | Saturn | **0.43** | **0.1230** | **0.30** | Changed from Nereid; ecc ceiling 0.1466. God of Observation. |
 | Barrakas | Enceladus ×1 | Saturn | 0.02 | 0.0047 | **1.375** | No multiplier; ×7 option (9.625, 11.73 lux) documented in design/moon-reference-selection.md |
 | Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 | |
 | Sypheros | **Phobos** | Mars | **1.08** | **0.0151** | **0.071** | Doomed inward spiral (inside Roche limit); entropy/Mabar |
