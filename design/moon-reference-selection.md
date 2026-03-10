@@ -60,7 +60,6 @@ Colors from `EBERRON_MOON_CORE_DATA` in script (authoritative).
 **Lore constraints on reference selection (authoritative):**
 
 1. **Barrakas and Therendor** share similar orbits → closely matched inclinations → frequent mutual eclipses. *(Resolved: Dione 0.03° ≈ Enceladus 0.02°.)*
-	1. **QUESTION**: do these m
 2. **Therendor/Barrakas coupling** → weak tendency toward opposite phases (Therendor full ↔ Barrakas new) without hard lock. *(Implementation task, not reference selection.)*
 3. **Dravago** "typically keeps at a distance from other moons" → **must have the highest ecliptic deviation of any moon.** For retrograde moons, use `180° − inclination` to compare deviation. The goal is Dravago moves the furthest from the equatorial plane. *(See constraint analysis below.)*
 
