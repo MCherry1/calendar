@@ -1,8 +1,18 @@
-# Eberron Calendar — Roll20 API Script
+# Calendar — Roll20 API Script
 
-A Roll20 API script for managing a fantasy campaign calendar with integrated weather, moon phase tracking, planar forecasting, and nighttime lighting.
+A Roll20 API script for managing a fantasy campaign calendar with:
+- graphical mini-calendar displayed in chat, with toggleable subsystems:
+	- events tracking
+	- moon phase tracking
+	- location-based, generated weather, with mechanical effects (homebrew system)
+	- planar movements (Eberron setting)
 
-**Primary support:** Eberron setting. Also supports Faerûnian (Harptos) and Gregorian calendar systems.
+**Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
+
+---
+## Table of Contents
+- [ ] need to fill this in
+- [ ] can we make the sections start auto-collapsed, and open when the ToC link. is clicked?
 
 ---
 
@@ -10,54 +20,135 @@ A Roll20 API script for managing a fantasy campaign calendar with integrated wea
 
 1. In Roll20, open your campaign's **API Scripts** page (Game Settings → API Scripts).
 2. Create a new script and paste in the contents of `calendar.js`.
-3. Save the script. It initializes automatically on first load.
-4. Type `!cal` in the chat to open the calendar.
+3. Save. It initializes automatically on first load.
 
 ---
 
-## Quick Start
+## How to Use
 
-| Command | What it does |
-|---|---|
-| `!cal` | Open the current month calendar |
-| `!cal today` | Full summary of today — weather, moons, planes, events |
-| `!cal upcoming` | 7-day strip with subsystem highlights |
-| `!cal weather` | Current weather panel |
-| `!cal moon` | Moon phase panel |
-| `!cal planes` | Planar state panel |
+Startup message should appear in game:
+> Galifar Calendar Initialized
+> Current Date: 
+
+In the chat window, type:
+`!cal`
+*Tip: Add a macro for even easier use.*
 
 ---
 
 ## Calendar Navigation
 
-The main `!cal` view shows a mini-calendar for the current month.
-
-**GM button bar:**
+The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
+### GM Buttons
 ```
-⏮ Back  |  ⏭ Forward  |  📣 Send
-📋 Today  |  📅 Upcoming  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
+⏮ Previous  |  ⏭ Next
+📣 Send
+📋 Today  |  📅 Upcoming
+🌤 Weather
+🌙 Moons
+🌀 Planes
 ⚙ Admin
 ```
+### Player Buttons
+```
+⏮ Previous  |  ⏭ Next
+📋 Today  |  📅 Upcoming
+🌤 Weather
+🌙 Moons
+🌀 Planes
+```
+- **Previous / Next** — see adjacent months
+- **Send** — sends the current date's calendar to players in public chat
+- **Today** — summary for the current in-game date
+- **Upcoming** — preview strip
+- **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
+- **Admin** — change displays, settings, and everything else related to the script
+---
+## Events
+### General
+- Individual cells within the minical are color-filled on the day of an event.
+- For days with multiple events, small colored dots appear beneath the numbered date.
+- Each cell can be hovered over with a mouse to show a tooltip containing the event information.
+### Pre-Included
+* All published holidays are pre-included in the script. Each is assigned a color.
+* Every pre-included holiday can be individually toggled on or off.
+* Additionally, holidays are grouped by Source, allowing for entire categories to be toggled on or off.
+* Switching between calendar systems automatically toggles appropriate Sources.
+### GM Generated
+- GMs can create their own events, which are then stored in state.
+- There is no limit to the number of events created. They can be deleted as necessary.
+- If no color is assigned at creation, a random color is assigned.
+---
+## Moons
+- **Earth**
+	- Insert Luna parameters here. Include anchor date for correct phase.
+- **Faerun**
+	- Insert Selune parameters here. Include anchor date for correct phase.
+- **Eberron**
+	- Eberron's moons are vastly more important to the setting, more complex, and less-defined.
+	- Each moon has a canon color, approximate diameter, and mean orbital distance.
+	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
+	- Each moon was matched with a real-world moon from our own Solar System to 
+---
+## Weather
+- Included is a homebrew system for managing the weather.
+- This system can be toggled on or off as desired.
+### Temperature
 
-- **Back / Forward** — move one month at a time
-- **Send** — send the current calendar view to players
-- **Today** — deep-dive summary for the current in-game date
-- **Upcoming** — 7-day preview strip
-- **Admin** — settings, date management, calendar system selection
+| Temperature |  °F Approx.  | Mechanical Effect |
+| :---------: | :----------: | :---------------: |
+|     -5      |              |                   |
+|     -4      | [-45 .. -34] |                   |
+|     -3      |              |                   |
+|     -2      |              |                   |
+|     -1      |              |                   |
+|      0      |  [-5 .. 4]   |                   |
+|      1      |  [5 .. 14]   |                   |
+### Wind
+
+|     |     |
+| --- | --- |
+|     |     |
+### Precipitation
+
+|     |     |
+| --- | --- |
+|     |     |
+
+### Location
+
+
+| Climate | Geography | Terrain |
+| ------- | --------- | ------- |
+|         |           |         |
+### Forecasting
+explain the forecasting ssytem here
 
 ---
+## Planes
+- **Interaction:** Planes interact with the calendar as a feature of the Eberron setting, with planes moving relative to the Material Plane, where the world of Eberron lives.
+	- While "coterminous", associated traits are enhanced.
+	- While "remote", associated traits are impeded.
+- **Traditional:** In the setting, planes have traditional periods/cycles of being coterminous and remote. All of those are included. (*Source: Exploring Eberron*)
+	- The published canon does not include specific anchor dates for these cycles, so these are generated by the script. The generation is random, but is based on a calendar-wide seed word. Using the same seed word creates the same calendar, every time.
+	- Individual plane cycles can also be directly defined, bypassing the use of the world seed.
+- **Generated:** Based on those traditional periods, probabilities for a plane becoming coterminous or remote were calculated, and are used to generate random occurrences of planes being coterminous or remote.
+	- Approximately, a plane is coterminous or remote twice as often as the traditional cycles.
+	- These generated events can be disabled.
+---
+## Commands
+- All command formatting is whispered when needed, in game. You don't need to come back to this document.
+- Additionally, almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window. That includes almost all of the commands presented in this section. The buttons execute the command.
+	- However, the buttons are "hard-coded". A small set of the calendar's functions require specific typed commands.
 
-## Date Commands
+## Dates
 
 ```
-!cal <day>              — jump to next occurrence of that day number
-!cal <month> <day>      — jump to specific month and day
+!cal <day>                — jump to next instance of that day number
+!cal <month> <day>        — jump to next instance of specific month and day
 !cal <month> <day> <year> — jump to exact date
-!cal Olarune            — jump to the next Olarune (month name works as a shortcut)
+!cal Olarune              — jump to the next Olarune (month name works as a shortcut)
 ```
-
----
-
 ## Weather
 
 ### Setting Your Location
@@ -115,8 +206,12 @@ The main `!cal` view shows a mini-calendar for the current month.
 
 ```
 !cal moon send low              — today + 2 days (Common Knowledge)
-!cal moon send medium [range]   — preset ranges: 1m, 3m, 6m, 10m (Skilled Forecast)
-!cal moon send high [range]     — full exact knowledge: 1m, 3m, 6m, 10m (Expert Forecast)
+
+!cal moon send medium [range]   — includes marginal uncertainty, with preset ranges of:
+	1m, 3m, 6m, 10m (Skilled Forecast, typically gated behind a DC 10, 15, 20, 25 Skill Check)
+
+!cal moon send high [range]     — full exact knowledge, with preset ranges of :
+	1m, 3m, 6m, 10m (Expert Forecast, typically gated behind magic or a tool-assisted forecast)
 ```
 
 Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
@@ -124,7 +219,7 @@ Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
 ### GM Moon Controls
 
 ```
-!cal moon seed <word>                     — set moon generation seed
+!cal moon seed <word>                     — set moon generation seed, overriding system-wide seed used
 !cal moon full <MoonName> <date>          — anchor a moon's full phase to a date
 !cal moon new <MoonName> <date>           — anchor a moon's new phase to a date
 !cal moon reset [<MoonName>]              — clear phase anchors

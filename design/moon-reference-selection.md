@@ -55,6 +55,12 @@ Colors from `EBERRON_MOON_CORE_DATA` in script (authoritative).
 | Aryth | The Gateway | `#FF4500` | Orange-red | 1,300 | 195,000 | 48.0 |
 | Vult | The Warding Moon | `#A9A9A9` | Medium gray | 1,800 | 252,000 | 56.0 |
 
+**Lore constraints on reference selection (authoritative):**
+
+1. **Barrakas and Therendor** share similar orbits → closely matched inclinations → frequent mutual eclipses. *(Resolved: Dione 0.03° ≈ Enceladus 0.02°.)*
+2. **Therendor/Barrakas coupling** → weak tendency toward opposite phases (Therendor full ↔ Barrakas new) without hard lock. *(Implementation task, not reference selection.)*
+3. **Dravago** "typically keeps at a distance from other moons" → **must have the highest ecliptic deviation of any moon.** For retrograde moons, use `180° − inclination` to compare deviation. The goal is Dravago moves the furthest from the equatorial plane. *(See constraint analysis below.)*
+
 ---
 
 ## Lux Analysis
@@ -89,6 +95,10 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 - Aryth (0.137) with averaged albedo is no longer negligible — it's faint but visible, between Vult and Rhaan.
 - Sypheros at Caliban (0.016) is clearly the lowest lux in the system. At Phoebe (0.024) it's still lowest, but only marginally above the dark threshold.
 
+**Design decisions confirmed via notes:**
+- Eyre's eccentricity (Hyperion/Elara) is intentional and correct — forge-bellows effect fits Fernia. *(Eyre → Elara confirmed.)*
+- Aryth albedo = midpoint of Iapetus two-tone surface = (0.05 + 0.50) / 2 = **0.275**. *(Resolved.)*
+
 ### Barrakas multiplier options
 
 | N | Albedo | Lux | Notes |
@@ -121,22 +131,48 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 ### ⚠ Dravago — open (two candidates)
 *The Herder's Moon: the lavender moon that moves widely across the sky, guiding the others. Higher inclination is desirable, but not so wide that it abandons the herd.*
 
-| Candidate | Host | Type | Inclination | Ecc | Albedo | Lux |
-|---|---|---|---:|---:|---:|---:|
-| **Triton** | Neptune | Retrograde irregular | 156.8° | 0.00002 | 0.76 | 5.69 |
-| **Tethys** | Saturn | Regular prograde | 1.09° | 0.0001 | 0.80 | 5.98 |
-| **Himalia** | Jupiter | Prograde irregular | 29.6° | 0.162 | 0.04 | 0.30 |
+| Candidate | Host | Type | Incl. | Eff. dev. | Ecc | Albedo | Lux | Special |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| **Triton** | Neptune | Retrograde irregular | 156.8° | **23.2°** | 0.000016 | 0.76 | 5.69 | Captured KBO; geysers; will eventually break up (inside Roche limit); nearly circular orbit |
+| **Tethys** | Saturn | Regular prograde | 1.09° | **1.09°** | 0.0001 | 0.80 | 5.98 | Two Trojan companions (Telesto L4, Calypso L5); both follow Tethys at 60° intervals |
+| **Himalia** | Jupiter | Prograde irregular | 29.6° | **29.6°** | 0.162 | 0.04 | 0.30 | Eliminated — dark albedo incompatible with Dravago's lavender visual |
 
-**Trade-off:**
-- Wide inclination AND bright → must accept retrograde (Triton). Goes opposite all other moons. The "sheepdog circles the outside of the flock" reading works narratively, but 156.8° is the most extreme possible wander.
-- Prograde AND bright → Tethys (nearly equatorial; barely wanders). Tethys has a lore advantage: it has two co-orbital shepherd moons (Telesto and Calypso riding its L4/L5 Lagrange points). A Herder's Moon that literally has followers. But it doesn't range widely.
-- Prograde AND wide wander → Himalia (29.6°, ecc 0.162). The inclination is meaningful, but the dark albedo (0.04) makes it invisible as a lavender beauty — this option is ruled out by Dravago's visual character.
+*Eff. dev. = ecliptic deviation using `180° − inclination` for retrograde moons.*
 
-**Summary:** Choice is between Triton (wanders very far, retrograde) and Tethys (stays close, prograde, has shepherd companions). Himalia is eliminated by dark albedo.
+**Sky behavior at Eberron:**
+- **Triton/Dravago (156.8° retrograde → 23.2° effective):** Travels almost exactly backwards against all other moons. Dramatically skewed rising/setting path. From Eberron's equatorial regions, appears to cross the other moons' paths at steep angles, then move away. Retrograde = maximum sense of independence. But effective deviation (23.2°) is **less than Elara/Eyre (26.6°)** — see constraint note below.
+- **Tethys/Dravago (1.09° prograde):** Stays very close to the celestial equator. Always among the other equatorial moons, never straying far. The Herder that stays with the herd. Two real Trojan companions (Telesto, Calypso) orbit 60° ahead and behind it in the Solar System — a herder moon that literally has followers.
 
-Also note: Tethys and Enceladus (Barrakas) are both Saturn regular moons with nearly identical inclinations (~0.02–1.09°). Adding Tethys as Dravago creates a second co-planar pair alongside Therendor/Barrakas. Whether that's meaningful or redundant is a narrative call.
+**Orbital character:** Both Triton and Tethys have essentially circular orbits (ecc ≈ 0). Dravago's sky wander is entirely determined by inclination, not eccentricity. No "swinging in and out" — it moves in a wide, steady arc.
 
-**⚠ Decision required.**
+**Trade-off summary:**
+- Wide deviation AND bright AND prograde → no candidate exists
+- Wide deviation AND bright → must accept retrograde (Triton), but fails the constraint vs Eyre
+- Prograde AND bright → Tethys (stays near equator; has shepherd companions)
+- Himalia eliminated by dark albedo
+
+Also note: Tethys and Enceladus (Barrakas) are both Saturn regular moons with nearly identical inclinations. Adding Tethys as Dravago creates a second co-planar pair alongside Therendor/Barrakas.
+
+**⚠ Constraint note — Dravago vs Eyre:**
+
+The lore constraint (item 3 above) requires Dravago to have the *highest ecliptic deviation* of any moon, using `180° − inclination` for retrograde moons:
+
+| Moon | Inclination | Effective deviation |
+|---|---:|---:|
+| Eyre → Elara | 26.6° (prograde) | **26.6°** |
+| Dravago → Triton | 156.8° (retrograde) | **23.2°** |
+| Zarantyr → Luna | 5.145° (prograde) | 5.145° |
+| Sypheros → Phoebe | 175.3° (retrograde) | 4.7° |
+
+Triton (23.2° effective) does *not* satisfy the constraint — Elara/Eyre at 26.6° exceeds it. Tethys at 1.09° is even worse. Neither current Dravago candidate clears this bar.
+
+To satisfy the constraint, Dravago needs effective deviation > 26.6°, i.e.:
+- A prograde moon with inclination > 26.6° AND bright albedo (unlikely — prograde irregulars are dark), **or**
+- A retrograde moon with inclination < 153.4° AND bright albedo (nothing known fits this)
+
+**Open question:** Does "highest inclination" in the lore constraint override the reference-locked inclination rule for Dravago specifically? Or does the constraint mean we accept a slightly different interpretation (e.g., Dravago has the highest inclination among non-retrograde-near-equatorial moons)? This may require a design decision before finalizing Dravago's reference.
+
+**⚠ Decision required — including constraint resolution.**
 
 ### ✓ Nymm → Ganymede
 *Why this reference was chosen:* Ganymede is the largest moon in the Solar System — fitting for the crowned moon of perfect order (Daanvi). Very circular orbit (0.0013 ecc), very low inclination (0.20°). Orderly, stable, and massive. No ambiguity.
@@ -165,6 +201,10 @@ Also note: Tethys and Enceladus (Barrakas) are both Saturn regular moons with ne
 
 **Multiplier decision:** An integer multiplier N on the reference albedo may be applied to match "bright enough for hunters to hunt by" lore. See table in the Lux Analysis section above. **Recommended: 7× (albedo 9.625, 11.73 lux)** — this makes Barrakas the single brightest object in the night sky, surpassing Zarantyr, which is the correct reading for an Irian lantern. Closest to the old "albedo 10" from previous system iterations.
 
+**Real-world lux context (script calibration):** The script uses `NIGHTLIGHT_EARTH_MOON_LUX = 0.25` (Earth's full moon at zenith = 0.25 lux) with a 0.50 overhead fraction. Bright threshold = 1.0 lux; script note: "1 lux ≈ a candle at 1 meter."
+
+A real oil lantern (~30 cd) at 10 m produces 30 / 10² = **0.30 lux** — dim light, not bright. Barrakas at 7× = **11.73 lux**, equivalent to being ~1.5 m from that same lantern. This is not moonlight that vaguely helps you see — it is the moon *acting as a lantern*, providing active bright-light conditions across the entire sky below it. That is the correct reading for an Irian moon named The Lantern.
+
 **⚠ Multiplier decision required.**
 
 ### ✓ Rhaan → Miranda
@@ -173,20 +213,28 @@ Also note: Tethys and Enceladus (Barrakas) are both Saturn regular moons with ne
 ### ⚠ Sypheros — open (two candidates)
 *The Shadow, associated with Mabar (the endless night). Dim, lurking, retrograde. Must have the lowest albedo in the system.*
 
-| Candidate | Host | Type | Inclination | Ecc | Albedo | Sypheros lux | Orbit check |
-|---|---|---|---:|---:|---:|---:|---|
-| **Phoebe** | Saturn | Retrograde irregular | 175.3° | 0.1635 | 0.06 | 0.024 lux | periapsis 153,079 mi > 144,677 ✓ |
-| **Caliban** | Uranus | Retrograde irregular | 140.9° | 0.159 | 0.04 | 0.016 lux | periapsis 153,897 mi > 144,677 ✓ |
+| Candidate | Host | Type | Incl. | Ecc | Albedo | Sypheros lux | Orbit check | Notes |
+|---|---|---|---:|---:|---:|---:|---|---|
+| **Phoebe** | Saturn | Retrograde irregular | 175.3° | 0.1635 | 0.06 | 0.024 lux | 153,079 mi ✓ | Nearly perfectly retrograde (eff. dev. 4.7°); well-characterized |
+| **Caliban** | Uranus | Retrograde irregular | 141.5° | 0.05–0.16† | 0.04–0.22† | 0.007–0.040† | ✓ (either ecc) | †Albedo/ecc conflict between sources — see note; eff. dev. 38.5° |
+| **Phobos** | Mars | Regular prograde | 1.08° | 0.0151 | 0.071 | 0.029 lux | 179,235 mi ✓ | Equatorial prograde; doomed (inside Roche limit, ~30–50 Myr) |
 
 Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (1 − ecc).
 
-Both candidates satisfy the orbit constraint. Both are retrograde. Caliban is 33% darker (0.04 vs 0.06). At 0.016 lux, Caliban-Sypheros is clearly the lowest lux in the system — the next-lowest at Phoebe would be 0.024. Phoebe's near-perfect retrograde (175.3° is nearly 180°) is more extreme; Caliban's (140.9°) is still retrograde but less so.
+**⚠ Caliban data conflict:** Two conflicting sets of values appear in sources:
+- Low-albedo version (likely JPL/original): albedo ~0.04, ecc ~0.159 → **0.016 lux** (dark, clearly dimmest in system)
+- High-albedo version (NASA Science page): albedo ~0.22, ecc ~0.05 → **0.040 lux** (faint, *brighter* than Phoebe)
 
-**Why Caliban fits:** Caliban is genuinely obscure — a captured irregular with negligible brightness, orbiting backwards in the outer darkness. "A dim rock difficult to even pick out in the night sky" describes it precisely.
+If Caliban is 0.22 albedo, it is brighter than Phoebe and unsuitable for "dimmest moon." **Verify against JPL Horizons before implementing.**
 
-**Recommendation: Caliban.** More visually dim (albedo 0.04), clearly the lowest in the system, still retrograde. Phoebe included for comparison.
+**Narrative:**
+- **Phoebe (0.06, 175.3°):** Most dramatically retrograde — nearly 180°, effective 4.7° from equatorial, going precisely backwards. Established baseline.
+- **Caliban (0.04 if confirmed, 141.5°):** Darker, still retrograde, effective deviation 38.5° — wider sky wander than Phoebe. The dimmest rock in the outer darkness. Best fit if albedo confirmed.
+- **Phobos (0.071, 1.08°):** NOT retrograde; nearly equatorial. Slightly brighter than Phoebe in albedo. Only narrative angle: Phobos is literally doomed — inside Mars's Roche limit, spiraling inward. A moon of entropy (Mabar's endless night). But equatorial orbit is a poor fit for The Shadow.
 
-**⚠ Decision required.**
+**Recommendation:** If Caliban 0.04 confirmed → Caliban (darkest, retrograde, wide wander). If Caliban is 0.22 → Phoebe (darkest retrograde option remaining). Phobos is a concept fit but orbital character is wrong.
+
+**⚠ Decision required (pending Caliban albedo verification).**
 
 ### ⚠ Aryth → Iapetus *(albedo resolved: averaged)*
 *Why this reference was chosen:* Iapetus's 7.57° inclination gives Aryth a noticeably angled path — The Gateway moon has an unusual sky presence. Its eccentricity (0.0283) is moderate. Critically, Iapetus's two-tone surface (dark leading face 0.05, bright trailing face 0.50) maps onto Aryth's association with Dolurrh (the Realm of the Dead) as a threshold — one face is darkness, one is passage.
