@@ -7,13 +7,13 @@
 
 ## Design Parameters
 
-**What comes from the reference moon (locked):** inclination, eccentricity, albedo.
+**What does NOT come from the reference moon:**color, diameter, mean distance.
 
-**What does NOT come from the reference moon:** synodic period (designed), color (in `EBERRON_MOON_CORE_DATA`), diameter, mean distance, nodal precession rate, apsidal precession rate.
+**What DOES comes from the reference moon:** inclination, eccentricity, albedo, nodal precession rate, apsidal precession rate, synodic period
 
-**The rule on modification:** Reference moon parameters are taken as-is. Pick a different reference rather than adjusting values.
+Synodic period will be scaled to 336 days (from it's own year length), and then integer-multiplied for a suitable period.
 
-**Exception — Barrakas only:** Barrakas may use an integer multiplier N on its reference albedo to match "The Lantern" lore. This is a one-time exception, not a general rule. Multiplier choice is pending (see Barrakas section below).
+Albedo for Barrakas has a similar approach to manage the supernaturally bright moon.
 
 **Eccentricity in the script:** `distanceSwingPct = 2 × eccentricity` in `MOON_MOTION_TUNING`.
 
@@ -33,6 +33,8 @@ distanceSwingPct:          0.246  ← = 2 × Hyperion ecc 0.1230
 ```
 
 Eyre already has the fastest apsidal precession (forge ellipse spins every 3 years). Nodal precession is nearly imperceptible at 2°/year. Changing Eyre's reference to Elara (26.6° inclination) makes nodal precession visually significant — the implementation task should increase `nodePrecessionDegPerYear` to 15–20.
+
+**QUESTR
 
 ---
 
