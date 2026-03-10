@@ -215,11 +215,11 @@ A real oil lantern (~30 cd) at 10 m produces 30 / 10² = **0.30 lux** — dim li
 ### ⚠ Sypheros — open (two candidates)
 *The Shadow, associated with Mabar (the endless night). Dim, lurking, retrograde. Must have the lowest albedo in the system.*
 
-| Candidate   | Host   | Type                 |  Incl. |        Ecc |     Albedo | Sypheros lux | Orbit check    | Notes                                                            |
-| ----------- | ------ | -------------------- | -----: | ---------: | ---------: | -----------: | -------------- | ---------------------------------------------------------------- |
-| **Phoebe**  | Saturn | Retrograde irregular | 175.3° |     0.1635 |       0.06 |    0.024 lux | 153,079 mi ✓   | Nearly perfectly retrograde (eff. dev. 4.7°); well-characterized |
-| **Caliban** | Uranus | Retrograde irregular | 141.5° | 0.05–0.16† | 0.04–0.22† | 0.007–0.040† | ✓ (either ecc) | †Albedo/ecc conflict between sources — see note; eff. dev. 38.5° |
-| **Phobos**  | Mars   | Regular prograde     |  1.08° |     0.0151 |      0.071 |    0.029 lux | 179,235 mi ✓   | Equatorial prograde; doomed (inside Roche limit, ~30–50 Myr)     |
+| Candidate  | Host   | Type                 |  Incl. |    Ecc | Albedo | Sypheros lux | Orbit check  | Notes                                                            |
+| ---------- | ------ | -------------------- | -----: | -----: | -----: | -----------: | ------------ | ---------------------------------------------------------------- |
+| **Phoebe** | Saturn | Retrograde irregular | 175.3° | 0.1635 |   0.06 |    0.024 lux | 153,079 mi ✓ | Nearly perfectly retrograde (eff. dev. 4.7°); well-characterized |
+| **Deimos** |        |                      |        |        |        |              |              |                                                                  |
+| **Phobos** | Mars   | Regular prograde     |  1.08° | 0.0151 |  0.071 |    0.029 lux | 179,235 mi ✓ | Equatorial prograde; doomed (inside Roche limit, ~30–50 Myr)     |
 
 Orbit check: Barrakas apoapsis ≈ 144,677 mi. Sypheros periapsis = 183,000 × (1 − ecc).
 
