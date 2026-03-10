@@ -116,12 +116,6 @@ Lux thresholds: bright ≥ 1.0 lux, dim ≥ 0.3, faint ≥ 0.03, dark < 0.03.
 
 ## Full Moon Review
 
-### ✓ Zarantyr → Luna
-*Why this reference was chosen:* Luna is the canonical baseline — Eberron's year was designed so Luna's period scales cleanly. No other moon has Eberron so visibly tuned to it. Moderate eccentricity (0.0549), meaningful inclination (5.145°), the dominant night-light source by proximity. The Storm Moon as the central reference is structurally necessary.
-
-### ✓ Olarune → Titan
-*Why this reference was chosen:* Titan's orange atmospheric haze is a direct color match for Olarune's warm orange (#FFC68A). Very low inclination (0.33°) and eccentricity (0.0288) make it steady and reliable — the Sentinel always watches, never wavers. No other moon has both the right color and the orbital stillness.
-
 ### ✓ Therendor → Dione *(changed from Europa)*
 *Why this reference was chosen:* Dione's inclination (0.03°) nearly matches Barrakas/Enceladus (0.02°) — a lore requirement for frequent mutual eclipses between The Healer's Moon and The Lantern. Dione's albedo (0.99) makes Therendor visually brilliant, the second-brightest moon in the sky. Europa's inclination (0.47°) was too far from Barrakas to maintain the co-planar pair. Dione provides both the orbital alignment and the visual brilliance that Syrania (healing, light) demands.
 
