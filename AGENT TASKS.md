@@ -105,6 +105,7 @@ The manifest zone system needs a significant architectural change. Currently zon
 - [ ] Wire Fernia/Risia temperature effects (±3 on new scale) through the manifest zone mechanic instead of current approach
 
 **Design questions:** How should multiple simultaneous manifest zones interact? Do their temperature effects stack? What happens if Fernia and Risia are both active (cancel out)?
+	They should cancel out yes, but they should not be ignored. They should both be active at once, with hints mentioning that fact.
 
 ---
 
@@ -117,6 +118,7 @@ The manifest zone system needs a significant architectural change. Currently zon
   - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
 
 **Design questions:** What coverage threshold distinguishes a "transit" from an "eclipse"? Should partial eclipses be reported differently from total/annular eclipses?
+	- I actually don't know. Maybe you can find info online. My gut tells me transit is something like less than 50% the relative size. We'd have 3 categories.
 
 ---
 
