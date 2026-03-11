@@ -50,7 +50,7 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 Startup message should appear in game:
 > Galifar Calendar Initialized
-> Current Date: 
+> Current Date: (insert current date example here)
 
 In the chat window, type:
 `!cal`

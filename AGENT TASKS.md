@@ -15,14 +15,21 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 ## README Drift (checked 2026-03-11)
 
 - **Calendar Navigation → Player Buttons:** the live player quick bar is `Today / Weather / Moons / Planes`; it does not currently expose month navigation or `Upcoming`.
+	-  TASK: Expose adjacent month navigation.
 - **Weather → Location:** manifest-zone selection is still the final step of the location wizard and remains part of the active location profile instead of independent parallel state.
+	- The Manifest Zone selection should be independant of location, with a few exceptions. 1. when the location is changed, the active manifest zones should be removed, and a whispered note to the GM should inform them of that fact. Manifest zones are location specific 
 - **Commands → Weather → Viewing Weather:** `!cal weather forecast` currently accepts explicit spans of `10` or `20`, not an arbitrary `n`.
+	- it should accept arbitrary integers, up to 20 days
 - **Commands → Weather → Sending Weather to Players:** the implemented GM send syntax is `!cal weather send today` and `!cal weather send medium|high <1|3|6|10>`; `!cal weather send low` is not implemented.
+	- send should not have any arguments followed. it should simply function as "send whatever is revealed"
+	- weather should have a per day reveal flag that defines how much information the players have acquired. the low reveal level should be automatically granted when the day in questions falls into the bucket for that. I think we currently low reveal to different degrees between today (rough ToD info, tomorrow (limited forecast), day after tomorrow (same). 
 - **Calendar Systems:** Harptos date math is present, but the rendered calendar still uses weekday columns; tenday layout remains an open design task below.
+	- this needs to be implemented, with rows of 10, redone weekday labels using 1st, 2nd, etc.
 
 ---
 ## Match Script to README.md and Design.md
 - Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented. Completed by ChatGPT version number XXX
+	- you were supposed to insert your version number for XXX. I htink this was done by v5.4
 ---
 ## Update README.md
 - Do not overwrite any text in the README.
