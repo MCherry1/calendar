@@ -118,7 +118,7 @@ The manifest zone system needs a significant architectural change. Currently zon
   - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
 
 **Design questions:** What coverage threshold distinguishes a "transit" from an "eclipse"? Should partial eclipses be reported differently from total/annular eclipses?
-	- I actually don't know. I just thought it was strange to call everything an eclipse when these bodies are so different in size. Let's do it like this: call everything an eclipse, phrase like X eclipses Y
+	- I actually don't know. I just thought it was strange to call everything an eclipse when these bodies are so different in size. Let's do it like this: call everything an eclipse, phrase like X eclipses the nn% smaller/larger Y
 
 ---
 
