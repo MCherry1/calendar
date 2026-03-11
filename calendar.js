@@ -576,8 +576,8 @@ var LABELS = {
 };
 
 var STYLES = {
-  wrap:            'display:inline-block;vertical-align:top;margin:4px;',
-  table:           'border-collapse:collapse;margin:4px;',
+  wrap:            'display:inline-block;vertical-align:top;margin:4px;overflow:visible;',
+  table:           'border-collapse:collapse;margin:4px;margin-bottom:14px;',
   th:              'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:            'border:1px solid #444;padding:0;',
   td:              'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
@@ -2058,7 +2058,7 @@ function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEvents){
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  var label = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
+  var label = events.length ? events.map(eventDisplayName).filter(Boolean).join('\n') : '';
   return {
     y:y, mi:mi, d:d, serial:ser,
     isToday:  (ser === tSer),
@@ -2104,7 +2104,7 @@ function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeC
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  var title  = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
+  var title  = events.length ? events.map(eventDisplayName).filter(Boolean).join('\n') : '';
   var ctx = { y:y, mi:mi, d:1, serial:ser,
     isToday: ser === tSer,
     isPast:  !!dimActive && ser < tSer,
@@ -3096,15 +3096,16 @@ function sendCurrentDate(to, gmOnly, opts){
           var ph = moonPhaseAt(moon.name, todaySer);
           var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
           var _thisNotable = false;
-          var titleTag = ' <span style="opacity:.55;">(' + esc(moon.title) + ')</span>';
+          var titleTag = '';
 
-          // Full or New right now?
-          if (ph.illum >= 0.97){
+          // Full or New right now? Use peak detection for single-day reports.
+          var _peakType = _moonPeakPhaseDay(moon.name, todaySer);
+          if (_peakType === 'full'){
             _notable.push(emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is Full');
             _thisNotable = true;
             return;
           }
-          if (ph.illum <= 0.03){
+          if (_peakType === 'new'){
             var newLabel = ph.longShadows
               ? emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' goes dark (Long Shadows)'
               : emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is New';
@@ -3161,7 +3162,7 @@ function sendCurrentDate(to, gmOnly, opts){
     } catch(e){ /* moon system not ready yet — skip silently */ }
   }
 
-  // Compact weather line (abridged tier — what anyone can see looking at the sky)
+  // Compact weather line (low tier — what anyone can see looking at the sky)
   var weatherLine = '';
   if (ensureSettings().weatherEnabled !== false){
     try {
@@ -3179,7 +3180,7 @@ function sendCurrentDate(to, gmOnly, opts){
           weatherLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
             '\u2601\uFE0F ' + esc(_wxNarr) +
             '</div>';
-          // Auto-record abridged common-knowledge reveal for today
+          // Auto-record low-tier common-knowledge reveal for today
           _recordReveal(_ws, todaySer, 'low', 'common');
         }
       }
@@ -6255,7 +6256,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
   // -- Fog --
   // Use pre-rolled value from the record when available (fogOverride).
   // Falls back to a quick inline derivation for display contexts that lack
-  // the record (e.g. abridged player view using only rec.final).
+  // the record (e.g. low-tier player view using only rec.final).
   var fog = (fogOverride !== undefined) ? fogOverride : 'none';
   if (fog === undefined) fog = 'none';
 
@@ -6575,9 +6576,9 @@ function _weatherDayGmHtml(rec, showBreakdown){
 // Player forecast helpers
 // ---------------------------------------------------------------------------
 
-// Detail tier by day offset from today for mundane forecasting.
-// Day 1 = full, days 2-3 = moderate, days 4-10 = abridged.
-function _mundaneDetailTier(dayOffset){
+// Detail tier by day offset from today for medium-tier forecasting.
+// Day 0 = high detail, days 1-2 = medium, days 3+ = low.
+function _mediumDetailTier(dayOffset){
   if (dayOffset <= 0) return 'high';
   if (dayOffset <= 2) return 'medium';
   return 'low';
@@ -6594,16 +6595,11 @@ var WEATHER_SOURCE_LABELS = {
   common:   'Common Knowledge',
   low:      'Common Knowledge',
   medium:   'Skilled Forecast',
-  high:     'Expert Forecast',
-  // Legacy keys for backward compatibility with old stored records.
-  mundane:  'Skilled Forecast',
-  magical:  'Expert Forecast',
-  survival: 'Skilled Forecast',
-  magic:    'Expert Forecast'
+  high:     'Expert Forecast'
 };
 
 // Record a reveal for a serial. Only upgrades, never downgrades.
-// source: 'common' | 'mundane' | 'magical'
+// source: 'common' | 'medium' | 'high'
 function _recordReveal(ws, serial, tier, source){
   var key = String(serial);
   var prev = ws.playerReveal[key];
@@ -6699,7 +6695,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
 }
 
 // Build and send the player forecast to chat.
-// method: 'mundane' | 'magical'. days: 1|3|6|10.
+// method: 'medium' | 'high'. days: 1|3|6|10.
 function sendPlayerForecast(m, method, days){
   var ws    = getWeatherState();
   var today = todaySerial();
@@ -6715,9 +6711,6 @@ function sendPlayerForecast(m, method, days){
   days = Math.min(days, 10);
 
   var methodNorm = String(method || '').toLowerCase();
-  // Legacy aliases
-  if (methodNorm === 'survival' || methodNorm === 'mundane') methodNorm = 'medium';
-  if (methodNorm === 'magic' || methodNorm === 'magical') methodNorm = 'high';
 
   var revealSource = methodNorm;
   var sourceLabel  = WEATHER_SOURCE_LABELS[revealSource] || revealSource;
@@ -6731,7 +6724,7 @@ function sendPlayerForecast(m, method, days){
     if (!rec) continue;
 
     // Determine detail tier
-    var tier = (methodNorm === 'high') ? 'high' : _mundaneDetailTier(i);
+    var tier = (methodNorm === 'high') ? 'high' : _mediumDetailTier(i);
 
     // Record the reveal (upgrade-only)
     _recordReveal(ws, ser, tier, revealSource);
@@ -6844,22 +6837,22 @@ function weatherTodayGmHtml(){
     button('Set Location','weather location')+' '+
     button('History','weather history');
 
-  var mundaneRow =
-    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Mundane send:</div>'+
+  var mediumRow =
+    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Medium send:</div>'+
     '<div>'+
-    button('1 day', 'weather send mundane 1')+' '+
-    button('3 days','weather send mundane 3')+' '+
-    button('6 days','weather send mundane 6')+' '+
-    button('10 days','weather send mundane 10')+
+    button('1 day', 'weather send medium 1')+' '+
+    button('3 days','weather send medium 3')+' '+
+    button('6 days','weather send medium 6')+' '+
+    button('10 days','weather send medium 10')+
     '</div>';
 
-  var magicalRow =
-    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Magical send:</div>'+
+  var highRow =
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">High send:</div>'+
     '<div>'+
-    button('1 day', 'weather send magical 1')+' '+
-    button('3 days','weather send magical 3')+' '+
-    button('6 days','weather send magical 6')+' '+
-    button('10 days','weather send magical 10')+
+    button('1 day', 'weather send high 1')+' '+
+    button('3 days','weather send high 3')+' '+
+    button('6 days','weather send high 6')+' '+
+    button('10 days','weather send high 10')+
     '</div>';
 
   var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
@@ -6879,7 +6872,7 @@ function weatherTodayGmHtml(){
     tidalLine +
     extremeHtml +
     '<div style="margin-top:6px;">'+ topButtons +'</div>'+
-    mundaneRow + magicalRow
+    mediumRow + highRow
   );
 }
 
@@ -7249,7 +7242,7 @@ function handleWeatherCommand(m, args){
     if (sub === 'forecast'){
       playerForecastWhisper(m);
     } else {
-      // Show today at the best tier they've been granted, or abridged if nothing recorded
+      // Show today at the best tier they've been granted, or low if nothing recorded
       var ws0   = getWeatherState();
       var tSer  = todaySerial();
       var rec0  = _forecastRecord(tSer);
@@ -7300,16 +7293,13 @@ function handleWeatherCommand(m, args){
       break;
 
     case 'send': {
-      // weather send <mundane|magical|today> <1|3|6|10>
+      // weather send <medium|high|today> <1|3|6|10>
       // 'today' sends today's weather at the best tier previously revealed.
       var sendMethod = String(args[2]||'').toLowerCase();
       var sendDays   = parseInt(args[3], 10) || 1;
-      // Legacy aliases
-      if (sendMethod === 'survival' || sendMethod === 'mundane') sendMethod = 'medium';
-      if (sendMethod === 'magic' || sendMethod === 'magical') sendMethod = 'high';
 
       if (sendMethod === 'today'){
-        // Send today at best revealed tier (or abridged if none)
+        // Send today at best revealed tier (or low if none)
         weatherEnsureForecast();
         var tSerSend = todaySerial();
         var recSend  = _forecastRecord(tSerSend);
@@ -7336,7 +7326,7 @@ function handleWeatherCommand(m, args){
       }
 
       if (sendMethod !== 'medium' && sendMethod !== 'high'){
-        warnGM('Usage: weather send medium|high|today [1|3|6|10] (legacy: mundane|magical|survival|magic)');
+        warnGM('Usage: weather send medium|high|today [1|3|6|10]');
         break;
       }
       sendPlayerForecast(m, sendMethod, sendDays);
@@ -7650,14 +7640,14 @@ var EBERRON_MOON_AMBIGUITIES = [
 var EBERRON_MOON_CORE_DATA = {
   Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
   Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
-  Therendor: { referenceMoon:'Europa (Jupiter)',  color:'#D3D3D3', diameter:1100, avgOrbitalDistance:39000 },
-  Eyre:      { referenceMoon:'Hyperion (Saturn)', color:'#C0C0C0', diameter:1200, avgOrbitalDistance:52000 },
-  Dravago:   { referenceMoon:'Tethys (Saturn)',   color:'#E6E6FA', diameter:2000, avgOrbitalDistance:77500 },
+  Therendor: { referenceMoon:'Dione (Saturn)',     color:'#D3D3D3', diameter:1100, avgOrbitalDistance:39000 },
+  Eyre:      { referenceMoon:'Mimas (Saturn)',     color:'#C0C0C0', diameter:1200, avgOrbitalDistance:52000 },
+  Dravago:   { referenceMoon:'Triton (Neptune)',   color:'#E6E6FA', diameter:2000, avgOrbitalDistance:77500 },
   Nymm:      { referenceMoon:'Ganymede (Jupiter)',color:'#FFD96B', diameter:900,  avgOrbitalDistance:95000 },
-  Lharvion:  { referenceMoon:'Nereid (Neptune)',  color:'#F5F5F5', diameter:1350, avgOrbitalDistance:125000 },
+  Lharvion:  { referenceMoon:'Hyperion (Saturn)', color:'#F5F5F5', diameter:1350, avgOrbitalDistance:125000 },
   Barrakas:  { referenceMoon:'Enceladus (Saturn)',color:'#F0F8FF', diameter:1500, avgOrbitalDistance:144000 },
   Rhaan:     { referenceMoon:'Miranda (Uranus)',  color:'#9AC0FF', diameter:800,  avgOrbitalDistance:168000 },
-  Sypheros:  { referenceMoon:'Phoebe (Saturn)',   color:'#696969', diameter:1100, avgOrbitalDistance:183000 },
+  Sypheros:  { referenceMoon:'Phobos (Mars)',     color:'#696969', diameter:1100, avgOrbitalDistance:183000 },
   Aryth:     { referenceMoon:'Iapetus (Saturn)',  color:'#FF4500', diameter:1300, avgOrbitalDistance:195000 },
   Vult:      { referenceMoon:'Oberon (Uranus)',   color:'#A9A9A9', diameter:1800, avgOrbitalDistance:252000 }
 };
@@ -7698,39 +7688,36 @@ var MOON_SYSTEMS = {
       // beneath. Youngest surface of the Galileans: constantly renewed
       // (healing). In 1:2:4 resonance with Ganymede/Nymm → connected
       // to order. Bright reflective ice = gentle healing light.
-      // Real Europa: ecc 0.0094, inc 0.47°, albedo 0.67.
+      // Real Dione: ecc 0.0022, inc 0.03°, albedo 0.99.
       { name:'Therendor', referenceMoon:_eberronMoonCore('Therendor').referenceMoon, title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
         synodicPeriod:24.0, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
-        inclination:0.47, eccentricity:0.0094, albedo:0.67,
+        inclination:0.03, eccentricity:0.0022, albedo:0.99,
         variation:{ shape:'random', amplitude:1.2 },
         epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
 
       // ── EYRE ── The Anvil ──────────────────────────────────────────
-      // Analog: Hyperion (Saturn). The ONLY confirmed chaotic tumbler in
-      // the solar system — never shows the same face twice. Sponge-like
-      // surface pocked with deep craters = a forge full of crucibles.
-      // Eccentricity 0.123 gives real brightness variation: bellows
-      // breathing, speeding and slowing, ~56% brightness swing periapsis
-      // to apoapsis. In 4:3 resonance with Titan/Olarune → nature feeds
-      // the forge. Silver = white-hot metal from Fernia's flame.
-      // Real Hyperion: ecc 0.1230, inc 0.43°, albedo 0.30.
+      // Analog: Mimas (Saturn). Heavily cratered "Death Star" moon with
+      // the giant Herschel crater = a forge mark. Bright icy surface
+      // (albedo 0.96) reflects Fernia's fire. In 4:3 resonance with
+      // Titan/Olarune → nature feeds the forge.
+      // Real Mimas: ecc 0.0196, inc 1.53°, albedo 0.96.
       { name:'Eyre', referenceMoon:_eberronMoonCore('Eyre').referenceMoon,      title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
         synodicPeriod:21.0, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
-        inclination:0.43, eccentricity:0.1230, albedo:0.30,
+        inclination:1.53, eccentricity:0.0196, albedo:0.96,
         variation:{ shape:'random', amplitude:1.0 },
         epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── DRAVAGO ── The Herder's Moon ───────────────────────────────
-      // Analog: Tethys (Saturn). THE most circular orbit in the solar
-      // system (ecc essentially zero). Pure water ice, extremely bright
-      // (geometric albedo 1.229). Perfect embodiment of Risia's frozen
-      // stasis — unchanging, unvarying, eternal stillness. The herder
-      // watches from a crystalline vantage, unmoving as the ice plains.
+      // Analog: Triton (Neptune). Retrograde orbit (inc 156.8°) —
+      // moves against every other moon, embodying Risia's opposition
+      // to natural order. Near-zero eccentricity = frozen stasis.
+      // Nitrogen ice surface, high albedo. The herder watches from
+      // a crystalline vantage, circling in eternal counter-motion.
       // Largest moon by diameter. Lavender = planar tint over ice.
-      // Real Tethys: ecc 0.0001, inc 1.09°, albedo 1.229.
+      // Real Triton: ecc 0.000016, inc 156.8°, albedo 0.76.
       { name:'Dravago', referenceMoon:_eberronMoonCore('Dravago').referenceMoon,   title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
         synodicPeriod:42.0, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
-        inclination:1.09, eccentricity:0.0001, albedo:1.229,
+        inclination:156.8, eccentricity:0.000016, albedo:0.76,
         variation:{ shape:'random', amplitude:2.1 },
         epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
 
@@ -7750,18 +7737,16 @@ var MOON_SYSTEMS = {
         nodePrecession:{ period:336, navigable:true } },
 
       // ── LHARVION ── The Eye ────────────────────────────────────────
-      // Analog: Nereid (Neptune). THE most eccentric moon in the solar
-      // system (0.7507) — travels 7x farther at apoapsis than periapsis.
-      // Likely scattered into its insane orbit by Triton's capture: a
-      // moon flung into madness by external catastrophe. Brightness
-      // varies wildly and irregularly. May tumble chaotically. Sometimes
-      // terrifyingly close and bright, sometimes nearly vanishes.
-      // Uses standard random variation like all moons.
+      // Analog: Hyperion (Saturn). The ONLY confirmed chaotic tumbler
+      // in the solar system — never shows the same face twice. Sponge-
+      // like surface pocked with deep craters. Unpredictable rotation
+      // embodies Xoriat's madness. Moderate eccentricity (0.123) gives
+      // noticeable brightness variation. Dark, low albedo.
       // Dull white with 750-mile black chasm → the Eye.
-      // Real Nereid: ecc 0.7507, inc 7.23°, albedo 0.155.
+      // Real Hyperion: ecc 0.1230, inc 0.43°, albedo 0.30.
       { name:'Lharvion', referenceMoon:_eberronMoonCore('Lharvion').referenceMoon,  title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
         synodicPeriod:30.0, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
-        inclination:7.23, eccentricity:0.7507, albedo:0.155,
+        inclination:0.43, eccentricity:0.1230, albedo:0.30,
         variation:{ shape:'random', amplitude:1.5 },
         epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
 
@@ -7801,14 +7786,14 @@ var MOON_SYSTEMS = {
       // ── SYPHEROS ── The Shadow ─────────────────────────────────────
       // Analog: Phoebe (Saturn). Dark captured body in RETROGRADE orbit
       // (175.3° inclination = effectively 4.7° backward). Albedo 0.06:
-      // coal-dark, nearly invisible. The SOURCE of the dark material
-      // that coats Iapetus/Aryth's leading hemisphere — Shadow
-      // literally spreads darkness to others. Eccentricity 0.1635
-      // gives an erratic, lurking presence. Mabar = Endless Night.
-      // Real Phoebe: ecc 0.1635, inc 175.3° (retro), albedo 0.06.
+      // coal-dark, nearly invisible. Phobos (Mars) — the closest,
+      // fastest moon. Named after the god of fear. Tidally decaying
+      // orbit = inevitably drawn into destruction. Shadow consumes.
+      // Low inclination, near-circular, dark albedo. Mabar = Endless Night.
+      // Real Phobos: ecc 0.0151, inc 1.08°, albedo 0.071.
       { name:'Sypheros', referenceMoon:_eberronMoonCore('Sypheros').referenceMoon,  title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
         synodicPeriod:67.0, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
-        inclination:175.3, eccentricity:0.1635, albedo:0.06,
+        inclination:1.08, eccentricity:0.0151, albedo:0.071,
         variation:{ shape:'random', amplitude:3.4 } },
 
       // ── ARYTH ── The Gateway ───────────────────────────────────────
@@ -7820,10 +7805,10 @@ var MOON_SYSTEMS = {
       // extremes of the sky. Walnut-shaped. Dark reddish-brown leading
       // side matches #FF4500 burnt orange-red. Coated in dark material
       // shed by Phoebe/Sypheros: the Shadow marks the Gateway.
-      // Real Iapetus: ecc 0.0283, inc 7.57°, albedo 0.05 (leading).
+      // Real Iapetus: ecc 0.0283, inc 7.57°, albedo 0.275 (averaged; not tidally locked, both faces visible).
       { name:'Aryth', referenceMoon:_eberronMoonCore('Aryth').referenceMoon,     title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
         synodicPeriod:48.0, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
-        inclination:7.57, eccentricity:0.0283, albedo:0.05,
+        inclination:7.57, eccentricity:0.0283, albedo:0.275,
         variation:{ shape:'random', amplitude:2.4 },
         epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
 
@@ -7965,7 +7950,6 @@ function _moonLoreHtml(moonName){
     'vertical-align:middle;margin-right:5px;"></span>';
 
   var html = dot + '<b style="font-size:1.1em;">' + esc(moon.name) + '</b>' +
-    ' — <i>' + esc(moon.title) + '</i>' +
     '<br><br>' + esc(lore.blurb) +
     '<br><br><b>Orbit:</b> ' + esc(lore.orbit);
 
@@ -8016,7 +8000,7 @@ function getMoonState(){
     gmAnchors: {},     // moonName -> [{ serial, type }]  GM-forced phase events
     generatedFrom: null,  // serial day from which sequences were generated
     generatedThru: 0,  // serial day up to which sequences have been generated
-    revealTier: 'mundane',  // 'mundane' | 'magical'
+    revealTier: 'medium',  // 'low' | 'medium' | 'high'
     revealHorizonDays: 7    // player-known horizon window
   };
   var ms = root.moons;
@@ -8025,6 +8009,9 @@ function getMoonState(){
   if (!isFinite(ms.generatedFrom)) ms.generatedFrom = null;
   if (!ms.revealTier) ms.revealTier = 'medium';
   ms.revealTier = String(ms.revealTier || '').toLowerCase();
+  // Migrate legacy tier names
+  if (ms.revealTier === 'mundane') ms.revealTier = 'medium';
+  if (ms.revealTier === 'magical') ms.revealTier = 'high';
   if (!MOON_REVEAL_TIERS[ms.revealTier]) ms.revealTier = 'medium';
   ms.revealHorizonDays = parseInt(ms.revealHorizonDays, 10);
   if (!isFinite(ms.revealHorizonDays) || ms.revealHorizonDays < 7) ms.revealHorizonDays = 7;
@@ -8238,6 +8225,42 @@ function _applyFestivalNudges(moons, ms, genFrom, genThru){
 }
 
 // ---------------------------------------------------------------------------
+// 20d-iii) Weak anti-phase coupling
+// ---------------------------------------------------------------------------
+// Soft statistical nudge between two moons: when moonA has a full event near
+// moonB's full event (within 3 days), shift moonB's event +1 day away.
+// Same for new events. This creates a weak tendency for the moons to be
+// out of phase without hard-locking them.
+
+function _applyAntiPhaseCoupling(ms, moonAName, moonBName, genFrom, genThru){
+  var seqA = ms.sequences[moonAName];
+  var seqB = ms.sequences[moonBName];
+  if (!seqA || !seqB) return;
+
+  for (var bi = 0; bi < seqB.length; bi++){
+    var evB = seqB[bi];
+    if (evB.gmForced || evB.festivalNudge) continue;
+    if (evB.serial < genFrom || evB.serial > genThru) continue;
+
+    // Check if moonA has a same-type event within 3 days
+    for (var ai = 0; ai < seqA.length; ai++){
+      var evA = seqA[ai];
+      if (evA.type !== evB.type) continue;
+      var dist = Math.abs(evA.serial - evB.serial);
+      if (dist <= 3){
+        // Push moonB's event 1 day away from moonA's event
+        var direction = (evB.serial >= evA.serial) ? 1 : -1;
+        evB.serial += direction;
+        evB.antiPhaseCoupled = true;
+        break;
+      }
+    }
+  }
+
+  seqB.sort(function(a, b){ return a.serial - b.serial; });
+}
+
+// ---------------------------------------------------------------------------
 // 20e) Standard sequence generation (all moons except Lharvion)
 // ---------------------------------------------------------------------------
 
@@ -8435,6 +8458,12 @@ function moonEnsureSequences(focusSerial, horizonExtraDays){
   // published festival date, d6=6 shifts it to land exactly on the holiday.
   _applyFestivalNudges(sys.moons, ms, genFrom, needThru);
 
+  // --- Therendor–Barrakas weak anti-phase coupling ---
+  // When Therendor is full, nudge Barrakas toward new (and vice versa).
+  // Soft statistical tendency: if both have same-type events within 3 days,
+  // push Barrakas's event ±1 day away. Weak enough to be a tendency, not a lock.
+  _applyAntiPhaseCoupling(ms, 'Therendor', 'Barrakas', genFrom, needThru);
+
   // Clear Long Shadows cache since moon data has changed
   _longShadowsCache = {};
   ms.generatedFrom = genFrom;
@@ -8598,6 +8627,18 @@ function moonPhaseAt(moonName, serial){
   return _moonPhaseAtRaw(moonName, serial);
 }
 
+// Check if this serial is the peak day for a full or new event.
+// Returns 'full', 'new', or null. Uses the sequence events directly,
+// rounding fractional serials to the nearest integer day. This ensures
+// exactly one "full" and one "new" report per synodic cycle.
+function _moonPeakPhaseDay(moonName, serial){
+  var seq = (getMoonState().sequences[moonName]) || [];
+  for (var i = 0; i < seq.length; i++){
+    if (Math.round(seq[i].serial) === serial) return seq[i].type;
+  }
+  return null;
+}
+
 function _moonPhaseLabel(illum, waxing){
   if (illum >= 0.97) return 'Full';
   if (illum >= 0.55) return (waxing ? 'Waxing' : 'Waning') + ' Gibbous';
@@ -8639,16 +8680,12 @@ function _moonNextEvent(moonName, serial, type){
 // 20i) Moon uncertainty & tiered forecast helpers
 // ---------------------------------------------------------------------------
 
-// Moon reveal tiers -- simplified to match weather.
-// mundane: rough windows suitable for ordinary almanac knowledge.
-// magical: high-confidence projections with bounded long-range certainty.
+// Moon reveal tiers -- unified with weather and planes.
+// low: common knowledge, medium: skilled forecast, high: expert forecast.
 var MOON_REVEAL_TIERS = { low:1, medium:2, high:3 };
 
 function _normalizeMoonRevealTier(tier){
   var t = String(tier || '').toLowerCase();
-  // Legacy aliases
-  if (t === 'mundane') return 'medium';
-  if (t === 'magical') return 'high';
   if (MOON_REVEAL_TIERS[t]) return t;
   return 'medium';
 }
@@ -8657,9 +8694,7 @@ function _normalizeMoonRevealTier(tier){
 var MOON_SOURCE_LABELS = {
   low:      'Common Knowledge',
   medium:   'Skilled Forecast',
-  high:     'Expert Forecast',
-  mundane:  'Skilled Forecast',
-  magical:  'Expert Forecast'
+  high:     'Expert Forecast'
 };
 
 // ---------------------------------------------------------------------------
@@ -8862,22 +8897,38 @@ function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays){
   var today = todaySerial();
 
   for (var ser = start; ser <= end; ser++){
+    var fullMoons = [];
+    var newMoons = [];
     for (var i = 0; i < sys.moons.length; i++){
       var moon = sys.moons[i];
       // For player display: suppress events past the reveal horizon
       if (!isMagical && isFinite(baseHorizonDays) && ser > today){
         if ((ser - today) > baseHorizonDays) continue;
       }
-      var ph = moonPhaseAt(moon.name, ser);
-      if (!ph) continue;
-      var isFull = ph.illum >= 0.97;
-      var isNew = ph.illum <= 0.03;
-      if (!isFull && !isNew) continue;
-      var phaseLabel = isFull ? 'Full' : (ph.longShadows ? 'New (Long Shadows)' : 'New');
+      var peakType = _moonPeakPhaseDay(moon.name, ser);
+      if (peakType === 'full'){
+        fullMoons.push(moon.name);
+      } else if (peakType === 'new'){
+        var ph = moonPhaseAt(moon.name, ser);
+        var lsTag = (ph && ph.longShadows) ? ' (Long Shadows)' : '';
+        newMoons.push(moon.name + lsTag);
+      }
+    }
+
+    // Yellow dot if any moon is full
+    if (fullMoons.length){
       out.push({
         serial: ser,
-        name: _moonPhaseEmoji(ph.illum, ph.waxing) + ' ' + moon.name + ' (' + moon.title + ') ' + phaseLabel,
-        color: moon.color || '#B39DDB'
+        name: fullMoons.map(function(n){ return '● ' + n + ' Full'; }).join('\n'),
+        color: '#FFD700'
+      });
+    }
+    // Black dot if any moon is new
+    if (newMoons.length){
+      out.push({
+        serial: ser,
+        name: newMoons.map(function(n){ return '● ' + n + ' New'; }).join('\n'),
+        color: '#222222'
       });
     }
 
@@ -8916,8 +8967,9 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
     var moon = sys.moons[i];
     var ph = moonPhaseAt(moon.name, today);
     if (!ph) continue;
-    if (ph.illum >= 0.97) fullNow.push(moon.name);
-    if (ph.illum <= 0.03) newNow.push(moon.name + (ph.longShadows ? ' (Long Shadows)' : ''));
+    var _pt = _moonPeakPhaseDay(moon.name, today);
+    if (_pt === 'full') fullNow.push(moon.name);
+    if (_pt === 'new') newNow.push(moon.name + (ph.longShadows ? ' (Long Shadows)' : ''));
 
     var fSer = _moonNextEvent(moon.name, today, 'full');
     var nSer = _moonNextEvent(moon.name, today, 'new');
@@ -9094,13 +9146,13 @@ function moonPlayerPanelHtml(serialOverride){
   // Each line includes the moon's title so players know what they're reading
   var notableLines = [];
   sys.moons.forEach(function(moon){
-    var ph = moonPhaseAt(moon.name, today);
-    var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
-    if (ph.illum >= 0.97){
-      notableLines.push(emoji + ' <b>' + esc(moon.name) + '</b> <span style="opacity:.6;">(' + esc(moon.title) + ')</span> is Full');
-    } else if (ph.illum <= 0.03){
-      var tag = ph.longShadows ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
-      notableLines.push(emoji + ' <b>' + esc(moon.name) + '</b> <span style="opacity:.6;">(' + esc(moon.title) + ')</span> is New' + tag);
+    var peakType = _moonPeakPhaseDay(moon.name, today);
+    if (peakType === 'full'){
+      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+    } else if (peakType === 'new'){
+      var ph = moonPhaseAt(moon.name, today);
+      var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
+      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> is New' + tag);
     }
   });
   if (notableLines.length){
@@ -9158,15 +9210,15 @@ function _moonParseMoonName(str, sys){
 var MOON_ORBITAL_DATA = {
   Zarantyr:  { diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,  angularSizeVsSun: 9.08, albedo: 0.12 },
   Olarune:   { diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,  angularSizeVsSun: 5.73, albedo: 0.22 },
-  Therendor: { diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,  angularSizeVsSun: 2.91, albedo: 0.67 },
-  Eyre:      { diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,  angularSizeVsSun: 2.38, albedo: 0.30 },
-  Dravago:   { diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,  angularSizeVsSun: 2.66, albedo: 1.229 },
+  Therendor: { diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,  angularSizeVsSun: 2.91, albedo: 0.99 },
+  Eyre:      { diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,  angularSizeVsSun: 2.38, albedo: 0.96 },
+  Dravago:   { diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,  angularSizeVsSun: 2.66, albedo: 0.76 },
   Nymm:      { diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance, angularSizeVsSun: 0.98, albedo: 0.43 },
-  Lharvion:  { diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance, angularSizeVsSun: 1.11, albedo: 0.155 },
+  Lharvion:  { diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance, angularSizeVsSun: 1.11, albedo: 0.30 },
   Barrakas:  { diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance, angularSizeVsSun: 1.07, albedo: 1.375 },
   Rhaan:     { diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance, angularSizeVsSun: 0.49, albedo: 0.32 },
-  Sypheros:  { diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance, angularSizeVsSun: 0.62, albedo: 0.06 },
-  Aryth:     { diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance, angularSizeVsSun: 0.69, albedo: 0.05 },
+  Sypheros:  { diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance, angularSizeVsSun: 0.62, albedo: 0.071 },
+  Aryth:     { diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance, angularSizeVsSun: 0.69, albedo: 0.275 },
   Vult:      { diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance, angularSizeVsSun: 0.74, albedo: 0.23 }
 };
 
@@ -9406,22 +9458,22 @@ var MOON_MOTION_TUNING = {
   Zarantyr: { inclinationBase:5.145, inclinationAmp:1.5, inclinationPeriodDays:336, ascendingNode:120, nodePrecessionDegPerYear:12, distanceSwingPct:0.11, distancePeriodDays:336, apsisAngle:20,  apsisPrecessionDegPerYear:24 },
   // Titan analog:       ecc 0.0288, inc 0.33°
   Olarune:  { inclinationBase:0.33, inclinationAmp:0.15, inclinationPeriodDays:504, ascendingNode: 60, nodePrecessionDegPerYear: 8, distanceSwingPct:0.058, distancePeriodDays:448, apsisAngle:80,  apsisPrecessionDegPerYear:12 },
-  // Europa analog:      ecc 0.0094, inc 0.47°
-  Therendor:{ inclinationBase:0.47, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode:210, nodePrecessionDegPerYear:10, distanceSwingPct:0.019, distancePeriodDays:336, apsisAngle:140, apsisPrecessionDegPerYear:10 },
-  // Hyperion analog:    ecc 0.1230, inc 0.43°
-  Eyre:     { inclinationBase:0.43, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode: 25, nodePrecessionDegPerYear: 2, distanceSwingPct:0.246, distancePeriodDays: 84, apsisAngle:10,  apsisPrecessionDegPerYear:120 },
-  // Tethys analog:      ecc 0.0001, inc 1.09°
-  Dravago:  { inclinationBase:1.09, inclinationAmp:0.15, inclinationPeriodDays:672, ascendingNode:260, nodePrecessionDegPerYear: 6, distanceSwingPct:0.0002, distancePeriodDays:672, apsisAngle:200, apsisPrecessionDegPerYear:18 },
+  // Dione analog:       ecc 0.0022, inc 0.03°
+  Therendor:{ inclinationBase:0.03, inclinationAmp:0.01, inclinationPeriodDays:336, ascendingNode:210, nodePrecessionDegPerYear:10, distanceSwingPct:0.0044, distancePeriodDays:336, apsisAngle:140, apsisPrecessionDegPerYear:10 },
+  // Mimas analog:       ecc 0.0196, inc 1.53°
+  Eyre:     { inclinationBase:1.53, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode: 25, nodePrecessionDegPerYear: 2, distanceSwingPct:0.0392, distancePeriodDays: 84, apsisAngle:10,  apsisPrecessionDegPerYear:120 },
+  // Triton analog:      ecc 0.000016, inc 156.8° (retrograde)
+  Dravago:  { inclinationBase:156.8, inclinationAmp:0.15, inclinationPeriodDays:672, ascendingNode:260, nodePrecessionDegPerYear: 6, distanceSwingPct:0, distancePeriodDays:672, apsisAngle:200, apsisPrecessionDegPerYear:18 },
   // Ganymede analog:    ecc 0.0013, inc 0.20°
   Nymm:     { inclinationBase:0.20, inclinationAmp:0.05, inclinationPeriodDays:336, ascendingNode:  0, nodePrecessionDegPerYear:360, distanceSwingPct:0.0026, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:0 },
-  // Nereid analog:      ecc 0.7507, inc 7.23° — xoriat engine overrides these
-  Lharvion: { inclinationBase:7.23, inclinationAmp:5.0, inclinationPeriodDays:420, ascendingNode: 40, nodePrecessionDegPerYear:75, distanceSwingPct:1.50, distancePeriodDays:560, apsisAngle:300, apsisPrecessionDegPerYear:80 },
+  // Hyperion analog:    ecc 0.1230, inc 0.43°
+  Lharvion: { inclinationBase:0.43, inclinationAmp:0.2, inclinationPeriodDays:420, ascendingNode: 40, nodePrecessionDegPerYear:10, distanceSwingPct:0.246, distancePeriodDays:560, apsisAngle:300, apsisPrecessionDegPerYear:80 },
   // Enceladus analog:   ecc 0.0047, inc 0.02°
   Barrakas: { inclinationBase:0.02, inclinationAmp:0.01, inclinationPeriodDays:168, ascendingNode:300, nodePrecessionDegPerYear:24, distanceSwingPct:0.0094, distancePeriodDays:224, apsisAngle:260, apsisPrecessionDegPerYear:48 },
   // Miranda analog:     ecc 0.0013, inc 4.34°
   Rhaan:    { inclinationBase:4.34, inclinationAmp:0.6, inclinationPeriodDays:441, ascendingNode: 45, nodePrecessionDegPerYear: 6, distanceSwingPct:0.0026, distancePeriodDays:504, apsisAngle: 90, apsisPrecessionDegPerYear:8 },
-  // Phoebe analog:      ecc 0.1635, inc 175.3° (retrograde)
-  Sypheros: { inclinationBase:175.3, inclinationAmp:0.8, inclinationPeriodDays:560, ascendingNode:180, nodePrecessionDegPerYear: 4, distanceSwingPct:0.327, distancePeriodDays:560, apsisAngle:150, apsisPrecessionDegPerYear:5 },
+  // Phobos analog:      ecc 0.0151, inc 1.08°
+  Sypheros: { inclinationBase:1.08, inclinationAmp:0.2, inclinationPeriodDays:560, ascendingNode:180, nodePrecessionDegPerYear: 4, distanceSwingPct:0.0302, distancePeriodDays:560, apsisAngle:150, apsisPrecessionDegPerYear:5 },
   // Iapetus analog:     ecc 0.0283, inc 7.57°
   Aryth:    { inclinationBase:7.57, inclinationAmp:0.4, inclinationPeriodDays:336, ascendingNode: 15, nodePrecessionDegPerYear:14, distanceSwingPct:0.0566, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:16 },
   // Oberon analog:      ecc 0.0014, inc 0.07°
@@ -9454,9 +9506,6 @@ function _moonOrbitalParams(moonName, serial){
 
     var eccWave = Math.sin((serial * 2 * Math.PI) / distPeriod);
     var distFactor = 1 + (tune.distanceSwingPct || 0) * eccWave;
-    // Clamp: Nereid-analog (Lharvion) has distanceSwingPct > 1.0, so distFactor
-    // can go negative at periapsis. Floor at 0.25 (4x closer than mean).
-    if (distFactor < 0.25) distFactor = 0.25;
     var dist = canon.distance * distFactor;
 
     return {
@@ -10705,12 +10754,9 @@ function handleMoonCommand(m, args){
     );
   }
 
-  // !cal moon send <mundane|magical> [1w|1m|3m|6m|10m]
+  // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m]
   if (sub === 'send'){
     var tierRaw = String(args[2] || '').toLowerCase();
-    // Legacy aliases
-    if (tierRaw === 'mundane') tierRaw = 'medium';
-    if (tierRaw === 'magical') tierRaw = 'high';
     if (!tierRaw)
       return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
     var tierArg = MOON_REVEAL_TIERS[tierRaw] ? tierRaw : null;
@@ -10854,7 +10900,7 @@ function handleMoonCommand(m, args){
 
   whisper(m.who,
     'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon send (mundane|magical) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
@@ -11051,7 +11097,7 @@ function getPlanesState(){
   if (!root.planes) root.planes = {
     overrides: {},    // planeName -> { phase:'coterminous'|'waning'|'remote'|'waxing', note:'' }
     anchors: {},      // planeName -> { year, month, day, phase } — GM-set anchor overrides
-    revealTier: 'mundane', // 'mundane' | 'magical'
+    revealTier: 'medium', // 'low' | 'medium' | 'high'
     revealHorizonDays: baselineHorizon   // player-known horizon window
   };
   var ps = root.planes;
@@ -11060,8 +11106,12 @@ function getPlanesState(){
   if (!ps.floatingDays) ps.floatingDays = {};  // planeName -> { phase, startDay, orbitNum }
   if (!ps.suppressedEvents) ps.suppressedEvents = {}; // planeName -> { serial: true }
   if (!ps.gmCustomEvents) ps.gmCustomEvents = {};     // planeName -> [ {serial, phase, durationDays, note} ]
-  if (!ps.seedOverrides) ps.seedOverrides = {};       // planeName -> anchorYear  if (!ps.revealTier) ps.revealTier = 'medium';
+  if (!ps.seedOverrides) ps.seedOverrides = {};       // planeName -> anchorYear
+  if (!ps.revealTier) ps.revealTier = 'medium';
   ps.revealTier = String(ps.revealTier || '').toLowerCase();
+  // Migrate legacy tier names
+  if (ps.revealTier === 'mundane') ps.revealTier = 'medium';
+  if (ps.revealTier === 'magical') ps.revealTier = 'high';
   if (!PLANE_REVEAL_TIERS[ps.revealTier]) ps.revealTier = 'medium';
   ps.revealHorizonDays = parseInt(ps.revealHorizonDays, 10);
   if (!isFinite(ps.revealHorizonDays) || ps.revealHorizonDays < baselineHorizon) ps.revealHorizonDays = baselineHorizon;
@@ -11489,10 +11539,10 @@ function _planarNotableToday(serial){
 // ---------------------------------------------------------------------------
 
 var PLANE_PHASE_EMOJI = {
-  coterminous: '\uD83D\uDD34',  // 🔴
-  waning:      '\uD83D\uDFE0',  // 🟠
-  remote:      '\uD83D\uDD35',  // 🔵
-  waxing:      '\uD83D\uDFE1'   // 🟡
+  coterminous: '🟢',
+  waning:      '🟠↓',
+  remote:      '🔴',
+  waxing:      '🟠↑'
 };
 
 var PLANE_PHASE_LABELS = {
@@ -11502,17 +11552,11 @@ var PLANE_PHASE_LABELS = {
   waxing:      'Waxing'
 };
 
-var PLANE_PHASE_EMOJI = {
-  coterminous: '🔴',
-  waning:      '🟠',
-  remote:      '🔵',
-  waxing:      '🟢'
-};
-
 var PLANE_REVEAL_TIERS = { low:1, medium:2, high:3 };
 var PLANE_SOURCE_LABELS = {
-  mundane:  'Mundane Forecast',
-  magical:  'Magical Forecast'
+  low:      'Common Knowledge',
+  medium:   'Skilled Forecast',
+  high:     'Expert Forecast'
 };
 var PLANE_PREDICTION_LIMITS = {
   // Low: present day only for generated events. Fixed annual canon always known.
@@ -11552,9 +11596,6 @@ var PLANE_REVEAL_RANGE_OPTIONS = {
 
 function _normalizePlaneRevealTier(tier){
   var t = String(tier || '').toLowerCase();
-  // Legacy aliases
-  if (t === 'mundane') return 'medium';
-  if (t === 'magical') return 'high';
   if (PLANE_REVEAL_TIERS[t]) return t;
   return 'medium';
 }
@@ -11700,10 +11741,11 @@ function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
     for (var j = 0; j < planes.length; j++){
       var name = planes[j].name;
 
-      // Canonical phase transitions
+      // Canonical phase — highlight every day during coterminous/remote
       var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
       var prvCanon = prevCanon[name];
-      if (curCanon && prvCanon && curCanon.phase !== prvCanon.phase){
+      var isTransition = curCanon && prvCanon && curCanon.phase !== prvCanon.phase;
+      if (isTransition){
         var emoji = PLANE_PHASE_EMOJI[curCanon.phase] || '⚪';
         var label = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
         if (curCanon.phase === 'coterminous' || curCanon.phase === 'remote'){
@@ -11713,6 +11755,12 @@ function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
           var endedPhase = PLANE_PHASE_LABELS[prvCanon.phase] || prvCanon.phase;
           out.push({ serial: ser, name: emoji + ' ' + name + ': ' + endedPhase + ' ends', color: '#80CBC4' });
         }
+      } else if (curCanon && (curCanon.phase === 'coterminous' || curCanon.phase === 'remote')){
+        // Fill all intermediate days with a lighter highlight
+        var fillEmoji = PLANE_PHASE_EMOJI[curCanon.phase] || '⚪';
+        var fillLabel = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
+        var fillColor = curCanon.phase === 'coterminous' ? '#B2DFDB' : '#FFCDD2';
+        out.push({ serial: ser, name: fillEmoji + ' ' + name + ': ' + fillLabel, color: fillColor });
       }
       prevCanon[name] = curCanon;
 
@@ -12301,9 +12349,6 @@ function handlePlanesCommand(m, args){
   // With a tier, broadcasts a player-facing planar forecast and upgrades stored tier.
   if (sub === 'send'){
     var tierRaw = String(args[2] || '').toLowerCase();
-    // Legacy aliases
-    if (tierRaw === 'mundane') tierRaw = 'medium';
-    if (tierRaw === 'magical') tierRaw = 'high';
     if (!tierRaw){
       var planes = _getAllPlaneData();
       var today  = todaySerial();
