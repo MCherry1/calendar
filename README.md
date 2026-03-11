@@ -158,19 +158,21 @@ agent task clean this section and format
 - The full system can be toggled on or off as desired.
 - The mechanics can be toggled on or off as desired as well, (leaving only narrative effects). AGENT TASK IMPLEMENT THAT
 - Included is a homebrew system for managing the weather. The script author thinks it's pretty slick, but isn't insulted if you don't like it.
-	- **Temperature Saving Throws:**
-		- At GM discretion, players need to make **consitutions saves** or suffer 1 level of **exhaustion**. Optionally, additional levels gainsed for failure by 5+.
-		- Recommend 1 check for any day of travel or other outside activeity, and 1 check per combat.
-		- At the lower end, different degrees of "cold weather clothing" exist. they use normal armor proficiency rules. if you aren't proficient with the armor level, you are considered to be wearing armor you aren't proficient in. (agent task rephrase?)
-		- At the upper end, wearing armor is a hindrance.
-		- Resistance to Cold/Fire grants advantage on the save. Immunity automatically saves.
-		- This system can be trivialized depending on gameplay. Consider ways to  
 
 ### Temperature
 
 > **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
 
 > **Update:** The live weather generator now rolls directly on the `-5` to `15` band scale shown below.
+
+	- **Temperature Saving Throws:**
+		- At GM discretion, players need to make **consitutions saves** or suffer 1 level of **exhaustion**. Optionally, additional levels gainsed for failure by 5+.
+		- Recommend at least 1 check for any day of travel, night of exposed rest, or other outside activeity, and 1 check per combat. Hourly checks as mentioned in the DMG can be brutal, but perhaps suitable. It certainly slows the game, (and justifies a calendar).
+		- At the lower end, different degrees of "cold weather clothing" exist. they use normal armor proficiency rules. if you aren't proficient with the armor level, you are considered to be wearing armor you aren't proficient in. (agent task rephrase?)
+		- At the upper end, wearing armor is a hindrance.
+		- Resistance to Cold/Fire grants advantage on the save. Immunity automatically saves.
+		- This system can be trivialized crushingly difficult depending on gameplay. Consider ways to make it a fair challenge. Be willing to change your approach as you use it.
+		- Set whatever price you want for the Cold weather clothings. It's commonly sold at 50gp. Money is rarely a satisfying challenge.
 
 agent task remove the "or exhastiuon" on all below, just mention saves. shorteen required to req. remove direct thermal, change advantage to adv., disadvantage to disadv.
 
@@ -200,36 +202,38 @@ agent task remove the "or exhastiuon" on all below, just mention saves. shorteen
 |     14      | [135 .. 144] | DC 25 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
 |     15      |   ≥ 145°F    | DC 30 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
 ### Wind
+agent task clean my writing up
 
-| Wind | Label | Mechanical Effect |
-| :--: | :---: | :---------------- |
-|  0   | Calm | None |
-|  1   | Breezy | None |
-|  2   | Moderate | Fogs and airborne gases dispersed |
-|  3   | Strong | Disadvantage on ranged attacks; long-range attacks auto-miss; flying costs +1 ft per ft; open flames extinguished |
-|  4   | Gale | Ranged attacks auto-miss; flying speed becomes 0; walking costs +1 ft per ft |
-|  5   | Storm | DC 15 Strength save or fall prone; small trees uprooted; severe hazard |
+| Wind |  Label   | Mechanical Effect                                                                                                                                                        |
+| :--: | :------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  0   |   Calm   | None                                                                                                                                                                     |
+|  1   |  Breezy  | None                                                                                                                                                                     |
+|  2   | Moderate | Fogs and airborne gases dispersed                                                                                                                                        |
+|  3   |  Strong  | Disadvantage on ranged attacks; long-range attacks auto-miss; flying costs +1 ft per ft; open flames extinguished                                                        |
+|  4   |   Gale   | all previous plus all Ranged attacks auto-miss; non-magic flying requires DC 10 str check or flying speed is 0, the air is difficult terrain; walking costs +1 ft per ft |
+|  5   |  Storm   | DC 15 Strength save or fall prone; small trees uprooted; severe hazard                                                                                                   |
 
 ### Precipitation
+agent task clean up this too
 
-| Precip | Sky / Condition | Notes |
-| :----: | :-------------- | :---- |
-|   0    | Clear | |
-|   1    | Partly Cloudy | Light atmospheric moisture |
-|   2    | Overcast | |
-|   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature |
-|   4    | Heavy Precipitation | Heavy rain, heavy snow, ice storm |
-|   5    | Extreme / Deluge | Blizzard or deluge-class precipitation |
+| Precip | Sky / Condition      | Notes                                                        |
+| :----: | :------------------- | :----------------------------------------------------------- |
+|   0    | Clear                | None                                                         |
+|   1    | Partly Cloudy        | Light atmospheric moisture (agent do we model this anywere?) |
+|   2    | Overcast             | Outdoor lighting reduced by xx%                              |
+|   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature        |
+|   4    | Heavy Precipitation  | Heavy rain, heavy snow, ice storm                            |
+|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation                       |
 
 ### Location
 
 Weather is generated for a specific location profile. Set the profile with `!cal weather location`, or use the in-game location wizard. Three settings combine to determine weather baselines:
 
-| Setting | Key Examples | Effect |
-| ------- | ------------ | ------ |
-| **Climate** | arctic, temperate, tropical, arid, … | Sets overall temperature baseline and seasonal variation |
-| **Geography** | coastal, plains, hills, mountain, … | Modifies temperature and precipitation patterns |
-| **Terrain** | forest, city, open, swamp, … | Fine-tunes local conditions; affects fog frequency |
+| Setting       | Key Examples                         | Effect                                                   |
+| ------------- | ------------------------------------ | -------------------------------------------------------- |
+| **Climate**   | arctic, temperate, tropical, arid, … | Sets overall temperature baseline and seasonal variation |
+| **Geography** | coastal, plains, hills, mountain, …  | Modifies temperature and precipitation patterns          |
+| **Terrain**   | forest, city, open, swamp, …         | Fine-tunes local conditions; affects fog frequency       |
 
 A **manifest zone** can also be set independently. Manifest zones apply magical overlays on top of the location (e.g., a Syrania manifest zone forces calm, clear skies). Clear the manifest zone without changing the location when leaving the area.
 
