@@ -118,7 +118,7 @@ The manifest zone system needs a significant architectural change. Currently zon
   - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
 
 **Design questions:** What coverage threshold distinguishes a "transit" from an "eclipse"? Should partial eclipses be reported differently from total/annular eclipses?
-	- I actually don't know. I just thought it was strange to call everything an eclipse when these bodies are so different in size. Let's do it like this: call everything an eclipse, phrase like X eclipses the nn% smaller/larger Y
+	- I actually don't know. I just thought it was strange to call everything an eclipse when these bodies are so different in size. Let's do it like this: call everything an eclipse, phrase like X eclipses the nn% smaller/larger Y, covering mm% of Y!
 
 ---
 
@@ -135,6 +135,8 @@ This is the "divination magic" feature: GM reveals weather for a specific date a
 - [ ] **Location quick-switch**: Add a "recent locations" list (last 3 used) in the Location setting menu for fast switching
 
 **Design questions:** What should the GM command syntax look like? Should the reveal command accept both single dates and ranges? How should the week-strip handle sparse reveals (e.g., day 37 and day 42 revealed, nothing in between)?
+	- !cal weather reveal >>standard date syntaxes accepted<<, e.g. 14-17 (next example of 14-17), 4 5-7 (next example of month 4, days 5-7). I think we already do this?
+	- and yes, each date should get a flag of reveal low/med/high. if there is no flag, then no reveal. low reveal occurs automatically when the current date matches the criteria. I think we do same day ToD info, then days 2-3 very broad ranges that basically say "kinda like today". let me know if not.
 
 ---
 
@@ -152,19 +154,22 @@ The Faerûnian/Harptos calendar currently uses weekday-based layout. It should u
 - [ ] Date format: `16th of <Month>, <Year> DR`
 
 **Design question:** How should the 5 festival days (intercalary days between months) be displayed? They don't belong to any month or tenday.
+	- I think they should basically look like a day with an event, but no number is in the cell. hovering the cell says the events' name. a suitable color should be obvious based on the holidays being seasonal things. they'd sit in their own row. the rest of the row should just be a single, 9-day-width cell with a default/blank background, and the title of the day would be centered in that cell. But they should be shown during the month displays for both adjacent months. For the preceding month, a small gap between the rows of the last tenday (21-30) and the intercalery. For the subsequent month, the intercalery "10day strip" would be shown, then a small gap separator, then the month header bar and normal month display below. For the "shoulder strip" display we use, it should be positioned appropriately as well around this intercaler strip.
 
 ---
 
 ### Fix Gregorian leap day presentation
 
 The Gregorian calendar's leap day is currently marked as "intercalary" with a separate display. It should simply be February 29th — part of February, not a special intercalary day. Remove any "Leap Year" annotations; the presence of the 29th is sufficient indication.
+ - this seems like we can move it to coding tasks
 
 ---
 
 ### Ring of Siberys presentation
 
 - [ ] Confirm equatorial placement (inclination 0°) and "stands out in daylight" visual
-- [ ] Update README: document the relative albedo used, contribution to nighttime lighting, Saturn's-rings-scaled-to-Earth's-radius analogy, relative height above surface with comparative references (above ISS, edge of LEO, etc.)
+- [ ] Update README: document the relative albedo used, contribution to nighttime lighting, Saturn's-rings-scaled-to-Earth's-radius analogy, relative height above surface with comparative references (above ISS, edge of LEO, etc.). This should be in a section of the readme called "Modeling the Skies"
+	- [ ] this seems like we can call it a coding task. 
 
 ---
 
