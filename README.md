@@ -155,7 +155,8 @@ these are not tracked. they could be, but it gets weird fast and doesn't add a l
 ---
 agent task clean this section and format
 ## Weather
-- This system can be toggled on or off as desired.
+- The full system can be toggled on or off as desired.
+- The mechanics can be toggled on or off as desired as well, (leaving only narrative effects). AGENT TASK IMPLEMENT THAT
 - Included is a homebrew system for managing the weather. The script author thinks it's pretty slick, but isn't insulted if you don't like it.
 	- **Temperature Saving Throws:**
 		- At GM discretion, players need to make **consitutions saves** or suffer 1 level of **exhaustion**. Optionally, additional levels gainsed for failure by 5+.
