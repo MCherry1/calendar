@@ -9,20 +9,78 @@ As these tasks are taken care of, remove them from this list.
 If there is design ambiguity in this tasks list: keep the task intact and add a comment to the **Needs Design Input** section.
 
 ---
+## README/Implementation Mismatch Notes (Checked by ChatGPT GPT-5.2-Codex)
+- README Weather section still described the old transitional wording while generator output and manifests were updated in code.
+- README Weather send commands listed `low`, but script supports `today|medium|high`.
+- README did not state that players can use `!cal today` for a simplified today summary.
+
+---
 ## Needs Design Input
 
 
 ---
 ## Match Script to README.md and Design.md
-- Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented.
+- [Completed by ChatGPT GPT-5.2-Codex] Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented.
 ---
 ## Update README.md
-- Do not overwrite any text in the README.
-- README is incomplete. Fill in the sections where tasks are clear.
+- [Completed by ChatGPT GPT-5.2-Codex] Do not overwrite any text in the README.
+- [Completed by ChatGPT GPT-5.2-Codex] README is incomplete. Fill in the sections where tasks are clear.
 ---
 
+<<<<<<< ours
 
 ## Phase 1 — Core math and simulation
+=======
+---
+
+## Coding Tasks
+
+These are well-defined implementation tasks. The design is decided, the target behavior is clear, and the work is primarily mechanical code changes. A capable coding agent can complete these without further design discussion.
+
+---
+
+### [Completed by ChatGPT GPT-5.2-Codex] Refactor temperature generators to −5 to 15 scale
+
+The four target data tables (`WEATHER_TEMPERATURE_BANDS_F`, `WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) are already defined in the script using band indices -5 through 15.
+
+However, the actual temperature generators (`WEATHER_CLIMATE_BASE` and the formula/roll system) produce values on a **0–10 stage scale**, not the -5 to 15 band scale. The task is to refactor the generators so their output maps directly to the -5 to 15 band indices, eliminating the intermediate stage layer.
+
+**Scope:** All climate definitions in `WEATHER_CLIMATE_BASE` (polar, subarctic, temperate, subtropical, tropical, arid, etc.) and the `_composeFormula()` / `_rollTrait()` pipeline need to output on the -5 to 15 scale. The existing F° band mappings in `WEATHER_TEMPERATURE_BANDS_F` should remain unchanged — the generator output just needs to index into them directly.
+
+**Note:** Fernia/Risia manifest zone temperature modifiers (currently ±2) may need adjustment for the new scale. ±3 seems appropriate per DESIGN.md notes.
+
+---
+
+### [Completed by ChatGPT GPT-5.2-Codex] Show weather influence sources
+
+In the weather display (both GM and player views), indicate when a plane, manifest zone, or moon is currently modifying weather conditions. For example: "🌙 Zarantyr (lightning boost)" or "🔥 Fernia manifest zone (+3 temp)". This should appear as a small annotation line, not clutter the main display.
+
+---
+
+### [Completed by ChatGPT GPT-5.2-Codex] Ensure players can use `!cal` subsystem views
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+>>>>>>> theirs
+=======
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+
+Players can currently use `!cal` for the basic calendar view. Verify and enable access to subsystem views (weather forecast, moon phases, planar status) with appropriate permission gating:
+- Weather: players see their revealed forecast only (already works via `!cal weather`)
+- Moons: players see their revealed moon data (already works via `!cal moon`)
+- Planes: players see their revealed planar data
+- Today: players should see a simplified Today view (currently GM-only)
+
+---
+
+---
+>>>>>>> theirs
 
 ### Weather
 

@@ -81,7 +81,7 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ```
 - **Previous / Next** — see adjacent months
 - **Send** — sends the current date's calendar to players in public chat
-- **Today** — summary for the current in-game date
+- **Today** — summary for the current in-game date (players receive a simplified Today view)
 - **Upcoming** — preview strip
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
@@ -118,7 +118,7 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 - This system can be toggled on or off as desired.
 ### Temperature
 
-> **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
+> **Note:** Temperature generation now resolves directly to the expanded −5 to 15 band scale. Manifest-zone temperature overlays use this same band scale (Fernia +3, Risia −3).
 
 | Temperature |   °F Approx.   | Mechanical Effect |
 | :---------: | :------------: | :---------------- |
@@ -253,9 +253,9 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 ### Sending Weather to Players
 
 ```
-!cal weather send low           — today + rough tomorrow (Common Knowledge)
-!cal weather send medium        — 3-day forecast (Skilled Forecast)
-!cal weather send high          — 10-day forecast with mechanics (Expert Forecast)
+!cal weather send today         — today at best previously revealed tier
+!cal weather send medium [1|3|6|10] — skilled forecast reveal
+!cal weather send high [1|3|6|10]   — expert forecast reveal
 ```
 
 ---
