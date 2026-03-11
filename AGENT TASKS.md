@@ -20,7 +20,7 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 - **Commands → Weather → Sending Weather to Players:** `!cal weather send` now broadcasts whatever weather is already revealed, and `!cal weather reveal medium|high [1-10]` grants the current range-based forecast reveals. Per-day reveal flags and arbitrary-date reveal syntax are still not implemented.
 	- send should not have any arguments followed. it should simply function as "send whatever is revealed"
 	- weather should have a per day reveal flag that defines how much information the players have acquired. the low reveal level should be automatically granted when the day in questions falls into the bucket for that. I think we currently low reveal to different degrees between today (rough ToD info, tomorrow (limited forecast), day after tomorrow (same). 
-- **Calendar Systems:** Harptos date math is present, but the rendered calendar still uses weekday columns; tenday layout remains an open design task below.
+- **Calendar Systems:** Harptos date math is present, but the rendered calendar still uses weekday columns; tenday layout remains tracked in the agent-ready section below.
 	- this needs to be implemented, with rows of 10, redone weekday labels using 1st, 2nd, etc.
 
 ---
@@ -170,6 +170,8 @@ Status: Completed by ChatGPT version number 5
 Status: Completed by ChatGPT version number 5
 
 README and lore output now document the Ring of Siberys under **Modeling the Skies**, including inclination `0°`, daylight visibility, albedo, nighttime illumination contribution, Saturn-ring scaling, and height-above-surface comparisons.
+
+---
 
 ## Design Tasks
 
