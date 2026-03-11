@@ -9,16 +9,22 @@ As these tasks are taken care of, remove them from this list.
 If there is design ambiguity in this tasks list: keep the task intact and add a comment to the **Needs Design Input** section.
 
 ---
+## README/Implementation Mismatch Notes (Checked by ChatGPT GPT-5.2-Codex)
+- README Weather section still described the old transitional wording while generator output and manifests were updated in code.
+- README Weather send commands listed `low`, but script supports `today|medium|high`.
+- README did not state that players can use `!cal today` for a simplified today summary.
+
+---
 ## Needs Design Input
 
 
 ---
 ## Match Script to README.md and Design.md
-- Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented.
+- [Completed by ChatGPT GPT-5.2-Codex] Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented.
 ---
 ## Update README.md
-- Do not overwrite any text in the README.
-- README is incomplete. Fill in the sections where tasks are clear.
+- [Completed by ChatGPT GPT-5.2-Codex] Do not overwrite any text in the README.
+- [Completed by ChatGPT GPT-5.2-Codex] README is incomplete. Fill in the sections where tasks are clear.
 ---
 
 ---
@@ -29,7 +35,7 @@ These are well-defined implementation tasks. The design is decided, the target b
 
 ---
 
-### Refactor temperature generators to −5 to 15 scale
+### [Completed by ChatGPT GPT-5.2-Codex] Refactor temperature generators to −5 to 15 scale
 
 The four target data tables (`WEATHER_TEMPERATURE_BANDS_F`, `WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) are already defined in the script using band indices -5 through 15.
 
@@ -41,13 +47,13 @@ However, the actual temperature generators (`WEATHER_CLIMATE_BASE` and the formu
 
 ---
 
-### Show weather influence sources
+### [Completed by ChatGPT GPT-5.2-Codex] Show weather influence sources
 
 In the weather display (both GM and player views), indicate when a plane, manifest zone, or moon is currently modifying weather conditions. For example: "🌙 Zarantyr (lightning boost)" or "🔥 Fernia manifest zone (+3 temp)". This should appear as a small annotation line, not clutter the main display.
 
 ---
 
-### Ensure players can use `!cal` subsystem views
+### [Completed by ChatGPT GPT-5.2-Codex] Ensure players can use `!cal` subsystem views
 
 Players can currently use `!cal` for the basic calendar view. Verify and enable access to subsystem views (weather forecast, moon phases, planar status) with appropriate permission gating:
 - Weather: players see their revealed forecast only (already works via `!cal weather`)
