@@ -163,7 +163,7 @@ agent task clean this section and format
 		- At the lower end, different degrees of "cold weather clothing" exist. they use normal armor proficiency rules. if you aren't proficient with the armor level, you are considered to be wearing armor you aren't proficient in. (agent task rephrase?)
 		- At the upper end, wearing armor is a hindrance.
 		- Resistance to Cold/Fire grants advantage on the save. Immunity automatically saves.
-		- This system can be trivialized if you allow 
+		- This system can be trivialized depending on gameplay. Consider ways to  
 
 ### Temperature
 
