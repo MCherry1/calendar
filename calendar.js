@@ -56,7 +56,7 @@ var CONFIG_DEFAULTS = {
   weatherDisplayMode:'calendar', // 'calendar' | 'list' | 'both'
   planesDisplayMode:'calendar',  // 'calendar' | 'list' | 'both'
   subsystemVerbosity:'normal',  // 'normal' | 'minimal'
-  weatherForecastViewDays: 10,  // GM weather forecast display span (10 or 20)
+  weatherForecastViewDays: 10,  // GM weather forecast display span (1-20)
   uiDensity:       'normal',    // 'compact' or 'normal'
   autoButtons:     false        // false = suppress auto action buttons on !cal
 };
@@ -150,7 +150,7 @@ var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','gregorian'];
 var CONFIG_NEARBY_DAYS = 5;
 
 /* --- Weather tuning -------------------------------------------------------*/
-// How many days ahead the GM forecast pre-generates (players see at most 10).
+// How many days ahead the GM forecast pre-generates.
 var CONFIG_WEATHER_FORECAST_DAYS = 20;
 
 // How many days of locked weather history to keep.
@@ -795,8 +795,7 @@ function ensureSettings(){
   s.subsystemVerbosity = String(s.subsystemVerbosity || CONFIG_DEFAULTS.subsystemVerbosity).toLowerCase();
   if (s.subsystemVerbosity !== 'minimal' && s.subsystemVerbosity !== 'normal')
     s.subsystemVerbosity = CONFIG_DEFAULTS.subsystemVerbosity;
-  s.weatherForecastViewDays = parseInt(s.weatherForecastViewDays, 10);
-  if (s.weatherForecastViewDays !== 20) s.weatherForecastViewDays = 10;
+  s.weatherForecastViewDays = _weatherViewDays(s.weatherForecastViewDays);
   return s;
 }
 
@@ -3077,17 +3076,26 @@ function _shiftSerialByMonth(serial, dir){
 }
 
 function _weatherViewDays(n){
-  return (parseInt(n, 10) === 20) ? 20 : 10;
+  var days = parseInt(n, 10);
+  if (!isFinite(days)) return CONFIG_DEFAULTS.weatherForecastViewDays;
+  if (days < 1) return 1;
+  if (days > CONFIG_WEATHER_FORECAST_DAYS) return CONFIG_WEATHER_FORECAST_DAYS;
+  return days;
 }
 
 function _playerButtonsHtml(){
+  var nav = [
+    button('◀ Prev','show previous month'),
+    button('📅 Month','show month'),
+    button('Next ▶','show next month')
+  ];
   var out = [];
   var st = ensureSettings();
   out.push(button('📋 Today','today'));
   if (st.weatherEnabled !== false) out.push(button('🌤 Weather','weather'));
   if (st.moonsEnabled   !== false) out.push(button('🌙 Moons','moon'));
   if (st.planesEnabled  !== false) out.push(button('🌀 Planes','planes'));
-  return out.join(' ');
+  return nav.join(' ') + '<br>' + out.join(' ');
 }
 
 function sendCurrentDate(to, gmOnly, opts){
@@ -4961,7 +4969,7 @@ var commands = {
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
-        '<code>!cal settings weatherdays (10|20)</code>'
+        '<code>!cal settings weatherdays (1-20)</code>'
       );
     }
     if (!key){
@@ -4984,10 +4992,11 @@ var commands = {
       return whisper(m.who,'Subsystem detail set to <b>'+esc(titleCase(val))+'</b>.');
     }
     if (key === 'weatherdays' || key === 'wxdays'){
-      if (!/^(10|20)$/.test(val)){
-        return whisper(m.who,'Usage: <code>!cal settings weatherdays (10|20)</code>');
+      var weatherDays = parseInt(val, 10);
+      if (!/^\d+$/.test(val) || weatherDays < 1 || weatherDays > CONFIG_WEATHER_FORECAST_DAYS){
+        return whisper(m.who,'Usage: <code>!cal settings weatherdays (1-'+CONFIG_WEATHER_FORECAST_DAYS+')</code>');
       }
-      st.weatherForecastViewDays = _weatherViewDays(val);
+      st.weatherForecastViewDays = _weatherViewDays(weatherDays);
       refreshAndSend();
       return whisper(m.who,'Weather forecast span set to <b>'+st.weatherForecastViewDays+' days</b>.');
     }
@@ -6960,7 +6969,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
 }
 
 // Build and send the player forecast to chat.
-// method: 'medium' | 'high'. days: 1|3|6|10.
+// method: 'medium' | 'high'. days: positive integer, capped at 10.
 function sendPlayerForecast(m, method, days){
   var ws    = getWeatherState();
   var today = todaySerial();
@@ -7016,8 +7025,7 @@ function sendPlayerForecast(m, method, days){
   warnGM('Sent '+revealed+'-day '+methodLabel.toLowerCase()+' to players.');
 }
 
-// Build whispered player forecast from their stored reveal state.
-function playerForecastWhisper(m){
+function _playerForecastViewData(maxDays){
   var st    = ensureSettings();
   var ws    = getWeatherState();
   var today = todaySerial();
@@ -7027,8 +7035,12 @@ function playerForecastWhisper(m){
   var knownSerials = {};
   var displayMode = _normalizeDisplayMode(st.weatherDisplayMode);
   var verbose = _subsystemIsVerbose();
+  maxDays = _weatherViewDays(maxDays);
 
-  for (var i=0; i<10; i++){
+  weatherEnsureForecast();
+  _recordReveal(ws, today, 'low', 'common');
+
+  for (var i=0; i<maxDays; i++){
     var ser  = today + i;
     var key  = String(ser);
     var rev  = _readReveal(reveals[key]);
@@ -7040,15 +7052,12 @@ function playerForecastWhisper(m){
     knownSerials[String(ser)] = 1;
   }
 
-  if (!blocks.length){
-    whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
-    return;
-  }
+  if (!blocks.length) return null;
 
   var dateObj  = fromSerial(today);
   var mObj     = cal.months[dateObj.mi] || {};
   var titleDate = esc(mObj.name||'?')+' '+dateObj.day;
-  var miniCal = _weatherForecastMiniCalHtml(today, 10, { knownSerials: knownSerials });
+  var miniCal = _weatherForecastMiniCalHtml(today, maxDays, { knownSerials: knownSerials });
   var tRev = _readReveal(reveals[String(today)]);
   var todayTier = tRev.tier || 'low';
   var body = '';
@@ -7066,10 +7075,35 @@ function playerForecastWhisper(m){
   if (verbose){
     body += '<div style="font-size:.75em;opacity:.5;">Use <code>!cal weather</code> for today details.</div>';
   }
-  whisper(m.who, _menuBox('Your Weather Forecast — '+titleDate,
-    _weatherTodaySummaryHtml(today, todayTier, displayMode === 'calendar')+
-    body
+  return {
+    today: today,
+    todayTier: todayTier,
+    titleDate: titleDate,
+    summaryHtml: _weatherTodaySummaryHtml(today, todayTier, displayMode === 'calendar'),
+    body: body
+  };
+}
+
+// Build whispered player forecast from their stored reveal state.
+function playerForecastWhisper(m){
+  var view = _playerForecastViewData(CONFIG_WEATHER_FORECAST_DAYS);
+  if (!view){
+    whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
+    return;
+  }
+  whisper(m.who, _menuBox('Your Weather Forecast — '+view.titleDate,
+    view.summaryHtml + view.body
   ));
+}
+
+function sendRevealedForecast(m){
+  var view = _playerForecastViewData(CONFIG_WEATHER_FORECAST_DAYS);
+  if (!view){
+    warnGM('No revealed weather is currently available to send.');
+    return;
+  }
+  sendToAll(_menuBox('Weather Forecast — '+view.titleDate, view.summaryHtml + view.body));
+  warnGM('Sent the currently revealed weather forecast to players.');
 }
 
 function weatherTodayGmHtml(){
@@ -7096,28 +7130,28 @@ function weatherTodayGmHtml(){
     : '<div style="opacity:.6;">No weather generated for today.</div>';
 
   var topButtons =
-    button('📣 Send Today','weather send today')+' '+
+    button('📣 Send Revealed','weather send')+' '+
     button('Forecast','weather forecast '+_weatherViewDays(st.weatherForecastViewDays))+' '+
     button('Reroll Today','weather reroll')+' '+
     button('Set Location','weather location')+' '+
     button('History','weather history');
 
   var mediumRow =
-    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Medium send:</div>'+
+    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Reveal skilled forecast:</div>'+
     '<div>'+
-    button('1 day', 'weather send medium 1')+' '+
-    button('3 days','weather send medium 3')+' '+
-    button('6 days','weather send medium 6')+' '+
-    button('10 days','weather send medium 10')+
+    button('1 day', 'weather reveal medium 1')+' '+
+    button('3 days','weather reveal medium 3')+' '+
+    button('6 days','weather reveal medium 6')+' '+
+    button('10 days','weather reveal medium 10')+
     '</div>';
 
   var highRow =
-    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">High send:</div>'+
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Reveal expert forecast:</div>'+
     '<div>'+
-    button('1 day', 'weather send high 1')+' '+
-    button('3 days','weather send high 3')+' '+
-    button('6 days','weather send high 6')+' '+
-    button('10 days','weather send high 10')+
+    button('1 day', 'weather reveal high 1')+' '+
+    button('3 days','weather reveal high 3')+' '+
+    button('6 days','weather reveal high 6')+' '+
+    button('10 days','weather reveal high 10')+
     '</div>';
 
   var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
@@ -7543,11 +7577,12 @@ function handleWeatherCommand(m, args){
     case 'forecast':
       var viewTok = String(args[2] || '').trim();
       if (viewTok){
-        if (!/^(10|20)$/.test(viewTok)){
-          warnGM('Usage: weather forecast [10|20]');
+        var viewDays = parseInt(viewTok, 10);
+        if (!/^\d+$/.test(viewTok) || viewDays < 1 || viewDays > CONFIG_WEATHER_FORECAST_DAYS){
+          warnGM('Usage: weather forecast [1-'+CONFIG_WEATHER_FORECAST_DAYS+']');
           break;
         }
-        ensureSettings().weatherForecastViewDays = _weatherViewDays(viewTok);
+        ensureSettings().weatherForecastViewDays = _weatherViewDays(viewDays);
       }
       weatherEnsureForecast();
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
@@ -7563,44 +7598,38 @@ function handleWeatherCommand(m, args){
       break;
 
     case 'send': {
-      // weather send <medium|high|today> <1|3|6|10>
-      // 'today' sends today's weather at the best tier previously revealed.
       var sendMethod = String(args[2]||'').toLowerCase();
-      var sendDays   = parseInt(args[3], 10) || 1;
-
-      if (sendMethod === 'today'){
-        // Send today at best revealed tier (or low if none)
-        weatherEnsureForecast();
-        var tSerSend = todaySerial();
-        var recSend  = _forecastRecord(tSerSend);
-        if (!recSend){
-          warnGM('No weather record for today. Try generating first.');
-          break;
-        }
-        var revSend   = _readReveal(getWeatherState().playerReveal[String(tSerSend)]);
-        var tierSend  = revSend.tier || 'low';
-        var srcSend   = revSend.source || 'common';
-        var srcLabel  = WEATHER_SOURCE_LABELS[srcSend] || 'Common Knowledge';
-        // Record the reveal (upgrade-only) — 'common' source for auto-send
-        _recordReveal(getWeatherState(), tSerSend, tierSend, srcSend);
-        var dateObjS  = fromSerial(tSerSend);
-        var mObjS     = getCal().months[dateObjS.mi] || {};
-        var titleS    = esc(mObjS.name||'?')+' '+dateObjS.day;
-        sendToAll(_menuBox(
-          "Today's Weather — "+titleS,
-          _playerDayHtml(recSend, tierSend, true, srcLabel)
-        ));
-        warnGM('Sent today\'s weather ('+tierSend+' / '+srcLabel+') to players.');
+      if (!sendMethod){
+        sendRevealedForecast(m);
         whisper(m.who, weatherTodayGmHtml());
         break;
       }
-
-      if (sendMethod !== 'medium' && sendMethod !== 'high'){
-        warnGM('Usage: weather send medium|high|today [1|3|6|10]');
+      if (sendMethod !== 'medium' && sendMethod !== 'high' && sendMethod !== 'today'){
+        warnGM('Usage: weather send');
         break;
       }
+      warnGM('Legacy syntax: use !cal weather reveal ... to grant knowledge, then !cal weather send to broadcast what players already know.');
+      if (sendMethod === 'today'){
+        sendRevealedForecast(m);
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      var sendDays   = parseInt(args[3], 10) || 1;
       sendPlayerForecast(m, sendMethod, sendDays);
       // Refresh today view so buttons are visible again
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+    }
+
+    case 'reveal': {
+      var revealMethod = String(args[2]||'').toLowerCase();
+      var revealDays = parseInt(args[3], 10) || 1;
+      if ((revealMethod !== 'medium' && revealMethod !== 'high') ||
+          revealDays < 1 || revealDays > 10){
+        warnGM('Usage: weather reveal medium|high [1-10]');
+        break;
+      }
+      sendPlayerForecast(m, revealMethod, revealDays);
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
@@ -8233,6 +8262,9 @@ function _moonLoreHtml(moonName){
 // Ring of Siberys lore panel
 function _siberysLoreHtml(){
   var r = RING_OF_SIBERYS;
+  var eberronRadiusKm = 6400;
+  var innerHeightKm = Math.max(0, r.innerEdge_km - eberronRadiusKm);
+  var outerHeightKm = Math.max(0, r.outerEdge_km - eberronRadiusKm);
   var html = '<b style="font-size:1.1em;">The Ring of Siberys</b>' +
     ' — <i>The Blood of the Dragon Above</i>' +
     '<br><br>An equatorial ring of siberys dragonshards encircling Eberron, ' +
@@ -8244,12 +8276,17 @@ function _siberysLoreHtml(){
     '<br><b>Thickness:</b> ' + r.thickness_m + ' meters' +
     '<br><b>Orbit:</b> ' + r.innerEdge_km.toLocaleString() + ' – ' +
       r.outerEdge_km.toLocaleString() + ' km (inside Zarantyr at 14,300 km)' +
+    '<br><b>Inclination:</b> ' + r.inclination + '° (equatorial)' +
+    '<br><b>Height Above Surface:</b> ' + innerHeightKm.toLocaleString() + ' – ' +
+      outerHeightKm.toLocaleString() + ' km' +
     '<br><b>Albedo:</b> ' + r.albedo +
+    '<br><b>Night-light Contribution:</b> ~0.008 lux from the ring alone (~0.010 lux ambient with starlight)' +
     '<br><br><b>Appearance:</b>' +
     '<br>&nbsp;&nbsp;Day: ' + esc(r.appearance.daylight) +
     '<br>&nbsp;&nbsp;Night: ' + esc(r.appearance.night) +
     '<br>&nbsp;&nbsp;Equator: ' + esc(r.appearance.equator) +
-    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles);
+    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles) +
+    '<br><br><b>Scale Notes:</b> inner edge sits above ISS-like orbital height; outer edge stretches well past the edge of a typical low-orbit band.';
   html += '<br><br>';
   for (var fi = 0; fi < r.facts.length; fi++){
     html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">• ' + esc(r.facts[fi]) + '</div>';

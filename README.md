@@ -17,6 +17,7 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 - [Calendar Navigation](#calendar-navigation)
 - [Events](#events)
 - [Moons](#moons)
+- [Modeling the Skies](#modeling-the-skies)
 - [Weather](#weather)
   - [Temperature](#temperature)
   - [Wind](#wind)
@@ -73,13 +74,13 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ```
 ### Player Buttons
 ```
-⏮ Previous  |  ⏭ Next
-📋 Today  |  📅 Upcoming
+◀ Prev  |  📅 Month  |  Next ▶
+📋 Today
 🌤 Weather
 🌙 Moons
 🌀 Planes
 ```
-> **Current implementation note:** The player quick bar currently exposes **Today**, **Weather**, **Moons**, and **Planes**. Month navigation and **Upcoming** remain GM-side flows.
+> **Current implementation note:** Adjacent month navigation is available on the player quick bar. **Upcoming** remains GM-side.
 
 - **Previous / Next** — see adjacent months
 - **Send** — sends the current date's calendar to players in public chat
@@ -114,6 +115,20 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. The reference moon's values are used as-is, with one exception: Barrakas applies an albedo multiplier for supernatural brightness (its association with Irian, the plane of life and light).
 	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
+
+---
+## Modeling the Skies
+
+The script models the sky as a physical system rather than flavor-only text. Moon brightness, eclipse behavior, and nighttime lighting all derive from explicit orbital proxies.
+
+### Ring of Siberys
+
+- Single equatorial ring at **0° inclination**
+- Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
+- **Albedo 0.50**, bright enough to stand out even in daylight
+- Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
+- Extends roughly **600 km to 5,600 km above the surface**, putting the inner edge above ISS-like orbital altitude and the outer edge beyond a typical low-orbit band
+
 ---
 ## Weather
 - Included is a homebrew system for managing the weather.
@@ -248,7 +263,7 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 !cal weather mechanics          — D&D mechanical effects for today's conditions
 ```
 
-> **Current implementation note:** `!cal weather forecast` currently accepts `10` or `20` as its explicit span values.
+`!cal weather forecast [n]` accepts any integer from `1` to `20`.
 
 ### GM Controls
 
@@ -263,12 +278,12 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 ### Sending Weather to Players
 
 ```
-!cal weather send low           — today + rough tomorrow (Common Knowledge)
-!cal weather send medium        — 3-day forecast (Skilled Forecast)
-!cal weather send high          — 10-day forecast with mechanics (Expert Forecast)
+!cal weather send               — send whatever forecast information is already revealed to players
+!cal weather reveal medium [n]  — reveal and send a skilled forecast for 1-10 days
+!cal weather reveal high [n]    — reveal and send an expert forecast for 1-10 days
 ```
 
-> **Current implementation note:** The implemented GM send commands are `!cal weather send today`, `!cal weather send medium <1|3|6|10>`, and `!cal weather send high <1|3|6|10>`.
+> **Current implementation note:** Today's common-knowledge weather is recorded automatically. Per-day low/medium/high reveal flags for arbitrary future dates remain tracked work in [AGENT TASKS.md](AGENT%20TASKS.md).
 
 ---
 
