@@ -234,21 +234,32 @@ Weather is generated for a specific location profile. Set the profile with `!cal
 | **Climate**   | arctic, temperate, tropical, arid, … | Sets overall temperature baseline and seasonal variation |
 | **Geography** | coastal, plains, hills, mountain, …  | Modifies temperature and precipitation patterns          |
 | **Terrain**   | forest, city, open, swamp, …         | Fine-tunes local conditions; affects fog frequency       |
+### Manifest Zones
+agent task clean this up.
+A **manifest zone** can be set independently of location. Manifest zones apply magical overlays on top of the location (e.g., a Syrania manifest zone forces calm, clear skies, while a Fernian manifest zone forces temp uppupp).
 
-A **manifest zone** can also be set independently. Manifest zones apply magical overlays on top of the location (e.g., a Syrania manifest zone forces calm, clear skies). Clear the manifest zone without changing the location when leaving the area.
+Clear the manifest zone without changing the location when leaving the area.
+
+agent task: the calm skies thing is a coterminous effect, not manifest zone. remote causes minimum of overcast as well. lets do a -1 on wind and rain for syrania manifest zones
 
 > **Current implementation note:** Manifest-zone selection is still the final step of the location wizard and is stored with the active location profile. Independent manifest-zone state is tracked in [AGENT TASKS.md](AGENT%20TASKS.md).
 
 Run `!cal weather location` in chat for the full list of valid keys and the interactive wizard.
 
+### Planes 
+agent task fill this in
+planes do stuff too when coterm or remopte
+
 ### Forecasting
 
-Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date.
+Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date. 
+
+agent task explain how this seed word works to the script author? make a new file in the repo explaining it.
 
 The generation pipeline runs per-day:
 1. **Baseline** — Climate, geography, and terrain set temperature, wind, and precipitation probabilities.
 2. **Continuity** — Each day nudges toward the previous day's conditions, producing coherent weather evolution rather than random swings.
-3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one.
+3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one. agent task do we have overnight werather as well? Maybe we should?
 4. **Fog** — Rolls separately, with persistence across days and interaction with wind.
 5. **Overlays** — Manifest zone and planar modifiers apply last (e.g., coterminous Syrania forces calm and clear regardless of baseline).
 
