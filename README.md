@@ -118,7 +118,7 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 - This system can be toggled on or off as desired.
 ### Temperature
 
-> **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
+> The temperature system uses a −5 to 15 band scale. Each band represents a 10°F range. Per-band mechanical effects are fully specified in the script's `WEATHER_TEMPERATURE_BANDS_F` table.
 
 | Temperature |   °F Approx.   | Mechanical Effect |
 | :---------: | :------------: | :---------------- |

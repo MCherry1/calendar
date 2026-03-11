@@ -171,9 +171,8 @@ var CONFIG_WEATHER_SEED_STRENGTH = 1;
 
 /* --- Weather Mechanics ----------------------------------------------------*/
 // Script-ready thermal reference tables (expanded Fahrenheit band model).
-// These are currently a canonical rules pack for design/runtime lookup and
-// migration planning. The active generator still rolls the legacy 0-10 temp
-// stage model (see WEATHER_CLIMATE_BASE and _deriveConditions).
+// The generator outputs values on the −5 to 15 band scale, indexing directly
+// into these tables (see WEATHER_CLIMATE_BASE and _deriveConditions).
 var WEATHER_TEMPERATURE_BANDS_F = [
   { band:-5, minF:null, maxF:-46, label:'unholy cold', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'none', notes:['mundane clothing insufficient','planar or supernatural cold','wind, wetness, immersion, and no shelter sharply worsen exposure'] },
   { band:-4, minF:-45, maxF:-36, label:'soul-freezing', nominalDC:25, coldRequirement:'heavy_cwc', coldRequirementLabel:'Heavy cold-weather clothing required', heatArmorDisadvantage:'none', notes:['strong wind and exposed skin are major escalators','fire and shelter strongly mitigate'] },
@@ -230,20 +229,30 @@ var WEATHER_TEMPERATURE_SYSTEM_RULES = {
   }
 };
 
-// Temperature mechanics per stage (0-10).
+// Temperature mechanics per band (−5 to 15).
 var CONFIG_WEATHER_MECHANICS = {
   temp: {
-    0:  'DC 25 Con save or exhaustion. Disadvantage without heavy cold weather clothing.',
-    1:  'DC 20 Con save or exhaustion. Disadvantage without medium or heavy cold weather clothing.',
-    2:  'DC 15 Con save or exhaustion. Disadvantage without light, medium, or heavy cold weather clothing.',
+    '-5': 'DC 30 Con save or exhaustion. Special protection required.',
+    '-4': 'DC 25 Con save or exhaustion. Disadvantage without heavy cold-weather clothing.',
+    '-3': 'DC 25 Con save or exhaustion. Disadvantage without heavy cold-weather clothing.',
+    '-2': 'DC 20 Con save or exhaustion. Disadvantage without medium cold-weather clothing.',
+    '-1': 'DC 20 Con save or exhaustion. Disadvantage without medium cold-weather clothing.',
+    0:  'DC 15 Con save or exhaustion. Disadvantage without light cold-weather clothing.',
+    1:  'DC 15 Con save or exhaustion. Disadvantage without light cold-weather clothing.',
+    2:  'DC 10 Con save or exhaustion.',
     3:  'DC 10 Con save or exhaustion.',
     4:  null,
     5:  null,
     6:  null,
-    7:  'DC 10 Con save or exhaustion.',
-    8:  'DC 15 Con save or exhaustion. Heavy armor wearers at disadvantage.',
-    9:  'DC 20 Con save or exhaustion. Medium and heavy armor wearers at disadvantage.',
-    10: 'DC 25 Con save or exhaustion. All armor wearers at disadvantage.'
+    7:  'DC 10 Con save or exhaustion (compounding factors).',
+    8:  'DC 10 Con save or exhaustion.',
+    9:  'DC 15 Con save or exhaustion.',
+    10: 'DC 15 Con save or exhaustion. Heavy armor wearers at disadvantage.',
+    11: 'DC 20 Con save or exhaustion. Medium and heavy armor wearers at disadvantage.',
+    12: 'DC 20 Con save or exhaustion. All armor wearers at disadvantage.',
+    13: 'DC 25 Con save or exhaustion. All armor wearers at disadvantage.',
+    14: 'DC 25 Con save or exhaustion. All armor wearers at disadvantage.',
+    15: 'DC 30 Con save or exhaustion. Mundane armor and clothing insufficient.'
   },
   wind: {
     0: null,
@@ -258,20 +267,25 @@ var CONFIG_WEATHER_MECHANICS = {
 };
 
 /* --- Weather Labels -------------------------------------------------------*/
-// Player-facing stage names. Precip labels are now condition names (see _deriveConditions).
+// Player-facing band names. Precip labels are now condition names (see _deriveConditions).
 var CONFIG_WEATHER_LABELS = {
-  temp: [
-    'Extreme Cold','Frigid','Freezing','Cold','Chilly',
-    'Mild','Warm','Hot','Sweltering','Blistering','Extreme Heat'
-  ],
+  temp: {
+    '-5':'Unholy Cold','-4':'Soul-Freezing','-3':'Brutal Cold',
+    '-2':'Bitter Cold','-1':'Biting Cold','0':'Hard Freeze',
+    '1':'Frigid','2':'Very Cold','3':'Freezing',
+    '4':'Chilly','5':'Cool','6':'Mild',
+    '7':'Temperate','8':'Warm','9':'Hot',
+    '10':'Sweltering','11':'Brutal Heat','12':'Scorching',
+    '13':'Searing','14':'Hellish','15':'Infernal'
+  },
   wind:   ['Calm','Breezy','Moderate Wind','Strong Winds','Gale','Storm'],
   precip: ['Clear','Partly Cloudy','Overcast','Light Precipitation','Moderate Precipitation','Heavy Precipitation']
 };
 
 /* --- Weather Flavor Text --------------------------------------------------*/
 // Keyed as tempBand|precipStage. precipStage uses the 0-5 precip scale.
-// tempBand: cold(0-3) = ≤20F, cool(4) = 35F, mild(5-6) = 50-65F,
-//           warm(7) = 80F, hot(8-10) = 95F+
+// tempBand: cold(≤3) = ≤34F, cool(4) = 35-44F, mild(5-6) = 45-64F,
+//           warm(7-8) = 65-84F, hot(9+) = 85F+
 // Fog is a derived condition (morning, low wind, swamp/valley/forest) and
 // handled separately in _deriveConditions — not represented here.
 var CONFIG_WEATHER_FLAVOR = {
@@ -3025,8 +3039,11 @@ function _weatherViewDays(n){
 function _playerButtonsHtml(){
   var out = [];
   var st = ensureSettings();
-  if (st.weatherEnabled !== false) out.push(button('📋 Forecast','forecast'));
-  if (st.moonsEnabled   !== false) out.push(button('🌙 Moons','moon'));
+  out.push(button('\uD83D\uDCCB Today','today'));
+  out.push(button('\uD83D\uDCC5 Upcoming','upcoming'));
+  if (st.weatherEnabled !== false) out.push(button('\uD83C\uDF24 Weather','weather'));
+  if (st.moonsEnabled   !== false) out.push(button('\uD83C\uDF19 Moons','moon'));
+  if (st.planesEnabled  !== false) out.push(button('\uD83C\uDF00 Planes','planes'));
   return out.join(' ');
 }
 
@@ -3173,7 +3190,7 @@ function sendCurrentDate(to, gmOnly, opts){
         var _wxRec    = _forecastRecord(todaySer);
         if (_wxRec && _wxRec.final){
           var _f  = _wxRec.final;
-          var _tL = CONFIG_WEATHER_LABELS.temp[Math.min(_f.temp, 10)] || _tempBand(_f.temp);
+          var _tL = CONFIG_WEATHER_LABELS.temp[_f.temp] || _tempBand(_f.temp);
           var _wxLoc   = _wxRec.location || {};
           var _wxCond  = _deriveConditions(_f, _wxLoc, 'afternoon', _wxRec.snowAccumulated, _wxRec.fog && _wxRec.fog.afternoon);
           var _wxNarr = _conditionsNarrative(_f, _wxCond, 'afternoon');
@@ -3889,9 +3906,9 @@ function _activePlanarWeatherShiftLines(serial){
     var eff = getActivePlanarEffects(serial);
     for (var i = 0; i < eff.length; i++){
       var e = eff[i];
-      if (e.plane === 'Fernia' && e.phase === 'coterminous') out.push('Fernia coterminous: temperature +2');
+      if (e.plane === 'Fernia' && e.phase === 'coterminous') out.push('Fernia coterminous: temperature +3');
       if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -1');
-      if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -2');
+      if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -3');
       if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +1');
       if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: precipitation -1, wind -1');
       if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: precipitation +1');
@@ -3901,6 +3918,42 @@ function _activePlanarWeatherShiftLines(serial){
     }
   } catch(e2){}
   return out;
+}
+
+// Compact single-line HTML annotation of all active weather modifiers for a day.
+// Shown as small text below trait badges in GM weather views.
+function _weatherInfluenceHtml(serial, loc){
+  var parts = [];
+  // Manifest zone
+  if (loc && loc.manifestZone && loc.manifestZone.name){
+    var mz = loc.manifestZone;
+    var desc = mz.name;
+    if (typeof mz.tempMod === 'number') desc += ' (temp ' + (mz.tempMod > 0 ? '+' : '') + mz.tempMod + ')';
+    if (typeof mz.precipMod === 'number') desc += ' (precip ' + (mz.precipMod > 0 ? '+' : '') + mz.precipMod + ')';
+    if (typeof mz.windMod === 'number') desc += ' (wind ' + (mz.windMod > 0 ? '+' : '') + mz.windMod + ')';
+    if (mz.chaotic) desc += ' (chaotic)';
+    parts.push('\uD83D\uDD25 ' + desc); // 🔥
+  }
+  // Planar effects
+  try {
+    var eff = getActivePlanarEffects(serial);
+    for (var i = 0; i < eff.length; i++){
+      var e = eff[i];
+      if (e.plane === 'Fernia' && e.phase === 'coterminous') parts.push('\uD83C\uDF0C Fernia cot. (+3 temp)');
+      if (e.plane === 'Fernia' && e.phase === 'remote')      parts.push('\uD83C\uDF0C Fernia rem. (\u22121 temp)');
+      if (e.plane === 'Risia'  && e.phase === 'coterminous') parts.push('\uD83C\uDF0C Risia cot. (\u22123 temp)');
+      if (e.plane === 'Risia'  && e.phase === 'remote')      parts.push('\uD83C\uDF0C Risia rem. (+1 temp)');
+      if (e.plane === 'Syrania'&& e.phase === 'coterminous') parts.push('\uD83C\uDF0C Syrania cot. (clear/calm)');
+      if (e.plane === 'Syrania'&& e.phase === 'remote')      parts.push('\uD83C\uDF0C Syrania rem. (+1 precip)');
+    }
+  } catch(ex){}
+  // Zarantyr full moon
+  try {
+    if (_isZarantyrFull(serial)) parts.push('\uD83C\uDF19 Zarantyr full (lightning boost)');
+  } catch(ex){}
+  if (!parts.length) return '';
+  return '<div style="font-size:.78em;opacity:.65;margin:2px 0;">' +
+    parts.map(esc).join(' &nbsp;\u00B7&nbsp; ') + '</div>';
 }
 
 function activeEffectsPanelHtml(){
@@ -4485,6 +4538,174 @@ function _todayAllHtml(){
     sections.join(''));
 }
 
+// ── Player Today — simplified view respecting revealed tiers ───────────
+function _playerTodayHtml(){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var cal = getCal(), c = cal.current;
+  var mObj = cal.months[c.month] || {};
+  var wd = cal.weekdays[c.day_of_the_week];
+  var sections = [];
+
+  sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
+    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
+    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
+
+  // Events (always public)
+  try {
+    var occ = occurrencesInRange(today, today);
+    if (occ.length){
+      var names = [], seen = {};
+      for (var oi = 0; oi < occ.length; oi++){
+        var nm = eventDisplayName(occ[oi].e);
+        if (!seen[nm.toLowerCase()]){ seen[nm.toLowerCase()]=1; names.push(nm); }
+      }
+      sections.push('<div style="margin:3px 0;">\uD83C\uDF89 <b>Events:</b> ' +
+        names.map(esc).join(', ') + '</div>');
+    }
+  } catch(e){}
+
+  // Weather at player's revealed tier
+  if (st.weatherEnabled !== false){
+    try {
+      weatherEnsureForecast();
+      var ws = getWeatherState();
+      var wxRec = _forecastRecord(today);
+      if (wxRec && wxRec.final){
+        var reveal = ws.playerReveal && ws.playerReveal[today];
+        var tier = (reveal && reveal.tier) || 'low';
+        var src  = (reveal && reveal.source) || 'common';
+        sections.push('<div style="margin:4px 0;"><b>\u2601 Weather:</b></div>' +
+          '<div style="margin-left:8px;">' + _playerDayHtml(wxRec, tier, true, src) + '</div>');
+      }
+    } catch(e){}
+  }
+
+  // Moon phases (basic phase info is always visible — you can see the sky)
+  if (st.moonsEnabled !== false){
+    try {
+      moonEnsureSequences();
+      var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      if (sys && sys.moons){
+        var moonLines = [];
+        for (var mi = 0; mi < sys.moons.length; mi++){
+          var moon = sys.moons[mi];
+          var ph = moonPhaseAt(moon.name, today);
+          if (!ph) continue;
+          var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+          var pLabel = _moonPhaseLabel(ph.illum, ph.waxing);
+          var pct = Math.round(ph.illum * 100);
+          var extra = '';
+          if (ph.illum >= 0.97) extra = ' <b style="color:#FFD700;">FULL</b>';
+          else if (ph.illum <= 0.03) extra = ' <b>NEW</b>';
+          moonLines.push(emoji + ' ' + esc(moon.name) + ' (' + pct + '% ' + esc(pLabel) + ')' + extra);
+        }
+        if (moonLines.length){
+          sections.push('<div style="margin:4px 0;"><b>\uD83C\uDF19 Moons:</b></div>' +
+            '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+            moonLines.join('<br>') + '</div>');
+        }
+      }
+    } catch(e){}
+  }
+
+  // Planar effects (low tier: canon events currently active)
+  if (st.planesEnabled !== false){
+    try {
+      var plNotes = _planarNotableToday(today);
+      if (plNotes.length){
+        sections.push('<div style="margin:4px 0;"><b>\uD83C\uDF00 Planar:</b></div>' +
+          '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+          plNotes.join('<br>') + '</div>');
+      }
+    } catch(e){}
+  }
+
+  sections.push('<div style="margin-top:6px;">' +
+    button('\u2B05 Calendar', '') +
+    '</div>');
+
+  return _menuBox('\uD83D\uDCCB Today \u2014 ' + esc(mObj.name) + ' ' + c.day_of_the_month,
+    sections.join(''));
+}
+
+// ── Player Upcoming — simplified 7-day view ───────────────────────────
+function _playerUpcomingHtml(){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var days = 7;
+  var cal = getCal();
+  var rows = [];
+  for (var i = 0; i < days; i++){
+    var ser = today + i;
+    var d = fromSerial(ser);
+    var mObj = cal.months[d.mi] || {};
+    var dayLabel = esc(mObj.name) + ' ' + d.day;
+    if (i === 0) dayLabel = '<b>' + dayLabel + '</b>';
+    var bits = [];
+    // Weather (only if revealed)
+    if (st.weatherEnabled !== false){
+      try {
+        var ws = getWeatherState();
+        var reveal = ws.playerReveal && ws.playerReveal[ser];
+        if (reveal || i === 0){
+          var wxRec = _forecastRecord(ser);
+          if (wxRec && wxRec.final){
+            var wxCond = _deriveConditions(wxRec.final, wxRec.location||{}, 'afternoon',
+              wxRec.snowAccumulated, wxRec.fog && wxRec.fog.afternoon);
+            bits.push(_weatherEmojiForRecord(wxRec) + ' ' + esc(_conditionsNarrative(wxRec.final, wxCond, 'afternoon')));
+          }
+        }
+      } catch(e){}
+    }
+    // Moon events (full/new — observable)
+    if (st.moonsEnabled !== false){
+      try {
+        var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+        if (sys && sys.moons){
+          var moonBits = [];
+          for (var mi = 0; mi < sys.moons.length; mi++){
+            var moon = sys.moons[mi];
+            var ph = moonPhaseAt(moon.name, ser);
+            if (!ph) continue;
+            if (ph.illum >= 0.97) moonBits.push('\uD83C\uDF15 ' + moon.name);
+            else if (ph.illum <= 0.03) moonBits.push('\uD83C\uDF11 ' + moon.name);
+          }
+          if (moonBits.length) bits.push(moonBits.join(' \u00B7 '));
+        }
+      } catch(e){}
+    }
+    // Calendar events
+    try {
+      var occ = occurrencesInRange(ser, ser);
+      if (occ.length){
+        var evNames = [], evSeen = {};
+        for (var oi = 0; oi < occ.length; oi++){
+          var nm = eventDisplayName(occ[oi].e);
+          if (!evSeen[nm.toLowerCase()]){ evSeen[nm.toLowerCase()]=1; evNames.push(nm); }
+        }
+        bits.push('\uD83C\uDF89 ' + evNames.slice(0,2).map(esc).join(', '));
+      }
+    } catch(e){}
+    if (bits.length){
+      var border = (i < days - 1) ? 'border-bottom:1px solid rgba(255,255,255,.06);' : '';
+      rows.push('<div style="padding:2px 0;'+border+'">' +
+        '<span style="font-size:.85em;">' + dayLabel + '</span> ' +
+        '<span style="font-size:.78em;opacity:.75;">' + bits.join(' \u00B7 ') + '</span>' +
+        '</div>');
+    }
+  }
+  var detailHtml = rows.length
+    ? '<div style="margin-top:4px;">' + rows.join('') + '</div>'
+    : '';
+  return _menuBox('\uD83D\uDCC5 This Week', detailHtml +
+    '<div style="margin-top:6px;">' +
+    button('\u2B05 Calendar', '') + ' ' +
+    button('\uD83D\uDCCB Today', 'today') +
+    '</div>'
+  );
+}
+
 // ── Upcoming — 7-day combined view ─────────────────────────────────────
 // Shows a week strip (today + 6) using the calendar grid renderer, plus
 // subsystem highlights for each day below. Fixed at 7 days.
@@ -4674,18 +4895,19 @@ var commands = {
       moonEnsureSequences();
       whisper(m.who, _todayAllHtml());
     } else {
-      // Players see their tier-appropriate view
-      _showDefaultCalView(m);
+      weatherEnsureForecast();
+      moonEnsureSequences();
+      whisper(cleanWho(m.who), _playerTodayHtml());
     }
   },
 
   upcoming: function(m, a){
+    weatherEnsureForecast();
+    moonEnsureSequences();
     if (playerIsGM(m.playerid)){
-      weatherEnsureForecast();
-      moonEnsureSequences();
       whisper(m.who, _upcomingHtml());
     } else {
-      whisper(m.who, 'This Week view is GM-only. Try ' + button('📋 Forecast','forecast'));
+      whisper(cleanWho(m.who), _playerUpcomingHtml());
     }
   },
 
@@ -5079,137 +5301,137 @@ var WEATHER_TOD_BELL = [
 // Deterministic TOD arc — the predictable daily shape per climate.
 // afternoon = reference (offset 0). Arc is scaled by geo × terrain arcMult.
 var WEATHER_TOD_ARC = {
-  polar:       { temp:{morning:-1,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening: 0} },
-  continental: { temp:{morning:-2,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
-  temperate:   { temp:{morning:-1,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
-  dry:         { temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening:-1}, precip:{morning:-1,afternoon:0,evening: 0} },
-  tropical:    { temp:{morning:-1,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} },
-  monsoon:     { temp:{morning:-1,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening:+1}, precip:{morning:-1,afternoon:0,evening:+2} },
-  mediterranean:{ temp:{morning:-2,afternoon:0,evening:-1}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} }
+  polar:       { temp:{morning:-2,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening: 0} },
+  continental: { temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
+  temperate:   { temp:{morning:-2,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
+  dry:         { temp:{morning:-4,afternoon:0,evening:-3}, wind:{morning:-1,afternoon:0,evening:-1}, precip:{morning:-1,afternoon:0,evening: 0} },
+  tropical:    { temp:{morning:-2,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} },
+  monsoon:     { temp:{morning:-2,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening:+1}, precip:{morning:-1,afternoon:0,evening:+2} },
+  mediterranean:{ temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} }
 };
 
 // ---------------------------------------------------------------------------
 // Climate base tables — 5 climates × 12 months (index 0=mid-winter … 11=early-winter)
 // Each entry: { temp, wind, precip } each { base, die, min, max }
 // Geography and terrain modifiers shift base/min/max uniformly. die is unchanged.
-// Temp scale: 0=−25°F … 5=50°F … 10=125°F+
+// Temp scale: −5=≤−46°F … 6=55°F … 15=≥145°F (expanded band model)
 // Wind scale: 0=calm … 5=storm     Precip scale: 0=clear … 5=extreme
 // ---------------------------------------------------------------------------
 var WEATHER_CLIMATE_BASE = {
 
   // Frostfell, Demon Wastes — perpetually cold, windswept, low moisture
   polar: [
-    /*0  mid-win */ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*1  late-win*/ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*2  early-sp*/ {temp:{base:2,die:2,min:1,max:3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*3  mid-sp  */ {temp:{base:3,die:2,min:2,max:4}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*4  late-sp */ {temp:{base:3,die:2,min:2,max:4}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*5  early-su*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*6  mid-su  */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*7  late-su */ {temp:{base:3,die:2,min:2,max:4}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8  early-au*/ {temp:{base:2,die:2,min:1,max:3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*9  mid-au  */ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*10 late-au */ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*11 early-wn*/ {temp:{base:1,die:2,min:0,max:2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
+    /*0  mid-win */ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1  late-win*/ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2  early-sp*/ {temp:{base:0,die:2,min:-2,max:2},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*3  mid-sp  */ {temp:{base:2,die:2,min:0,max:3},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*4  late-sp */ {temp:{base:2,die:2,min:0,max:3},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*5  early-su*/ {temp:{base:3,die:2,min:2,max:5},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6  mid-su  */ {temp:{base:3,die:2,min:2,max:5},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7  late-su */ {temp:{base:2,die:2,min:0,max:3},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8  early-au*/ {temp:{base:0,die:2,min:-2,max:2},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10 late-au */ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Karrnath, Mror Holds interior — wide seasonal swing, harsh winters
   continental: [
-    /*0 */ {temp:{base:2,die:3,min:1,max:3}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*1 */ {temp:{base:3,die:3,min:1,max:4}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*2 */ {temp:{base:4,die:3,min:3,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*3 */ {temp:{base:5,die:2,min:4,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*4 */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*5 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*6 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*7 */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:5,die:3,min:3,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
-    /*9 */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*10*/ {temp:{base:3,die:2,min:2,max:4}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:2,die:3,min:1,max:3}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*0 */ {temp:{base:0,die:3,min:-2,max:2},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*1 */ {temp:{base:2,die:3,min:-2,max:3},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*2 */ {temp:{base:3,die:3,min:2,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:5,die:2,min:3,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:6,die:2,min:5,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*5 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:6,die:2,min:5,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:5,die:3,min:2,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*9 */ {temp:{base:3,die:2,min:2,max:5},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*10*/ {temp:{base:2,die:2,min:0,max:3},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*11*/ {temp:{base:0,die:3,min:-2,max:2},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Breland, Shadow Marches, most of Khorvaire — moderate, maritime-influenced
   temperate: [
-    /*0 */ {temp:{base:3,die:2,min:2,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*1 */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*2 */ {temp:{base:5,die:2,min:4,max:6}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*3 */ {temp:{base:5,die:2,min:4,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*4 */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*5 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*6 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*7 */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:6,die:3,min:4,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
-    /*9 */ {temp:{base:5,die:2,min:4,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*10*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:3,die:2,min:2,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*0 */ {temp:{base:2,die:2,min:0,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*1 */ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*2 */ {temp:{base:5,die:2,min:3,max:6},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:5,die:2,min:3,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*5 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:6,die:3,min:3,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*9 */ {temp:{base:5,die:2,min:3,max:6},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*10*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*11*/ {temp:{base:2,die:2,min:0,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Blade Desert, Valenar interior — heat-dominated, wide daily swings, very low precip
   dry: [
-    /*0 */ {temp:{base:5,die:3,min:3,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*1 */ {temp:{base:5,die:3,min:4,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*2 */ {temp:{base:6,die:3,min:5,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:1}},
-    /*3 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*4 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*5 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*6 */ {temp:{base:9,die:2,min:8,max:10},wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
-    /*7 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
-    /*8 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
-    /*9 */ {temp:{base:6,die:3,min:5,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*10*/ {temp:{base:6,die:3,min:4,max:7}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*11*/ {temp:{base:5,die:3,min:3,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}}
+    /*0 */ {temp:{base:5,die:3,min:2,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1 */ {temp:{base:5,die:3,min:3,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2 */ {temp:{base:6,die:3,min:5,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:1}},
+    /*3 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*4 */ {temp:{base:9,die:2,min:8,max:11},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*5 */ {temp:{base:9,die:2,min:8,max:11},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*6 */ {temp:{base:11,die:2,min:9,max:12}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*7 */ {temp:{base:9,die:2,min:8,max:11},  wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*8 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*9 */ {temp:{base:6,die:3,min:5,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10*/ {temp:{base:6,die:3,min:3,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11*/ {temp:{base:5,die:3,min:2,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Sharn, Q'barra, Xen'drik coast — narrow temp swing, seasonal rains
   tropical: [
-    /*0 */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*1 */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*2 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*3 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*4 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:2}},
-    /*5 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*6 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*7 */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*9 */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*10*/ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*11*/ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}}
+    /*0 */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*1 */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*2 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:2}},
+    /*5 */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*9 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*10*/ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*11*/ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Q'barra interior monsoon, Xen'drik seasonal — dramatic wet/dry season flip
   // Dry season (winter–early spring): clear skies, low precip
   // Wet season (summer–autumn): torrential, daily downpours, high wind
   monsoon: [
-    /*0  mid-win */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*1  late-win*/ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*2  early-sp*/ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*3  mid-sp  */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*4  late-sp */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*5  early-su*/ {temp:{base:8,die:2,min:7,max:9}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
-    /*6  mid-su  */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
-    /*7  late-su */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
-    /*8  early-au*/ {temp:{base:7,die:2,min:6,max:8}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*9  mid-au  */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*10 late-au */ {temp:{base:6,die:2,min:5,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*11 early-wn*/ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}}
+    /*0  mid-win */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*1  late-win*/ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*2  early-sp*/ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*3  mid-sp  */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*4  late-sp */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*5  early-su*/ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*6  mid-su  */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*7  late-su */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*8  early-au*/ {temp:{base:8,die:2,min:6,max:9},  wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*9  mid-au  */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*10 late-au */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}}
   ],
 
   // Valenar coast, southern Breland — hot dry summers, mild wet winters
   // Inverted precip curve: winters wetter than summers
   mediterranean: [
-    /*0  mid-win */ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*1  late-win*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:1,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*2  early-sp*/ {temp:{base:5,die:2,min:4,max:6}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*3  mid-sp  */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*4  late-sp */ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:1}},
-    /*5  early-su*/ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*6  mid-su  */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*7  late-su */ {temp:{base:8,die:2,min:7,max:9}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*8  early-au*/ {temp:{base:7,die:2,min:6,max:8}, wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*9  mid-au  */ {temp:{base:6,die:2,min:5,max:7}, wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*10 late-au */ {temp:{base:5,die:2,min:4,max:6}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*11 early-wn*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
+    /*0  mid-win */ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*1  late-win*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:1,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*2  early-sp*/ {temp:{base:5,die:2,min:3,max:6},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3  mid-sp  */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*4  late-sp */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:1}},
+    /*5  early-su*/ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*6  mid-su  */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*7  late-su */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*8  early-au*/ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*10 late-au */ {temp:{base:5,die:2,min:3,max:6},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*11 early-wn*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
   ]
 };
 
@@ -5548,24 +5770,25 @@ function _getModEntry(table, monthIdx){
 // Compose the final formula for one day from all three layers.
 // Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
 function _composeFormula(climate, geography, terrain, monthIdx){
-  var TRAIT_MAX = { temp:10, wind:3, precip:3 };
+  var TRAIT_MIN = { temp:-5, wind:0, precip:0 };
+  var TRAIT_MAX = { temp:15, wind:3, precip:3 };
   var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
   var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
   var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
   var tMod    = _getModEntry(WEATHER_TERRAIN_MOD[terrain]   || WEATHER_TERRAIN_MOD.open,  monthIdx);
 
-  function composeTrait(b, gm, tm, traitMax){
+  function composeTrait(b, gm, tm, traitMin, traitMax){
     var shift = (gm|0) + (tm|0);
-    var mn = Math.max(0,         (b.min|0) + shift);
+    var mn = Math.max(traitMin,  (b.min|0) + shift);
     var mx = Math.min(traitMax,  (b.max|0) + shift);
     if (mx < mn) mx = mn;
     return { base: (b.base|0) + shift, die: b.die, min: mn, max: mx };
   }
 
   return {
-    temp:    composeTrait(base.temp,   gMod.temp,   tMod.temp,   TRAIT_MAX.temp),
-    wind:    composeTrait(base.wind,   gMod.wind,   tMod.wind,   TRAIT_MAX.wind),
-    precip:  composeTrait(base.precip, gMod.precip, tMod.precip, TRAIT_MAX.precip),
+    temp:    composeTrait(base.temp,   gMod.temp,   tMod.temp,   TRAIT_MIN.temp,   TRAIT_MAX.temp),
+    wind:    composeTrait(base.wind,   gMod.wind,   tMod.wind,   TRAIT_MIN.wind,   TRAIT_MAX.wind),
+    precip:  composeTrait(base.precip, gMod.precip, tMod.precip, TRAIT_MIN.precip, TRAIT_MAX.precip),
     arcMult: (gMod.arc || 1.0) * (tMod.arc || 1.0)
   };
 }
@@ -5797,15 +6020,18 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
       var _plEff = getActivePlanarEffects(serial);
       for (var _pe = 0; _pe < _plEff.length; _pe++){
         var _ppe = _plEff[_pe];
-        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'coterminous') finalVals.temp += 2;
+        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'coterminous') finalVals.temp += 3;
         if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')      finalVals.temp -= 1;
-        if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 2;
+        if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 3;
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 1;
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = 0; finalVals.wind = 0; }
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
       }
     } catch(e){ /* planar system not ready */ }
   }
+
+  // Final temp clamp to valid band range after all modifiers.
+  finalVals.temp = Math.max(-5, Math.min(15, finalVals.temp));
 
   // Snow accumulation: previous day was cold (temp ≤3) with any precipitation.
   var snowAccumulated = !!(prevFinal && prevFinal.temp <= 3 && prevFinal.precip >= 1);
@@ -6005,11 +6231,11 @@ var EXTREME_EVENTS = {
       var openGeos    = { open_plains:1, arctic_plain:1 };
       var dryClimates = { dry:1 };
       // Needs dry conditions: no precipitation, hot, windy
-      if (f.precip > 0 || f.temp < 8 || f.wind < 2) return 0;
+      if (f.precip > 0 || f.temp < 9 || f.wind < 2) return 0;
       if (!dryTerrains[loc.terrain] && !openGeos[loc.geography]) return 0;
       var p = 0.10;
       if (f.wind >= 3) p += 0.05;
-      if (f.temp >= 9) p += 0.05;
+      if (f.temp >= 10) p += 0.05;
       return Math.min(0.20, p);
     },
     duration:  '10 minutes – 3 hours',
@@ -6045,7 +6271,7 @@ var EXTREME_EVENTS = {
     check: function(f, loc, sa, wa){
       if (f.temp < 7 || f.precip < 3 || f.wind < 2) return 0;
       var p = 0.25;
-      if (f.temp >= 8) p += 0.10;
+      if (f.temp >= 9) p += 0.10;
       return Math.min(0.35, p);
     },
     duration:  '1–3 hours',
@@ -6063,7 +6289,7 @@ var EXTREME_EVENTS = {
       if (f.precip > 1 || f.wind > 2) return 0;
       var p = 0.02;
       if (f.temp >= 7) p += 0.02;
-      if (f.temp >= 8) p += 0.01;
+      if (f.temp >= 9) p += 0.01;
       return Math.min(0.06, p);
     },
     duration:  'Instantaneous strike or short burst (minutes)',
@@ -6083,7 +6309,7 @@ var EXTREME_EVENTS = {
     },
     duration:  '1–4 hours for freeze; persists until thaw',
     mechanics: 'All exposed water surfaces (puddles, ford crossings, wet mud) become ice. Difficult terrain on all outdoor surfaces. DC 12 Acrobatics to avoid falling prone when moving at full speed on ice.',
-    aftermath: 'Icy surfaces persist until temperature rises above stage 4. Fords may be crossable on foot — or may give way.',
+    aftermath: 'Icy surfaces persist until temperature rises above band 4 (44°F). Fords may be crossable on foot — or may give way.',
     playerMsg: function(loc){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
   },
 
@@ -6096,7 +6322,7 @@ var EXTREME_EVENTS = {
       if (f.temp < 7 || f.wind < 3 || f.precip < 3 || !seaGeos[loc.geography]) return 0;
       var p = 0.20;
       if (f.wind >= 4) p += 0.15;
-      if (f.temp >= 8) p += 0.10;
+      if (f.temp >= 9) p += 0.10;
       return Math.min(0.45, p);
     },
     duration:  '6–24 hours',
@@ -6112,7 +6338,7 @@ var EXTREME_EVENTS = {
     // Rarer and more dangerous than tropical storm
     check: function(f, loc, sa, wa){
       var seaGeos = { coastal:1, open_sea:1 };
-      if (f.temp < 8 || f.wind < 4 || f.precip < 4 || !seaGeos[loc.geography]) return 0;
+      if (f.temp < 9 || f.wind < 4 || f.precip < 4 || !seaGeos[loc.geography]) return 0;
       var p = 0.30;
       if (f.wind >= 5) p += 0.20;
       if (f.precip >= 5) p += 0.10;
@@ -6239,7 +6465,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
   var terrain = (loc && loc.terrain)   || 'open';
 
   // -- Precip type --
-  // temp ≤3 (≤20F) = snow zone; temp 4 (35F) = sleet zone; temp ≥5 = rain zone
+  // temp ≤3 (≤34F) = snow zone; temp 4 (35-44F) = sleet zone; temp ≥5 (45F+) = rain zone
   // precip 1 = partly cloudy/light, 2 = overcast/moderate, 3 = precipitation,
   // 4 = heavy precipitation, 5 = extreme/deluge
   var precipType = 'none';
@@ -6448,11 +6674,11 @@ function _conditionsNarrative(pv, cond, period){
 }
 
 function _tempBand(stage){
-  if (stage <= 3) return 'cold';
-  if (stage === 4) return 'cool';
-  if (stage <= 6) return 'mild';
-  if (stage === 7) return 'warm';
-  return 'hot';
+  if (stage <= 3) return 'cold';   // ≤34°F
+  if (stage === 4) return 'cool';  // 35-44°F
+  if (stage <= 6) return 'mild';   // 45-64°F
+  if (stage <= 8) return 'warm';   // 65-84°F
+  return 'hot';                     // 85°F+
 }
 
 function _flavorText(pv){
@@ -6488,16 +6714,25 @@ function _weatherTraitBadge(trait, stage){
   //   Precip: pale sky (clear) → deep slate blue (torrential)
   var palettes = {
     temp: [
-      '#A8D8FF','#C2E0FF','#D6ECFF','#E8F4FF','#F0F4F8',  // 0-4 cold range
-      '#F5F5F0',                                            // 5 balanced
-      '#FFF3E0','#FFD54F','#FF8A65','#E53935','#B71C1C'    // 6-10 hot range
+      '#1565C0','#1E88E5','#42A5F5','#64B5F6','#90CAF9',  // -5 to -1: deep blue → light blue
+      '#A8D8FF','#C2E0FF','#D6ECFF','#E8F4FF','#F0F4F8',  //  0 to  4: pale blue → near-white
+      '#F5F5F0',                                            //  5: neutral
+      '#FFF3E0','#FFE0B2','#FFD54F','#FF8A65','#E53935',   //  6 to 10: warm yellow → red
+      '#C62828','#B71C1C','#8B0000','#6A0000','#4A0000'    // 11 to 15: deep red → dark
     ],
     wind:  ['#F5F5F5','#E0E8E0','#B0BEC5','#546E7A'],
     precip:['#F0F8FF','#CFE8F5','#90CAF9','#1565C0']
   };
   var pal   = palettes[trait] || palettes.wind;
-  var bg    = pal[Math.max(0, Math.min(stage, pal.length-1))];
-  var label = (CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage);
+  var bg, label;
+  if (trait === 'temp'){
+    // Temp uses band index -5 to 15; palette offset by +5
+    bg = pal[Math.max(0, Math.min(stage + 5, pal.length - 1))];
+    label = CONFIG_WEATHER_LABELS.temp[stage] || String(stage);
+  } else {
+    bg = pal[Math.max(0, Math.min(stage, pal.length - 1))];
+    label = (CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage);
+  }
   var tc    = textColor(bg);
   return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+esc(bg)+';color:'+esc(tc)+';font-size:.85em;">'+esc(label)+'</span>';
 }
@@ -6523,6 +6758,10 @@ function _weatherDayGmHtml(rec, showBreakdown){
     '</div>'
   );
   lines.push('<div style="font-size:.8em;opacity:.7;">T:'+f.temp+' W:'+f.wind+' P:'+f.precip+'&nbsp;&nbsp;['+esc(tCfg.label)+']</div>');
+
+  // Weather influence sources annotation
+  var _infHtml = _weatherInfluenceHtml(rec.serial, rec.location);
+  if (_infHtml) lines.push(_infHtml);
 
   // Full period breakdown — shown for today's view (showBreakdown) at certain tier.
   // Each period shows narrative, badges, crit flags, and derived mechanics.
@@ -7502,8 +7741,8 @@ function handleWeatherCommand(m, args){
         var mz = null;
         // Manifest zones: the plane's influence leaks through, not the plane itself.
         // Effects are mild nudges, not hard limits.
-        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:2 };
-        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-2 };
+        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:3 };
+        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-3 };
         else if (zoneKey === 'irian')    mz = { name:'Irian',     tempMod:1 };
         else if (zoneKey === 'mabar')    mz = { name:'Mabar',     tempMod:-1 };
         else if (zoneKey === 'lamannia') mz = { name:'Lamannia',  precipMod:1 };

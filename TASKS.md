@@ -29,31 +29,9 @@ These are well-defined implementation tasks. The design is decided, the target b
 
 ---
 
-### Refactor temperature generators to −5 to 15 scale
-
-The four target data tables (`WEATHER_TEMPERATURE_BANDS_F`, `WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) are already defined in the script using band indices -5 through 15.
-
-However, the actual temperature generators (`WEATHER_CLIMATE_BASE` and the formula/roll system) produce values on a **0–10 stage scale**, not the -5 to 15 band scale. The task is to refactor the generators so their output maps directly to the -5 to 15 band indices, eliminating the intermediate stage layer.
-
-**Scope:** All climate definitions in `WEATHER_CLIMATE_BASE` (polar, subarctic, temperate, subtropical, tropical, arid, etc.) and the `_composeFormula()` / `_rollTrait()` pipeline need to output on the -5 to 15 scale. The existing F° band mappings in `WEATHER_TEMPERATURE_BANDS_F` should remain unchanged — the generator output just needs to index into them directly.
-
-**Note:** Fernia/Risia manifest zone temperature modifiers (currently ±2) may need adjustment for the new scale. ±3 seems appropriate per DESIGN.md notes.
-
 ---
 
-### Show weather influence sources
-
-In the weather display (both GM and player views), indicate when a plane, manifest zone, or moon is currently modifying weather conditions. For example: "🌙 Zarantyr (lightning boost)" or "🔥 Fernia manifest zone (+3 temp)". This should appear as a small annotation line, not clutter the main display.
-
 ---
-
-### Ensure players can use `!cal` subsystem views
-
-Players can currently use `!cal` for the basic calendar view. Verify and enable access to subsystem views (weather forecast, moon phases, planar status) with appropriate permission gating:
-- Weather: players see their revealed forecast only (already works via `!cal weather`)
-- Moons: players see their revealed moon data (already works via `!cal moon`)
-- Planes: players see their revealed planar data
-- Today: players should see a simplified Today view (currently GM-only)
 
 ---
 
