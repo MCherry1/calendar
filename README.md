@@ -153,10 +153,16 @@ these are not tracked. they could be, but it gets weird fast and doesn't add a l
 
 
 ---
+agent task clean this section and format
 ## Weather
 - This system can be toggled on or off as desired.
-- Included is a homebrew system for managing the weather. The script author here thinks it's pretty slick, but isn't insulted if you don't like it.
-	- There are a couple novel mechanics introduced.
+- Included is a homebrew system for managing the weather. The script author thinks it's pretty slick, but isn't insulted if you don't like it.
+	- **Temperature Mechanics:**
+		- At GM discretion, players need to make **consitutions saves** or suffer 1 level of **exhaustion**.
+		- Recommend 1 check for any day of travel or other outside activeity, and 1 check per combat.
+		- At the lower end, different degrees of "cold weather clothing" exist. they use normal armor proficiency rules. if you aren't proficient with the armor level, you are considered to be wearing armor you aren't proficient in. (agent task rephrase?)
+		- At the upper end, wearing armor is a hindrance.
+		- Resistance to Cold/Fire grants advantage on the save. Immunity automatically saves.
 
 ### Temperature
 
