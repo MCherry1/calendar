@@ -79,6 +79,8 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 🌙 Moons
 🌀 Planes
 ```
+> **Current implementation note:** The player quick bar currently exposes **Today**, **Weather**, **Moons**, and **Planes**. Month navigation and **Upcoming** remain GM-side flows.
+
 - **Previous / Next** — see adjacent months
 - **Send** — sends the current date's calendar to players in public chat
 - **Today** — summary for the current in-game date
@@ -119,6 +121,8 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ### Temperature
 
 > **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
+
+> **Update:** The live weather generator now rolls directly on the `-5` to `15` band scale shown below.
 
 | Temperature |   °F Approx.   | Mechanical Effect |
 | :---------: | :------------: | :---------------- |
@@ -177,6 +181,8 @@ Weather is generated for a specific location profile. Set the profile with `!cal
 
 A **manifest zone** can also be set independently. Manifest zones apply magical overlays on top of the location (e.g., a Syrania manifest zone forces calm, clear skies). Clear the manifest zone without changing the location when leaving the area.
 
+> **Current implementation note:** Manifest-zone selection is still the final step of the location wizard and is stored with the active location profile. Independent manifest-zone state is tracked in [AGENT TASKS.md](AGENT%20TASKS.md).
+
 Run `!cal weather location` in chat for the full list of valid keys and the interactive wizard.
 
 ### Forecasting
@@ -189,6 +195,8 @@ The generation pipeline runs per-day:
 3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one.
 4. **Fog** — Rolls separately, with persistence across days and interaction with wind.
 5. **Overlays** — Manifest zone and planar modifiers apply last (e.g., coterminous Syrania forces calm and clear regardless of baseline).
+
+Current weather readouts also add a small annotation line whenever a manifest zone, planar state, or Zarantyr's full moon is actively modifying the day's weather.
 
 **Player reveals** are upgrade-only. Once a tier of information is given, players retain it. GMs always see full detail.
 
@@ -240,6 +248,8 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 !cal weather mechanics          — D&D mechanical effects for today's conditions
 ```
 
+> **Current implementation note:** `!cal weather forecast` currently accepts `10` or `20` as its explicit span values.
+
 ### GM Controls
 
 ```
@@ -257,6 +267,8 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 !cal weather send medium        — 3-day forecast (Skilled Forecast)
 !cal weather send high          — 10-day forecast with mechanics (Expert Forecast)
 ```
+
+> **Current implementation note:** The implemented GM send commands are `!cal weather send today`, `!cal weather send medium <1|3|6|10>`, and `!cal weather send high <1|3|6|10>`.
 
 ---
 
@@ -381,6 +393,8 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 - **Eberron** — 12 months × 28 days, YK era, 7-day weeks
 - **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + festival days, DR era, tenday columns
 - **Gregorian** — Standard Earth calendar
+
+> **Current implementation note:** Harptos date math and festival days are present, but the rendered calendar still uses weekday columns until the tenday-layout task is completed.
 
 ---
 

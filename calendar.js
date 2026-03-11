@@ -171,9 +171,7 @@ var CONFIG_WEATHER_SEED_STRENGTH = 1;
 
 /* --- Weather Mechanics ----------------------------------------------------*/
 // Script-ready thermal reference tables (expanded Fahrenheit band model).
-// These are currently a canonical rules pack for design/runtime lookup and
-// migration planning. The active generator still rolls the legacy 0-10 temp
-// stage model (see WEATHER_CLIMATE_BASE and _deriveConditions).
+// The live generator and display layers now use these -5..15 bands directly.
 var WEATHER_TEMPERATURE_BANDS_F = [
   { band:-5, minF:null, maxF:-46, label:'unholy cold', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'none', notes:['mundane clothing insufficient','planar or supernatural cold','wind, wetness, immersion, and no shelter sharply worsen exposure'] },
   { band:-4, minF:-45, maxF:-36, label:'soul-freezing', nominalDC:25, coldRequirement:'heavy_cwc', coldRequirementLabel:'Heavy cold-weather clothing required', heatArmorDisadvantage:'none', notes:['strong wind and exposed skin are major escalators','fire and shelter strongly mitigate'] },
@@ -230,7 +228,67 @@ var WEATHER_TEMPERATURE_SYSTEM_RULES = {
   }
 };
 
-// Temperature mechanics per stage (0-10).
+var WEATHER_TEMP_BAND_MIN = -5;
+var WEATHER_TEMP_BAND_MAX = 15;
+var WEATHER_LEGACY_TEMP_TO_BAND = {
+  0: -3,
+  1: -2,
+  2: 0,
+  3: 1,
+  4: 3,
+  5: 4,
+  6: 6,
+  7: 7,
+  8: 9,
+  9: 10,
+  10: 12
+};
+var WEATHER_TEMPERATURE_BAND_INDEX = {};
+for (var _wtbi = 0; _wtbi < WEATHER_TEMPERATURE_BANDS_F.length; _wtbi++){
+  WEATHER_TEMPERATURE_BAND_INDEX[WEATHER_TEMPERATURE_BANDS_F[_wtbi].band] = WEATHER_TEMPERATURE_BANDS_F[_wtbi];
+}
+
+function _clampWeatherTempBand(band){
+  band = parseInt(band, 10);
+  if (!isFinite(band)) band = 0;
+  return Math.max(WEATHER_TEMP_BAND_MIN, Math.min(WEATHER_TEMP_BAND_MAX, band));
+}
+
+function _legacyTempStageToBand(stage){
+  stage = parseInt(stage, 10);
+  if (!isFinite(stage)) return 0;
+  if (WEATHER_LEGACY_TEMP_TO_BAND[stage] != null) return WEATHER_LEGACY_TEMP_TO_BAND[stage];
+  return _clampWeatherTempBand(stage);
+}
+
+function _weatherTempInfo(band){
+  return WEATHER_TEMPERATURE_BAND_INDEX[_clampWeatherTempBand(band)] || WEATHER_TEMPERATURE_BANDS_F[0];
+}
+
+function _weatherTempLabel(band){
+  return titleCase(_weatherTempInfo(band).label || String(band));
+}
+
+function _weatherTempMechanics(band){
+  var info = _weatherTempInfo(band);
+  var parts = [];
+  if (info.nominalDC != null){
+    parts.push('DC ' + info.nominalDC + ' Con save or exhaustion.');
+  }
+  if (info.coldRequirement && info.coldRequirement !== 'none'){
+    if (info.coldRequirement === 'special') parts.push(info.coldRequirementLabel + '.');
+    else parts.push('Disadvantage without ' + String(info.coldRequirementLabel || '').toLowerCase() + '.');
+  }
+  if (info.heatArmorDisadvantage && info.heatArmorDisadvantage !== 'none'){
+    var heatRule = WEATHER_HEAT_ARMOR_RULES[info.heatArmorDisadvantage];
+    if (heatRule && heatRule.description) parts.push(heatRule.description);
+  }
+  return parts.length ? parts.join(' ') : null;
+}
+
+// Wind still uses the fixed stage table below. Temperature mechanics are now
+// derived from WEATHER_TEMPERATURE_BANDS_F so the live generator and rules
+// share the same -5..15 band scale.
 var CONFIG_WEATHER_MECHANICS = {
   temp: {
     0:  'DC 25 Con save or exhaustion. Disadvantage without heavy cold weather clothing.',
@@ -3025,8 +3083,10 @@ function _weatherViewDays(n){
 function _playerButtonsHtml(){
   var out = [];
   var st = ensureSettings();
-  if (st.weatherEnabled !== false) out.push(button('📋 Forecast','forecast'));
+  out.push(button('📋 Today','today'));
+  if (st.weatherEnabled !== false) out.push(button('🌤 Weather','weather'));
   if (st.moonsEnabled   !== false) out.push(button('🌙 Moons','moon'));
+  if (st.planesEnabled  !== false) out.push(button('🌀 Planes','planes'));
   return out.join(' ');
 }
 
@@ -3903,6 +3963,67 @@ function _activePlanarWeatherShiftLines(serial){
   return out;
 }
 
+function _manifestZoneWeatherInfluenceText(mz){
+  if (!mz || !mz.name) return null;
+  var name = String(mz.name);
+  if (name === 'Fernia')   return '🔥 Fernia manifest zone (+3 temp)';
+  if (name === 'Risia')    return '❄️ Risia manifest zone (-3 temp)';
+  if (name === 'Irian')    return '✨ Irian manifest zone (+1 temp)';
+  if (name === 'Mabar')    return '🌑 Mabar manifest zone (-1 temp)';
+  if (name === 'Lamannia') return '🌿 Lamannia manifest zone (+1 precip)';
+  if (name === 'Syrania')  return '🌤 Syrania manifest zone (clearer skies)';
+  if (name === 'Kythri')   return '🌀 Kythri manifest zone (chaotic swings)';
+  return null;
+}
+
+function _planarWeatherInfluenceText(e){
+  if (!e) return null;
+  if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+2 temp)';
+  if (e.plane === 'Fernia' && e.phase === 'remote')      return '🔥 Fernia remote (-1 temp)';
+  if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-2 temp)';
+  if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+1 temp)';
+  if (e.plane === 'Syrania'&& e.phase === 'coterminous') return '🌤 Syrania coterminous (clear, calm)';
+  if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip)';
+  if (e.plane === 'Mabar'  && e.phase === 'coterminous') return '🌑 Mabar coterminous (-1 temp)';
+  if (e.plane === 'Irian'  && e.phase === 'coterminous') return '✨ Irian coterminous (+1 temp)';
+  if (e.plane === 'Lamannia'&& e.phase === 'coterminous')return '🌿 Lamannia coterminous (+1 precip)';
+  return null;
+}
+
+function _weatherInfluenceTexts(rec){
+  var out = [];
+  if (!rec) return out;
+  var wsLoc = getWeatherState().location || {};
+  var loc = rec.location || {};
+  if (!loc.manifestZone && wsLoc.manifestZone){
+    loc = {
+      climate: loc.climate,
+      geography: loc.geography,
+      terrain: loc.terrain,
+      manifestZone: wsLoc.manifestZone
+    };
+  }
+  var mzText = _manifestZoneWeatherInfluenceText(loc.manifestZone);
+  if (mzText) out.push(mzText);
+  try {
+    var eff = getActivePlanarEffects(rec.serial);
+    for (var i = 0; i < eff.length; i++){
+      var pText = _planarWeatherInfluenceText(eff[i]);
+      if (pText) out.push(pText);
+    }
+  } catch(e2){}
+  if (_isZarantyrFull(rec.serial)) out.push('🌙 Zarantyr full (lightning boost)');
+  return out;
+}
+
+function _weatherInfluenceHtml(rec){
+  var lines = _weatherInfluenceTexts(rec);
+  if (!lines.length) return '';
+  return '<div style="font-size:.76em;opacity:.58;font-style:italic;margin-top:3px;">'+
+    lines.map(esc).join(' · ')+
+    '</div>';
+}
+
 function activeEffectsPanelHtml(){
   var st = ensureSettings();
   var today = todaySerial();
@@ -4194,6 +4315,7 @@ function helpRootMenu(m){
   if (!playerIsGM(m.playerid)){
     var st2 = ensureSettings();
     var pLinks = [];
+    pLinks.push(mbP(m,'📋 Today','today'));
     if (st2.moonsEnabled   !== false) pLinks.push(mbP(m,'🌙 Moons','moon'));
     if (st2.weatherEnabled !== false) pLinks.push(mbP(m,'🌤️ Weather','weather')+' '+mbP(m,'📋 Forecast','forecast'));
     if (st2.planesEnabled  !== false) pLinks.push(mbP(m,'🌀 Planes','planes'));
@@ -4341,6 +4463,119 @@ function _showDefaultCalView(m){
     dashboard: true,
     includeButtons: true
   });
+}
+
+function _playerPlanarActiveTodayLines(today, viewTier, genHorizon){
+  var planes = _getAllPlaneData();
+  var notes = [];
+  var ignoreGenerated = (viewTier === 'low' || genHorizon <= 0);
+  for (var i = 0; i < planes.length; i++){
+    if (planes[i].type === 'fixed') continue;
+    var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated:true } : null);
+    if (!ps) continue;
+    if (ps.phase !== 'coterminous' && ps.phase !== 'remote') continue;
+    notes.push((PLANE_PHASE_EMOJI[ps.phase] || '⚪') + ' <b>' + esc(ps.plane.name) + '</b> ' + esc(PLANE_PHASE_LABELS[ps.phase] || ps.phase));
+  }
+  return notes;
+}
+
+function _playerTodayHtml(playerid){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var cal = getCal();
+  var c = cal.current;
+  var mObj = cal.months[c.month] || {};
+  var wd = cal.weekdays[c.day_of_the_week];
+  var sections = [];
+
+  sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
+    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
+    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
+
+  try {
+    var occ = occurrencesInRange(today, today);
+    if (occ.length){
+      var names = [];
+      var seen = {};
+      for (var oi = 0; oi < occ.length; oi++){
+        var nm = eventDisplayName(occ[oi].e);
+        var key = String(nm || '').toLowerCase();
+        if (!seen[key]){
+          seen[key] = 1;
+          names.push(nm);
+        }
+      }
+      sections.push('<div style="margin:3px 0;">🎉 <b>Events:</b> ' + names.map(esc).join(', ') + '</div>');
+    }
+  } catch(e){}
+
+  if (st.weatherEnabled !== false){
+    try {
+      weatherEnsureForecast();
+      var rec = _forecastRecord(today);
+      if (rec){
+        var rev = _readReveal(getWeatherState().playerReveal && getWeatherState().playerReveal[String(today)]);
+        var tier = rev.tier || 'low';
+        var srcLabel = WEATHER_SOURCE_LABELS[rev.source] || null;
+        sections.push('<div style="margin:4px 0 2px 0;"><b>☁ Weather:</b></div>' + _playerDayHtml(rec, tier, false, srcLabel));
+      }
+    } catch(e2){}
+  }
+
+  if (st.moonsEnabled !== false){
+    try {
+      moonEnsureSequences();
+      var ms = getMoonState();
+      var moonTier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
+      var moonHorizon = parseInt(ms.revealHorizonDays, 10) || 7;
+      var moonBits = [];
+      var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      if (sys && sys.moons){
+        for (var mi = 0; mi < sys.moons.length; mi++){
+          var moon = sys.moons[mi];
+          var peakType = _moonPeakPhaseDay(moon.name, today);
+          if (peakType === 'full') moonBits.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+          else if (peakType === 'new'){
+            var ph = moonPhaseAt(moon.name, today);
+            moonBits.push('🌑 <b>' + esc(moon.name) + '</b> is New' + ((ph && ph.longShadows) ? ' <span style="opacity:.7;">(Long Shadows)</span>' : ''));
+          }
+        }
+      }
+      sections.push(
+        '<div style="margin:4px 0 2px 0;"><b>🌙 Moons:</b></div>' +
+        _moonTodaySummaryHtml(today, moonTier, moonHorizon) +
+        '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+        (moonBits.length ? moonBits.join('<br>') : '<span style="opacity:.6;">No moons at full or new today.</span>') +
+        '</div>'
+      );
+    } catch(e3){}
+  }
+
+  if (st.planesEnabled !== false){
+    try {
+      var ps = getPlanesState();
+      var planeTier = _normalizePlaneRevealTier(ps.revealTier || 'medium');
+      var planeHorizon = parseInt(ps.revealHorizonDays, 10) || _planarYearDays();
+      var planeGenHorizon = parseInt(ps.generatedHorizonDays, 10) || 0;
+      var planeNotes = _playerPlanarActiveTodayLines(today, planeTier, planeGenHorizon);
+      sections.push(
+        '<div style="margin:4px 0 2px 0;"><b>🌀 Planes:</b></div>' +
+        _planesTodaySummaryHtml(today, false, planeTier, planeHorizon) +
+        '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+        (planeNotes.length ? planeNotes.join('<br>') : '<span style="opacity:.6;">No active planar extremes today.</span>') +
+        '</div>'
+      );
+    } catch(e4){}
+  }
+
+  sections.push('<div style="margin-top:6px;">' +
+    button('⬅ Calendar', '') + ' ' +
+    button('🌤 Weather', 'weather') + ' ' +
+    button('🌙 Moons', 'moon') + ' ' +
+    button('🌀 Planes', 'planes') +
+    '</div>');
+
+  return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month, sections.join(''));
 }
 
 // ── Today — Combined detail from all subsystems ────────────────────────
@@ -4674,8 +4909,9 @@ var commands = {
       moonEnsureSequences();
       whisper(m.who, _todayAllHtml());
     } else {
-      // Players see their tier-appropriate view
-      _showDefaultCalView(m);
+      weatherEnsureForecast();
+      moonEnsureSequences();
+      whisper(m.who, _playerTodayHtml(m.playerid));
     }
   },
 
@@ -5089,10 +5325,11 @@ var WEATHER_TOD_ARC = {
 };
 
 // ---------------------------------------------------------------------------
-// Climate base tables — 5 climates × 12 months (index 0=mid-winter … 11=early-winter)
+// Climate base tables — climates × 12 months (index 0=mid-winter … 11=early-winter)
 // Each entry: { temp, wind, precip } each { base, die, min, max }
 // Geography and terrain modifiers shift base/min/max uniformly. die is unchanged.
-// Temp scale: 0=−25°F … 5=50°F … 10=125°F+
+// Temperature entries below are legacy stage values and are converted at load
+// time into direct WEATHER_TEMPERATURE_BANDS_F indices (-5..15).
 // Wind scale: 0=calm … 5=storm     Precip scale: 0=clear … 5=extreme
 // ---------------------------------------------------------------------------
 var WEATHER_CLIMATE_BASE = {
@@ -5212,6 +5449,24 @@ var WEATHER_CLIMATE_BASE = {
     /*11 early-wn*/ {temp:{base:4,die:2,min:3,max:5}, wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
   ]
 };
+
+function _upgradeWeatherClimateBaseTemps(){
+  Object.keys(WEATHER_CLIMATE_BASE).forEach(function(climate){
+    WEATHER_CLIMATE_BASE[climate] = (WEATHER_CLIMATE_BASE[climate] || []).map(function(entry){
+      return {
+        temp: {
+          base: _legacyTempStageToBand(entry.temp && entry.temp.base),
+          die:  entry.temp && entry.temp.die,
+          min:  _legacyTempStageToBand(entry.temp && entry.temp.min),
+          max:  _legacyTempStageToBand(entry.temp && entry.temp.max)
+        },
+        wind: entry.wind,
+        precip: entry.precip
+      };
+    });
+  });
+}
+_upgradeWeatherClimateBaseTemps();
 
 // ---------------------------------------------------------------------------
 // Geography modifier tables — 10 geographies × 12 months (or constant object)
@@ -5548,24 +5803,25 @@ function _getModEntry(table, monthIdx){
 // Compose the final formula for one day from all three layers.
 // Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
 function _composeFormula(climate, geography, terrain, monthIdx){
-  var TRAIT_MAX = { temp:10, wind:3, precip:3 };
+  var TRAIT_MIN = { temp:WEATHER_TEMP_BAND_MIN, wind:0, precip:0 };
+  var TRAIT_MAX = { temp:WEATHER_TEMP_BAND_MAX, wind:3, precip:3 };
   var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
   var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
   var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
   var tMod    = _getModEntry(WEATHER_TERRAIN_MOD[terrain]   || WEATHER_TERRAIN_MOD.open,  monthIdx);
 
-  function composeTrait(b, gm, tm, traitMax){
+  function composeTrait(b, gm, tm, traitMin, traitMax){
     var shift = (gm|0) + (tm|0);
-    var mn = Math.max(0,         (b.min|0) + shift);
+    var mn = Math.max(traitMin,  (b.min|0) + shift);
     var mx = Math.min(traitMax,  (b.max|0) + shift);
     if (mx < mn) mx = mn;
-    return { base: (b.base|0) + shift, die: b.die, min: mn, max: mx };
+    return { base: Math.max(mn, Math.min(mx, (b.base|0) + shift)), die: b.die, min: mn, max: mx };
   }
 
   return {
-    temp:    composeTrait(base.temp,   gMod.temp,   tMod.temp,   TRAIT_MAX.temp),
-    wind:    composeTrait(base.wind,   gMod.wind,   tMod.wind,   TRAIT_MAX.wind),
-    precip:  composeTrait(base.precip, gMod.precip, tMod.precip, TRAIT_MAX.precip),
+    temp:    composeTrait(base.temp,   gMod.temp,   tMod.temp,   TRAIT_MIN.temp,   TRAIT_MAX.temp),
+    wind:    composeTrait(base.wind,   gMod.wind,   tMod.wind,   TRAIT_MIN.wind,   TRAIT_MAX.wind),
+    precip:  composeTrait(base.precip, gMod.precip, tMod.precip, TRAIT_MIN.precip, TRAIT_MAX.precip),
     arcMult: (gMod.arc || 1.0) * (tMod.arc || 1.0)
   };
 }
@@ -5806,6 +6062,7 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
       }
     } catch(e){ /* planar system not ready */ }
   }
+  finalVals.temp = _clampWeatherTempBand(finalVals.temp);
 
   // Snow accumulation: previous day was cold (temp ≤3) with any precipitation.
   var snowAccumulated = !!(prevFinal && prevFinal.temp <= 3 && prevFinal.precip >= 1);
@@ -5816,7 +6073,7 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
 
   return {
     serial:          serial,
-    location:        { climate: climate, geography: geography, terrain: terrain },
+    location:        { climate: climate, geography: geography, terrain: terrain, manifestZone: loc.manifestZone || null },
     monthIdx:        mi,
     base:            base,
     arc:             { morning: arcMorning, afternoon: arcAfternoon, evening: arcEvening },
@@ -6083,7 +6340,7 @@ var EXTREME_EVENTS = {
     },
     duration:  '1–4 hours for freeze; persists until thaw',
     mechanics: 'All exposed water surfaces (puddles, ford crossings, wet mud) become ice. Difficult terrain on all outdoor surfaces. DC 12 Acrobatics to avoid falling prone when moving at full speed on ice.',
-    aftermath: 'Icy surfaces persist until temperature rises above stage 4. Fords may be crossable on foot — or may give way.',
+    aftermath: 'Icy surfaces persist until temperature rises above band 4 (45F+). Fords may be crossable on foot — or may give way.',
     playerMsg: function(loc){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
   },
 
@@ -6289,7 +6546,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
   var mechLines = [];
 
   // Temperature
-  var tm = CONFIG_WEATHER_MECHANICS.temp[temp];
+  var tm = _weatherTempMechanics(temp);
   if (tm) mechLines.push('<b>Temperature:</b> ' + esc(tm));
 
   // Wind
@@ -6451,7 +6708,7 @@ function _tempBand(stage){
   if (stage <= 3) return 'cold';
   if (stage === 4) return 'cool';
   if (stage <= 6) return 'mild';
-  if (stage === 7) return 'warm';
+  if (stage <= 8) return 'warm';
   return 'hot';
 }
 
@@ -6488,16 +6745,21 @@ function _weatherTraitBadge(trait, stage){
   //   Precip: pale sky (clear) → deep slate blue (torrential)
   var palettes = {
     temp: [
-      '#A8D8FF','#C2E0FF','#D6ECFF','#E8F4FF','#F0F4F8',  // 0-4 cold range
-      '#F5F5F0',                                            // 5 balanced
-      '#FFF3E0','#FFD54F','#FF8A65','#E53935','#B71C1C'    // 6-10 hot range
+      '#7AA7D9','#9CC2E8','#B6D6F2','#D0E6FA','#E4F1FF',
+      '#EEF6FF','#F5F5F0','#FFF3E0','#FFE2B6','#FFC98F','#FFB074'
     ],
     wind:  ['#F5F5F5','#E0E8E0','#B0BEC5','#546E7A'],
     precip:['#F0F8FF','#CFE8F5','#90CAF9','#1565C0']
   };
   var pal   = palettes[trait] || palettes.wind;
-  var bg    = pal[Math.max(0, Math.min(stage, pal.length-1))];
-  var label = (CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage);
+  var idx;
+  if (trait === 'temp'){
+    idx = Math.round(((_clampWeatherTempBand(stage) - WEATHER_TEMP_BAND_MIN) / (WEATHER_TEMP_BAND_MAX - WEATHER_TEMP_BAND_MIN)) * (pal.length - 1));
+  } else {
+    idx = Math.max(0, Math.min(stage, pal.length-1));
+  }
+  var bg    = pal[Math.max(0, Math.min(idx, pal.length-1))];
+  var label = (trait === 'temp') ? _weatherTempLabel(stage) : ((CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage));
   var tc    = textColor(bg);
   return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+esc(bg)+';color:'+esc(tc)+';font-size:.85em;">'+esc(label)+'</span>';
 }
@@ -6523,6 +6785,7 @@ function _weatherDayGmHtml(rec, showBreakdown){
     '</div>'
   );
   lines.push('<div style="font-size:.8em;opacity:.7;">T:'+f.temp+' W:'+f.wind+' P:'+f.precip+'&nbsp;&nbsp;['+esc(tCfg.label)+']</div>');
+  lines.push(_weatherInfluenceHtml(rec));
 
   // Full period breakdown — shown for today's view (showBreakdown) at certain tier.
   // Each period shows narrative, badges, crit flags, and derived mechanics.
@@ -6634,6 +6897,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   var srcLine = sourceLabel
     ? '<div style="font-size:.75em;opacity:.45;font-style:italic;margin-top:1px;">'+esc(sourceLabel)+'</div>'
     : '';
+  var influenceLine = _weatherInfluenceHtml(rec);
 
   if (detailTier === 'high'){
     // Afternoon summary + per-period narrative.
@@ -6690,6 +6954,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   return '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12);">'+
     '<div style="font-weight:bold;font-size:.9em;">'+dateLabel+(isToday ? ' (Today)' : '')+'</div>'+
     content+
+    influenceLine+
     srcLine+
     '</div>';
 }
@@ -6802,7 +7067,7 @@ function playerForecastWhisper(m){
     body += '<div style="font-size:.75em;opacity:.5;">Use <code>!cal weather</code> for today details.</div>';
   }
   whisper(m.who, _menuBox('Your Weather Forecast — '+titleDate,
-    _weatherTodaySummaryHtml(today, todayTier)+
+    _weatherTodaySummaryHtml(today, todayTier, displayMode === 'calendar')+
     body
   ));
 }
@@ -7004,13 +7269,14 @@ function _weatherForecastMiniCalHtml(startSerial, days, opts){
   return out.join('');
 }
 
-function _weatherTodaySummaryHtml(serial, detailTier){
+function _weatherTodaySummaryHtml(serial, detailTier, includeInfluence){
   var rec = _forecastRecord(serial);
   if (!rec || !rec.final) return '';
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
   var txt = _conditionsNarrative(rec.final, cond, 'afternoon');
-  return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b> '+esc(txt)+'</div>';
+  return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b> '+esc(txt)+'</div>' +
+    (includeInfluence ? _weatherInfluenceHtml(rec) : '');
 }
 
 function weatherForecastGmHtml(daysOverride){
@@ -7043,6 +7309,10 @@ function weatherForecastGmHtml(daysOverride){
     var cond  = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
     var badges = _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
     var narr   = _conditionsNarrative(f, cond, 'afternoon');
+    var influenceText = _weatherInfluenceTexts(rec);
+    var influenceHtml = influenceText.length
+      ? '<div style="font-size:.74em;opacity:.55;margin-top:2px;">'+esc(influenceText.join(' · '))+'</div>'
+      : '';
     var staleFlag   = rec.stale ? ' ⚠' : '';
     var extremeFlag = _evaluateExtremeEvents(rec).length > 0
       ? ' <span style="color:#B71C1C;font-weight:bold;" title="Extreme event conditions present">⚡</span>' : '';
@@ -7052,13 +7322,13 @@ function weatherForecastGmHtml(daysOverride){
       rows.push('<tr style="font-weight:bold;">'+
         '<td style="'+STYLES.td+'">'+dayLabel+' (today)</td>'+
         '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
-        '<td style="'+STYLES.td+';font-size:.82em;">'+esc(narr)+staleFlag+'</td>'+
+        '<td style="'+STYLES.td+';font-size:.82em;">'+esc(narr)+staleFlag+influenceHtml+'</td>'+
         '</tr>');
     } else {
       rows.push('<tr>'+
         '<td style="'+STYLES.td+'">'+dayLabel+'</td>'+
         '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
-        '<td style="'+STYLES.td+';font-size:.82em;opacity:.7;">'+esc(narr)+staleFlag+'</td>'+
+        '<td style="'+STYLES.td+';font-size:.82em;opacity:.7;">'+esc(narr)+staleFlag+influenceHtml+'</td>'+
         '</tr>');
     }
   }
@@ -7088,7 +7358,7 @@ function weatherForecastGmHtml(daysOverride){
 
   return _menuBox(forecastDays+'-Day Forecast',
     topControls+
-    _weatherTodaySummaryHtml(today)+
+    _weatherTodaySummaryHtml(today, null, displayMode === 'calendar')+
     body+
     '<div style="margin-top:6px;">'+
     button('📋 Today\'s Mechanics','weather mechanics')+' '+
@@ -7202,13 +7472,13 @@ function weatherLocationWizardHtml(step, partial){
       '<div style="opacity:.8;margin-bottom:6px;">Active manifest zone? Selecting finalizes the location.</div>'+
       '<div style="margin:3px 0;">'+button('None — finalize','weather location zone none')+'</div>'+
       '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Temperature-affecting zones:</div>'+
-      '<div style="margin:3px 0;">'+button('Fernia (warmth, temp +2)','weather location zone fernia')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Risia (cold, temp −2)','weather location zone risia')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Fernia (warmth, temp +3)','weather location zone fernia')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Risia (cold, temp -3)','weather location zone risia')+'</div>'+
       '<div style="margin:3px 0;">'+button('Irian (radiant warmth, temp +1)','weather location zone irian')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Mabar (shadow cold, temp −1)','weather location zone mabar')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Mabar (shadow cold, temp -1)','weather location zone mabar')+'</div>'+
       '<div style="margin:3px 0;">'+button('Lamannia (lush, precip +1)','weather location zone lamannia')+'</div>'+
       '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Atmospheric zones:</div>'+
-      '<div style="margin:3px 0;">'+button('Syrania (clear skies, precip −1)','weather location zone syrania')+'</div>'+
+      '<div style="margin:3px 0;">'+button('Syrania (clear skies, precip -1)','weather location zone syrania')+'</div>'+
       '<div style="margin:3px 0;">'+button('Kythri (chaotic, random swings)','weather location zone kythri')+'</div>'+
       '<div style="margin:3px 0;">'+button('Shavarath (martial resonance, no weather effect)','weather location zone shavarath')+'</div>'+
       '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Flavor zones (no weather effect):</div>'+
@@ -7502,8 +7772,8 @@ function handleWeatherCommand(m, args){
         var mz = null;
         // Manifest zones: the plane's influence leaks through, not the plane itself.
         // Effects are mild nudges, not hard limits.
-        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:2 };
-        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-2 };
+        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:3 };
+        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-3 };
         else if (zoneKey === 'irian')    mz = { name:'Irian',     tempMod:1 };
         else if (zoneKey === 'mabar')    mz = { name:'Mabar',     tempMod:-1 };
         else if (zoneKey === 'lamannia') mz = { name:'Lamannia',  precipMod:1 };

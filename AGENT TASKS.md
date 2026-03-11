@@ -12,13 +12,21 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 ## Needs Design Input
 
 
+## README Drift (checked 2026-03-11)
+
+- **Calendar Navigation → Player Buttons:** the live player quick bar is `Today / Weather / Moons / Planes`; it does not currently expose month navigation or `Upcoming`.
+- **Weather → Location:** manifest-zone selection is still the final step of the location wizard and remains part of the active location profile instead of independent parallel state.
+- **Commands → Weather → Viewing Weather:** `!cal weather forecast` currently accepts explicit spans of `10` or `20`, not an arbitrary `n`.
+- **Commands → Weather → Sending Weather to Players:** the implemented GM send syntax is `!cal weather send today` and `!cal weather send medium|high <1|3|6|10>`; `!cal weather send low` is not implemented.
+- **Calendar Systems:** Harptos date math is present, but the rendered calendar still uses weekday columns; tenday layout remains an open design task below.
+
 ---
 ## Match Script to README.md and Design.md
-- Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented.
+- Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented. Completed by ChatGPT version number XXX
 ---
 ## Update README.md
 - Do not overwrite any text in the README.
-- README is incomplete. Fill in the sections where tasks are clear.
+- README is incomplete. Fill in the sections where tasks are clear. Completed by ChatGPT version number XXX
 ---
 
 ---
@@ -30,6 +38,8 @@ These are well-defined implementation tasks. The design is decided, the target b
 ---
 
 ### Refactor temperature generators to −5 to 15 scale
+
+Status: Completed by ChatGPT version number XXX
 
 The four target data tables (`WEATHER_TEMPERATURE_BANDS_F`, `WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) are already defined in the script using band indices -5 through 15.
 
@@ -43,11 +53,15 @@ However, the actual temperature generators (`WEATHER_CLIMATE_BASE` and the formu
 
 ### Show weather influence sources
 
+Status: Completed by ChatGPT version number XXX
+
 In the weather display (both GM and player views), indicate when a plane, manifest zone, or moon is currently modifying weather conditions. For example: "🌙 Zarantyr (lightning boost)" or "🔥 Fernia manifest zone (+3 temp)". This should appear as a small annotation line, not clutter the main display.
 
 ---
 
 ### Ensure players can use `!cal` subsystem views
+
+Status: Completed by ChatGPT version number XXX
 
 Players can currently use `!cal` for the basic calendar view. Verify and enable access to subsystem views (weather forecast, moon phases, planar status) with appropriate permission gating:
 - Weather: players see their revealed forecast only (already works via `!cal weather`)
