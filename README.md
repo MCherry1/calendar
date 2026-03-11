@@ -35,7 +35,7 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 - [Calendar Systems](#calendar-systems)
 - [Design Reference](#design-reference)
 
-> **Note:** GitHub markdown supports collapsible sections via HTML `<details>` tags. Sections can be wrapped in `<details><summary>Section Title</summary>…</details>` if you want them collapsed by default. Not implemented here yet — worth deciding before the README is finalized.
+> **Note:** GitHub markdown supports collapsible sections via HTML `<details>` tags. Sections can be wrapped in `<details><summary>Section Title</summary>…</details>` if you want them collapsed by default. Not implemented here yet — worth deciding before the README is finalized. AGENT TASK: Implement this as described.
 
 ---
 
@@ -51,7 +51,7 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 Startup message should appear in game:
 > Galifar Calendar Initialized
-> Current Date: (insert current date example here)
+> Current Date: (AGENT TASK: insert current date example here)
 
 In the chat window, type:
 `!cal`
@@ -65,27 +65,36 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ### GM Buttons
 ```
 ⏮ Previous  |  ⏭ Next
-📣 Send
-📋 Today  |  📅 Upcoming
+📣 Send Current Month
+
+📋 Today
+
+System Calendars:
 🌤 Weather
 🌙 Moons
 🌀 Planes
+
 ⚙ Admin
 ```
 ### Player Buttons
 ```
-◀ Prev  |  📅 Month  |  Next ▶
+◀ Prev |  Next ▶
+
 📋 Today
+
+Forecasts:
 🌤 Weather
 🌙 Moons
 🌀 Planes
 ```
 > **Current implementation note:** Adjacent month navigation is available on the player quick bar. **Upcoming** remains GM-side.
 
+AGENT TASK: remove "month" button from the player side. Ensure that buttons have breaks and layout as shown above. Remove the button, implementation, and any reference to the concept of "upcoming" from code and documentation.
+
 - **Previous / Next** — see adjacent months
 - **Send** — sends the current date's calendar to players in public chat
 - **Today** — summary for the current in-game date
-- **Upcoming** — preview strip
+- ~~**Upcoming** — preview strip~~
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
 ---
@@ -108,10 +117,10 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 - **Earth**
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
 - **Faerûn**
-	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01.
+	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01 (AGENT TASK INSERT PHASE USED AS ANCHOR).
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
-	- Each moon has a canon color, approximate diameter, and mean orbital distance.
+	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
 	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. The reference moon's values are used as-is, with one exception: Barrakas applies an albedo multiplier for supernatural brightness (its association with Irian, the plane of life and light).
 	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
@@ -119,49 +128,69 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ---
 ## Modeling the Skies
 
-The script models the sky as a physical system rather than flavor-only text. Moon brightness, eclipse behavior, and nighttime lighting all derive from explicit orbital proxies.
 
+Agent task clean this section and fill in details and formatting.
+
+The script models the sky as a physical system rather than flavor-only text. Moon brightness, eclipse behavior, and nighttime lighting all derive from explicit mechanics. These mechanics are described below.
+
+### Eberron
+include description of eberrron in here, including the decision to use earth as a reference, the decision to leave who orbits whom between eberron and the sun (arrah) as ambiguous, the implication of inclination affecting day length by (insert amount). hours are tracked in an absolute sense by the system but are not presented as absolute, rather they are bucketed into times of day. 
+#### time zones, physical location
+these are not tracked. they could be, but it gets weird fast and doesn't add a lot of practical value. nominally the assumed observer is on the equator, at time zone +0. technically the sky is different around the globe, but practically speaking all of these have arbitrary positions and values and it's suitable to just say that the system is for "where you are".
 ### Ring of Siberys
 
 - Single equatorial ring at **0° inclination**
 - Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
-- **Albedo 0.50**, bright enough to stand out even in daylight
-- Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
-- Extends roughly **600 km to 5,600 km above the surface**, putting the inner edge above ISS-like orbital altitude and the outer edge beyond a typical low-orbit band
+	- I assume the numbers below were taken from saturns rings as well, right agent task?
+	- Extends roughly **600 km to 5,600 km (change to miles, leave km in parentheses) above the surface**, putting the inner edge above ISS-like orbital altitude and the outer edge beyond a typical low-orbit band. The first moon zarantyr gets as close as X mi (y km)
+	- **Albedo 0.50**, bright enough to stand out even in daylight
+	- Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
+	- insert comment on color here
+	- insert detail on angular size in the sky here
+
+### Moons
+
+
 
 ---
 ## Weather
-- Included is a homebrew system for managing the weather.
 - This system can be toggled on or off as desired.
+- Included is a homebrew system for managing the weather. The script author here thinks it's pretty slick, but isn't insulted if you don't like it.
+	- There are a couple novel mechanics introduced.
+
 ### Temperature
 
 > **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
 
 > **Update:** The live weather generator now rolls directly on the `-5` to `15` band scale shown below.
 
-| Temperature |   °F Approx.   | Mechanical Effect |
-| :---------: | :------------: | :---------------- |
-|     −5      |    ≤ −46°F     | DC 30 Con save or exhaustion; special cold-weather protection required |
-|     −4      | [−45 .. −36]   | DC 25 Con save or exhaustion; heavy cold-weather clothing required |
-|     −3      | [−35 .. −26]   | DC 25 Con save or exhaustion; heavy cold-weather clothing required |
-|     −2      | [−25 .. −16]   | DC 20 Con save or exhaustion; medium cold-weather clothing required |
-|     −1      | [−15 .. −6]    | DC 20 Con save or exhaustion; medium cold-weather clothing required |
-|      0      |  [−5 .. 4]     | DC 15 Con save or exhaustion; light cold-weather clothing sufficient |
-|      1      |  [5 .. 14]     | DC 15 Con save or exhaustion; light cold-weather clothing sufficient |
-|      2      |  [15 .. 24]    | DC 10 Con save or exhaustion |
-|      3      |  [25 .. 34]    | DC 10 Con save or exhaustion |
-|      4      |  [35 .. 44]    | No direct thermal hazard |
-|      5      |  [45 .. 54]    | No direct thermal hazard |
-|      6      |  [55 .. 64]    | No direct thermal hazard |
-|      7      |  [65 .. 74]    | DC 10 Con save or exhaustion (compounding factors) |
-|      8      |  [75 .. 84]    | DC 10 Con save or exhaustion |
-|      9      |  [85 .. 94]    | DC 15 Con save or exhaustion |
-|     10      |  [95 .. 104]   | DC 20 Con save or exhaustion; medium and heavy armor at disadvantage |
-|     11      | [105 .. 114]   | DC 20 Con save or exhaustion; all armor at disadvantage |
-|     12      | [115 .. 124]   | DC 25 Con save or exhaustion; all armor at disadvantage |
-|     13      | [125 .. 134]   | DC 25 Con save or exhaustion; mundane protection insufficient |
-|     14      | [135 .. 144]   | DC 30 Con save or exhaustion; mundane protection insufficient |
-|     15      |    ≥ 145°F     | DC 30 Con save or exhaustion; special protection required |
+agent task remove the "or exhastiuon" on all below, just mention saves. shorteen required to req. remove direct thermal, change advantage to adv., disadvantage to disadv.
+
+
+
+| Temperature |  °F Approx.  | Mechanical Effect                                                            |
+| :---------: | :----------: | :--------------------------------------------------------------------------- |
+|     −5      |   ≤ −46°F    | DC 30 Con save or exhaustion; disadv w/o heavy cold werath                   |
+|     −4      | [−45 .. −36] | DC 25 Con save or exhaustion; disadv w/o heavy cold-weather clothing         |
+|     −3      | [−35 .. −26] | DC 25 Con save or exhaustion; disadv w/o heavy cold-weather clothing         |
+|     −2      | [−25 .. −16] | DC 20 Con save or exhaustion; disadv w/o medium cold-weather clothing        |
+|     −1      | [−15 .. −6]  | DC 20 Con save or exhaustion; disadv w/o medium cold-weather clothing        |
+|      0      |  [−5 .. 4]   | DC 15 Con save or exhaustion; disadv w/o light cold-weather clothing         |
+|      1      |  [5 .. 14]   | DC 15 Con save or exhaustion; disadv w/o light cold-weather clothing         |
+|      2      |  [15 .. 24]  | DC 10 Con save or exhaustion                                                 |
+|      3      |  [25 .. 34]  | DC 10 Con save or exhaustion                                                 |
+|      4      |  [35 .. 44]  | No direct thermal hazard                                                     |
+|      5      |  [45 .. 54]  | No direct thermal hazard                                                     |
+|      6      |  [55 .. 64]  | No direct thermal hazard                                                     |
+|      7      |  [65 .. 74]  | DC 10 Con save or exhaustion.                                                |
+|      8      |  [75 .. 84]  | DC 10 Con save or exhaustion.                                                |
+|      9      |  [85 .. 94]  | DC 15 Con save or exhaustion; heavy armor at disadvantage.                   |
+|     10      | [95 .. 104]  | DC 15 Con save or exhaustion; heavy armor at disadvantage                    |
+|     11      | [105 .. 114] | DC 20 Con save or exhaustion; medium and heavy armor at disadvantage         |
+|     12      | [115 .. 124] | DC 20 Con save or exhaustion; medium and heavy armor at disadvantage         |
+|     13      | [125 .. 134] | DC 25 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
+|     14      | [135 .. 144] | DC 25 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
+|     15      |   ≥ 145°F    | DC 30 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
 ### Wind
 
 | Wind | Label | Mechanical Effect |
