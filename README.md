@@ -98,6 +98,32 @@ AGENT TASK: remove "month" button from the player side. Ensure that buttons have
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
 ---
+## What do players know?
+agent task format tthis section for me
+The best thing about a calendar is the organization. The second best thing is sharing.
+
+But GMs need their secrets.
+
+All subsystems use the same three-tier system:
+
+| Tier     | Label            | What Players Know                                   |
+| -------- | ---------------- | --------------------------------------------------- |
+| `low`    | Common Knowledge | Generally today only; with rough guess for tomorrow |
+| `medium` | Skilled Forecast | Several days; some uncertainty at range             |
+| `high`   | Expert Forecast  | Full precision for weeks/months                     |
+|          |                  |                                                     |
+
+Low is the default tier, and does not need to be revealed.
+
+Knowledge is **upgrade-only** — once revealed, it never downgrades. Players retain the best tier of knowledge they've been given for each date.
+
+GMs can decide how much to reveal, and under what circumstances. There are built-in forecasting windows within the script for easy access.
+
+The recommended systenm is to use an appropriate skill check and DC for medium tier. High tier requires either magical means, or tool-assisted means. (e.g. having access to a library, atlas, almanac, or telescope)
+
+agent task insert explanation and table of DC 10, 15, 20, 25 skill check for medium tier, and magical means for expert tier, and include the default recommended reveal windows that use fibbonacci numbers
+
+---
 ## Events
 ### General
 - Individual cells within the minical are color-filled on the day of an event.
@@ -123,7 +149,10 @@ AGENT TASK: remove "month" button from the player side. Ensure that buttons have
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
 	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. The reference moon's values are used as-is, with one exception: Barrakas applies an albedo multiplier for supernatural brightness (its association with Irian, the plane of life and light).
-	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
+	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task no, lets include them here.
+
+---
+
 
 ---
 ## Modeling the Skies
@@ -252,6 +281,8 @@ Run `!cal weather location` in chat for the full list of valid keys and the inte
 agent task fill this in
 planes do stuff too when coterm or remopte
 
+
+> 
 ### Forecasting
 
 Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date. 
@@ -294,13 +325,30 @@ agent task check on this writing below and make sure it is accurate. and clean i
 	- These generated events *never* interfere with either traditional or GM-defined periods.
 	- These generated events can be disabled at any time. (They cannot be 
 agent task please make a table here for every plane and the event length and the dice used to determine outcomes and the annual number of events
+
+---
+
+## Calendar Systems
+
+Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
+
+- **Eberron** — 12 months × 28 days, YK era, 7-day weeks
+- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + festival days, DR era, tenday columns
+- **Gregorian** — Standard Earth calendar
+
+> **Current implementation note:** Harptos date math and festival days are present, but the rendered calendar still uses weekday columns until the tenday-layout task is completed.
 ---
 ## Commands
 
-*Note: This section is being included for completeness. It is almost certainly not something you'll ever need to actually read. All command formatting is whispered when needed, in game.
-
-- Additionally, almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window. That includes almost all of the commands presented in this section. The buttons execute the command.
-	- However, the buttons are "hard-coded". A small set of the calendar's functions require specific typed commands.
+> *[!info]This section is being included for completeness. It is almost certainly not something you'll ever need to actually read.
+> 
+> Almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window.
+> 
+> That includes almost all of the commands presented in this section. The buttons execute the command.
+> 
+> However, the buttons are "hard-coded". A small set of the calendar's functions require specific typed commands.
+> 
+> **All command formatting is whispered in game, when needed.***
 
 ## Dates
 
@@ -452,35 +500,3 @@ Examples: `!cal planes send medium 6d` · `!cal planes send high 3m`
 !cal source up <name>                     — raise source priority
 !cal source down <name>                   — lower source priority
 ```
-
----
-
-## Knowledge Tiers
-
-All subsystems use the same three-tier system:
-
-| Tier | Label | What Players Know |
-|---|---|---|
-| `low` | Common Knowledge | Today only; rough guess for tomorrow |
-| `medium` | Skilled Forecast | Several days; some uncertainty at range |
-| `high` | Expert Forecast | Full precision for weeks/months |
-
-Knowledge is **upgrade-only** — once revealed, it never downgrades. Players retain the best tier of knowledge they've been given for each date.
-
----
-
-## Calendar Systems
-
-Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
-
-- **Eberron** — 12 months × 28 days, YK era, 7-day weeks
-- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + festival days, DR era, tenday columns
-- **Gregorian** — Standard Earth calendar
-
-> **Current implementation note:** Harptos date math and festival days are present, but the rendered calendar still uses weekday columns until the tenday-layout task is completed.
-
----
-
-## Design Reference
-
-For the full mechanical design, data tables, design decisions, and pending work, see **[DESIGN.md](DESIGN.md)**.
