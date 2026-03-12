@@ -50,13 +50,14 @@ var CONFIG_DEFAULTS = {
   eventsEnabled:   true,        // false = event subsystem hidden/disabled from default views
   moonsEnabled:    true,        // false = moon system fully disabled
   weatherEnabled:  true,        // false = weather system fully disabled
+  weatherMechanicsEnabled: true, // false = keep narrative weather, suppress D&D mechanics text
   planesEnabled:   true,        // false = planar system disabled
   offCyclePlanes:  true,        // false = disable off-cycle (anomalous) planar movement
   moonDisplayMode: 'calendar',  // 'calendar' | 'list' | 'both'
   weatherDisplayMode:'calendar', // 'calendar' | 'list' | 'both'
   planesDisplayMode:'calendar',  // 'calendar' | 'list' | 'both'
   subsystemVerbosity:'normal',  // 'normal' | 'minimal'
-  weatherForecastViewDays: 10,  // GM weather forecast display span (10 or 20)
+  weatherForecastViewDays: 10,  // GM weather forecast display span (1-20)
   uiDensity:       'normal',    // 'compact' or 'normal'
   autoButtons:     false        // false = suppress auto action buttons on !cal
 };
@@ -150,7 +151,7 @@ var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','gregorian'];
 var CONFIG_NEARBY_DAYS = 5;
 
 /* --- Weather tuning -------------------------------------------------------*/
-// How many days ahead the GM forecast pre-generates (players see at most 10).
+// How many days ahead the GM forecast pre-generates.
 var CONFIG_WEATHER_FORECAST_DAYS = 20;
 
 // How many days of locked weather history to keep.
@@ -171,8 +172,7 @@ var CONFIG_WEATHER_SEED_STRENGTH = 1;
 
 /* --- Weather Mechanics ----------------------------------------------------*/
 // Script-ready thermal reference tables (expanded Fahrenheit band model).
-// The generator outputs values on the −5 to 15 band scale, indexing directly
-// into these tables (see WEATHER_CLIMATE_BASE and _deriveConditions).
+// The live generator and display layers now use these -5..15 bands directly.
 var WEATHER_TEMPERATURE_BANDS_F = [
   { band:-5, minF:null, maxF:-46, label:'unholy cold', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'none', notes:['mundane clothing insufficient','planar or supernatural cold','wind, wetness, immersion, and no shelter sharply worsen exposure'] },
   { band:-4, minF:-45, maxF:-36, label:'soul-freezing', nominalDC:25, coldRequirement:'heavy_cwc', coldRequirementLabel:'Heavy cold-weather clothing required', heatArmorDisadvantage:'none', notes:['strong wind and exposed skin are major escalators','fire and shelter strongly mitigate'] },
@@ -229,7 +229,67 @@ var WEATHER_TEMPERATURE_SYSTEM_RULES = {
   }
 };
 
-// Temperature mechanics per band (−5 to 15).
+var WEATHER_TEMP_BAND_MIN = -5;
+var WEATHER_TEMP_BAND_MAX = 15;
+var WEATHER_LEGACY_TEMP_TO_BAND = {
+  0: -3,
+  1: -2,
+  2: 0,
+  3: 1,
+  4: 3,
+  5: 4,
+  6: 6,
+  7: 7,
+  8: 9,
+  9: 10,
+  10: 12
+};
+var WEATHER_TEMPERATURE_BAND_INDEX = {};
+for (var _wtbi = 0; _wtbi < WEATHER_TEMPERATURE_BANDS_F.length; _wtbi++){
+  WEATHER_TEMPERATURE_BAND_INDEX[WEATHER_TEMPERATURE_BANDS_F[_wtbi].band] = WEATHER_TEMPERATURE_BANDS_F[_wtbi];
+}
+
+function _clampWeatherTempBand(band){
+  band = parseInt(band, 10);
+  if (!isFinite(band)) band = 0;
+  return Math.max(WEATHER_TEMP_BAND_MIN, Math.min(WEATHER_TEMP_BAND_MAX, band));
+}
+
+function _legacyTempStageToBand(stage){
+  stage = parseInt(stage, 10);
+  if (!isFinite(stage)) return 0;
+  if (WEATHER_LEGACY_TEMP_TO_BAND[stage] != null) return WEATHER_LEGACY_TEMP_TO_BAND[stage];
+  return _clampWeatherTempBand(stage);
+}
+
+function _weatherTempInfo(band){
+  return WEATHER_TEMPERATURE_BAND_INDEX[_clampWeatherTempBand(band)] || WEATHER_TEMPERATURE_BANDS_F[0];
+}
+
+function _weatherTempLabel(band){
+  return titleCase(_weatherTempInfo(band).label || String(band));
+}
+
+function _weatherTempMechanics(band){
+  var info = _weatherTempInfo(band);
+  var parts = [];
+  if (info.nominalDC != null){
+    parts.push('DC ' + info.nominalDC + ' Con save or exhaustion.');
+  }
+  if (info.coldRequirement && info.coldRequirement !== 'none'){
+    if (info.coldRequirement === 'special') parts.push(info.coldRequirementLabel + '.');
+    else parts.push('Disadvantage without ' + String(info.coldRequirementLabel || '').toLowerCase() + '.');
+  }
+  if (info.heatArmorDisadvantage && info.heatArmorDisadvantage !== 'none'){
+    var heatRule = WEATHER_HEAT_ARMOR_RULES[info.heatArmorDisadvantage];
+    if (heatRule && heatRule.description) parts.push(heatRule.description);
+  }
+  return parts.length ? parts.join(' ') : null;
+}
+
+// Wind still uses the fixed stage table below. Temperature mechanics are now
+// derived from WEATHER_TEMPERATURE_BANDS_F so the live generator and rules
+// share the same -5..15 band scale.
 var CONFIG_WEATHER_MECHANICS = {
   temp: {
     '-5': 'DC 30 Con save or exhaustion. Special protection required.',
@@ -595,6 +655,8 @@ var STYLES = {
   th:              'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:            'border:1px solid #444;padding:0;',
   td:              'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
+  calTd:           'border:1px solid #444;width:2em;padding:0;text-align:center;vertical-align:middle;',
+  calCellInner:    'min-height:2.35em;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;padding:1px 0 2px;box-sizing:border-box;',
   monthHeaderBase: 'padding:6px;text-align:left;',
   gmbuttonWrap:    'display:inline-block;margin:2px 4px 2px 0;',
   today:  'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
@@ -722,6 +784,7 @@ function ensureSettings(){
   if (s.eventsEnabled  === undefined) s.eventsEnabled  = CONFIG_DEFAULTS.eventsEnabled;
   if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
   if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
+  if (s.weatherMechanicsEnabled === undefined) s.weatherMechanicsEnabled = CONFIG_DEFAULTS.weatherMechanicsEnabled;
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
   if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
 
@@ -751,8 +814,7 @@ function ensureSettings(){
   s.subsystemVerbosity = String(s.subsystemVerbosity || CONFIG_DEFAULTS.subsystemVerbosity).toLowerCase();
   if (s.subsystemVerbosity !== 'minimal' && s.subsystemVerbosity !== 'normal')
     s.subsystemVerbosity = CONFIG_DEFAULTS.subsystemVerbosity;
-  s.weatherForecastViewDays = parseInt(s.weatherForecastViewDays, 10);
-  if (s.weatherForecastViewDays !== 20) s.weatherForecastViewDays = 10;
+  s.weatherForecastViewDays = _weatherViewDays(s.weatherForecastViewDays);
   return s;
 }
 
@@ -2098,12 +2160,16 @@ function styleForDayCell(baseStyle, events, isToday, monthColor, isPast, isFutur
   return style;
 }
 
+function _calendarCellInnerHtml(content, extraStyle){
+  return '<div style="'+STYLES.calCellInner+(extraStyle||'')+'">'+content+'</div>';
+}
+
 function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture);
   var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"' : '';
   var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
   var dots = _eventDotsHtml(ctx.events);
-  return '<td'+titleAttr+' style="'+style+'">'+numWrap+dots+'</td>';
+  return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(numWrap+dots)+'</td>';
 }
 
 // Render a single full-width banner row for an intercalary (festival) day.
@@ -2126,7 +2192,7 @@ function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeC
     events: events, title: title };
   var mColor  = colorForMonth(mi);
   var hdrStyle = colorsAPI.styleMonthHeader(mColor);
-  var cellStyle = styleForDayCell(STYLES.td, ctx.events, ctx.isToday, mColor, ctx.isPast, ctx.isFuture);
+  var cellStyle = styleForDayCell(STYLES.calTd, ctx.events, ctx.isToday, mColor, ctx.isPast, ctx.isFuture);
   cellStyle += 'text-align:center;font-style:italic;';
   var titleAttr = title ? ' title="'+esc(title)+'" aria-label="'+esc(title)+'"' : '';
   var dots = _eventDotsHtml(ctx.events);
@@ -2140,7 +2206,7 @@ function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeC
     '</div>',
     '</th></tr>',
     '<tr'+titleAttr+'><td colspan="'+wdCnt+'" style="'+cellStyle+'">',
-    '<div style="font-size:.9em;line-height:1.5;">'+esc(mobj.name)+'</div>'+dots,
+    _calendarCellInnerHtml('<div style="font-size:.9em;line-height:1.5;">'+esc(mobj.name)+'</div>'+dots),
     '</td></tr>',
     '</table>'
   ].join('');
@@ -2178,12 +2244,12 @@ function renderMonthTable(opts){
         var d = fromSerial(s);
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimActive, extraEventsFn, includeCalendarEvents);
-          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
         } else {
           // Overflow cell: adjacent month's day, tinted with that month's color.
           var ovColor = colorForMonth(d.mi);
-          var ovStyle = STYLES.td + 'background-color:'+ovColor+';opacity:.22;';
-          html.push('<td style="'+ovStyle+'"><div style="opacity:.55;">'+d.day+'</div></td>');
+          var ovStyle = STYLES.calTd + 'background-color:'+ovColor+';opacity:.22;';
+          html.push('<td style="'+ovStyle+'">'+_calendarCellInnerHtml('<div style="opacity:.55;">'+d.day+'</div>')+'</td>');
         }
       }
       html.push('</tr>');
@@ -2203,7 +2269,7 @@ function renderMonthTable(opts){
     var d2 = fromSerial(s2);
     var ctx2 = makeDayCtx(d2.year, d2.mi, d2.day, dimActive, extraEventsFn, includeCalendarEvents);
     var numeralStyle = (d2.mi === mi) ? '' : 'opacity:.5;';
-    html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.td, numeralStyle));
+    html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.calTd, numeralStyle));
   }
   html.push('</tr>', closeMonthTable());
   return html.join('');
@@ -2340,7 +2406,7 @@ function _lastWeekdayOfMonth(year, mi, wdi){
 
 function _tokenizeRangeArgs(args){ return (args||[]).map(function(t){return String(t).trim();}).filter(Boolean); }
 
-function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|last|upcoming|today|now)$/.test(String(tok||'').toLowerCase()); }
+function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|last|today|now)$/.test(String(tok||'').toLowerCase()); }
 
 function dayFromOrdinalWeekday(year, mi, ow){
   if (!ow) return null;
@@ -2384,31 +2450,6 @@ function _phraseToSpec(tokens){
     return monthRange(_pm.y, _pm.mi, 'Last Month ('+months[_pm.mi].name+')');
   }
   if ((t0==='last'||t0==='previous'||t0==='prev') && t1==='year'){ return yearRange(cur.year-1, 'Last Year '+(cur.year-1)+' '+LABELS.era); }
-  if (t0==='upcoming'){
-    if (t1==='year'){
-      var s = toSerial(cur.year, cur.month, 1);
-      var _upEnd = toSerial(cur.year + 1, cur.month, 1) - 1;
-      return { title:'Upcoming Year (rolling from this month)', start:s, end:_upEnd,
-               months: (function(){
-                 var out=[], off=0, mi=cur.month, y=cur.year, seen=0;
-                 while (seen < months.length){
-                   if (!months[mi].leapEvery || _isLeapMonth(months[mi], y)) out.push({y:y,mi:mi});
-                   mi = (mi+1) % months.length; if (mi===0) y++; seen++;
-                 }
-                 return out;
-               })() };
-    }
-    if (t1==='month' || !t1){
-      var miU=cur.month, yU=cur.year;
-      if (cur.day_of_the_month>=15){ var _um=_nextActiveMi(cur.month,cur.year); miU=_um.mi; yU=_um.y; }
-      return monthRange(yU, miU, 'Upcoming Month');
-    }
-    if (/^\d+$/.test(t1)){
-      var days = parseInt(t1,10)|0; if (days<1) days=1;
-      var s0 = todaySerial();
-      return { title:'Upcoming ('+days+' days)', start:s0, end:s0+days-1, months:null };
-    }
-  }
   return null;
 }
 
@@ -2553,7 +2594,7 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsF
 
   var minD = _setMin(wantedSet), maxD = _setMax(wantedSet);
   if (minD == null || maxD == null){
-    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.td+';opacity:.6;">(no days)</td></tr>');
+    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.calTd+';opacity:.6;">'+_calendarCellInnerHtml('(no days)')+'</td></tr>');
     html.push(closeMonthTable());
     return html.join('');
   }
@@ -2567,9 +2608,9 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsF
       var d = fromSerial(s);
       if (d.year === year && d.mi === mi && wantedSet[d.day]){
         var ctx = makeDayCtx(d.year, d.mi, d.day, !!dimActive, extraEventsFn, includeCalendarEvents);
-        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
+        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
       } else {
-        html.push('<td style="'+STYLES.td+'"></td>');
+        html.push('<td style="'+STYLES.calTd+'">'+_calendarCellInnerHtml('')+'</td>');
       }
     }
     html.push('</tr>');
@@ -3033,18 +3074,25 @@ function _shiftSerialByMonth(serial, dir){
 }
 
 function _weatherViewDays(n){
-  return (parseInt(n, 10) === 20) ? 20 : 10;
+  var days = parseInt(n, 10);
+  if (!isFinite(days)) return CONFIG_DEFAULTS.weatherForecastViewDays;
+  if (days < 1) return 1;
+  if (days > CONFIG_WEATHER_FORECAST_DAYS) return CONFIG_WEATHER_FORECAST_DAYS;
+  return days;
 }
 
 function _playerButtonsHtml(){
+  var nav = [
+    button('◀ Prev','show previous month'),
+    button('Next ▶','show next month')
+  ];
   var out = [];
   var st = ensureSettings();
-  out.push(button('\uD83D\uDCCB Today','today'));
-  out.push(button('\uD83D\uDCC5 Upcoming','upcoming'));
-  if (st.weatherEnabled !== false) out.push(button('\uD83C\uDF24 Weather','weather'));
-  if (st.moonsEnabled   !== false) out.push(button('\uD83C\uDF19 Moons','moon'));
-  if (st.planesEnabled  !== false) out.push(button('\uD83C\uDF00 Planes','planes'));
-  return out.join(' ');
+  out.push(button('📋 Today','today'));
+  if (st.weatherEnabled !== false) out.push(button('🌤 Weather','weather'));
+  if (st.moonsEnabled   !== false) out.push(button('🌙 Moons','moon'));
+  if (st.planesEnabled  !== false) out.push(button('🌀 Planes','planes'));
+  return nav.join(' ') + '<br>' + out.join(' ');
 }
 
 function sendCurrentDate(to, gmOnly, opts){
@@ -3187,7 +3235,7 @@ function sendCurrentDate(to, gmOnly, opts){
       // Only show weather if a location has been configured
       if (_ws.location){
         weatherEnsureForecast();
-        var _wxRec    = _forecastRecord(todaySer);
+        var _wxRec    = _weatherRecordForDisplay(_forecastRecord(todaySer));
         if (_wxRec && _wxRec.final){
           var _f  = _wxRec.final;
           var _tL = CONFIG_WEATHER_LABELS.temp[_f.temp] || _tempBand(_f.temp);
@@ -3448,6 +3496,7 @@ function stepDays(n){
   cur.year = d.year; cur.month = d.mi; cur.day_of_the_month = d.day;
   // Slide the forecast window forward and lock past days
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
+  _manifestZoneOnDateChange(startSerial, dest);
 
   var direction = n >= 0 ? 'Forward' : 'Back';
   var dateStr = esc(currentDateLabel());
@@ -3465,6 +3514,7 @@ function stepDays(n){
 function setDate(m, d, y){
   var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
+  var oldSerial = toSerial(oldY, oldM, oldD);
   var mi = clamp(m, 1, cal.months.length) - 1;
   var di = clamp(d, 1, cal.months[mi].days);
   var yi = int(y, cur.year);
@@ -3474,6 +3524,7 @@ function setDate(m, d, y){
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
   // Slide the forecast window forward and lock past days, same as stepDays
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
+  _manifestZoneOnDateChange(oldSerial, toSerial(yi, mi, di));
   sendCurrentDate(null, true);
 }
 
@@ -3885,10 +3936,9 @@ function gmButtonsHtml(){
     '<div style="'+wrap+'">'+ mb('⏭ Forward','advance 1') +'</div>',
     '<div style="'+wrap+'">'+ mb('📣 Send','send')         +'</div>'
   ];
-  // Row 2: today deep-dive + upcoming planner + subsystems
+  // Row 2: today deep-dive + subsystems
   var row2 = [
-    '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>',
-    '<div style="'+wrap+'">'+ mb('📅 Upcoming','upcoming')  +'</div>'
+    '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>'
   ];
   if (st.weatherEnabled !== false) row2.push('<div style="'+wrap+'">'+ mb('🌤 Weather','weather') +'</div>');
   if (st.moonsEnabled   !== false) row2.push('<div style="'+wrap+'">'+ mb('🌙 Moons','moon')     +'</div>');
@@ -3920,40 +3970,45 @@ function _activePlanarWeatherShiftLines(serial){
   return out;
 }
 
-// Compact single-line HTML annotation of all active weather modifiers for a day.
-// Shown as small text below trait badges in GM weather views.
-function _weatherInfluenceHtml(serial, loc){
-  var parts = [];
-  // Manifest zone
-  if (loc && loc.manifestZone && loc.manifestZone.name){
-    var mz = loc.manifestZone;
-    var desc = mz.name;
-    if (typeof mz.tempMod === 'number') desc += ' (temp ' + (mz.tempMod > 0 ? '+' : '') + mz.tempMod + ')';
-    if (typeof mz.precipMod === 'number') desc += ' (precip ' + (mz.precipMod > 0 ? '+' : '') + mz.precipMod + ')';
-    if (typeof mz.windMod === 'number') desc += ' (wind ' + (mz.windMod > 0 ? '+' : '') + mz.windMod + ')';
-    if (mz.chaotic) desc += ' (chaotic)';
-    parts.push('\uD83D\uDD25 ' + desc); // 🔥
+function _planarWeatherInfluenceText(e){
+  if (!e) return null;
+  if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+2 temp)';
+  if (e.plane === 'Fernia' && e.phase === 'remote')      return '🔥 Fernia remote (-1 temp)';
+  if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-2 temp)';
+  if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+1 temp)';
+  if (e.plane === 'Syrania'&& e.phase === 'coterminous') return '🌤 Syrania coterminous (clear, calm)';
+  if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip)';
+  if (e.plane === 'Mabar'  && e.phase === 'coterminous') return '🌑 Mabar coterminous (-1 temp)';
+  if (e.plane === 'Irian'  && e.phase === 'coterminous') return '✨ Irian coterminous (+1 temp)';
+  if (e.plane === 'Lamannia'&& e.phase === 'coterminous')return '🌿 Lamannia coterminous (+1 precip)';
+  return null;
+}
+
+function _weatherInfluenceTexts(rec){
+  var out = [];
+  if (!rec) return out;
+  var zoneEntries = _activeManifestZonesForSerial(rec.serial);
+  for (var zi = 0; zi < zoneEntries.length; zi++){
+    var mzText = _manifestZoneInfluenceText(zoneEntries[zi].def);
+    if (mzText) out.push(mzText);
   }
-  // Planar effects
   try {
-    var eff = getActivePlanarEffects(serial);
+    var eff = getActivePlanarEffects(rec.serial);
     for (var i = 0; i < eff.length; i++){
-      var e = eff[i];
-      if (e.plane === 'Fernia' && e.phase === 'coterminous') parts.push('\uD83C\uDF0C Fernia cot. (+3 temp)');
-      if (e.plane === 'Fernia' && e.phase === 'remote')      parts.push('\uD83C\uDF0C Fernia rem. (\u22121 temp)');
-      if (e.plane === 'Risia'  && e.phase === 'coterminous') parts.push('\uD83C\uDF0C Risia cot. (\u22123 temp)');
-      if (e.plane === 'Risia'  && e.phase === 'remote')      parts.push('\uD83C\uDF0C Risia rem. (+1 temp)');
-      if (e.plane === 'Syrania'&& e.phase === 'coterminous') parts.push('\uD83C\uDF0C Syrania cot. (clear/calm)');
-      if (e.plane === 'Syrania'&& e.phase === 'remote')      parts.push('\uD83C\uDF0C Syrania rem. (+1 precip)');
+      var pText = _planarWeatherInfluenceText(eff[i]);
+      if (pText) out.push(pText);
     }
-  } catch(ex){}
-  // Zarantyr full moon
-  try {
-    if (_isZarantyrFull(serial)) parts.push('\uD83C\uDF19 Zarantyr full (lightning boost)');
-  } catch(ex){}
-  if (!parts.length) return '';
-  return '<div style="font-size:.78em;opacity:.65;margin:2px 0;">' +
-    parts.map(esc).join(' &nbsp;\u00B7&nbsp; ') + '</div>';
+  } catch(e2){}
+  if (_isZarantyrFull(rec.serial)) out.push('🌙 Zarantyr full (lightning boost)');
+  return out;
+}
+
+function _weatherInfluenceHtml(rec){
+  var lines = _weatherInfluenceTexts(rec);
+  if (!lines.length) return '';
+  return '<div style="font-size:.76em;opacity:.58;font-style:italic;margin-top:3px;">'+
+    lines.map(esc).join(' · ')+
+    '</div>';
 }
 
 function activeEffectsPanelHtml(){
@@ -3970,7 +4025,7 @@ function activeEffectsPanelHtml(){
         wx = '<div style="opacity:.7;">No weather location set.</div>';
       } else {
         weatherEnsureForecast();
-        var rec = _forecastRecord(today);
+        var rec = _weatherRecordForDisplay(_forecastRecord(today));
         if (!rec || !rec.final){
           wx = '<div style="opacity:.7;">No weather generated for today.</div>';
         } else {
@@ -3978,9 +4033,6 @@ function activeEffectsPanelHtml(){
           var locLine = esc(titleCase(loc.climate||'')) + ' / ' +
             esc(titleCase(String(loc.geography||'inland').replace(/_/g,' '))) + ' / ' +
             esc(titleCase(loc.terrain||'open'));
-          if (loc.manifestZone && loc.manifestZone.name){
-            locLine += ' <span style="color:#E65100;">['+esc(loc.manifestZone.name)+']</span>';
-          }
           var cond = _deriveConditions(
             rec.final,
             loc,
@@ -3990,6 +4042,10 @@ function activeEffectsPanelHtml(){
           );
           var narr = _conditionsNarrative(rec.final, cond, 'afternoon');
           wx += '<div style="font-size:.85em;opacity:.75;">'+locLine+'</div>';
+          var manifestStatus = _manifestZoneStatusLabel(_activeManifestZoneEntries());
+          if (manifestStatus !== 'None'){
+            wx += '<div style="font-size:.82em;opacity:.68;margin-top:2px;">Manifest zones: '+esc(manifestStatus)+'</div>';
+          }
           wx += '<div style="margin:3px 0;">' +
             _weatherTraitBadge('temp',   rec.final.temp)+'&nbsp;' +
             _weatherTraitBadge('wind',   rec.final.wind)+'&nbsp;' +
@@ -3997,6 +4053,9 @@ function activeEffectsPanelHtml(){
             '</div>';
           wx += '<div style="font-size:.85em;opacity:.85;">'+esc(narr)+'</div>';
           wx += _conditionsMechHtml(cond);
+          if (st.weatherMechanicsEnabled === false){
+            wx += '<div style="font-size:.8em;opacity:.6;margin-top:3px;">Mechanical weather effects are disabled.</div>';
+          }
 
           var shifts = _activePlanarWeatherShiftLines(today);
           if (shifts.length){
@@ -4182,6 +4241,10 @@ function helpRootMenu(m){
       '🌤️ Weather: '+(st.weatherEnabled ? 'On ✓' : 'Off'),
       'settings weather '+(st.weatherEnabled ? 'off' : 'on')
     );
+    var wxMechBtn = mbP(m,
+      'Weather Mech: '+(st.weatherMechanicsEnabled !== false ? 'On ✓' : 'Off'),
+      'settings weathermechanics '+(st.weatherMechanicsEnabled !== false ? 'off' : 'on')
+    );
     var plBtn = mbP(m,
       '🌀 Planes: '+(st.planesEnabled ? 'On ✓' : 'Off'),
       'settings planes '+(st.planesEnabled ? 'off' : 'on')
@@ -4224,7 +4287,7 @@ function helpRootMenu(m){
       'settings buttons '+(st.autoButtons ? 'off' : 'on')
     );
     rows.push(_menuBox('Settings',
-      grpBtn+' '+lblBtn+' '+evBtn+' '+moonBtn+' '+wxBtn+' '+plBtn+' '+offCycBtn+' '+denBtn+' '+autoBtn+' '+
+      grpBtn+' '+lblBtn+' '+evBtn+' '+moonBtn+' '+wxBtn+' '+wxMechBtn+' '+plBtn+' '+offCycBtn+' '+denBtn+' '+autoBtn+' '+
       moonViewBtn+' '+wxViewBtn+' '+plViewBtn+' '+wxSpanBtn+' '+verbBtn+
       '<div style="font-size:.8em;opacity:.6;margin-top:5px;">Reset everything: <code>!cal resetcalendar</code></div>'
     ));
@@ -4247,6 +4310,7 @@ function helpRootMenu(m){
   if (!playerIsGM(m.playerid)){
     var st2 = ensureSettings();
     var pLinks = [];
+    pLinks.push(mbP(m,'📋 Today','today'));
     if (st2.moonsEnabled   !== false) pLinks.push(mbP(m,'🌙 Moons','moon'));
     if (st2.weatherEnabled !== false) pLinks.push(mbP(m,'🌤️ Weather','weather')+' '+mbP(m,'📋 Forecast','forecast'));
     if (st2.planesEnabled  !== false) pLinks.push(mbP(m,'🌀 Planes','planes'));
@@ -4364,8 +4428,6 @@ function _normalizePackedWords(q){
   return String(q||'')
     .replace(/\b(nextmonth)\b/gi, 'next month')
     .replace(/\b(nextyear)\b/gi, 'next year')
-    .replace(/\b(upcomingmonth)\b/gi, 'upcoming month')
-    .replace(/\b(upcomingyear)\b/gi, 'upcoming year')
     .replace(/\b(currentmonth|thismonth)\b/gi, 'month')
     .replace(/\b(thisyear)\b/gi, 'year')
     .replace(/\b(lastmonth)\b/gi, 'last month')
@@ -4374,8 +4436,6 @@ function _normalizePackedWords(q){
     .replace(/\b(previousyear|prevyear)\b/gi, 'previous year')
     .replace(/\b(next[-_]month)\b/gi,'next month')
     .replace(/\b(next[-_]year)\b/gi,'next year')
-    .replace(/\b(upcoming[-_]month)\b/gi,'upcoming month')
-    .replace(/\b(upcoming[-_]year)\b/gi,'upcoming year')
     .trim();
 }
 
@@ -4394,6 +4454,119 @@ function _showDefaultCalView(m){
     dashboard: true,
     includeButtons: true
   });
+}
+
+function _playerPlanarActiveTodayLines(today, viewTier, genHorizon){
+  var planes = _getAllPlaneData();
+  var notes = [];
+  var ignoreGenerated = (viewTier === 'low' || genHorizon <= 0);
+  for (var i = 0; i < planes.length; i++){
+    if (planes[i].type === 'fixed') continue;
+    var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated:true } : null);
+    if (!ps) continue;
+    if (ps.phase !== 'coterminous' && ps.phase !== 'remote') continue;
+    notes.push((PLANE_PHASE_EMOJI[ps.phase] || '⚪') + ' <b>' + esc(ps.plane.name) + '</b> ' + esc(PLANE_PHASE_LABELS[ps.phase] || ps.phase));
+  }
+  return notes;
+}
+
+function _playerTodayHtml(playerid){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var cal = getCal();
+  var c = cal.current;
+  var mObj = cal.months[c.month] || {};
+  var wd = cal.weekdays[c.day_of_the_week];
+  var sections = [];
+
+  sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
+    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
+    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
+
+  try {
+    var occ = occurrencesInRange(today, today);
+    if (occ.length){
+      var names = [];
+      var seen = {};
+      for (var oi = 0; oi < occ.length; oi++){
+        var nm = eventDisplayName(occ[oi].e);
+        var key = String(nm || '').toLowerCase();
+        if (!seen[key]){
+          seen[key] = 1;
+          names.push(nm);
+        }
+      }
+      sections.push('<div style="margin:3px 0;">🎉 <b>Events:</b> ' + names.map(esc).join(', ') + '</div>');
+    }
+  } catch(e){}
+
+  if (st.weatherEnabled !== false){
+    try {
+      weatherEnsureForecast();
+      var rec = _forecastRecord(today);
+      if (rec){
+        var rev = _readReveal(getWeatherState().playerReveal && getWeatherState().playerReveal[String(today)]);
+        var tier = rev.tier || 'low';
+        var srcLabel = WEATHER_SOURCE_LABELS[rev.source] || null;
+        sections.push('<div style="margin:4px 0 2px 0;"><b>☁ Weather:</b></div>' + _playerDayHtml(rec, tier, false, srcLabel));
+      }
+    } catch(e2){}
+  }
+
+  if (st.moonsEnabled !== false){
+    try {
+      moonEnsureSequences();
+      var ms = getMoonState();
+      var moonTier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
+      var moonHorizon = parseInt(ms.revealHorizonDays, 10) || 7;
+      var moonBits = [];
+      var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      if (sys && sys.moons){
+        for (var mi = 0; mi < sys.moons.length; mi++){
+          var moon = sys.moons[mi];
+          var peakType = _moonPeakPhaseDay(moon.name, today);
+          if (peakType === 'full') moonBits.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+          else if (peakType === 'new'){
+            var ph = moonPhaseAt(moon.name, today);
+            moonBits.push('🌑 <b>' + esc(moon.name) + '</b> is New' + ((ph && ph.longShadows) ? ' <span style="opacity:.7;">(Long Shadows)</span>' : ''));
+          }
+        }
+      }
+      sections.push(
+        '<div style="margin:4px 0 2px 0;"><b>🌙 Moons:</b></div>' +
+        _moonTodaySummaryHtml(today, moonTier, moonHorizon) +
+        '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+        (moonBits.length ? moonBits.join('<br>') : '<span style="opacity:.6;">No moons at full or new today.</span>') +
+        '</div>'
+      );
+    } catch(e3){}
+  }
+
+  if (st.planesEnabled !== false){
+    try {
+      var ps = getPlanesState();
+      var planeTier = _normalizePlaneRevealTier(ps.revealTier || 'medium');
+      var planeHorizon = parseInt(ps.revealHorizonDays, 10) || _planarYearDays();
+      var planeGenHorizon = parseInt(ps.generatedHorizonDays, 10) || 0;
+      var planeNotes = _playerPlanarActiveTodayLines(today, planeTier, planeGenHorizon);
+      sections.push(
+        '<div style="margin:4px 0 2px 0;"><b>🌀 Planes:</b></div>' +
+        _planesTodaySummaryHtml(today, false, planeTier, planeHorizon) +
+        '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+        (planeNotes.length ? planeNotes.join('<br>') : '<span style="opacity:.6;">No active planar extremes today.</span>') +
+        '</div>'
+      );
+    } catch(e4){}
+  }
+
+  sections.push('<div style="margin-top:6px;">' +
+    button('⬅ Calendar', '') + ' ' +
+    button('🌤 Weather', 'weather') + ' ' +
+    button('🌙 Moons', 'moon') + ' ' +
+    button('🌀 Planes', 'planes') +
+    '</div>');
+
+  return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month, sections.join(''));
 }
 
 // ── Today — Combined detail from all subsystems ────────────────────────
@@ -4429,9 +4602,10 @@ function _todayAllHtml(){
   if (st.weatherEnabled !== false){
     try {
       weatherEnsureForecast();
-      var wxRec = _forecastRecord(today);
+      var wxRec = _weatherRecordForDisplay(_forecastRecord(today));
       if (wxRec && wxRec.final){
         var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b></div>';
+        wxHtml += _weatherInfluenceHtml(wxRec);
         var periods = ['morning','afternoon','evening'];
         var pIcons = { morning:'☀', afternoon:'☁', evening:'🌙' };
         for (var pi = 0; pi < periods.length; pi++){
@@ -4530,287 +4704,11 @@ function _todayAllHtml(){
   }
 
   sections.push('<div style="margin-top:6px;">' +
-    button('⬅ Calendar', '') + ' ' +
-    button('📅 Upcoming', 'upcoming') +
+    button('⬅ Calendar', '') +
     '</div>');
 
   return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month,
     sections.join(''));
-}
-
-// ── Player Today — simplified view respecting revealed tiers ───────────
-function _playerTodayHtml(){
-  var st = ensureSettings();
-  var today = todaySerial();
-  var cal = getCal(), c = cal.current;
-  var mObj = cal.months[c.month] || {};
-  var wd = cal.weekdays[c.day_of_the_week];
-  var sections = [];
-
-  sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
-    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
-    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
-
-  // Events (always public)
-  try {
-    var occ = occurrencesInRange(today, today);
-    if (occ.length){
-      var names = [], seen = {};
-      for (var oi = 0; oi < occ.length; oi++){
-        var nm = eventDisplayName(occ[oi].e);
-        if (!seen[nm.toLowerCase()]){ seen[nm.toLowerCase()]=1; names.push(nm); }
-      }
-      sections.push('<div style="margin:3px 0;">\uD83C\uDF89 <b>Events:</b> ' +
-        names.map(esc).join(', ') + '</div>');
-    }
-  } catch(e){}
-
-  // Weather at player's revealed tier
-  if (st.weatherEnabled !== false){
-    try {
-      weatherEnsureForecast();
-      var ws = getWeatherState();
-      var wxRec = _forecastRecord(today);
-      if (wxRec && wxRec.final){
-        var reveal = ws.playerReveal && ws.playerReveal[today];
-        var tier = (reveal && reveal.tier) || 'low';
-        var src  = (reveal && reveal.source) || 'common';
-        sections.push('<div style="margin:4px 0;"><b>\u2601 Weather:</b></div>' +
-          '<div style="margin-left:8px;">' + _playerDayHtml(wxRec, tier, true, src) + '</div>');
-      }
-    } catch(e){}
-  }
-
-  // Moon phases (basic phase info is always visible — you can see the sky)
-  if (st.moonsEnabled !== false){
-    try {
-      moonEnsureSequences();
-      var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
-      if (sys && sys.moons){
-        var moonLines = [];
-        for (var mi = 0; mi < sys.moons.length; mi++){
-          var moon = sys.moons[mi];
-          var ph = moonPhaseAt(moon.name, today);
-          if (!ph) continue;
-          var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
-          var pLabel = _moonPhaseLabel(ph.illum, ph.waxing);
-          var pct = Math.round(ph.illum * 100);
-          var extra = '';
-          if (ph.illum >= 0.97) extra = ' <b style="color:#FFD700;">FULL</b>';
-          else if (ph.illum <= 0.03) extra = ' <b>NEW</b>';
-          moonLines.push(emoji + ' ' + esc(moon.name) + ' (' + pct + '% ' + esc(pLabel) + ')' + extra);
-        }
-        if (moonLines.length){
-          sections.push('<div style="margin:4px 0;"><b>\uD83C\uDF19 Moons:</b></div>' +
-            '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
-            moonLines.join('<br>') + '</div>');
-        }
-      }
-    } catch(e){}
-  }
-
-  // Planar effects (low tier: canon events currently active)
-  if (st.planesEnabled !== false){
-    try {
-      var plNotes = _planarNotableToday(today);
-      if (plNotes.length){
-        sections.push('<div style="margin:4px 0;"><b>\uD83C\uDF00 Planar:</b></div>' +
-          '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
-          plNotes.join('<br>') + '</div>');
-      }
-    } catch(e){}
-  }
-
-  sections.push('<div style="margin-top:6px;">' +
-    button('\u2B05 Calendar', '') +
-    '</div>');
-
-  return _menuBox('\uD83D\uDCCB Today \u2014 ' + esc(mObj.name) + ' ' + c.day_of_the_month,
-    sections.join(''));
-}
-
-// ── Player Upcoming — simplified 7-day view ───────────────────────────
-function _playerUpcomingHtml(){
-  var st = ensureSettings();
-  var today = todaySerial();
-  var days = 7;
-  var cal = getCal();
-  var rows = [];
-  for (var i = 0; i < days; i++){
-    var ser = today + i;
-    var d = fromSerial(ser);
-    var mObj = cal.months[d.mi] || {};
-    var dayLabel = esc(mObj.name) + ' ' + d.day;
-    if (i === 0) dayLabel = '<b>' + dayLabel + '</b>';
-    var bits = [];
-    // Weather (only if revealed)
-    if (st.weatherEnabled !== false){
-      try {
-        var ws = getWeatherState();
-        var reveal = ws.playerReveal && ws.playerReveal[ser];
-        if (reveal || i === 0){
-          var wxRec = _forecastRecord(ser);
-          if (wxRec && wxRec.final){
-            var wxCond = _deriveConditions(wxRec.final, wxRec.location||{}, 'afternoon',
-              wxRec.snowAccumulated, wxRec.fog && wxRec.fog.afternoon);
-            bits.push(_weatherEmojiForRecord(wxRec) + ' ' + esc(_conditionsNarrative(wxRec.final, wxCond, 'afternoon')));
-          }
-        }
-      } catch(e){}
-    }
-    // Moon events (full/new — observable)
-    if (st.moonsEnabled !== false){
-      try {
-        var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
-        if (sys && sys.moons){
-          var moonBits = [];
-          for (var mi = 0; mi < sys.moons.length; mi++){
-            var moon = sys.moons[mi];
-            var ph = moonPhaseAt(moon.name, ser);
-            if (!ph) continue;
-            if (ph.illum >= 0.97) moonBits.push('\uD83C\uDF15 ' + moon.name);
-            else if (ph.illum <= 0.03) moonBits.push('\uD83C\uDF11 ' + moon.name);
-          }
-          if (moonBits.length) bits.push(moonBits.join(' \u00B7 '));
-        }
-      } catch(e){}
-    }
-    // Calendar events
-    try {
-      var occ = occurrencesInRange(ser, ser);
-      if (occ.length){
-        var evNames = [], evSeen = {};
-        for (var oi = 0; oi < occ.length; oi++){
-          var nm = eventDisplayName(occ[oi].e);
-          if (!evSeen[nm.toLowerCase()]){ evSeen[nm.toLowerCase()]=1; evNames.push(nm); }
-        }
-        bits.push('\uD83C\uDF89 ' + evNames.slice(0,2).map(esc).join(', '));
-      }
-    } catch(e){}
-    if (bits.length){
-      var border = (i < days - 1) ? 'border-bottom:1px solid rgba(255,255,255,.06);' : '';
-      rows.push('<div style="padding:2px 0;'+border+'">' +
-        '<span style="font-size:.85em;">' + dayLabel + '</span> ' +
-        '<span style="font-size:.78em;opacity:.75;">' + bits.join(' \u00B7 ') + '</span>' +
-        '</div>');
-    }
-  }
-  var detailHtml = rows.length
-    ? '<div style="margin-top:4px;">' + rows.join('') + '</div>'
-    : '';
-  return _menuBox('\uD83D\uDCC5 This Week', detailHtml +
-    '<div style="margin-top:6px;">' +
-    button('\u2B05 Calendar', '') + ' ' +
-    button('\uD83D\uDCCB Today', 'today') +
-    '</div>'
-  );
-}
-
-// ── Upcoming — 7-day combined view ─────────────────────────────────────
-// Shows a week strip (today + 6) using the calendar grid renderer, plus
-// subsystem highlights for each day below. Fixed at 7 days.
-function _upcomingHtml(){
-  var st = ensureSettings();
-  var today = todaySerial();
-  var days = 7;
-  var cal = getCal();
-  var endSer = today + days - 1;
-
-  // Build calendar strip for the 7-day range using the month strip renderer
-  var spec = { start: today, end: endSer, title: 'This Week' };
-  var calStrip = buildCalendarsHtmlForSpec(spec);
-
-  // Day-by-day highlights below the strip
-  var rows = [];
-  for (var i = 0; i < days; i++){
-    var ser = today + i;
-    var d = fromSerial(ser);
-    var mObj = cal.months[d.mi] || {};
-    var dayLabel = esc(mObj.name) + ' ' + d.day;
-    if (i === 0) dayLabel = '<b>' + dayLabel + '</b>';
-
-    var bits = [];
-
-    // Weather
-    if (st.weatherEnabled !== false){
-      try {
-        var wxRec = _forecastRecord(ser);
-        if (wxRec && wxRec.final){
-          var wxEmoji = _weatherEmojiForRecord(wxRec);
-          var wxCond = _deriveConditions(wxRec.final, wxRec.location||{}, 'afternoon',
-            wxRec.snowAccumulated, wxRec.fog && wxRec.fog.afternoon);
-          bits.push(wxEmoji + ' ' + esc(_conditionsNarrative(wxRec.final, wxCond, 'afternoon')));
-          var extremes = _evaluateExtremeEvents(wxRec);
-          if (extremes.length) bits.push('⚡ ' + esc(extremes[0].event.name));
-        }
-      } catch(e){}
-    }
-
-    // Moon events (full/new only)
-    if (st.moonsEnabled !== false){
-      try {
-        var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
-        if (sys && sys.moons){
-          var moonBits = [];
-          for (var mi = 0; mi < sys.moons.length; mi++){
-            var moon = sys.moons[mi];
-            var ph = moonPhaseAt(moon.name, ser);
-            if (!ph) continue;
-            if (ph.illum >= 0.97) moonBits.push('🌕 ' + moon.name);
-            else if (ph.illum <= 0.03) moonBits.push('🌑 ' + moon.name +
-              (ph.longShadows ? ' (LS)' : ''));
-          }
-          try {
-            var eclNotes = _eclipseNotableToday(ser);
-            for (var ei = 0; ei < eclNotes.length; ei++) moonBits.push(eclNotes[ei]);
-          } catch(e3){}
-          if (moonBits.length) bits.push(moonBits.join(' · '));
-        }
-      } catch(e){}
-    }
-
-    // Planar events
-    if (st.planesEnabled !== false){
-      try {
-        var plNotes = _planarNotableToday(ser);
-        if (plNotes.length) bits.push(plNotes.slice(0,2).join(' · '));
-      } catch(e){}
-    }
-
-    // Calendar events
-    try {
-      var occ = occurrencesInRange(ser, ser);
-      if (occ.length){
-        var evNames = [];
-        var evSeen = {};
-        for (var oi = 0; oi < occ.length; oi++){
-          var nm = eventDisplayName(occ[oi].e);
-          if (!evSeen[nm.toLowerCase()]){ evSeen[nm.toLowerCase()]=1; evNames.push(nm); }
-        }
-        bits.push('🎉 ' + evNames.slice(0,2).map(esc).join(', '));
-      }
-    } catch(e){}
-
-    if (bits.length){
-      var border = (i < days - 1) ? 'border-bottom:1px solid rgba(255,255,255,.06);' : '';
-      rows.push('<div style="padding:2px 0;'+border+'">' +
-        '<span style="font-size:.85em;">' + dayLabel + '</span> ' +
-        '<span style="font-size:.78em;opacity:.75;">' + bits.join(' · ') + '</span>' +
-        '</div>');
-    }
-  }
-
-  var detailHtml = rows.length
-    ? '<div style="margin-top:4px;">' + rows.join('') + '</div>'
-    : '';
-
-  return _menuBox('📅 This Week',
-    calStrip + detailHtml +
-    '<div style="margin-top:6px;">' +
-    button('⬅ Calendar', '') + ' ' +
-    button('📋 Today', 'today') +
-    '</div>'
-  );
 }
 
 var USAGE = {
@@ -4897,17 +4795,7 @@ var commands = {
     } else {
       weatherEnsureForecast();
       moonEnsureSequences();
-      whisper(cleanWho(m.who), _playerTodayHtml());
-    }
-  },
-
-  upcoming: function(m, a){
-    weatherEnsureForecast();
-    moonEnsureSequences();
-    if (playerIsGM(m.playerid)){
-      whisper(m.who, _upcomingHtml());
-    } else {
-      whisper(cleanWho(m.who), _playerUpcomingHtml());
+      whisper(m.who, _playerTodayHtml(m.playerid));
     }
   },
 
@@ -4943,11 +4831,11 @@ var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisper(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|planes|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|planes|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
-        '<code>!cal settings weatherdays (10|20)</code>'
+        '<code>!cal settings weatherdays (1-20)</code>'
       );
     }
     if (!key){
@@ -4970,10 +4858,11 @@ var commands = {
       return whisper(m.who,'Subsystem detail set to <b>'+esc(titleCase(val))+'</b>.');
     }
     if (key === 'weatherdays' || key === 'wxdays'){
-      if (!/^(10|20)$/.test(val)){
-        return whisper(m.who,'Usage: <code>!cal settings weatherdays (10|20)</code>');
+      var weatherDays = parseInt(val, 10);
+      if (!/^\d+$/.test(val) || weatherDays < 1 || weatherDays > CONFIG_WEATHER_FORECAST_DAYS){
+        return whisper(m.who,'Usage: <code>!cal settings weatherdays (1-'+CONFIG_WEATHER_FORECAST_DAYS+')</code>');
       }
-      st.weatherForecastViewDays = _weatherViewDays(val);
+      st.weatherForecastViewDays = _weatherViewDays(weatherDays);
       refreshAndSend();
       return whisper(m.who,'Weather forecast span set to <b>'+st.weatherForecastViewDays+' days</b>.');
     }
@@ -4989,7 +4878,7 @@ var commands = {
       refreshAndSend();
       return whisper(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
-    if (!/^(group|labels|events|moons|weather|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
     }
     if (key==='group')    st.groupEventsBySource = (val==='on');
@@ -4997,6 +4886,7 @@ var commands = {
     if (key==='events')   st.eventsEnabled       = (val==='on');
     if (key==='moons'){    st.moonsEnabled  = (val==='on'); st._moonsAutoToggle = false; }
     if (key==='weather')  st.weatherEnabled      = (val==='on');
+    if (key==='weathermechanics' || key==='wxmechanics') st.weatherMechanicsEnabled = (val==='on');
     if (key==='planes'){  st.planesEnabled = (val==='on'); st._planesAutoToggle = false; }
     if (key==='offcycle') st.offCyclePlanes      = (val==='on');
     if (key==='buttons')  st.autoButtons         = (val==='on');
@@ -5311,10 +5201,11 @@ var WEATHER_TOD_ARC = {
 };
 
 // ---------------------------------------------------------------------------
-// Climate base tables — 5 climates × 12 months (index 0=mid-winter … 11=early-winter)
+// Climate base tables — climates × 12 months (index 0=mid-winter … 11=early-winter)
 // Each entry: { temp, wind, precip } each { base, die, min, max }
 // Geography and terrain modifiers shift base/min/max uniformly. die is unchanged.
-// Temp scale: −5=≤−46°F … 6=55°F … 15=≥145°F (expanded band model)
+// Temperature entries below are legacy stage values and are converted at load
+// time into direct WEATHER_TEMPERATURE_BANDS_F indices (-5..15).
 // Wind scale: 0=calm … 5=storm     Precip scale: 0=clear … 5=extreme
 // ---------------------------------------------------------------------------
 var WEATHER_CLIMATE_BASE = {
@@ -5434,6 +5325,24 @@ var WEATHER_CLIMATE_BASE = {
     /*11 early-wn*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
   ]
 };
+
+function _upgradeWeatherClimateBaseTemps(){
+  Object.keys(WEATHER_CLIMATE_BASE).forEach(function(climate){
+    WEATHER_CLIMATE_BASE[climate] = (WEATHER_CLIMATE_BASE[climate] || []).map(function(entry){
+      return {
+        temp: {
+          base: _legacyTempStageToBand(entry.temp && entry.temp.base),
+          die:  entry.temp && entry.temp.die,
+          min:  _legacyTempStageToBand(entry.temp && entry.temp.min),
+          max:  _legacyTempStageToBand(entry.temp && entry.temp.max)
+        },
+        wind: entry.wind,
+        precip: entry.precip
+      };
+    });
+  });
+}
+_upgradeWeatherClimateBaseTemps();
 
 // ---------------------------------------------------------------------------
 // Geography modifier tables — 10 geographies × 12 months (or constant object)
@@ -5691,6 +5600,66 @@ var WEATHER_TERRAINS_UI = {
   coastal_bluff:'Exposed cliff near water: coastal moisture with amplified wind'
 };
 
+var MANIFEST_ZONE_ORDER = [
+  'fernia','risia','irian','mabar','lamannia','syrania','kythri',
+  'shavarath','daanvi','dolurrh','thelanis','xoriat','dalquor'
+];
+
+var MANIFEST_ZONE_DEFS = {
+  fernia: {
+    key: 'fernia', name: 'Fernia', emoji: '🔥',
+    summary: 'Warmth', effectLabel: '+3 temp', tempMod: 3
+  },
+  risia: {
+    key: 'risia', name: 'Risia', emoji: '❄️',
+    summary: 'Cold', effectLabel: '-3 temp', tempMod: -3
+  },
+  irian: {
+    key: 'irian', name: 'Irian', emoji: '✨',
+    summary: 'Radiant warmth', effectLabel: '+1 temp', tempMod: 1
+  },
+  mabar: {
+    key: 'mabar', name: 'Mabar', emoji: '🌑',
+    summary: 'Shadow cold', effectLabel: '-1 temp', tempMod: -1
+  },
+  lamannia: {
+    key: 'lamannia', name: 'Lamannia', emoji: '🌿',
+    summary: 'Lush weather', effectLabel: '+1 precip', precipMod: 1
+  },
+  syrania: {
+    key: 'syrania', name: 'Syrania', emoji: '🌤',
+    summary: 'Milder skies', effectLabel: '-1 precip, -1 wind', precipMod: -1, windMod: -1
+  },
+  kythri: {
+    key: 'kythri', name: 'Kythri', emoji: '🌀',
+    summary: 'Chaotic swings', effectLabel: 'chaotic swings', chaotic: true
+  },
+  shavarath: {
+    key: 'shavarath', name: 'Shavarath', emoji: '⚔️',
+    summary: 'Martial resonance', effectLabel: 'no weather shift'
+  },
+  daanvi: {
+    key: 'daanvi', name: 'Daanvi', emoji: '📏',
+    summary: 'Orderly', effectLabel: 'no weather shift'
+  },
+  dolurrh: {
+    key: 'dolurrh', name: 'Dolurrh', emoji: '🪦',
+    summary: 'Deathly', effectLabel: 'no weather shift'
+  },
+  thelanis: {
+    key: 'thelanis', name: 'Thelanis', emoji: '🧚',
+    summary: 'Fey', effectLabel: 'no weather shift'
+  },
+  xoriat: {
+    key: 'xoriat', name: 'Xoriat', emoji: '👁️',
+    summary: 'Madness', effectLabel: 'no weather shift'
+  },
+  dalquor: {
+    key: 'dalquor', name: 'Dal Quor', emoji: '💤',
+    summary: 'Dreams', effectLabel: 'no weather shift'
+  }
+};
+
 // ---------------------------------------------------------------------------
 // 18a) State accessors
 // ---------------------------------------------------------------------------
@@ -5698,20 +5667,171 @@ var WEATHER_TERRAINS_UI = {
 function getWeatherState(){
   var root = state[state_name];
   if (!root.weather) root.weather = {
-    location:     null,  // { name, climate, terrain, manifestZone, sig }
+    location:     null,  // { name, climate, geography, terrain, sig }
+    manifestZones: {},   // key -> { key, setOn, arythFullActivated, arythFullExitWarned }
     forecast:     [],    // array of day records keyed by serial
     history:      [],    // locked past days (up to 60)
     playerReveal: {}     // serial(str) → best detail tier revealed: 'high'|'medium'|'low'
   };
   var ws = root.weather;
   if (!ws.playerReveal) ws.playerReveal = {};
+  if (!ws.manifestZones || typeof ws.manifestZones !== 'object') ws.manifestZones = {};
+  if (ws.location && ws.location.manifestZone){
+    var legacyKey = _manifestZoneKey(ws.location.manifestZone.name || ws.location.manifestZone.key || '');
+    if (legacyKey && !ws.manifestZones[legacyKey]){
+      ws.manifestZones[legacyKey] = {
+        key: legacyKey,
+        setOn: todaySerial(),
+        arythFullActivated: false,
+        arythFullExitWarned: false
+      };
+    }
+    delete ws.location.manifestZone;
+    ws.location.sig = _locSig(ws.location);
+  }
   return ws;
 }
 
 // Location signature for resurrection matching.
 function _locSig(loc){
   if (!loc) return '';
-  return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'')+'/'+(loc.manifestZone ? loc.manifestZone.name : 'none');
+  return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'');
+}
+
+function _manifestZoneKey(nameOrKey){
+  var raw = String(nameOrKey || '').toLowerCase().replace(/[\s'_-]+/g, '');
+  if (!raw) return null;
+  if (raw === 'dalquor') return 'dalquor';
+  for (var i = 0; i < MANIFEST_ZONE_ORDER.length; i++){
+    var key = MANIFEST_ZONE_ORDER[i];
+    var def = MANIFEST_ZONE_DEFS[key];
+    if (!def) continue;
+    var defKey = String(def.key || key).toLowerCase().replace(/[\s'_-]+/g, '');
+    var defName = String(def.name || '').toLowerCase().replace(/[\s'_-]+/g, '');
+    if (raw === defKey || raw === defName) return key;
+  }
+  return null;
+}
+
+function _activeManifestZoneEntries(){
+  var zones = getWeatherState().manifestZones || {};
+  return Object.keys(zones).map(function(key){
+    var norm = _manifestZoneKey(key);
+    if (!norm || !MANIFEST_ZONE_DEFS[norm]) return null;
+    var entry = zones[key] || {};
+    return {
+      key: norm,
+      def: MANIFEST_ZONE_DEFS[norm],
+      setOn: entry.setOn || null,
+      arythFullActivated: !!entry.arythFullActivated,
+      arythFullExitWarned: !!entry.arythFullExitWarned
+    };
+  }).filter(Boolean).sort(function(a, b){
+    return MANIFEST_ZONE_ORDER.indexOf(a.key) - MANIFEST_ZONE_ORDER.indexOf(b.key);
+  });
+}
+
+function _activeManifestZoneDefs(){
+  return _activeManifestZoneEntries().map(function(entry){ return entry.def; });
+}
+
+function _manifestZoneStatusLabel(entries){
+  entries = entries || _activeManifestZoneEntries();
+  if (!entries.length) return 'None';
+  return entries.map(function(entry){
+    return (entry.def.emoji || '◇') + ' ' + entry.def.name;
+  }).join(' · ');
+}
+
+function _activeManifestZonesForSerial(serial){
+  return (serial === todaySerial()) ? _activeManifestZoneEntries() : [];
+}
+
+function _manifestZoneInfluenceText(def){
+  if (!def) return null;
+  return (def.emoji || '◇') + ' ' + def.name + ' manifest zone (' + (def.effectLabel || 'no weather shift') + ')';
+}
+
+function _applyManifestZonesToValues(values, entries, serial){
+  entries = entries || [];
+  if (!entries.length) return values;
+
+  for (var i = 0; i < entries.length; i++){
+    var def = entries[i].def || entries[i];
+    if (!def) continue;
+    if (typeof def.tempMod === 'number') values.temp += def.tempMod;
+    if (typeof def.precipMod === 'number') values.precip = Math.max(0, Math.min(5, values.precip + def.precipMod));
+    if (typeof def.windMod === 'number') values.wind = Math.max(0, Math.min(5, values.wind + def.windMod));
+    if (def.chaotic){
+      var kR = _seededRand((serial|0) * 77 + 999);
+      values.temp += Math.floor(kR() * 5) - 2;
+      values.precip = Math.max(0, Math.min(5, values.precip + Math.floor(kR() * 3) - 1));
+      values.wind = Math.max(0, Math.min(5, values.wind + Math.floor(kR() * 3) - 1));
+    }
+  }
+
+  values.temp = _clampWeatherTempBand(values.temp);
+  values.precip = Math.max(0, Math.min(5, values.precip));
+  values.wind = Math.max(0, Math.min(5, values.wind));
+  return values;
+}
+
+function _weatherRecordForDisplay(rec){
+  if (!rec || rec.serial !== todaySerial()) return rec;
+  var entries = _activeManifestZonesForSerial(rec.serial);
+  if (!entries.length) return rec;
+
+  var out = deepClone(rec);
+  var periods = ['morning', 'afternoon', 'evening'];
+  for (var i = 0; i < periods.length; i++){
+    var pname = periods[i];
+    if (!out.periods || !out.periods[pname]) continue;
+    out.periods[pname] = _applyManifestZonesToValues(out.periods[pname], entries, rec.serial);
+  }
+  if (out.final){
+    out.final = _applyManifestZonesToValues(out.final, entries, rec.serial);
+  }
+  if (!out.location) out.location = {};
+  out.location.activeManifestZones = entries.map(function(entry){ return entry.def.name; });
+  return out;
+}
+
+function _isArythFull(serial){
+  if (ensureSettings().calendarSystem !== 'eberron') return false;
+  try {
+    moonEnsureSequences(serial, 60);
+    var ph = moonPhaseAt('Aryth', serial);
+    return !!(ph && ph.illum >= 0.97);
+  } catch(e){
+    return false;
+  }
+}
+
+function _manifestZoneOnDateChange(prevSerial, newSerial){
+  if (!(newSerial > prevSerial)) return;
+  if (ensureSettings().weatherEnabled === false) return;
+  var ws = getWeatherState();
+  if (!ws.location) return;
+  var prevFull = _isArythFull(prevSerial);
+  var newFull = _isArythFull(newSerial);
+
+  if (!prevFull && newFull){
+    warnGM('Aryth is full. Consider a manifest zone.');
+  }
+
+  if (prevFull && !newFull){
+    var tracked = _activeManifestZoneEntries().filter(function(entry){
+      return entry.arythFullActivated && !entry.arythFullExitWarned;
+    });
+    if (tracked.length){
+      warnGM('Aryth is no longer full. Consider deactivating: ' +
+        tracked.map(function(entry){ return entry.def.name; }).join(', ') + '.');
+      tracked.forEach(function(entry){
+        if (!ws.manifestZones[entry.key]) return;
+        ws.manifestZones[entry.key].arythFullExitWarned = true;
+      });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -5770,8 +5890,8 @@ function _getModEntry(table, monthIdx){
 // Compose the final formula for one day from all three layers.
 // Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
 function _composeFormula(climate, geography, terrain, monthIdx){
-  var TRAIT_MIN = { temp:-5, wind:0, precip:0 };
-  var TRAIT_MAX = { temp:15, wind:3, precip:3 };
+  var TRAIT_MIN = { temp:WEATHER_TEMP_BAND_MIN, wind:0, precip:0 };
+  var TRAIT_MAX = { temp:WEATHER_TEMP_BAND_MAX, wind:3, precip:3 };
   var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
   var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
   var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
@@ -5782,7 +5902,7 @@ function _composeFormula(climate, geography, terrain, monthIdx){
     var mn = Math.max(traitMin,  (b.min|0) + shift);
     var mx = Math.min(traitMax,  (b.max|0) + shift);
     if (mx < mn) mx = mn;
-    return { base: (b.base|0) + shift, die: b.die, min: mn, max: mx };
+    return { base: Math.max(mn, Math.min(mx, (b.base|0) + shift)), die: b.die, min: mn, max: mx };
   }
 
   return {
@@ -5991,27 +6111,13 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
   var fogEvening   = _rollFog('evening',   periods.evening,   geography, terrain, mi, fogAfternoon);
   var fog = { morning: fogMorning, afternoon: fogAfternoon, evening: fogEvening };
 
-  // final = afternoon peak; manifest zones override last.
+  // final = afternoon peak. Local manifest zones apply at display time for
+  // the current day only; forecasts remain location-profile driven.
   var finalVals = {
     temp:   periods.afternoon.temp,
     wind:   periods.afternoon.wind,
     precip: periods.afternoon.precip
   };
-  if (loc.manifestZone){
-    var mz = loc.manifestZone;
-    if (typeof mz.tempFloor === 'number') finalVals.temp = Math.max(finalVals.temp, mz.tempFloor);
-    if (typeof mz.tempCeil  === 'number') finalVals.temp = Math.min(finalVals.temp, mz.tempCeil);
-    if (typeof mz.tempMod   === 'number') finalVals.temp += mz.tempMod;
-    if (typeof mz.precipMod === 'number') finalVals.precip = Math.max(0, Math.min(5, finalVals.precip + mz.precipMod));
-    if (typeof mz.windMod   === 'number') finalVals.wind   = Math.max(0, Math.min(5, finalVals.wind   + mz.windMod));
-    if (mz.chaotic){
-      // Kythri: random ±2 swing to temp, ±1 to precip/wind
-      var kR = _seededRand(serial * 77 + 999);
-      finalVals.temp   += Math.floor(kR() * 5) - 2; // -2 to +2
-      finalVals.precip  = Math.max(0, Math.min(5, finalVals.precip + Math.floor(kR() * 3) - 1));
-      finalVals.wind    = Math.max(0, Math.min(5, finalVals.wind   + Math.floor(kR() * 3) - 1));
-    }
-  }
 
   // Planar coterminous/remote weather influences (± modifiers, not hard overrides).
   // These stack with manifest zone effects for layered environmental storytelling.
@@ -6029,6 +6135,7 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
       }
     } catch(e){ /* planar system not ready */ }
   }
+  finalVals.temp = _clampWeatherTempBand(finalVals.temp);
 
   // Final temp clamp to valid band range after all modifiers.
   finalVals.temp = Math.max(-5, Math.min(15, finalVals.temp));
@@ -6309,7 +6416,7 @@ var EXTREME_EVENTS = {
     },
     duration:  '1–4 hours for freeze; persists until thaw',
     mechanics: 'All exposed water surfaces (puddles, ford crossings, wet mud) become ice. Difficult terrain on all outdoor surfaces. DC 12 Acrobatics to avoid falling prone when moving at full speed on ice.',
-    aftermath: 'Icy surfaces persist until temperature rises above band 4 (44°F). Fords may be crossable on foot — or may give way.',
+    aftermath: 'Icy surfaces persist until temperature rises above band 4 (45F+). Fords may be crossable on foot — or may give way.',
     playerMsg: function(loc){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
   },
 
@@ -6355,6 +6462,7 @@ var EXTREME_EVENTS = {
 // Returns array of { key, event, probability } for events that qualify.
 // Probability > 0 means conditions are met. Events with p=0 are excluded.
 function _evaluateExtremeEvents(rec){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec) return [];
   var f   = rec.final;
   var loc = rec.location || {};
@@ -6385,6 +6493,7 @@ function _evaluateExtremeEvents(rec){
 function _rollExtremeEvent(key, rec){
   var evt = EXTREME_EVENTS[key];
   if (!evt) return false;
+  rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return false;
   var f   = rec.final;
   var loc = rec.location || {};
@@ -6408,6 +6517,7 @@ function _isZarantyrFull(serial){
 function _extremeEventPanelHtml(rec){
   var events = _evaluateExtremeEvents(rec);
   if (!events.length) return '';
+  var mechanicsOn = ensureSettings().weatherMechanicsEnabled !== false;
 
   var lines = ['<div style="margin-top:6px;border-top:1px solid rgba(0,0,0,.15);padding-top:5px;">'];
   lines.push('<div style="font-size:.85em;font-weight:bold;color:#B71C1C;margin-bottom:3px;">⚠ Extreme Event Conditions Present</div>');
@@ -6420,7 +6530,7 @@ function _extremeEventPanelHtml(rec){
     lines.push(
       '<div style="margin:3px 0;padding:4px 6px;background:rgba(183,28,28,.06);border-radius:4px;border:1px solid rgba(183,28,28,.2);">'+
       '<div style="font-size:.9em;font-weight:bold;">'+esc(e.event.emoji+' '+e.event.name)+'</div>'+
-      '<div style="font-size:.85em;opacity:.85;margin:2px 0;">'+esc(e.event.mechanics)+'</div>'+
+      (mechanicsOn && e.event.mechanics ? '<div style="font-size:.85em;opacity:.85;margin:2px 0;">'+esc(e.event.mechanics)+'</div>' : '')+
       '<div style="margin-top:3px;">'+triggerBtn+' '+rollBtn+'</div>'+
       '</div>'
     );
@@ -6434,13 +6544,14 @@ function _extremeEventDetailsHtml(key, rec){
   var evt = EXTREME_EVENTS[key];
   if (!evt) return '';
   var msg = evt.playerMsg(rec ? rec.location || {} : {});
+  var mechanicsOn = ensureSettings().weatherMechanicsEnabled !== false;
   return (
     '<div style="border:2px solid #B71C1C;border-radius:5px;padding:6px 10px;background:#FFF3F3;">'+
     '<div style="font-size:1.1em;font-weight:bold;color:#B71C1C;">'+esc(evt.emoji+' '+evt.name)+'</div>'+
     '<div style="margin-top:3px;">'+esc(msg)+'</div>'+
     '<div style="font-size:.85em;margin-top:4px;opacity:.85;border-top:1px solid rgba(183,28,28,.2);padding-top:3px;">'+
     '<b>Duration:</b> '+esc(evt.duration)+'<br>'+
-    '<b>Mechanics:</b> '+esc(evt.mechanics)+'<br>'+
+    (mechanicsOn ? '<b>Mechanics:</b> '+esc(evt.mechanics)+'<br>' : '<b>Mechanics:</b> Disabled in settings<br>')+
     '<b>Aftermath:</b> '+esc(evt.aftermath)+
     '</div></div>'
   );
@@ -6515,7 +6626,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
   var mechLines = [];
 
   // Temperature
-  var tm = CONFIG_WEATHER_MECHANICS.temp[temp];
+  var tm = _weatherTempMechanics(temp);
   if (tm) mechLines.push('<b>Temperature:</b> ' + esc(tm));
 
   // Wind
@@ -6569,6 +6680,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
 
 // Render conditions mechanics block as HTML (empty string if none).
 function _conditionsMechHtml(cond){
+  if (ensureSettings().weatherMechanicsEnabled === false) return '';
   if (!cond.mechanics.length) return '';
   return '<div style="font-size:.85em;margin-top:3px;">'+cond.mechanics.join('<br>')+'</div>';
 }
@@ -6576,8 +6688,14 @@ function _conditionsMechHtml(cond){
 // Full mechanical readout for today — whispered on demand via button.
 // Covers morning, afternoon, evening conditions + any extreme events + planar effects.
 function weatherTodayMechanicsHtml(){
+  if (ensureSettings().weatherMechanicsEnabled === false){
+    return _menuBox('📋 Weather Mechanics',
+      '<div style="opacity:.7;">Mechanical weather effects are disabled. Narrative weather remains active.</div>'+
+      '<div style="margin-top:6px;">'+button('⬅ Back', 'weather')+'</div>'
+    );
+  }
   var today = todaySerial();
-  var rec = _forecastRecord(today);
+  var rec = _weatherRecordForDisplay(_forecastRecord(today));
   if (!rec || !rec.final) return _menuBox('📋 Weather Mechanics', '<div style="opacity:.7;">No weather data for today.</div>');
 
   var f = rec.final;
@@ -6674,11 +6792,11 @@ function _conditionsNarrative(pv, cond, period){
 }
 
 function _tempBand(stage){
-  if (stage <= 3) return 'cold';   // ≤34°F
-  if (stage === 4) return 'cool';  // 35-44°F
-  if (stage <= 6) return 'mild';   // 45-64°F
-  if (stage <= 8) return 'warm';   // 65-84°F
-  return 'hot';                     // 85°F+
+  if (stage <= 3) return 'cold';
+  if (stage === 4) return 'cool';
+  if (stage <= 6) return 'mild';
+  if (stage <= 8) return 'warm';
+  return 'hot';
 }
 
 function _flavorText(pv){
@@ -6714,30 +6832,27 @@ function _weatherTraitBadge(trait, stage){
   //   Precip: pale sky (clear) → deep slate blue (torrential)
   var palettes = {
     temp: [
-      '#1565C0','#1E88E5','#42A5F5','#64B5F6','#90CAF9',  // -5 to -1: deep blue → light blue
-      '#A8D8FF','#C2E0FF','#D6ECFF','#E8F4FF','#F0F4F8',  //  0 to  4: pale blue → near-white
-      '#F5F5F0',                                            //  5: neutral
-      '#FFF3E0','#FFE0B2','#FFD54F','#FF8A65','#E53935',   //  6 to 10: warm yellow → red
-      '#C62828','#B71C1C','#8B0000','#6A0000','#4A0000'    // 11 to 15: deep red → dark
+      '#7AA7D9','#9CC2E8','#B6D6F2','#D0E6FA','#E4F1FF',
+      '#EEF6FF','#F5F5F0','#FFF3E0','#FFE2B6','#FFC98F','#FFB074'
     ],
     wind:  ['#F5F5F5','#E0E8E0','#B0BEC5','#546E7A'],
     precip:['#F0F8FF','#CFE8F5','#90CAF9','#1565C0']
   };
   var pal   = palettes[trait] || palettes.wind;
-  var bg, label;
+  var idx;
   if (trait === 'temp'){
-    // Temp uses band index -5 to 15; palette offset by +5
-    bg = pal[Math.max(0, Math.min(stage + 5, pal.length - 1))];
-    label = CONFIG_WEATHER_LABELS.temp[stage] || String(stage);
+    idx = Math.round(((_clampWeatherTempBand(stage) - WEATHER_TEMP_BAND_MIN) / (WEATHER_TEMP_BAND_MAX - WEATHER_TEMP_BAND_MIN)) * (pal.length - 1));
   } else {
-    bg = pal[Math.max(0, Math.min(stage, pal.length - 1))];
-    label = (CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage);
+    idx = Math.max(0, Math.min(stage, pal.length-1));
   }
+  var bg    = pal[Math.max(0, Math.min(idx, pal.length-1))];
+  var label = (trait === 'temp') ? _weatherTempLabel(stage) : ((CONFIG_WEATHER_LABELS[trait] || [])[stage] || String(stage));
   var tc    = textColor(bg);
   return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+esc(bg)+';color:'+esc(tc)+';font-size:.85em;">'+esc(label)+'</span>';
 }
 
 function _weatherDayGmHtml(rec, showBreakdown){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec) return '<div style="opacity:.6;">(no data)</div>';
 
   var tier = _uncertaintyTier(rec);
@@ -6758,6 +6873,7 @@ function _weatherDayGmHtml(rec, showBreakdown){
     '</div>'
   );
   lines.push('<div style="font-size:.8em;opacity:.7;">T:'+f.temp+' W:'+f.wind+' P:'+f.precip+'&nbsp;&nbsp;['+esc(tCfg.label)+']</div>');
+  lines.push(_weatherInfluenceHtml(rec));
 
   // Weather influence sources annotation
   var _infHtml = _weatherInfluenceHtml(rec.serial, rec.location);
@@ -6859,6 +6975,7 @@ function _readReveal(entry){
 
 // Render one player-facing day block at the given detail tier.
 function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec) return '';
   var cal      = getCal();
   var d        = fromSerial(rec.serial);
@@ -6873,6 +6990,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   var srcLine = sourceLabel
     ? '<div style="font-size:.75em;opacity:.45;font-style:italic;margin-top:1px;">'+esc(sourceLabel)+'</div>'
     : '';
+  var influenceLine = _weatherInfluenceHtml(rec);
 
   if (detailTier === 'high'){
     // Afternoon summary + per-period narrative.
@@ -6929,12 +7047,13 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   return '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12);">'+
     '<div style="font-weight:bold;font-size:.9em;">'+dateLabel+(isToday ? ' (Today)' : '')+'</div>'+
     content+
+    influenceLine+
     srcLine+
     '</div>';
 }
 
 // Build and send the player forecast to chat.
-// method: 'medium' | 'high'. days: 1|3|6|10.
+// method: 'medium' | 'high'. days: positive integer, capped at 10.
 function sendPlayerForecast(m, method, days){
   var ws    = getWeatherState();
   var today = todaySerial();
@@ -6990,8 +7109,7 @@ function sendPlayerForecast(m, method, days){
   warnGM('Sent '+revealed+'-day '+methodLabel.toLowerCase()+' to players.');
 }
 
-// Build whispered player forecast from their stored reveal state.
-function playerForecastWhisper(m){
+function _playerForecastViewData(maxDays){
   var st    = ensureSettings();
   var ws    = getWeatherState();
   var today = todaySerial();
@@ -7001,8 +7119,12 @@ function playerForecastWhisper(m){
   var knownSerials = {};
   var displayMode = _normalizeDisplayMode(st.weatherDisplayMode);
   var verbose = _subsystemIsVerbose();
+  maxDays = _weatherViewDays(maxDays);
 
-  for (var i=0; i<10; i++){
+  weatherEnsureForecast();
+  _recordReveal(ws, today, 'low', 'common');
+
+  for (var i=0; i<maxDays; i++){
     var ser  = today + i;
     var key  = String(ser);
     var rev  = _readReveal(reveals[key]);
@@ -7014,15 +7136,12 @@ function playerForecastWhisper(m){
     knownSerials[String(ser)] = 1;
   }
 
-  if (!blocks.length){
-    whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
-    return;
-  }
+  if (!blocks.length) return null;
 
   var dateObj  = fromSerial(today);
   var mObj     = cal.months[dateObj.mi] || {};
   var titleDate = esc(mObj.name||'?')+' '+dateObj.day;
-  var miniCal = _weatherForecastMiniCalHtml(today, 10, { knownSerials: knownSerials });
+  var miniCal = _weatherForecastMiniCalHtml(today, maxDays, { knownSerials: knownSerials });
   var tRev = _readReveal(reveals[String(today)]);
   var todayTier = tRev.tier || 'low';
   var body = '';
@@ -7040,17 +7159,42 @@ function playerForecastWhisper(m){
   if (verbose){
     body += '<div style="font-size:.75em;opacity:.5;">Use <code>!cal weather</code> for today details.</div>';
   }
-  whisper(m.who, _menuBox('Your Weather Forecast — '+titleDate,
-    _weatherTodaySummaryHtml(today, todayTier)+
-    body
+  return {
+    today: today,
+    todayTier: todayTier,
+    titleDate: titleDate,
+    summaryHtml: _weatherTodaySummaryHtml(today, todayTier, displayMode === 'calendar'),
+    body: body
+  };
+}
+
+// Build whispered player forecast from their stored reveal state.
+function playerForecastWhisper(m){
+  var view = _playerForecastViewData(CONFIG_WEATHER_FORECAST_DAYS);
+  if (!view){
+    whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
+    return;
+  }
+  whisper(m.who, _menuBox('Your Weather Forecast — '+view.titleDate,
+    view.summaryHtml + view.body
   ));
+}
+
+function sendRevealedForecast(m){
+  var view = _playerForecastViewData(CONFIG_WEATHER_FORECAST_DAYS);
+  if (!view){
+    warnGM('No revealed weather is currently available to send.');
+    return;
+  }
+  sendToAll(_menuBox('Weather Forecast — '+view.titleDate, view.summaryHtml + view.body));
+  warnGM('Sent the currently revealed weather forecast to players.');
 }
 
 function weatherTodayGmHtml(){
   var st  = ensureSettings();
   var ws  = getWeatherState();
   var ser = todaySerial();
-  var rec = _forecastRecord(ser);
+  var rec = _weatherRecordForDisplay(_forecastRecord(ser));
 
   var loc = ws.location;
   if (!loc){
@@ -7062,36 +7206,43 @@ function weatherTodayGmHtml(){
 
   var locLine = '<div style="font-size:.85em;opacity:.75;">'+
     esc(titleCase(loc.climate))+' / '+esc(titleCase((loc.geography||'inland').replace(/_/g,' ')))+' / '+esc(titleCase(loc.terrain))+
-    (loc.manifestZone ? ' &nbsp;<span style="color:#E65100;">['+esc(loc.manifestZone.name)+']</span>' : '')+
     '</div>';
+  var manifestEntries = _activeManifestZoneEntries();
+  var manifestLine = manifestEntries.length
+    ? '<div style="font-size:.82em;opacity:.7;margin-top:2px;">Manifest zones: <b>'+esc(_manifestZoneStatusLabel(manifestEntries))+'</b></div>'
+    : '';
+  var arythLine = _isArythFull(ser)
+    ? '<div style="font-size:.8em;opacity:.65;margin-top:2px;">Aryth is full. Consider a manifest zone.</div>'
+    : '';
 
   var body = rec
     ? _weatherDayGmHtml(rec, true)
     : '<div style="opacity:.6;">No weather generated for today.</div>';
 
   var topButtons =
-    button('📣 Send Today','weather send today')+' '+
+    button('📣 Send Revealed','weather send')+' '+
     button('Forecast','weather forecast '+_weatherViewDays(st.weatherForecastViewDays))+' '+
     button('Reroll Today','weather reroll')+' '+
     button('Set Location','weather location')+' '+
     button('History','weather history');
+  var zoneButtons = '<div style="margin-top:4px;">'+button('Set Manifest Zone','weather manifest')+'</div>';
 
   var mediumRow =
-    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Medium send:</div>'+
+    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Reveal skilled forecast:</div>'+
     '<div>'+
-    button('1 day', 'weather send medium 1')+' '+
-    button('3 days','weather send medium 3')+' '+
-    button('6 days','weather send medium 6')+' '+
-    button('10 days','weather send medium 10')+
+    button('1 day', 'weather reveal medium 1')+' '+
+    button('3 days','weather reveal medium 3')+' '+
+    button('6 days','weather reveal medium 6')+' '+
+    button('10 days','weather reveal medium 10')+
     '</div>';
 
   var highRow =
-    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">High send:</div>'+
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Reveal expert forecast:</div>'+
     '<div>'+
-    button('1 day', 'weather send high 1')+' '+
-    button('3 days','weather send high 3')+' '+
-    button('6 days','weather send high 6')+' '+
-    button('10 days','weather send high 10')+
+    button('1 day', 'weather reveal high 1')+' '+
+    button('3 days','weather reveal high 3')+' '+
+    button('6 days','weather reveal high 6')+' '+
+    button('10 days','weather reveal high 10')+
     '</div>';
 
   var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
@@ -7107,15 +7258,17 @@ function weatherTodayGmHtml(){
   }
 
   return _menuBox("Today's Weather",
-    locLine + body +
+    locLine + manifestLine + arythLine + body +
     tidalLine +
     extremeHtml +
     '<div style="margin-top:6px;">'+ topButtons +'</div>'+
+    zoneButtons +
     mediumRow + highRow
   );
 }
 
 function _weatherEmojiForRecord(rec){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return '🌥️';
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
@@ -7136,7 +7289,7 @@ function _weatherEmojiForRecord(rec){
 }
 
 function _weatherMiniCellTitle(serial){
-  var rec = _forecastRecord(serial);
+  var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return null;
   var f = rec.final;
   var loc = rec.location || {};
@@ -7243,13 +7396,14 @@ function _weatherForecastMiniCalHtml(startSerial, days, opts){
   return out.join('');
 }
 
-function _weatherTodaySummaryHtml(serial, detailTier){
-  var rec = _forecastRecord(serial);
+function _weatherTodaySummaryHtml(serial, detailTier, includeInfluence){
+  var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return '';
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
   var txt = _conditionsNarrative(rec.final, cond, 'afternoon');
-  return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b> '+esc(txt)+'</div>';
+  return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b> '+esc(txt)+'</div>' +
+    (includeInfluence ? _weatherInfluenceHtml(rec) : '');
 }
 
 function weatherForecastGmHtml(daysOverride){
@@ -7264,7 +7418,7 @@ function weatherForecastGmHtml(daysOverride){
 
   for (var i=0; i<forecastDays; i++){
     var ser = today + i;
-    var rec = _forecastRecord(ser);
+    var rec = _weatherRecordForDisplay(_forecastRecord(ser));
     var d   = fromSerial(ser);
     var mObj= cal.months[d.mi] || {};
     var dayLabel = esc(mObj.name||'?')+' '+d.day;
@@ -7282,6 +7436,10 @@ function weatherForecastGmHtml(daysOverride){
     var cond  = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
     var badges = _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
     var narr   = _conditionsNarrative(f, cond, 'afternoon');
+    var influenceText = _weatherInfluenceTexts(rec);
+    var influenceHtml = influenceText.length
+      ? '<div style="font-size:.74em;opacity:.55;margin-top:2px;">'+esc(influenceText.join(' · '))+'</div>'
+      : '';
     var staleFlag   = rec.stale ? ' ⚠' : '';
     var extremeFlag = _evaluateExtremeEvents(rec).length > 0
       ? ' <span style="color:#B71C1C;font-weight:bold;" title="Extreme event conditions present">⚡</span>' : '';
@@ -7291,13 +7449,13 @@ function weatherForecastGmHtml(daysOverride){
       rows.push('<tr style="font-weight:bold;">'+
         '<td style="'+STYLES.td+'">'+dayLabel+' (today)</td>'+
         '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
-        '<td style="'+STYLES.td+';font-size:.82em;">'+esc(narr)+staleFlag+'</td>'+
+        '<td style="'+STYLES.td+';font-size:.82em;">'+esc(narr)+staleFlag+influenceHtml+'</td>'+
         '</tr>');
     } else {
       rows.push('<tr>'+
         '<td style="'+STYLES.td+'">'+dayLabel+'</td>'+
         '<td style="'+STYLES.td+'">'+badges+extremeFlag+'</td>'+
-        '<td style="'+STYLES.td+';font-size:.82em;opacity:.7;">'+esc(narr)+staleFlag+'</td>'+
+        '<td style="'+STYLES.td+';font-size:.82em;opacity:.7;">'+esc(narr)+staleFlag+influenceHtml+'</td>'+
         '</tr>');
     }
   }
@@ -7327,10 +7485,10 @@ function weatherForecastGmHtml(daysOverride){
 
   return _menuBox(forecastDays+'-Day Forecast',
     topControls+
-    _weatherTodaySummaryHtml(today)+
+    _weatherTodaySummaryHtml(today, null, displayMode === 'calendar')+
     body+
     '<div style="margin-top:6px;">'+
-    button('📋 Today\'s Mechanics','weather mechanics')+' '+
+    (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics','weather mechanics')+' ' : '')+
     button('Reroll Today','weather reroll '+today)+' '+
     button('Regenerate All','weather generate')+' '+
     button('⬅ Back','weather')+
@@ -7429,37 +7587,199 @@ function weatherLocationWizardHtml(step, partial){
         '</div>';
     }).join('');
     var ctx = esc(titleCase(partial.climate||'?'))+' / '+esc(titleCase((partial.geography||'inland').replace(/_/g,' ')));
-    return _menuBox('Set Location — Step 3: Terrain ('+ctx+')', terrainButtons);
+    return _menuBox('Set Location — Step 3: Terrain ('+ctx+')',
+      '<div style="opacity:.8;margin-bottom:6px;">Selecting a terrain finalizes the location. Manifest zones are managed separately.</div>'+
+      terrainButtons
+    );
   }
 
-  // Step 4: Manifest Zone — this step finalizes the location
+  // Backward-compat alias: manifest zones are now managed separately.
   if (step === 'zone'){
-    var ctx2 = esc(titleCase(partial.climate||'?'))+' / '+
-               esc(titleCase((partial.geography||'inland').replace(/_/g,' ')))+' / '+
-               esc(titleCase(partial.terrain||'?'));
-    return _menuBox('Set Location — Step 4: Manifest Zone ('+ctx2+')',
-      '<div style="opacity:.8;margin-bottom:6px;">Active manifest zone? Selecting finalizes the location.</div>'+
-      '<div style="margin:3px 0;">'+button('None — finalize','weather location zone none')+'</div>'+
-      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Temperature-affecting zones:</div>'+
-      '<div style="margin:3px 0;">'+button('Fernia (warmth, temp +2)','weather location zone fernia')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Risia (cold, temp −2)','weather location zone risia')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Irian (radiant warmth, temp +1)','weather location zone irian')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Mabar (shadow cold, temp −1)','weather location zone mabar')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Lamannia (lush, precip +1)','weather location zone lamannia')+'</div>'+
-      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Atmospheric zones:</div>'+
-      '<div style="margin:3px 0;">'+button('Syrania (clear skies, precip −1)','weather location zone syrania')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Kythri (chaotic, random swings)','weather location zone kythri')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Shavarath (martial resonance, no weather effect)','weather location zone shavarath')+'</div>'+
-      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Flavor zones (no weather effect):</div>'+
-      '<div style="margin:3px 0;">'+button('Daanvi (orderly)','weather location zone daanvi')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Dolurrh (deathly)','weather location zone dolurrh')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Thelanis (fey)','weather location zone thelanis')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Xoriat (madness)','weather location zone xoriat')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Dal Quor (dreams)','weather location zone dalquor')+'</div>'
+    return _menuBox('Manifest Zones',
+      '<div style="opacity:.8;margin-bottom:6px;">Manifest zones are now independent of the location wizard.</div>'+
+      '<div>'+button('Open Manifest Zones','weather manifest')+'</div>'
     );
   }
 
   return '';
+}
+
+function _clearManifestZones(){
+  var ws = getWeatherState();
+  var removed = _activeManifestZoneEntries();
+  ws.manifestZones = {};
+  return removed;
+}
+
+function _setWeatherLocationFromWizard(m, partial){
+  var newLoc = {
+    climate:   partial.climate   || 'temperate',
+    geography: partial.geography || 'inland',
+    terrain:   partial.terrain   || 'open'
+  };
+  newLoc.sig = _locSig(newLoc);
+
+  var ws = getWeatherState();
+  var oldLoc = ws.location || null;
+  var oldSig = oldLoc ? _locSig(oldLoc) : '';
+  var locationChanged = !!oldLoc && oldSig !== newLoc.sig;
+  var clearedZones = locationChanged ? _clearManifestZones() : [];
+  var hadLocation = !!oldLoc;
+
+  ws.location = newLoc;
+  delete ws._wizard;
+
+  var today = todaySerial();
+  var resurrected = 0, staled = 0;
+  ws.forecast.forEach(function(rec){
+    if (rec.locked || rec.serial < today) return;
+    var recSig = rec.location ? _locSig(rec.location) : '';
+    if (recSig === newLoc.sig){
+      rec.stale = false;
+      resurrected++;
+    } else {
+      rec.stale = true;
+      staled++;
+    }
+  });
+
+  var dispClimate = esc(titleCase(newLoc.climate));
+  var dispGeo = esc(titleCase(newLoc.geography.replace(/_/g, ' ')));
+  var dispTerrain = esc(titleCase(newLoc.terrain));
+  var msg = 'Location set: <b>'+dispClimate+' / '+dispGeo+' / '+dispTerrain+'</b>.';
+
+  if (clearedZones.length){
+    msg += '<br><span style="color:#E65100;">Cleared manifest zones: ' +
+      esc(clearedZones.map(function(entry){ return entry.def.name; }).join(', ')) +
+      '.</span>';
+  }
+
+  if (hadLocation){
+    if (resurrected > 0 && staled === 0){
+      msg += '<br><span style="color:#2E7D32;">Forecast restored from matching records.</span>';
+    } else if (resurrected > 0){
+      msg += '<br><span style="color:#1565C0;">'+resurrected+' day(s) restored; '+staled+' stale.</span>';
+    } else {
+      msg += '<br><span style="color:#E65100;">Future forecast marked stale. Regenerate to update.</span>';
+    }
+  }
+
+  whisper(m.who,
+    _menuBox('Location Set', msg)+
+    '<div style="margin-top:4px;">'+
+    button('Regenerate Forecast','weather generate')+' '+
+    button('View Forecast','weather forecast')+
+    '</div>'
+  );
+}
+
+function manifestZoneChooserHtml(){
+  var ws = getWeatherState();
+  var loc = ws.location;
+  if (!loc){
+    return _menuBox('Manifest Zones',
+      '<div style="opacity:.7;">Set a weather location first. Manifest zones are local overlays and clear when the location changes.</div>'+
+      '<div style="margin-top:6px;">'+button('Set Location','weather location')+'</div>'
+    );
+  }
+
+  var entries = _activeManifestZoneEntries();
+  var active = {};
+  for (var i = 0; i < entries.length; i++) active[entries[i].key] = 1;
+  var noneActive = !entries.length;
+  var rows = [];
+
+  function nameCell(label, detail, isActive){
+    var nameStyle = isActive ? 'font-weight:bold;' : 'opacity:.6;font-style:italic;';
+    return '<div style="'+nameStyle+'">'+esc(label)+'</div>' +
+      (detail ? '<div style="font-size:.78em;opacity:.65;margin-top:2px;">'+esc(detail)+'</div>' : '');
+  }
+
+  rows.push('<tr>'+
+    '<td style="'+STYLES.td+'">'+nameCell('None', 'Clear all active manifest zones', noneActive)+'</td>'+
+    '<td style="'+STYLES.td+';text-align:center;">'+button(noneActive ? 'On' : 'Off', 'weather manifest none')+'</td>'+
+    '</tr>');
+
+  for (var mi = 0; mi < MANIFEST_ZONE_ORDER.length; mi++){
+    var key = MANIFEST_ZONE_ORDER[mi];
+    var def = MANIFEST_ZONE_DEFS[key];
+    var isActive = !!active[key];
+    rows.push('<tr>'+
+      '<td style="'+STYLES.td+'">'+
+        nameCell((def.emoji || '◇') + ' ' + def.name, def.summary + ' · ' + (def.effectLabel || 'no weather shift'), isActive)+
+      '</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+button(isActive ? 'On' : 'Off', 'weather manifest toggle '+key)+'</td>'+
+      '</tr>');
+  }
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Zone</th>'+
+    '<th style="'+STYLES.th+'">Toggle</th>'+
+    '</tr>';
+
+  var locLine = '<div style="font-size:.82em;opacity:.75;margin-bottom:4px;">Current location: <b>'+
+    esc(titleCase(loc.climate))+' / '+esc(titleCase(loc.geography.replace(/_/g,' ')))+' / '+esc(titleCase(loc.terrain))+
+    '</b></div>';
+  var activeLine = '<div style="font-size:.82em;opacity:.7;margin-bottom:6px;">Active: <b>'+esc(_manifestZoneStatusLabel(entries))+'</b></div>';
+  var arythLine = _isArythFull(todaySerial())
+    ? '<div style="font-size:.8em;opacity:.7;margin-bottom:6px;">Aryth is full. Consider a manifest zone.</div>'
+    : '';
+
+  return _menuBox('Manifest Zones',
+    locLine +
+    activeLine +
+    arythLine +
+    '<div style="font-size:.8em;opacity:.6;margin-bottom:6px;">Manifest zones affect today\'s weather only; forecast rows stay tied to the base location profile.</div>'+
+    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
+    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+  );
+}
+
+function _toggleManifestZoneForGm(m, zoneKey){
+  var ws = getWeatherState();
+  if (!ws.location){
+    whisper(m.who, 'Set a weather location first: ' + button('Set Location', 'weather location'));
+    return;
+  }
+
+  if (zoneKey === 'none' || zoneKey === 'clear'){
+    var removed = _clearManifestZones();
+    if (!removed.length){
+      whisper(m.who, 'No manifest zones are active.');
+      return;
+    }
+    whisper(m.who, 'Cleared manifest zones: <b>'+esc(removed.map(function(entry){ return entry.def.name; }).join(', '))+'</b>.');
+    return;
+  }
+
+  var key = _manifestZoneKey(zoneKey);
+  var def = key ? MANIFEST_ZONE_DEFS[key] : null;
+  if (!def){
+    whisper(m.who, 'Unknown manifest zone.');
+    return;
+  }
+
+  if (ws.manifestZones[key]){
+    delete ws.manifestZones[key];
+    whisper(m.who,
+      'Manifest zone deactivated: <b>'+esc(def.name)+'</b>. ' +
+      'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.'
+    );
+    return;
+  }
+
+  var arythFull = _isArythFull(todaySerial());
+  ws.manifestZones[key] = {
+    key: key,
+    setOn: todaySerial(),
+    arythFullActivated: arythFull,
+    arythFullExitWarned: false
+  };
+  whisper(m.who,
+    'Manifest zone activated: <b>'+esc(def.name)+'</b>. ' +
+    'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.' +
+    (arythFull ? ' <span style="opacity:.75;">Tracked for Aryth full.</span>' : '')
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -7512,11 +7832,12 @@ function handleWeatherCommand(m, args){
     case 'forecast':
       var viewTok = String(args[2] || '').trim();
       if (viewTok){
-        if (!/^(10|20)$/.test(viewTok)){
-          warnGM('Usage: weather forecast [10|20]');
+        var viewDays = parseInt(viewTok, 10);
+        if (!/^\d+$/.test(viewTok) || viewDays < 1 || viewDays > CONFIG_WEATHER_FORECAST_DAYS){
+          warnGM('Usage: weather forecast [1-'+CONFIG_WEATHER_FORECAST_DAYS+']');
           break;
         }
-        ensureSettings().weatherForecastViewDays = _weatherViewDays(viewTok);
+        ensureSettings().weatherForecastViewDays = _weatherViewDays(viewDays);
       }
       weatherEnsureForecast();
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
@@ -7526,50 +7847,58 @@ function handleWeatherCommand(m, args){
       whisper(m.who, weatherHistoryGmHtml());
       break;
 
+    case 'manifest': {
+      var manifestSub = String(args[2] || '').toLowerCase();
+      if (!manifestSub){
+        whisper(m.who, manifestZoneChooserHtml());
+        break;
+      }
+      if (manifestSub === 'toggle'){
+        _toggleManifestZoneForGm(m, String(args[3] || ''));
+        break;
+      }
+      _toggleManifestZoneForGm(m, manifestSub);
+      break;
+    }
+
     case 'mechanics':
       weatherEnsureForecast();
       whisper(m.who, weatherTodayMechanicsHtml());
       break;
 
     case 'send': {
-      // weather send <medium|high|today> <1|3|6|10>
-      // 'today' sends today's weather at the best tier previously revealed.
       var sendMethod = String(args[2]||'').toLowerCase();
-      var sendDays   = parseInt(args[3], 10) || 1;
-
-      if (sendMethod === 'today'){
-        // Send today at best revealed tier (or low if none)
-        weatherEnsureForecast();
-        var tSerSend = todaySerial();
-        var recSend  = _forecastRecord(tSerSend);
-        if (!recSend){
-          warnGM('No weather record for today. Try generating first.');
-          break;
-        }
-        var revSend   = _readReveal(getWeatherState().playerReveal[String(tSerSend)]);
-        var tierSend  = revSend.tier || 'low';
-        var srcSend   = revSend.source || 'common';
-        var srcLabel  = WEATHER_SOURCE_LABELS[srcSend] || 'Common Knowledge';
-        // Record the reveal (upgrade-only) — 'common' source for auto-send
-        _recordReveal(getWeatherState(), tSerSend, tierSend, srcSend);
-        var dateObjS  = fromSerial(tSerSend);
-        var mObjS     = getCal().months[dateObjS.mi] || {};
-        var titleS    = esc(mObjS.name||'?')+' '+dateObjS.day;
-        sendToAll(_menuBox(
-          "Today's Weather — "+titleS,
-          _playerDayHtml(recSend, tierSend, true, srcLabel)
-        ));
-        warnGM('Sent today\'s weather ('+tierSend+' / '+srcLabel+') to players.');
+      if (!sendMethod){
+        sendRevealedForecast(m);
         whisper(m.who, weatherTodayGmHtml());
         break;
       }
-
-      if (sendMethod !== 'medium' && sendMethod !== 'high'){
-        warnGM('Usage: weather send medium|high|today [1|3|6|10]');
+      if (sendMethod !== 'medium' && sendMethod !== 'high' && sendMethod !== 'today'){
+        warnGM('Usage: weather send');
         break;
       }
+      warnGM('Legacy syntax: use !cal weather reveal ... to grant knowledge, then !cal weather send to broadcast what players already know.');
+      if (sendMethod === 'today'){
+        sendRevealedForecast(m);
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      var sendDays   = parseInt(args[3], 10) || 1;
       sendPlayerForecast(m, sendMethod, sendDays);
       // Refresh today view so buttons are visible again
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+    }
+
+    case 'reveal': {
+      var revealMethod = String(args[2]||'').toLowerCase();
+      var revealDays = parseInt(args[3], 10) || 1;
+      if ((revealMethod !== 'medium' && revealMethod !== 'high') ||
+          revealDays < 1 || revealDays > 10){
+        warnGM('Usage: weather reveal medium|high [1-10]');
+        break;
+      }
+      sendPlayerForecast(m, revealMethod, revealDays);
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
@@ -7730,83 +8059,17 @@ function handleWeatherCommand(m, args){
         }
         var wiz2 = _getWeatherWizard();
         wiz2.terrain = terrain;
-        whisper(m.who, weatherLocationWizardHtml('zone', wiz2));
+        _setWeatherLocationFromWizard(m, wiz2);
         break;
       }
 
       if (locSub === 'zone'){
-        // Zone step finalizes the location — no further step needed.
-        var zoneKey = String(args[3]||'').toLowerCase();
-        var wiz3 = _getWeatherWizard();
-        var mz = null;
-        // Manifest zones: the plane's influence leaks through, not the plane itself.
-        // Effects are mild nudges, not hard limits.
-        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:3 };
-        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-3 };
-        else if (zoneKey === 'irian')    mz = { name:'Irian',     tempMod:1 };
-        else if (zoneKey === 'mabar')    mz = { name:'Mabar',     tempMod:-1 };
-        else if (zoneKey === 'lamannia') mz = { name:'Lamannia',  precipMod:1 };
-        else if (zoneKey === 'syrania')  mz = { name:'Syrania',   precipMod:-1 };
-        else if (zoneKey === 'kythri')   mz = { name:'Kythri',    chaotic:true };
-        else if (zoneKey === 'shavarath')mz = { name:'Shavarath' };
-        else if (zoneKey === 'daanvi')   mz = { name:'Daanvi' };
-        else if (zoneKey === 'dolurrh')  mz = { name:'Dolurrh' };
-        else if (zoneKey === 'thelanis') mz = { name:'Thelanis' };
-        else if (zoneKey === 'xoriat')   mz = { name:'Xoriat' };
-        else if (zoneKey === 'dalquor')  mz = { name:'Dal Quor' };
-        // 'none' leaves mz null
-
-        var newLoc = {
-          climate:      wiz3.climate   || 'temperate',
-          geography:    wiz3.geography || 'inland',
-          terrain:      wiz3.terrain   || 'open',
-          manifestZone: mz
-        };
-        newLoc.sig = _locSig(newLoc);
-
-        var ws3 = getWeatherState();
-        var hadLocation = !!ws3.location;
-        ws3.location = newLoc;
-        delete ws3._wizard;
-
-        // Resurrection pass
-        var today3 = todaySerial();
-        var resurrected = 0, staled = 0;
-        ws3.forecast.forEach(function(rec){
-          if (rec.locked || rec.serial < today3) return;
-          var recSig = rec.location ? _locSig(rec.location) : '';
-          if (recSig === newLoc.sig){
-            rec.stale = false;
-            resurrected++;
-          } else {
-            rec.stale = true;
-            staled++;
-          }
-        });
-
-        var dispClimate   = esc(titleCase(newLoc.climate));
-        var dispGeo       = esc(titleCase(newLoc.geography.replace(/_/g,' ')));
-        var dispTerrain   = esc(titleCase(newLoc.terrain.replace(/_/g,' ')));
-        var dispZone      = mz ? ' ['+esc(mz.name)+']' : '';
-
-        var msg = 'Location set: <b>'+dispClimate+' / '+dispGeo+' / '+dispTerrain+'</b>'+dispZone+'.';
-        if (hadLocation){
-          if (resurrected > 0 && staled === 0){
-            msg += '<br><span style="color:#2E7D32;">Forecast restored from matching records.</span>';
-          } else if (resurrected > 0){
-            msg += '<br><span style="color:#1565C0;">'+resurrected+' day(s) restored; '+staled+' stale.</span>';
-          } else {
-            msg += '<br><span style="color:#E65100;">Future forecast marked stale. Regenerate to update.</span>';
-          }
+        var zoneArg = String(args[3] || '').toLowerCase();
+        if (!zoneArg){
+          whisper(m.who, manifestZoneChooserHtml());
+        } else {
+          _toggleManifestZoneForGm(m, zoneArg);
         }
-
-        whisper(m.who,
-          _menuBox('Location Set', msg)+
-          '<div style="margin-top:4px;">'+
-          button('Regenerate Forecast','weather generate')+' '+
-          button('View Forecast','weather forecast')+
-          '</div>'
-        );
         break;
       }
 
@@ -8202,6 +8465,9 @@ function _moonLoreHtml(moonName){
 // Ring of Siberys lore panel
 function _siberysLoreHtml(){
   var r = RING_OF_SIBERYS;
+  var eberronRadiusKm = 6400;
+  var innerHeightKm = Math.max(0, r.innerEdge_km - eberronRadiusKm);
+  var outerHeightKm = Math.max(0, r.outerEdge_km - eberronRadiusKm);
   var html = '<b style="font-size:1.1em;">The Ring of Siberys</b>' +
     ' — <i>The Blood of the Dragon Above</i>' +
     '<br><br>An equatorial ring of siberys dragonshards encircling Eberron, ' +
@@ -8213,12 +8479,17 @@ function _siberysLoreHtml(){
     '<br><b>Thickness:</b> ' + r.thickness_m + ' meters' +
     '<br><b>Orbit:</b> ' + r.innerEdge_km.toLocaleString() + ' – ' +
       r.outerEdge_km.toLocaleString() + ' km (inside Zarantyr at 14,300 km)' +
+    '<br><b>Inclination:</b> ' + r.inclination + '° (equatorial)' +
+    '<br><b>Height Above Surface:</b> ' + innerHeightKm.toLocaleString() + ' – ' +
+      outerHeightKm.toLocaleString() + ' km' +
     '<br><b>Albedo:</b> ' + r.albedo +
+    '<br><b>Night-light Contribution:</b> ~0.008 lux from the ring alone (~0.010 lux ambient with starlight)' +
     '<br><br><b>Appearance:</b>' +
     '<br>&nbsp;&nbsp;Day: ' + esc(r.appearance.daylight) +
     '<br>&nbsp;&nbsp;Night: ' + esc(r.appearance.night) +
     '<br>&nbsp;&nbsp;Equator: ' + esc(r.appearance.equator) +
-    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles);
+    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles) +
+    '<br><br><b>Scale Notes:</b> inner edge sits above ISS-like orbital height; outer edge stretches well past the edge of a typical low-orbit band.';
   html += '<br><br>';
   for (var fi = 0; fi < r.facts.length; fi++){
     html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">• ' + esc(r.facts[fi]) + '</div>';

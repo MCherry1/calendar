@@ -11,10 +11,14 @@
             "id": "8ff685fd5b407f4a",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "README.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "README"
             }
           }
         ]
@@ -70,11 +74,13 @@
               "title": "Bookmarks"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "e57a0b4204c88db6",
@@ -193,11 +199,13 @@
   },
   "active": "8ff685fd5b407f4a",
   "lastOpenFiles": [
-    "conflict-files-obsidian-git.md",
-    "TASKS.md",
+    "AGENT TASKS.md",
     "README.md",
-    "DESIGN.md",
     "CLAUDE.md",
+    "DESIGN.md",
+    "TASKS.md",
+    "AGENTS.md",
+    "conflict-files-obsidian-git.md",
     "design/moon-reference-selection.md",
     "Test.md"
   ]
