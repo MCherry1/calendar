@@ -335,13 +335,16 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 ---
 ## Planes
 
-The planar subsystem is Eberron-specific and tracks Planes of Existence  planes planes are coterminous, remote, or neither.
+The planar subsystem is Eberron-specific and tracks the Planes of Existence. These 13 planes exist alongside the Material Plane where Eberron sits, influencing it in many ways. One of those ways is through alignments. In this system, a Plane of Existence can be **coterminous**, **remote**, or **neither**.
 
 - **Coterminous** planes strengthen their associated traits.
 - **Remote** planes suppress or invert those same traits.
-- **Canonical cycles** use the published cycle structure from *Exploring Eberron*.
-- **Anchor dates** are campaign-defined where canon leaves them unspecified; the script supports both seeded timing and direct GM overrides.
-- **GM controls** can force a plane's current phase, clear overrides, anchor a cycle phase to a specific date, or pin the seed-derived anchor year for an individual plane.
+- **Canonical (*traditional*) cycles** use the structure published in *Exploring Eberron*.
+- **Anchor dates** for the multi-year cycles are needed where canon leaves them unspecified.
+	- GMs can provide their own anchor date for each plane, setting the traditional cycle of the planes to suit their campaign.
+	- In the absence of a GM-defined anchor, the script generates it's own anchor date from the world seed. This seed is used throughout the script. Using the same seed in different API sandboxes or campaigns will always generate the same world state.
+- **GM controls** can force any plane **coterminous**, **remote**, or **neither** (*off*), regardless of 
+- active phase, clear overrides, anchor a cycle phase to a specific date, or pin the seed-derived anchor year for an individual plane.
 - **Generated anomalies** add deterministic off-cycle coterminous/remote events using plane-specific dice profiles and durations.
 - **Isolation rules** prevent generated anomalies from overriding active canonical or GM-defined planar periods.
 - **Toggles** let the GM disable off-cycle/generated events entirely.
