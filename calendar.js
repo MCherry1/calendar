@@ -11655,6 +11655,7 @@ var PLANE_DATA = {
       orbitYears: 1,     coterminousDays: 4, remoteDays: 0,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 12, anchorDay: 26,
+      seedAnchor: true,
       seasonHint: 'winter solstice',
       associatedMoon: 'Sypheros',
       remoteOrbitYears: 5, remoteDaysSpecial: 5, remoteSeasonHint: 'summer solstice',
@@ -11784,6 +11785,21 @@ function _planarYearDays(){
   return getCal().months.reduce(function(s, m){ return s + (m.days|0); }, 0);
 }
 
+function _planeHasNonAnnualTraditionalCycle(plane){
+  if (!plane || plane.type !== 'cyclic') return false;
+  var orbitYears = parseInt(plane.orbitYears, 10) || 1;
+  var remoteOrbitYears = parseInt(plane.remoteOrbitYears, 10) || 0;
+  return (orbitYears > 1) || (remoteOrbitYears > 1);
+}
+
+function _planeTraditionalAnchorMode(plane, ps){
+  if (!_planeHasNonAnnualTraditionalCycle(plane)) return null;
+  ps = ps || getPlanesState();
+  var hasDirectAnchor = !!(ps.anchors && ps.anchors[plane.name]);
+  var hasSeedAnchor = !!(plane.seedAnchor && ps.seedOverrides && ps.seedOverrides[plane.name] != null);
+  return (hasDirectAnchor || hasSeedAnchor) ? 'gm-anchored' : 'random-seed';
+}
+
 // Calculate the current phase of a cyclic plane at a given serial day.
 // opts.ignoreGenerated=true returns canonical cycle state without seeded flickers.
 // Returns { phase, daysIntoPhase, daysUntilNextPhase, phaseDuration, nextPhase }
@@ -11817,7 +11833,8 @@ function getPlanarState(planeName, serial, opts){
       phaseDuration: override.durationDays || null,
       nextPhase: null,
       overridden: true,
-      note: override.note || ''
+      sourceLabel: 'gm-defined',
+      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
     };
   }
 
@@ -11827,7 +11844,8 @@ function getPlanarState(planeName, serial, opts){
     var fixedNote = plane.note || '';
 
     // Check for off-cycle generated shift
-    if (!ignoreGenerated && isGeneratedShift(plane.name, serial)){
+      sourceLabel: fixedIsGenerated ? 'generated' : 'traditional',
+      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
       fixedPhase = _generatedPhase(plane.name, serial);
       fixedNote = 'Anomalous ' + fixedPhase + ' shift';
     }
@@ -11953,12 +11971,17 @@ function getPlanarState(planeName, serial, opts){
         var _remoteBaseYear = (plane.anchorYear || 998) + 1;
         if (plane.seedAnchor){
           try {
-            var _ep = ensureSettings().epochSeed || 0;
-            var _sn = plane.linkedTo || plane.name;
-            // Use the same seed as the primary anchor, but for the remote sub-cycle
-            // Offset by 0 to (remoteOrbitYears-1) whole years
-            var _rOff = _dN(_ep, _sn + '_remote_anchor_offset', plane.remoteOrbitYears) - 1;
-            _remoteBaseYear += _rOff;
+            var _seedOverrideYear = (ps.seedOverrides && ps.seedOverrides[plane.name]);
+            if (_seedOverrideYear != null){
+              _remoteBaseYear = (parseInt(_seedOverrideYear, 10) || (plane.anchorYear || 998)) + 1;
+            } else {
+              var _ep = ensureSettings().epochSeed || 0;
+              var _sn = plane.linkedTo || plane.name;
+              // Use the same seed as the primary anchor, but for the remote sub-cycle.
+              // Offset by 0 to (remoteOrbitYears-1) whole years.
+              var _rOff = _dN(_ep, _sn + '_remote_anchor_offset', plane.remoteOrbitYears) - 1;
+              _remoteBaseYear += _rOff;
+            }
           } catch(e2){}
         }
         var _remoteYearsSince = _di.year - _remoteBaseYear;
@@ -11977,7 +12000,8 @@ function getPlanarState(planeName, serial, opts){
             phaseDuration: remoteDur,
             nextPhase: 'waxing',
             overridden: false,
-            note: 'Mabar remote \u2014 5-year cycle (sunrise Nymm 25 through sunset Lharvion 1)'
+            sourceLabel: 'traditional',
+            traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
           };
         }
 
@@ -12083,7 +12107,8 @@ function getPlanarState(planeName, serial, opts){
         phaseDuration: Math.floor(ph.dur),
         nextPhase: phases[nextIdx].name,
         overridden: false,
-        note: cyclicNote
+        sourceLabel: (cyclicNote && /anomalous/i.test(cyclicNote)) ? 'generated' : 'traditional',
+        traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
       };
     }
     accumulated += ph.dur;
@@ -12098,7 +12123,8 @@ function getPlanarState(planeName, serial, opts){
     phaseDuration: 0,
     nextPhase: 'remote',
     overridden: false,
-    note: ''
+    sourceLabel: 'traditional',
+    traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
   };
 }
 
@@ -12545,6 +12571,12 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
       ? ' <span style="font-size:.75em;color:#E65100;">[override]</span>'
       : '';
 
+    var anchorModeTag = '';
+    if (isGM && ps.traditionalAnchorMode){
+      anchorModeTag = ' <span style="font-size:.75em;opacity:.5;">[' +
+        (ps.traditionalAnchorMode === 'gm-anchored' ? 'GM anchored' : 'random seed') + ']</span>';
+    }
+
     // Anomalous shift detection
     var hasGenNow = !!(ps.note && /anomalous/i.test(ps.note));
     var anomalyTag = '';
@@ -12602,7 +12634,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
       rows.push(
         '<div style="margin:1px 0;line-height:1.3;font-size:.9em;opacity:.65;">'+
           emoji+' <span style="min-width:78px;display:inline-block;">'+esc(name)+'</span> '+
-          esc(label) + overrideTag + nextTag + anomalyTag +
+          esc(label) + overrideTag + anchorModeTag + nextTag + anomalyTag +
         '</div>'
       );
       continue;
@@ -12635,7 +12667,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
       '<div style="margin:3px 0;line-height:1.4;">'+
         emoji+' <b style="min-width:82px;display:inline-block;">'+esc(name)+'</b>'+
         '<span style="opacity:.85;">'+esc(label)+'</span>'+
-        overrideTag + nextTag + anomalyTag +
+        overrideTag + anchorModeTag + nextTag + anomalyTag +
       '</div>'+
       effectHtml + cycleSummaryHtml + noteHtml
     );

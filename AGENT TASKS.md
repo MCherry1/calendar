@@ -166,6 +166,12 @@ This is the "divination magic" feature: GM reveals weather for a specific date a
 
 ---
 
+### Non-annual traditional plane anchor mode flags
+
+- [x] Implement per-plane non-annual traditional-cycle source mode (`random-seed` vs `gm-anchored`) based on plane seed/anchor overrides, including planes that mix annual and non-annual traditional periods (e.g., Mabar).
+- [ ] Verify the implementation in the Planes view and state API to confirm each qualifying plane reports the expected mode and annual-only planes remain untagged.
+
+---
 ### Correct Harptos calendar display
 
 The Faerûnian/Harptos calendar currently uses weekday-based layout. It should use tendays:

@@ -589,6 +589,7 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 
 These two event types are categorically distinct. Generated events are gated behind higher knowledge tiers.
 
+**Traditional non-annual anchor mode:** planes with any non-annual traditional cycle component should expose `traditionalAnchorMode` as `random-seed` or `gm-anchored` (annual-only traditional planes leave it unset).
 ### 8.2 Phase Vocabulary
 
 The planar phase ring:
