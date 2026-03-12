@@ -203,7 +203,7 @@ Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (
 
 The live generator maps directly on the `-5` to `15` band scale shown below.
 
-- **Temperature saves:** At the GM's discretion, creatures make Constitution saves during severe travel, exposed rests, prolonged outdoor activity, or combat in dangerous weather.
+- **Temperature saves:** At the GM's discretion, creatures make Constitution saves or suffer levels of exhaustion. Recommended to require rolls for each day (or hour, if following the  during severe travel, exposed rests, prolonged outdoor activity, or combat in dangerous weather.
 - **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing use normal armor-proficiency rules.
 - **Armor as heat burden:** At the hot end of the scale, armor becomes progressively more punishing.
 - **Resistance and immunity:** Cold or fire resistance grants adv. on the relevant save; immunity succeeds automatically.
