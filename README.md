@@ -131,8 +131,9 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 
 ### Observer Model
 
-- The model cares about **apparent sky geometry**, not a declared cosmological stance. It does not worry about sidereal orbital periods, nor the motion of distant stars or constellations (for now). 
+- The model cares about **apparent sky geometry**
 - The script does **not** track latitude, longitude, or time zones.
+- It does not make a declared cosmological stance. It does not worry about sidereal orbital periods, nor the motion of distant stars or constellations (for now). 
 - Sky reports are intentionally local and practical: they answer "what do we see where we are?" instead of simulating a full global observatory model.
 - Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
 ### Moons
@@ -249,6 +250,11 @@ Weather is generated for a specific location profile. Set the profile with `!cal
 
 Manifest zones layer magical influences on top of the active location profile. They are not the same thing as planar coterminous/remote phases, but they can push weather in similar thematic directions.
 
+- Manifest zones are managed **independently** from the location wizard once a location is set.
+- **Multiple** manifest zones can be active at the same time.
+- Changing the weather location clears all active manifest zones.
+- Manifest zones affect **today's** local weather only; future forecast rows stay tied to the base location profile.
+
 Typical examples include:
 - **Fernia** warming conditions
 - **Risia** cooling conditions
@@ -256,13 +262,13 @@ Typical examples include:
 - **Syrania** making skies milder and less storm-prone
 - **Kythri** adding chaotic swings
 
-Clear the manifest zone without changing the location when leaving the area.
+Clear manifest zones without changing the location when leaving the area.
 
-Run `!cal weather location` in chat for the full list of valid keys and the interactive wizard.
+Run `!cal weather manifest` in chat for the chooser, or use the weather panel's **Set Manifest Zone** button.
 
 ### Planar Overlays
 
-Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. The Today and forecast views annotate when a moon, plane, or manifest zone is actively influencing the weather.
+Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather.
 
 ### Forecasting
 
@@ -326,7 +332,8 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 !cal weather location climate <key>            — set climate (arctic, temperate, tropical, etc.)
 !cal weather location geography <key>          — set geography (coastal, mountain, plains, etc.)
 !cal weather location terrain <key>            — set terrain (forest, city, open, etc.)
-!cal weather location zone <key|none>          — set manifest zone (or clear it)
+!cal weather manifest [key|none]               — open/toggle manifest zones independently of location
+!cal weather location zone <key|none>          — alias for manifest-zone control
 ```
 
 ### Viewing Weather

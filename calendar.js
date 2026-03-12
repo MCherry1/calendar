@@ -3481,6 +3481,7 @@ function stepDays(n){
   cur.year = d.year; cur.month = d.mi; cur.day_of_the_month = d.day;
   // Slide the forecast window forward and lock past days
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
+  _manifestZoneOnDateChange(startSerial, dest);
 
   var direction = n >= 0 ? 'Forward' : 'Back';
   var dateStr = esc(currentDateLabel());
@@ -3498,6 +3499,7 @@ function stepDays(n){
 function setDate(m, d, y){
   var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
+  var oldSerial = toSerial(oldY, oldM, oldD);
   var mi = clamp(m, 1, cal.months.length) - 1;
   var di = clamp(d, 1, cal.months[mi].days);
   var yi = int(y, cur.year);
@@ -3507,6 +3509,7 @@ function setDate(m, d, y){
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
   // Slide the forecast window forward and lock past days, same as stepDays
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
+  _manifestZoneOnDateChange(oldSerial, toSerial(yi, mi, di));
   sendCurrentDate(null, true);
 }
 
@@ -4587,6 +4590,7 @@ function _todayAllHtml(){
       var wxRec = _weatherRecordForDisplay(_forecastRecord(today));
       if (wxRec && wxRec.final){
         var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b></div>';
+        wxHtml += _weatherInfluenceHtml(wxRec);
         var periods = ['morning','afternoon','evening'];
         var pIcons = { morning:'☀', afternoon:'☁', evening:'🌙' };
         for (var pi = 0; pi < periods.length; pi++){
@@ -5682,7 +5686,7 @@ function _locSig(loc){
 function _manifestZoneKey(nameOrKey){
   var raw = String(nameOrKey || '').toLowerCase().replace(/[\s'_-]+/g, '');
   if (!raw) return null;
-  if (raw === 'dalquor' || raw === 'dalquor') return 'dalquor';
+  if (raw === 'dalquor') return 'dalquor';
   for (var i = 0; i < MANIFEST_ZONE_ORDER.length; i++){
     var key = MANIFEST_ZONE_ORDER[i];
     var def = MANIFEST_ZONE_DEFS[key];
@@ -5692,13 +5696,6 @@ function _manifestZoneKey(nameOrKey){
     if (raw === defKey || raw === defName) return key;
   }
   return null;
-}
-
-function _manifestZoneDefsForKeys(keys){
-  return (keys || []).map(function(key){
-    var norm = _manifestZoneKey(key);
-    return norm ? MANIFEST_ZONE_DEFS[norm] : null;
-  }).filter(Boolean);
 }
 
 function _activeManifestZoneEntries(){
@@ -5799,6 +5796,7 @@ function _manifestZoneOnDateChange(prevSerial, newSerial){
   if (!(newSerial > prevSerial)) return;
   if (ensureSettings().weatherEnabled === false) return;
   var ws = getWeatherState();
+  if (!ws.location) return;
   var prevFull = _isArythFull(prevSerial);
   var newFull = _isArythFull(newSerial);
 
@@ -7827,6 +7825,20 @@ function handleWeatherCommand(m, args){
       whisper(m.who, weatherHistoryGmHtml());
       break;
 
+    case 'manifest': {
+      var manifestSub = String(args[2] || '').toLowerCase();
+      if (!manifestSub){
+        whisper(m.who, manifestZoneChooserHtml());
+        break;
+      }
+      if (manifestSub === 'toggle'){
+        _toggleManifestZoneForGm(m, String(args[3] || ''));
+        break;
+      }
+      _toggleManifestZoneForGm(m, manifestSub);
+      break;
+    }
+
     case 'mechanics':
       weatherEnsureForecast();
       whisper(m.who, weatherTodayMechanicsHtml());
@@ -8025,83 +8037,17 @@ function handleWeatherCommand(m, args){
         }
         var wiz2 = _getWeatherWizard();
         wiz2.terrain = terrain;
-        whisper(m.who, weatherLocationWizardHtml('zone', wiz2));
+        _setWeatherLocationFromWizard(m, wiz2);
         break;
       }
 
       if (locSub === 'zone'){
-        // Zone step finalizes the location — no further step needed.
-        var zoneKey = String(args[3]||'').toLowerCase();
-        var wiz3 = _getWeatherWizard();
-        var mz = null;
-        // Manifest zones: the plane's influence leaks through, not the plane itself.
-        // Effects are mild nudges, not hard limits.
-        if (zoneKey === 'fernia')        mz = { name:'Fernia',    tempMod:3 };
-        else if (zoneKey === 'risia')    mz = { name:'Risia',     tempMod:-3 };
-        else if (zoneKey === 'irian')    mz = { name:'Irian',     tempMod:1 };
-        else if (zoneKey === 'mabar')    mz = { name:'Mabar',     tempMod:-1 };
-        else if (zoneKey === 'lamannia') mz = { name:'Lamannia',  precipMod:1 };
-        else if (zoneKey === 'syrania')  mz = { name:'Syrania',   precipMod:-1 };
-        else if (zoneKey === 'kythri')   mz = { name:'Kythri',    chaotic:true };
-        else if (zoneKey === 'shavarath')mz = { name:'Shavarath' };
-        else if (zoneKey === 'daanvi')   mz = { name:'Daanvi' };
-        else if (zoneKey === 'dolurrh')  mz = { name:'Dolurrh' };
-        else if (zoneKey === 'thelanis') mz = { name:'Thelanis' };
-        else if (zoneKey === 'xoriat')   mz = { name:'Xoriat' };
-        else if (zoneKey === 'dalquor')  mz = { name:'Dal Quor' };
-        // 'none' leaves mz null
-
-        var newLoc = {
-          climate:      wiz3.climate   || 'temperate',
-          geography:    wiz3.geography || 'inland',
-          terrain:      wiz3.terrain   || 'open',
-          manifestZone: mz
-        };
-        newLoc.sig = _locSig(newLoc);
-
-        var ws3 = getWeatherState();
-        var hadLocation = !!ws3.location;
-        ws3.location = newLoc;
-        delete ws3._wizard;
-
-        // Resurrection pass
-        var today3 = todaySerial();
-        var resurrected = 0, staled = 0;
-        ws3.forecast.forEach(function(rec){
-          if (rec.locked || rec.serial < today3) return;
-          var recSig = rec.location ? _locSig(rec.location) : '';
-          if (recSig === newLoc.sig){
-            rec.stale = false;
-            resurrected++;
-          } else {
-            rec.stale = true;
-            staled++;
-          }
-        });
-
-        var dispClimate   = esc(titleCase(newLoc.climate));
-        var dispGeo       = esc(titleCase(newLoc.geography.replace(/_/g,' ')));
-        var dispTerrain   = esc(titleCase(newLoc.terrain.replace(/_/g,' ')));
-        var dispZone      = mz ? ' ['+esc(mz.name)+']' : '';
-
-        var msg = 'Location set: <b>'+dispClimate+' / '+dispGeo+' / '+dispTerrain+'</b>'+dispZone+'.';
-        if (hadLocation){
-          if (resurrected > 0 && staled === 0){
-            msg += '<br><span style="color:#2E7D32;">Forecast restored from matching records.</span>';
-          } else if (resurrected > 0){
-            msg += '<br><span style="color:#1565C0;">'+resurrected+' day(s) restored; '+staled+' stale.</span>';
-          } else {
-            msg += '<br><span style="color:#E65100;">Future forecast marked stale. Regenerate to update.</span>';
-          }
+        var zoneArg = String(args[3] || '').toLowerCase();
+        if (!zoneArg){
+          whisper(m.who, manifestZoneChooserHtml());
+        } else {
+          _toggleManifestZoneForGm(m, zoneArg);
         }
-
-        whisper(m.who,
-          _menuBox('Location Set', msg)+
-          '<div style="margin-top:4px;">'+
-          button('Regenerate Forecast','weather generate')+' '+
-          button('View Forecast','weather forecast')+
-          '</div>'
-        );
         break;
       }
 

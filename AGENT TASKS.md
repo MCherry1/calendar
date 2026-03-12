@@ -17,11 +17,7 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 
 ## README Drift (checked 2026-03-12)
 
-- **Calendar Navigation:** README now treats the player quick bar as `Prev / Next / Today / Weather / Moons / Planes` and removes the top-level calendar `Upcoming` view from the intended UX. The code still exposes a player `Month` button and a top-level `Upcoming` flow.
-- **Weather → Mechanics Toggle:** README now specifies that narrative weather and mechanical weather effects can be toggled independently. The code currently has only a single weather on/off toggle.
-- **Weather → Location:** manifest-zone selection is still the final step of the location wizard and remains part of the active location profile instead of independent parallel state.
-	- The Manifest Zone selection should be independant of location, with a few exceptions. 1. when the location is changed, the active manifest zones should be removed, and a whispered note to the GM should inform them of that fact. Manifest zones are location specific 
-- **Weather → Syrania Manifest Zones:** README treats manifest zones as lighter thematic overlays, while the embedded note resolves Syrania specifically to `-1` wind / `-1` precipitation and reserves calm-clear sky domination for coterminous Syrania. The code still models Syrania manifest zones as precipitation-only clearer skies.
+- **Weather → Syrania Remote:** manifest zones now behave as lighter overlays, but Syrania's remote-state documentation/implementation still needs a final consistency pass against the planar model.
 - **Commands → Weather → Sending Weather to Players:** `!cal weather send` now broadcasts whatever weather is already revealed, and `!cal weather reveal medium|high [1-10]` grants the current range-based forecast reveals. Per-day reveal flags and arbitrary-date reveal syntax are still not implemented.
 	- send should not have any arguments followed. it should simply function as "send whatever is revealed"
 	- weather should have a per day reveal flag that defines how much information the players have acquired. the low reveal level should be automatically granted when the day in questions falls into the bucket for that. I think we currently low reveal to different degrees between today (rough ToD info, tomorrow (limited forecast), day after tomorrow (same). 
@@ -117,28 +113,30 @@ Status: Completed by ChatGPT version number 5.4
 
 ### Rebalance Syrania weather effects
 
-- [ ] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
-- [ ] Change **Syrania manifest zones** to a lighter modifier (`-1` wind, `-1` precipitation)
+- [x] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
+- [x] Change **Syrania manifest zones** to a lighter modifier (`-1` wind, `-1` precipitation)
 - [ ] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
 
 ---
 
 ### Manifest zone system redesign
 
-- [ ] Treat manifest zones as location-parallel state (independent of weather location)
-- [ ] Add **Set Manifest Zone** button below **Set Location** in the admin panel
-- [ ] New chooser UI: 2-column table (Zone name | On/Off toggle), supporting all 13 planes + None
-- [ ] Support **multiple** simultaneously active manifest zones
-- [ ] Visual state: active zones bold, inactive zones faint + italic
-- [ ] Toggle click posts a simple chat confirmation, doesn't re-render the full table
-- [ ] Clear all active manifest zones on location change, with summary message
-- [ ] Aryth full-moon reminder: "Aryth is full. Consider a manifest zone."
-- [ ] Track which zones were activated during Aryth full
-- [ ] On date advance past Aryth full: warning to deactivate those zones
-- [ ] Show manifest-zone status in Today view (always visible when active)
-- [ ] No manifest-zone forecasting
-- [ ] Wire Fernia/Risia temperature effects (±3 on new scale) through the manifest zone mechanic instead of current approach
-- [ ] Fernia and Risia can both be active at once; their temperature effects cancel, but both still display as active influences
+Status: Completed by ChatGPT version number 5.4
+
+- [x] Treat manifest zones as location-parallel state (independent of weather location)
+- [x] Add **Set Manifest Zone** button below **Set Location** in the admin panel
+- [x] New chooser UI: 2-column table (Zone name | On/Off toggle), supporting all 13 planes + None
+- [x] Support **multiple** simultaneously active manifest zones
+- [x] Visual state: active zones bold, inactive zones faint + italic
+- [x] Toggle click posts a simple chat confirmation, doesn't re-render the full table
+- [x] Clear all active manifest zones on location change, with summary message
+- [x] Aryth full-moon reminder: "Aryth is full. Consider a manifest zone."
+- [x] Track which zones were activated during Aryth full
+- [x] On date advance past Aryth full: warning to deactivate those zones
+- [x] Show manifest-zone status in Today view (always visible when active)
+- [x] No manifest-zone forecasting
+- [x] Wire Fernia/Risia temperature effects (±3 on new scale) through the manifest zone mechanic instead of current approach
+- [x] Fernia and Risia can both be active at once; their temperature effects cancel, but both still display as active influences
 
 ---
 
@@ -199,7 +197,7 @@ However, the actual temperature generators (`WEATHER_CLIMATE_BASE` and the formu
 
 **Scope:** All climate definitions in `WEATHER_CLIMATE_BASE` (polar, subarctic, temperate, subtropical, tropical, arid, etc.) and the `_composeFormula()` / `_rollTrait()` pipeline need to output on the -5 to 15 scale. The existing F° band mappings in `WEATHER_TEMPERATURE_BANDS_F` should remain unchanged — the generator output just needs to index into them directly.
 
-**Note:** Fernia/Risia manifest zone temperature modifiers (currently ±2) may need adjustment for the new scale. ±3 seems appropriate per DESIGN.md notes.
+**Note:** Fernia/Risia manifest zone temperature modifiers now use `±3`, matching the current scale and DESIGN.md guidance.
 
 ---
 
