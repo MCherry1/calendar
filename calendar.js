@@ -2383,7 +2383,7 @@ function _lastWeekdayOfMonth(year, mi, wdi){
 
 function _tokenizeRangeArgs(args){ return (args||[]).map(function(t){return String(t).trim();}).filter(Boolean); }
 
-function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|last|upcoming|today|now)$/.test(String(tok||'').toLowerCase()); }
+function _isPhrase(tok){ return /^(month|year|current|this|next|previous|prev|last|today|now)$/.test(String(tok||'').toLowerCase()); }
 
 function dayFromOrdinalWeekday(year, mi, ow){
   if (!ow) return null;
@@ -2427,31 +2427,6 @@ function _phraseToSpec(tokens){
     return monthRange(_pm.y, _pm.mi, 'Last Month ('+months[_pm.mi].name+')');
   }
   if ((t0==='last'||t0==='previous'||t0==='prev') && t1==='year'){ return yearRange(cur.year-1, 'Last Year '+(cur.year-1)+' '+LABELS.era); }
-  if (t0==='upcoming'){
-    if (t1==='year'){
-      var s = toSerial(cur.year, cur.month, 1);
-      var _upEnd = toSerial(cur.year + 1, cur.month, 1) - 1;
-      return { title:'Upcoming Year (rolling from this month)', start:s, end:_upEnd,
-               months: (function(){
-                 var out=[], off=0, mi=cur.month, y=cur.year, seen=0;
-                 while (seen < months.length){
-                   if (!months[mi].leapEvery || _isLeapMonth(months[mi], y)) out.push({y:y,mi:mi});
-                   mi = (mi+1) % months.length; if (mi===0) y++; seen++;
-                 }
-                 return out;
-               })() };
-    }
-    if (t1==='month' || !t1){
-      var miU=cur.month, yU=cur.year;
-      if (cur.day_of_the_month>=15){ var _um=_nextActiveMi(cur.month,cur.year); miU=_um.mi; yU=_um.y; }
-      return monthRange(yU, miU, 'Upcoming Month');
-    }
-    if (/^\d+$/.test(t1)){
-      var days = parseInt(t1,10)|0; if (days<1) days=1;
-      var s0 = todaySerial();
-      return { title:'Upcoming ('+days+' days)', start:s0, end:s0+days-1, months:null };
-    }
-  }
   return null;
 }
 
@@ -3086,7 +3061,6 @@ function _weatherViewDays(n){
 function _playerButtonsHtml(){
   var nav = [
     button('◀ Prev','show previous month'),
-    button('📅 Month','show month'),
     button('Next ▶','show next month')
   ];
   var out = [];
@@ -3936,10 +3910,9 @@ function gmButtonsHtml(){
     '<div style="'+wrap+'">'+ mb('⏭ Forward','advance 1') +'</div>',
     '<div style="'+wrap+'">'+ mb('📣 Send','send')         +'</div>'
   ];
-  // Row 2: today deep-dive + upcoming planner + subsystems
+  // Row 2: today deep-dive + subsystems
   var row2 = [
-    '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>',
-    '<div style="'+wrap+'">'+ mb('📅 Upcoming','upcoming')  +'</div>'
+    '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>'
   ];
   if (st.weatherEnabled !== false) row2.push('<div style="'+wrap+'">'+ mb('🌤 Weather','weather') +'</div>');
   if (st.moonsEnabled   !== false) row2.push('<div style="'+wrap+'">'+ mb('🌙 Moons','moon')     +'</div>');
@@ -4441,8 +4414,6 @@ function _normalizePackedWords(q){
   return String(q||'')
     .replace(/\b(nextmonth)\b/gi, 'next month')
     .replace(/\b(nextyear)\b/gi, 'next year')
-    .replace(/\b(upcomingmonth)\b/gi, 'upcoming month')
-    .replace(/\b(upcomingyear)\b/gi, 'upcoming year')
     .replace(/\b(currentmonth|thismonth)\b/gi, 'month')
     .replace(/\b(thisyear)\b/gi, 'year')
     .replace(/\b(lastmonth)\b/gi, 'last month')
@@ -4451,8 +4422,6 @@ function _normalizePackedWords(q){
     .replace(/\b(previousyear|prevyear)\b/gi, 'previous year')
     .replace(/\b(next[-_]month)\b/gi,'next month')
     .replace(/\b(next[-_]year)\b/gi,'next year')
-    .replace(/\b(upcoming[-_]month)\b/gi,'upcoming month')
-    .replace(/\b(upcoming[-_]year)\b/gi,'upcoming year')
     .trim();
 }
 
@@ -4720,119 +4689,11 @@ function _todayAllHtml(){
   }
 
   sections.push('<div style="margin-top:6px;">' +
-    button('⬅ Calendar', '') + ' ' +
-    button('📅 Upcoming', 'upcoming') +
+    button('⬅ Calendar', '') +
     '</div>');
 
   return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month,
     sections.join(''));
-}
-
-// ── Upcoming — 7-day combined view ─────────────────────────────────────
-// Shows a week strip (today + 6) using the calendar grid renderer, plus
-// subsystem highlights for each day below. Fixed at 7 days.
-function _upcomingHtml(){
-  var st = ensureSettings();
-  var today = todaySerial();
-  var days = 7;
-  var cal = getCal();
-  var endSer = today + days - 1;
-
-  // Build calendar strip for the 7-day range using the month strip renderer
-  var spec = { start: today, end: endSer, title: 'This Week' };
-  var calStrip = buildCalendarsHtmlForSpec(spec);
-
-  // Day-by-day highlights below the strip
-  var rows = [];
-  for (var i = 0; i < days; i++){
-    var ser = today + i;
-    var d = fromSerial(ser);
-    var mObj = cal.months[d.mi] || {};
-    var dayLabel = esc(mObj.name) + ' ' + d.day;
-    if (i === 0) dayLabel = '<b>' + dayLabel + '</b>';
-
-    var bits = [];
-
-    // Weather
-    if (st.weatherEnabled !== false){
-      try {
-        var wxRec = _forecastRecord(ser);
-        if (wxRec && wxRec.final){
-          var wxEmoji = _weatherEmojiForRecord(wxRec);
-          var wxCond = _deriveConditions(wxRec.final, wxRec.location||{}, 'afternoon',
-            wxRec.snowAccumulated, wxRec.fog && wxRec.fog.afternoon);
-          bits.push(wxEmoji + ' ' + esc(_conditionsNarrative(wxRec.final, wxCond, 'afternoon')));
-          var extremes = _evaluateExtremeEvents(wxRec);
-          if (extremes.length) bits.push('⚡ ' + esc(extremes[0].event.name));
-        }
-      } catch(e){}
-    }
-
-    // Moon events (full/new only)
-    if (st.moonsEnabled !== false){
-      try {
-        var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
-        if (sys && sys.moons){
-          var moonBits = [];
-          for (var mi = 0; mi < sys.moons.length; mi++){
-            var moon = sys.moons[mi];
-            var ph = moonPhaseAt(moon.name, ser);
-            if (!ph) continue;
-            if (ph.illum >= 0.97) moonBits.push('🌕 ' + moon.name);
-            else if (ph.illum <= 0.03) moonBits.push('🌑 ' + moon.name +
-              (ph.longShadows ? ' (LS)' : ''));
-          }
-          try {
-            var eclNotes = _eclipseNotableToday(ser);
-            for (var ei = 0; ei < eclNotes.length; ei++) moonBits.push(eclNotes[ei]);
-          } catch(e3){}
-          if (moonBits.length) bits.push(moonBits.join(' · '));
-        }
-      } catch(e){}
-    }
-
-    // Planar events
-    if (st.planesEnabled !== false){
-      try {
-        var plNotes = _planarNotableToday(ser);
-        if (plNotes.length) bits.push(plNotes.slice(0,2).join(' · '));
-      } catch(e){}
-    }
-
-    // Calendar events
-    try {
-      var occ = occurrencesInRange(ser, ser);
-      if (occ.length){
-        var evNames = [];
-        var evSeen = {};
-        for (var oi = 0; oi < occ.length; oi++){
-          var nm = eventDisplayName(occ[oi].e);
-          if (!evSeen[nm.toLowerCase()]){ evSeen[nm.toLowerCase()]=1; evNames.push(nm); }
-        }
-        bits.push('🎉 ' + evNames.slice(0,2).map(esc).join(', '));
-      }
-    } catch(e){}
-
-    if (bits.length){
-      var border = (i < days - 1) ? 'border-bottom:1px solid rgba(255,255,255,.06);' : '';
-      rows.push('<div style="padding:2px 0;'+border+'">' +
-        '<span style="font-size:.85em;">' + dayLabel + '</span> ' +
-        '<span style="font-size:.78em;opacity:.75;">' + bits.join(' · ') + '</span>' +
-        '</div>');
-    }
-  }
-
-  var detailHtml = rows.length
-    ? '<div style="margin-top:4px;">' + rows.join('') + '</div>'
-    : '';
-
-  return _menuBox('📅 This Week',
-    calStrip + detailHtml +
-    '<div style="margin-top:6px;">' +
-    button('⬅ Calendar', '') + ' ' +
-    button('📋 Today', 'today') +
-    '</div>'
-  );
 }
 
 var USAGE = {
@@ -4920,16 +4781,6 @@ var commands = {
       weatherEnsureForecast();
       moonEnsureSequences();
       whisper(m.who, _playerTodayHtml(m.playerid));
-    }
-  },
-
-  upcoming: function(m, a){
-    if (playerIsGM(m.playerid)){
-      weatherEnsureForecast();
-      moonEnsureSequences();
-      whisper(m.who, _upcomingHtml());
-    } else {
-      whisper(m.who, 'This Week view is GM-only. Try ' + button('📋 Forecast','forecast'));
     }
   },
 
