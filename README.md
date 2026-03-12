@@ -375,6 +375,7 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 
 ## Dates
 
+Show a specific 
 ```
 !cal <day>                — jump to next instance of that day number
 !cal <month> <day>        — jump to next instance of specific month and day
