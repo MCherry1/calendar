@@ -53,7 +53,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "\"Con save\"",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -74,7 +74,8 @@
               "title": "Bookmarks"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -195,7 +196,7 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "8ff685fd5b407f4a",
+  "active": "5f4466eae6ff5f82",
   "lastOpenFiles": [
     "AGENT TASKS.md",
     "README.md",

@@ -207,31 +207,31 @@ The live generator maps directly on the `-5` to `15` band scale shown below.
 	- It is recommended to require rolls for each day (or hour, if following the DMG) of travel, each Short or Long Rest, any periods of outdoor activity, and for each combat.
 - **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing map to normal armor proficiencies. If a character is not proficient in the clothing they are wearing, they suffer those penalties.
 - **Armor as heat burden:** At the hot end of the scale, wearing armor becomes progressively more punishing.
-- **Resistance and immunity:** Cold or fire resistance grants advantage on the save; while immunity succeeds automatically.
+- **Resistance and immunity:** Cold or fire resistance grants advantage on the save. Immunity succeeds automatically.
 
-| Temperature |  °F Approx.  | Mechanical Effect                                                            |
-| :---------: | :----------: | :--------------------------------------------------------------------------- |
-|     −5      |   ≤ −46°F    | DC 30 Con save; disadv. without heavy cold-weather clothing                  |
-|     −4      | [−45 .. −36] | DC 25 Con save; disadv. without heavy cold-weather clothing                  |
-|     −3      | [−35 .. −26] | DC 25 Con save; disadv. without heavy cold-weather clothing                  |
-|     −2      | [−25 .. −16] | DC 20 Con save; disadv. without medium cold-weather clothing                 |
-|     −1      | [−15 .. −6]  | DC 20 Con save; disadv. without medium cold-weather clothing                 |
-|      0      |  [−5 .. 4]   | DC 15 Con save; disadv. without light cold-weather clothing                  |
-|      1      |  [5 .. 14]   | DC 15 Con save; disadv. without light cold-weather clothing                  |
-|      2      |  [15 .. 24]  | DC 10 Con save                                                                |
-|      3      |  [25 .. 34]  | DC 10 Con save                                                                |
-|      4      |  [35 .. 44]  | No thermal save                                                               |
-|      5      |  [45 .. 54]  | No thermal save                                                               |
-|      6      |  [55 .. 64]  | No thermal save                                                               |
-|      7      |  [65 .. 74]  | DC 10 Con save                                                                |
-|      8      |  [75 .. 84]  | DC 10 Con save                                                                |
-|      9      |  [85 .. 94]  | DC 15 Con save; heavy armor at disadv.                                       |
-|     10      | [95 .. 104]  | DC 15 Con save; heavy armor at disadv.                                       |
-|     11      | [105 .. 114] | DC 20 Con save; medium and heavy armor at disadv.                            |
-|     12      | [115 .. 124] | DC 20 Con save; medium and heavy armor at disadv.                            |
-|     13      | [125 .. 134] | DC 25 Con save; light, medium, and heavy armor at disadv.                    |
-|     14      | [135 .. 144] | DC 25 Con save; light, medium, and heavy armor at disadv.                    |
-|     15      |   ≥ 145°F    | DC 30 Con save; light, medium, and heavy armor at disadv.                    |
+| Temperature |  °F Approx.  | Mechanical Effect                                            |
+| :---------: | :----------: | :----------------------------------------------------------- |
+|     −5      |   ≤ −46°F    | DC 30; disadv. without heavy cold-weather clothing           |
+|     −4      | [−45 .. −36] | DC 25; disadv. without heavy cold-weather clothing           |
+|     −3      | [−35 .. −26] | DC 25; disadv. without heavy cold-weather clothing           |
+|     −2      | [−25 .. −16] | DC 20 Con save; disadv. without medium cold-weather clothing |
+|     −1      | [−15 .. −6]  | DC 20 Con save; disadv. without medium cold-weather clothing |
+|      0      |  [−5 .. 4]   | DC 15 Con save; disadv. without light cold-weather clothing  |
+|      1      |  [5 .. 14]   | DC 15  save; disadv. without light cold-weather clothing  |
+|      2      |  [15 .. 24]  | DC 10 Con save                                               |
+|      3      |  [25 .. 34]  | DC 10 Con save                                               |
+|      4      |  [35 .. 44]  | No thermal save                                              |
+|      5      |  [45 .. 54]  | No thermal save                                              |
+|      6      |  [55 .. 64]  | No thermal save                                              |
+|      7      |  [65 .. 74]  | DC 10 Con save                                               |
+|      8      |  [75 .. 84]  | DC 10 Con save                                               |
+|      9      |  [85 .. 94]  | DC 15 Con save; heavy armor at disadv.                       |
+|     10      | [95 .. 104]  | DC 15 Con save; heavy armor at disadv.                       |
+|     11      | [105 .. 114] | DC 20 Con save; medium and heavy armor at disadv.            |
+|     12      | [115 .. 124] | DC 20 Con save; medium and heavy armor at disadv.            |
+|     13      | [125 .. 134] | DC 25 Con save; light, medium, and heavy armor at disadv.    |
+|     14      | [135 .. 144] | DC 25 Con save; light, medium, and heavy armor at disadv.    |
+|     15      |   ≥ 145°F    | DC 30 Con save; light, medium, and heavy armor at disadv.    |
 ### Wind
 
 | Wind |  Label   | Mechanical Effect                                                                                                                                                        |
