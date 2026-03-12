@@ -235,14 +235,15 @@ agent task delete the term con save from the table below, leaving only DC XX
 |     15      |   ≥ 145°F    | DC 30 Con save; light, medium, and heavy armor at disadv.    |
 ### Wind
 
-| Wind |  Label   | Mechanical Effect                                                                                                                                                                        |
-| :--: | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  0   |   Calm   | None                                                                                                                                                                                     |
-|  1   |  Breezy  | None                                                                                                                                                                                     |
-|  2   | Moderate | Fogs and airborne gases dispersed                                                                                                                                                        |
-|  3   |  Strong  | Open flames extinguished<br>Disadv. on ranged attacks<br>Long-range attacks auto-miss<br>Flying costs +1 ft per ft                                                                       |
-|  4   |   Gale   | Includes all Strong effects<br>Ranged attacks auto-miss<br>Nonmagical flying requires DC 10 Str save or flying speed becomes 0; the air is difficult terrain; walking costs +1 ft per ft |
-|  5   |  Storm   | DC 15 Strength save or fall prone; small trees uprooted; severe hazard                                                                                                                   |
+| Wind |  Label   | Mechanical Effect                                                                                                                                                                                        |
+| :--: | :------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  0   |   Calm   | None                                                                                                                                                                                                     |
+|  1   |  Breezy  | None                                                                                                                                                                                                     |
+|  2   | Moderate | Fogs and airborne gases dispersed                                                                                                                                                                        |
+|  3   |  Strong  | Open flames extinguished<br>Disadv. on ranged attacks<br>Long-range attacks auto-miss<br>Flying costs +1 ft per ft                                                                                       |
+|  4   |   Gale   | Includes all Strong effects<br>Ranged attacks auto-miss<br>Nonmagical flying req. DC 10 Str save or flying speed becomes 0<br>The air is difficult terrain (+2 ft. per ft)<br>Walking costs +1 ft per ft |
+|  5   |  Storm   | Includes all Gale Effec<br>DC 15 Strength save or fall prone; small trees uprooted; severe hazard                                                                                                        |
+|      |          |                                                                                                                                                                                                          |
 
 ### Precipitation
 
