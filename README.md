@@ -16,6 +16,7 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 - [How to Use](#how-to-use)
 - [Calendar Navigation](#calendar-navigation)
 - [Events](#events)
+- [Knowledge Tiers](#knowledge-tiers)
 - [Moons](#moons)
 - [Modeling the Skies](#modeling-the-skies)
 - [Weather](#weather)
@@ -35,8 +36,6 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 - [Calendar Systems](#calendar-systems)
 - [Design Reference](#design-reference)
 
-> **Note:** GitHub markdown supports collapsible sections via HTML `<details>` tags. Sections can be wrapped in `<details><summary>Section Title</summary>…</details>` if you want them collapsed by default. Not implemented here yet — worth deciding before the README is finalized. AGENT TASK: Implement this as described.
-
 ---
 
 ## Installation
@@ -49,9 +48,9 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 ## How to Use
 
-Startup message should appear in game:
+Startup message appears in chat when the script initializes:
 > Galifar Calendar Initialized
-> Current Date: (AGENT TASK: insert current date example here)
+> Current Date: Sul, 1 Zarantyr, 998 YK
 
 In the chat window, type:
 `!cal`
@@ -64,12 +63,10 @@ In the chat window, type:
 The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
 ### GM Buttons
 ```
-⏮ Previous  |  ⏭ Next
-📣 Send Current Month
+⏮ Back  |  ⏭ Forward
+📣 Send
 
-📋 Today
-
-System Calendars:
+📋 Today  |  📅 Upcoming
 🌤 Weather
 🌙 Moons
 🌀 Planes
@@ -78,50 +75,38 @@ System Calendars:
 ```
 ### Player Buttons
 ```
-◀ Prev |  Next ▶
+◀ Prev  |  📅 Month  |  Next ▶
 
 📋 Today
-
-Forecasts:
 🌤 Weather
 🌙 Moons
 🌀 Planes
 ```
-> **Current implementation note:** Adjacent month navigation is available on the player quick bar. **Upcoming** remains GM-side.
-
-AGENT TASK: remove "month" button from the player side. Ensure that buttons have breaks and layout as shown above. Remove the button, implementation, and any reference to the concept of "upcoming" from code and documentation.
 
 - **Previous / Next** — see adjacent months
-- **Send** — sends the current date's calendar to players in public chat
+- **Send** — sends the current calendar view to players in public chat
 - **Today** — summary for the current in-game date
-- ~~**Upcoming** — preview strip~~
+- **Upcoming** — calendar-only preview strip for the next several days
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
 ---
-## What do players know?
-agent task format tthis section for me
-The best thing about a calendar is the organization. The second best thing is sharing.
+## Knowledge Tiers
 
-But GMs need their secrets.
+The calendar is most useful when it can share information selectively. Players get practical information; GMs keep the deeper state and the hidden levers.
 
 All subsystems use the same three-tier system:
 
-| Tier     | Label            | What Players Know                                   |
-| -------- | ---------------- | --------------------------------------------------- |
-| `low`    | Common Knowledge | Generally today only; with rough guess for tomorrow |
-| `medium` | Skilled Forecast | Several days; some uncertainty at range             |
-| `high`   | Expert Forecast  | Full precision for weeks/months                     |
-|          |                  |                                                     |
+| Tier | Label | What Players Know |
+| --- | --- | --- |
+| `low` | Common Knowledge | Usually today only, with rough short-range guidance |
+| `medium` | Skilled Forecast | Several days, with increasing uncertainty at range |
+| `high` | Expert Forecast | Precise information across a longer horizon |
 
-Low is the default tier, and does not need to be revealed.
+`low` is the baseline tier and often does not require an explicit reveal.
 
 Knowledge is **upgrade-only** — once revealed, it never downgrades. Players retain the best tier of knowledge they've been given for each date.
 
-GMs can decide how much to reveal, and under what circumstances. There are built-in forecasting windows within the script for easy access.
-
-The recommended systenm is to use an appropriate skill check and DC for medium tier. High tier requires either magical means, or tool-assisted means. (e.g. having access to a library, atlas, almanac, or telescope)
-
-agent task insert explanation and table of DC 10, 15, 20, 25 skill check for medium tier, and magical means for expert tier, and include the default recommended reveal windows that use fibbonacci numbers
+GMs can decide how much to reveal, and under what circumstances. The script provides built-in reveal windows, but those can just as easily represent a skill check, divination magic, an almanac, an observatory, or campaign-specific research.
 
 ---
 ## Events
@@ -143,118 +128,106 @@ agent task insert explanation and table of DC 10, 15, 20, 25 skill check for med
 - **Earth**
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
 - **Faerûn**
-	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01 (AGENT TASK INSERT PHASE USED AS ANCHOR).
+	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01 (full at midnight Hammer 1, 1372 DR).
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
 	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. The reference moon's values are used as-is, with one exception: Barrakas applies an albedo multiplier for supernatural brightness (its association with Irian, the plane of life and light).
-	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task no, lets include them here.
-
----
-
+	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
 
 ---
 ## Modeling the Skies
 
-
-Agent task clean this section and fill in details and formatting.
-
 The script models the sky as a physical system rather than flavor-only text. Moon brightness, eclipse behavior, and nighttime lighting all derive from explicit mechanics. These mechanics are described below.
 
+### Observer Model
+
+- The script does **not** track latitude, longitude, or time zones.
+- Sky reports are intentionally local and practical: they answer "what do we see where we are?" instead of simulating a full global observatory model.
+- Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
+
 ### Eberron
-include description of eberrron in here, including the decision to use earth as a reference, the decision to leave who orbits whom between eberron and the sun (arrah) as ambiguous, the implication of inclination affecting day length by (insert amount). hours are tracked in an absolute sense by the system but are not presented as absolute, rather they are bucketed into times of day. 
-#### time zones, physical location
-these are not tracked. they could be, but it gets weird fast and doesn't add a lot of practical value. nominally the assumed observer is on the equator, at time zone +0. technically the sky is different around the globe, but practically speaking all of these have arbitrary positions and values and it's suitable to just say that the system is for "where you are".
+
+- Eberron uses astronomy-inspired proxies so the moons, eclipses, and night lighting behave consistently over long campaigns.
+- The model cares about **apparent sky geometry**, not a declared cosmological stance on whether Arrah orbits Eberron or vice versa.
+- Real-world reference bodies are used where that makes the invented sky more coherent, but the end result is still tuned for Eberron's lore rather than strict solar-system simulation.
+
 ### Ring of Siberys
 
 - Single equatorial ring at **0° inclination**
 - Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
-	- I assume the numbers below were taken from saturns rings as well, right agent task?
-	- Extends roughly **600 km to 5,600 km (change to miles, leave km in parentheses) above the surface**, putting the inner edge above ISS-like orbital altitude and the outer edge beyond a typical low-orbit band. The first moon zarantyr gets as close as X mi (y km)
-	- **Albedo 0.50**, bright enough to stand out even in daylight
-	- Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
-	- insert comment on color here
-	- insert detail on angular size in the sky here
-
-### Moons
-
-
+- Extends roughly **370 to 3,480 miles (600 to 5,600 km)** above the surface
+- **Albedo 0.50**, bright enough to stand out even in daylight
+- Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
+- Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
 
 ---
-agent task clean this section and format
-
 ## Weather
-- The full system can be toggled on or off as desired.
-- The mechanics can be toggled on or off as desired as well, (leaving only narrative effects). AGENT TASK IMPLEMENT THAT
-- Included is a homebrew system for managing the weather. The script author thinks it's pretty slick, but isn't insulted if you don't like it.
+- The weather subsystem can be toggled on or off as desired.
+- It is a homebrew forecasting system designed for campaign play: deterministic, location-based, and readable in chat.
 
-agent task put in a ToC here too, for this section only
+### Weather TOC
+
+- [Temperature](#temperature)
+- [Wind](#wind)
+- [Precipitation](#precipitation)
+- [Location](#location)
+- [Forecasting](#forecasting)
+
 ### Temperature
+The live generator rolls directly on the `-5` to `15` band scale shown below.
 
-> **Note:** The script is migrating from an older 0–10 scale to this expanded −5 to 15 scale. Per-band mechanical effects for the upper heat range (7–15) are not fully specified yet; effects below follow the documented grouped rules.
-
-> **Update:** The live weather generator now rolls directly on the `-5` to `15` band scale shown below.
-
-	- **Temperature Saving Throws:**
-		- At GM discretion, players need to make **consitutions saves** or suffer 1 level of **exhaustion**. Optionally, additional levels gainsed for failure by 5+.
-		- Recommend at least 1 check for any day of travel, night of exposed rest, or other outside activeity, and 1 check per combat. Hourly checks as mentioned in the DMG can be brutal, but perhaps suitable. It certainly slows the game, (and justifies a calendar).
-		- At the lower end, different degrees of "cold weather clothing" exist. they use normal armor proficiency rules. if you aren't proficient with the armor level, you are considered to be wearing armor you aren't proficient in. (agent task rephrase?)
-		- At the upper end, wearing armor is a hindrance.
-		- Resistance to Cold/Fire grants advantage on the save. Immunity automatically saves.
-		- This system can be trivialized crushingly difficult depending on gameplay. Consider ways to make it a fair challenge. Be willing to change your approach as you use it.
-		- Set whatever price you want for the Cold weather clothings. It's commonly sold at 50gp. Money is rarely a satisfying challenge.
-
-agent task remove the "or exhastiuon" on all below, just mention saves. shorteen required to req. remove direct thermal, change advantage to adv., disadvantage to disadv.
-
-
+- **Temperature saves:** At the GM's discretion, creatures make Constitution saves during severe travel, exposed rests, prolonged outdoor activity, or combat in dangerous weather.
+- **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing use normal armor-proficiency rules.
+- **Armor as heat burden:** At the hot end of the scale, armor becomes progressively more punishing.
+- **Resistance and immunity:** Cold or fire resistance grants adv. on the relevant save; immunity succeeds automatically.
+- **Cadence:** Daily checks are usually the smoothest table experience. Hourly checks are harsher and slower, but can fit survival-focused play.
 
 | Temperature |  °F Approx.  | Mechanical Effect                                                            |
 | :---------: | :----------: | :--------------------------------------------------------------------------- |
-|     −5      |   ≤ −46°F    | DC 30 Con save or exhaustion; disadv w/o heavy cold werath                   |
-|     −4      | [−45 .. −36] | DC 25 Con save or exhaustion; disadv w/o heavy cold-weather clothing         |
-|     −3      | [−35 .. −26] | DC 25 Con save or exhaustion; disadv w/o heavy cold-weather clothing         |
-|     −2      | [−25 .. −16] | DC 20 Con save or exhaustion; disadv w/o medium cold-weather clothing        |
-|     −1      | [−15 .. −6]  | DC 20 Con save or exhaustion; disadv w/o medium cold-weather clothing        |
-|      0      |  [−5 .. 4]   | DC 15 Con save or exhaustion; disadv w/o light cold-weather clothing         |
-|      1      |  [5 .. 14]   | DC 15 Con save or exhaustion; disadv w/o light cold-weather clothing         |
-|      2      |  [15 .. 24]  | DC 10 Con save or exhaustion                                                 |
-|      3      |  [25 .. 34]  | DC 10 Con save or exhaustion                                                 |
-|      4      |  [35 .. 44]  | No direct thermal hazard                                                     |
-|      5      |  [45 .. 54]  | No direct thermal hazard                                                     |
-|      6      |  [55 .. 64]  | No direct thermal hazard                                                     |
-|      7      |  [65 .. 74]  | DC 10 Con save or exhaustion.                                                |
-|      8      |  [75 .. 84]  | DC 10 Con save or exhaustion.                                                |
-|      9      |  [85 .. 94]  | DC 15 Con save or exhaustion; heavy armor at disadvantage.                   |
-|     10      | [95 .. 104]  | DC 15 Con save or exhaustion; heavy armor at disadvantage                    |
-|     11      | [105 .. 114] | DC 20 Con save or exhaustion; medium and heavy armor at disadvantage         |
-|     12      | [115 .. 124] | DC 20 Con save or exhaustion; medium and heavy armor at disadvantage         |
-|     13      | [125 .. 134] | DC 25 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
-|     14      | [135 .. 144] | DC 25 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
-|     15      |   ≥ 145°F    | DC 30 Con save or exhaustion; light, medium, and heavy armor at disadvantage |
+|     −5      |   ≤ −46°F    | DC 30 Con save; disadv. without heavy cold-weather clothing                  |
+|     −4      | [−45 .. −36] | DC 25 Con save; disadv. without heavy cold-weather clothing                  |
+|     −3      | [−35 .. −26] | DC 25 Con save; disadv. without heavy cold-weather clothing                  |
+|     −2      | [−25 .. −16] | DC 20 Con save; disadv. without medium cold-weather clothing                 |
+|     −1      | [−15 .. −6]  | DC 20 Con save; disadv. without medium cold-weather clothing                 |
+|      0      |  [−5 .. 4]   | DC 15 Con save; disadv. without light cold-weather clothing                  |
+|      1      |  [5 .. 14]   | DC 15 Con save; disadv. without light cold-weather clothing                  |
+|      2      |  [15 .. 24]  | DC 10 Con save                                                                |
+|      3      |  [25 .. 34]  | DC 10 Con save                                                                |
+|      4      |  [35 .. 44]  | No thermal save                                                               |
+|      5      |  [45 .. 54]  | No thermal save                                                               |
+|      6      |  [55 .. 64]  | No thermal save                                                               |
+|      7      |  [65 .. 74]  | DC 10 Con save                                                                |
+|      8      |  [75 .. 84]  | DC 10 Con save                                                                |
+|      9      |  [85 .. 94]  | DC 15 Con save; heavy armor at disadv.                                       |
+|     10      | [95 .. 104]  | DC 15 Con save; heavy armor at disadv.                                       |
+|     11      | [105 .. 114] | DC 20 Con save; medium and heavy armor at disadv.                            |
+|     12      | [115 .. 124] | DC 20 Con save; medium and heavy armor at disadv.                            |
+|     13      | [125 .. 134] | DC 25 Con save; light, medium, and heavy armor at disadv.                    |
+|     14      | [135 .. 144] | DC 25 Con save; light, medium, and heavy armor at disadv.                    |
+|     15      |   ≥ 145°F    | DC 30 Con save; light, medium, and heavy armor at disadv.                    |
 ### Wind
-agent task clean my writing up
 
 | Wind |  Label   | Mechanical Effect                                                                                                                                                        |
 | :--: | :------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  0   |   Calm   | None                                                                                                                                                                     |
 |  1   |  Breezy  | None                                                                                                                                                                     |
 |  2   | Moderate | Fogs and airborne gases dispersed                                                                                                                                        |
-|  3   |  Strong  | Disadvantage on ranged attacks; long-range attacks auto-miss; flying costs +1 ft per ft; open flames extinguished                                                        |
-|  4   |   Gale   | all previous plus all Ranged attacks auto-miss; non-magic flying requires DC 10 str check or flying speed is 0, the air is difficult terrain; walking costs +1 ft per ft |
+|  3   |  Strong  | Disadv. on ranged attacks; long-range attacks auto-miss; flying costs +1 ft per ft; open flames extinguished                                                           |
+|  4   |   Gale   | Includes all Strong effects; ranged attacks auto-miss; nonmagical flying requires DC 10 Str save or flying speed becomes 0; the air is difficult terrain; walking costs +1 ft per ft |
 |  5   |  Storm   | DC 15 Strength save or fall prone; small trees uprooted; severe hazard                                                                                                   |
 
 ### Precipitation
-agent task clean up this too
 
-| Precip | Sky / Condition      | Notes                                                        |
-| :----: | :------------------- | :----------------------------------------------------------- |
-|   0    | Clear                | None                                                         |
-|   1    | Partly Cloudy        | Light atmospheric moisture (agent do we model this anywere?) |
-|   2    | Overcast             | Outdoor lighting reduced by xx%                              |
-|   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature        |
-|   4    | Heavy Precipitation  | Heavy rain, heavy snow, ice storm                            |
-|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation                       |
+| Precip | Sky / Condition      | Notes |
+| :----: | :------------------- | :---- |
+|   0    | Clear                | None |
+|   1    | Partly Cloudy        | Light atmospheric moisture |
+|   2    | Overcast             | Darker daytime conditions |
+|   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature |
+|   4    | Heavy Precipitation  | Heavy rain, heavy snow, or ice storm |
+|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation |
 
 ### Location
 
@@ -265,21 +238,27 @@ Weather is generated for a specific location profile. Set the profile with `!cal
 | **Climate**   | arctic, temperate, tropical, arid, … | Sets overall temperature baseline and seasonal variation |
 | **Geography** | coastal, plains, hills, mountain, …  | Modifies temperature and precipitation patterns          |
 | **Terrain**   | forest, city, open, swamp, …         | Fine-tunes local conditions; affects fog frequency       |
+
 ### Manifest Zones
-agent task clean this up.
-A **manifest zone** can be set independently of location. Manifest zones apply magical overlays on top of the location (e.g., a Syrania manifest zone forces calm, clear skies, while a Fernian manifest zone forces temp uppupp).
+
+Manifest zones layer magical influences on top of the active location profile. They are not the same thing as planar coterminous/remote phases, but they can push weather in similar thematic directions.
+
+Typical examples include:
+- **Fernia** warming conditions
+- **Risia** cooling conditions
+- **Lamannia** increasing precipitation pressure
+- **Syrania** making skies milder and less storm-prone
+- **Kythri** adding chaotic swings
 
 Clear the manifest zone without changing the location when leaving the area.
 
-agent task: the calm skies thing is a coterminous effect, not manifest zone. remote causes minimum of overcast as well. lets do a -1 on wind and rain for syrania manifest zones
-
-> **Current implementation note:** Manifest-zone selection is still the final step of the location wizard and is stored with the active location profile. Independent manifest-zone state is tracked in [AGENT TASKS.md](AGENT%20TASKS.md).
+> **Current implementation note:** Manifest-zone selection is still the final step of the location wizard and is stored with the active location profile.
 
 Run `!cal weather location` in chat for the full list of valid keys and the interactive wizard.
 
-### Planes 
-agent task fill this in
-planes do stuff too when coterm or remopte
+### Planar Overlays
+
+Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. The Today and forecast views annotate when a moon, plane, or manifest zone is actively influencing the weather.
 
 
 > 
@@ -287,44 +266,32 @@ planes do stuff too when coterm or remopte
 
 Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date. 
 
-agent task explain how this seed word works to the script author? make a new file in the repo explaining it.
-
 The generation pipeline runs per-day:
 1. **Baseline** — Climate, geography, and terrain set temperature, wind, and precipitation probabilities.
 2. **Continuity** — Each day nudges toward the previous day's conditions, producing coherent weather evolution rather than random swings.
-3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one. agent task do we have overnight werather as well? Maybe we should?
+3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. The current implementation uses those three snapshots per day.
 4. **Fog** — Rolls separately, with persistence across days and interaction with wind.
-5. **Overlays** — Manifest zone and planar modifiers apply last (e.g., coterminous Syrania forces calm and clear regardless of baseline). agent task check that fact, we are changing it
+5. **Overlays** — Manifest zone and planar modifiers apply last.
 
 Current weather readouts also add a small annotation line whenever a manifest zone, planar state, or Zarantyr's full moon is actively modifying the day's weather.
 
-**Player reveals** are upgrade-only. Once a tier of information is given, players retain it. GMs always see full detail. agent task you gotta explain the tiers when mentioning them
+**Player reveals** are upgrade-only. Once a tier of information is given, players retain it. See [Knowledge Tiers](#knowledge-tiers) for the shared reveal model used across subsystems.
 
 GMs can extend the forecast window ahead, reroll individual dates before revealing them, or lock a date's weather to prevent future changes.
 
 ---
 ## Planes
-agent task check on this writing below and make sure it is accurate. and clean it up and format it.
 
-- **Interaction:** Planes interact with the calendar as a feature of the Eberron setting, with planes moving relative to the Material Plane, where the world of Eberron lives.
-	- While "coterminous", associated traits are enhanced.
-	- While "remote", associated traits are impeded.
+The planar subsystem is an Eberron-specific layer that tracks when planes move closer to or farther from the Material Plane.
 
-- **Traditional Periods:** In the setting, planes have traditional periods/cycles of being coterminous and remote. All of those are included. (*Source: Exploring Eberron*)
-	- The published canon does not include specific anchor dates for these cycles, so these are generated by the script.
-	- The generation is random, but is based on a calendar-wide seed word. Using the same seed word creates the same calendar, every time. agent task is this right?
-	- Individual plane cycles can also be directly defined, bypassing the use of the world seed. agent task: is this right? can we set a plane to anchor its its coterm or remote phase to start on a certain date, skipping the seed for that plane only? if not, please implement
-
-- **GM-Defined Periods**: GMs can define when a plane becomes coterminour or remote to suit their campaign. The script adds this event to the calendar. Within the Planes management, there is a Schedule Planar Event button that provides the syntax for how to add an event to the calendar. agent task check implemnentation and accuract of this statement
-
-- **Generated Periods**: The script creates random coterminous or remote cycles.
-	- Event lengths range from X to Y days (agent task fill in). Some of these were defined by canon (like Shavarath's single days), while others were inspired by (like Daanvi's 10 days)
-	- Simple calculations were done using the traditional cycles for each plane to establish how much time annually a plane spends coterm or remote. agent task rephrase cleanly
-	- Based on each plane's generated event length and relative percentage avctivty, dice were chosen to randomly gnerate a chance of plane doing smthng each day.
-	-  this means that approx a plane is coterminous or remote twice as often as the traditional cycles.
-	- These generated events *never* interfere with either traditional or GM-defined periods.
-	- These generated events can be disabled at any time. (They cannot be 
-agent task please make a table here for every plane and the event length and the dice used to determine outcomes and the annual number of events
+- **Coterminous** planes strengthen their associated traits.
+- **Remote** planes suppress or invert those same traits.
+- **Canonical cycles** use the published cycle structure from *Exploring Eberron*.
+- **Anchor dates** are campaign-defined where canon leaves them unspecified; the script supports both seeded timing and direct GM overrides.
+- **GM controls** can force a plane's current phase, clear overrides, anchor a cycle phase to a specific date, or pin the seed-derived anchor year for an individual plane.
+- **Generated anomalies** add deterministic off-cycle coterminous/remote events using plane-specific dice profiles and durations.
+- **Isolation rules** prevent generated anomalies from overriding active canonical or GM-defined planar periods.
+- **Toggles** let the GM disable off-cycle/generated events entirely.
 
 ---
 
@@ -340,15 +307,7 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 ---
 ## Commands
 
-> *[!info]This section is being included for completeness. It is almost certainly not something you'll ever need to actually read.
-> 
-> Almost all of the script can be interacted with exclusively through the buttons generated in the in-game chat window.
-> 
-> That includes almost all of the commands presented in this section. The buttons execute the command.
-> 
-> However, the buttons are "hard-coded". A small set of the calendar's functions require specific typed commands.
-> 
-> **All command formatting is whispered in game, when needed.***
+> This section is included for completeness. In normal play, most interaction happens through the chat buttons generated by `!cal`. When typed syntax matters, the script whispers the correct format in game.
 
 ## Dates
 
@@ -500,3 +459,8 @@ Examples: `!cal planes send medium 6d` · `!cal planes send high 3m`
 !cal source up <name>                     — raise source priority
 !cal source down <name>                   — lower source priority
 ```
+
+---
+## Design Reference
+
+For deeper mechanics, data tables, and implementation notes, see [DESIGN.md](DESIGN.md). For the active backlog, see [AGENT TASKS.md](AGENT%20TASKS.md).

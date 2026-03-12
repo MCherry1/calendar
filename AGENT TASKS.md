@@ -12,6 +12,8 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 ## Needs Design Input
 
 - **Weather low-tier auto-reveal buckets:** current code auto-records low-tier weather for the current day. The desired tomorrow/day-after common-knowledge buckets are described below, but the exact split still needs confirmation before implementation.
+- **Weather overnight period:** the README notes ask whether weather should gain an overnight snapshot in addition to morning/afternoon/evening. That is a design change, not just documentation.
+- **Sky-model day-length explanation:** the README requests a concrete explanation of how inclination affects day length in the Eberron sky model, but the desired level of numeric detail is not yet specified.
 
 ## README Drift (checked 2026-03-11)
 
@@ -33,11 +35,75 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 - README is incomplete. Fill in the sections where tasks are clear. Completed by ChatGPT version number 5.4
 ---
 
+## Documentation Tasks
+
+These are README / repo-doc tasks extracted from embedded notes in the README.
+
+---
+
+### README presentation cleanup
+
+- [ ] Convert major README sections to collapsible `<details><summary>...</summary></details>` blocks where that improves readability
+
+---
+
+### Expand Knowledge Tiers guidance in README
+
+- [ ] Add a recommended medium-tier skill-check table using DC 10 / 15 / 20 / 25 guidance
+- [ ] Add guidance for expert-tier reveals via magical or tool-assisted means
+- [ ] Document the default recommended reveal windows using Fibonacci-style progressions
+
+---
+
+### Expand README moon and sky reference material
+
+- [ ] Include the Eberron moon reference-body mapping table in README instead of only pointing to `DESIGN.md`
+- [ ] Expand **Modeling the Skies** with the remaining stable explanatory material
+- [ ] Add Ring of Siberys detail for apparent color, angular size, and nearest Zarantyr clearance
+
+---
+
+### Add deterministic-seed author documentation
+
+- [ ] Create a repo doc that explains how the script's seed-driven deterministic generation works for weather / moons / planes
+
+---
+
+### Add planar anomaly appendix to README
+
+- [ ] Add a per-plane table covering generated anomaly duration, trigger dice, and expected annual event count
+
+---
+
 ---
 
 ## Agent Ready
 
 These are well-defined implementation tasks. The design is decided, the target behavior is clear, and the work is primarily mechanical code changes. A capable coding agent can complete these without further design discussion.
+
+---
+
+### Retire the player `Month` button and the calendar-level `Upcoming` view
+
+- [ ] Remove the center `Month` button from the player quick bar
+- [ ] Remove the top-level calendar `Upcoming` button/view/command flow
+- [ ] Remove top-level `Upcoming` references from README/help/UI copy
+- [ ] Keep subsystem-specific forecast/upcoming commands only if they are still intentionally supported
+
+---
+
+### Add an independent weather-mechanics toggle
+
+- [ ] Allow weather narration to remain enabled while mechanical weather effects are disabled
+- [ ] Surface the toggle in settings/UI and document the behavior in README
+
+---
+
+### Rebalance Syrania weather effects
+
+- [ ] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
+- [ ] Change **Syrania manifest zones** to a lighter modifier (`-1` wind, `-1` precipitation)
+- [ ] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
 
 ---
 
