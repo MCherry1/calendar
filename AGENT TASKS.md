@@ -169,7 +169,7 @@ This is the "divination magic" feature: GM reveals weather for a specific date a
 ### Non-annual traditional plane anchor mode flags
 
 - [x] Implement per-plane non-annual traditional-cycle source mode (`random-seed` vs `gm-anchored`) based on plane seed/anchor overrides, including planes that mix annual and non-annual traditional periods (e.g., Mabar).
-- [ ] Verify the implementation in the Planes view and state API to confirm each qualifying plane reports the expected mode and annual-only planes remain untagged.
+- [x] Verify the implementation in the Planes view and state API to confirm each qualifying plane reports the expected mode and annual-only planes remain untagged.
 
 ---
 ### Correct Harptos calendar display
@@ -188,6 +188,8 @@ The Faerûnian/Harptos calendar currently uses weekday-based layout. It should u
 ---
 
 ### Fix Gregorian leap day presentation
+
+Status: Completed
 
 The Gregorian calendar's leap day is currently marked as "intercalary" with a separate display. It should simply be February 29th — part of February, not a special intercalary day. Remove any "Leap Year" annotations; the presence of the 29th is sufficient indication.
 
@@ -237,9 +239,9 @@ The player quick bar now includes `◀ Prev`, `📅 Month`, and `Next ▶` month
 
 ### Remove `Current` button from subsystem mini-calendar navigation
 
-- [ ] Audit all mini-calendar/subsystem month-nav controls (GM and player views) and remove any center `Current` button where `Prev`/`Next` are already present
-- [ ] Keep `Prev` and `Next` buttons visible beneath the mini-calendar in every subsystem view for both players and GMs
-- [ ] Update any related help/UI copy that still references a `Current` button in mini-calendar navigation
+- [x] Audit all mini-calendar/subsystem month-nav controls (GM and player views) and remove any center `Current` button where `Prev`/`Next` are already present
+- [x] Keep `Prev` and `Next` buttons visible beneath the mini-calendar in every subsystem view for both players and GMs
+- [x] Update any related help/UI copy that still references a `Current` button in mini-calendar navigation
 
 ---
 

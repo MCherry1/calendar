@@ -469,7 +469,7 @@ var CALENDAR_STRUCTURE_SETS = {
   gregorian: [
     { regularIndex: 0 },
     { regularIndex: 1 },
-    { isIntercalary:true, name:'Leap Day', days:1, leapEvery:4 },
+    { isIntercalary:true, name:'Leap Day', days:1, leapEvery:4, mergeIntoPrev:true },
     { regularIndex: 2 },
     { regularIndex: 3 },
     { regularIndex: 4 },
@@ -886,8 +886,10 @@ function applyStructureSet(setName){
   // (The name set will be re-applied afterward via applyMonthSet.)
   cal.months = template.map(function(slot){
     if (slot.isIntercalary){
-      return { name: slot.name, days: slot.days|0, isIntercalary: true,
+      var ic = { name: slot.name, days: slot.days|0, isIntercalary: true,
                leapEvery: slot.leapEvery || null, season: null };
+      if (slot.mergeIntoPrev) ic.mergeIntoPrev = true;
+      return ic;
     }
     var ri = slot.regularIndex|0;
     return { name: '', days: (ri < lengthSet.length ? lengthSet[ri] : 28),
@@ -1151,7 +1153,7 @@ function checkInstall(){
   _invalidateSerialCache();
 
   // clamp current date within the month it landed on
-  var mdays = cal.months[cal.current.month].days;
+  var mdays = _effectiveMonthDays(cal.current.month, cal.current.year) || (cal.months[cal.current.month].days|0);
   if (cal.current.day_of_the_month > mdays){
     cal.current.day_of_the_month = mdays;
   }
@@ -1501,7 +1503,38 @@ function fromSerial(s){
   if (mi >= months.length) mi = months.length - 1;
   var maxDay = months[mi].days|0;
   rem = Math.min(rem, maxDay - 1);
-  return { year:y, mi:mi, day:(rem|0)+1 };
+  var rawDay = (rem|0)+1;
+  var merged = _resolveMergedMonth(months, mi, rawDay);
+  return { year:y, mi:merged.mi, day:merged.day };
+}
+
+// Resolve a month with mergeIntoPrev into its parent month.
+// E.g. Gregorian Leap Day (mi=2, day=1) → February (mi=1, day=29).
+function _resolveMergedMonth(months, mi, day){
+  if (!months[mi] || !months[mi].mergeIntoPrev) return { mi:mi, day:day };
+  var parentMi = mi - 1;
+  while (parentMi >= 0 && months[parentMi].mergeIntoPrev) parentMi--;
+  if (parentMi < 0) return { mi:mi, day:day };
+  var offset = months[parentMi].days|0;
+  for (var j = parentMi+1; j < mi; j++){
+    if (months[j].mergeIntoPrev) offset += (months[j].days|0);
+  }
+  return { mi:parentMi, day:offset+day };
+}
+
+// Effective day count for month mi in year y, including merged followers.
+// Returns 0 for mergeIntoPrev months (their days belong to the parent).
+function _effectiveMonthDays(mi, y){
+  var months = getCal().months;
+  var m = months[mi];
+  if (!m || m.mergeIntoPrev) return 0;
+  var days = m.days|0;
+  for (var j = mi+1; j < months.length; j++){
+    if (!months[j].mergeIntoPrev) break;
+    if (months[j].leapEvery && !_isLeapMonth(months[j], y)) continue;
+    days += (months[j].days|0);
+  }
+  return days;
 }
 
 function todaySerial(){ var c = getCal().current; return toSerial(c.year, c.month, c.day_of_the_month); }
@@ -1515,7 +1548,8 @@ function _nextActiveMi(mi, y){
   var ny  = y + (nmi === 0 ? 1 : 0);
   var safety = 0;
   while (safety++ < len){
-    if (!months[nmi].leapEvery || _isLeapMonth(months[nmi], ny)) return { mi: nmi, y: ny };
+    var nm = months[nmi];
+    if (!nm.mergeIntoPrev && (!nm.leapEvery || _isLeapMonth(nm, ny))) return { mi: nmi, y: ny };
     nmi = (nmi + 1) % len;
     if (nmi === 0) ny++;
   }
@@ -1530,7 +1564,8 @@ function _prevActiveMi(mi, y){
   var py  = y - (mi === 0 ? 1 : 0);
   var safety = 0;
   while (safety++ < len){
-    if (!months[pmi].leapEvery || _isLeapMonth(months[pmi], py)) return { mi: pmi, y: py };
+    var pm = months[pmi];
+    if (!pm.mergeIntoPrev && (!pm.leapEvery || _isLeapMonth(pm, py))) return { mi: pmi, y: py };
     pmi = (pmi + len - 1) % len;
     if (pmi === len - 1) py--;
   }
@@ -2205,10 +2240,20 @@ function renderMonthTable(opts){
   // Leap month not active this year: render nothing.
   if (mobj.leapEvery && !_isLeapMonth(mobj, y)) return '';
 
+  // Merged intercalary day (e.g. Gregorian leap day): rendered as part of parent month.
+  if (mobj.mergeIntoPrev) return '';
+
   // Intercalary day: banner row instead of a grid.
   if (mobj.isIntercalary) return renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents);
 
+  // Effective day count: include days from any following mergeIntoPrev months.
   var mdays = mobj.days|0;
+  for (var _m = mi+1; _m < cal.months.length; _m++){
+    var _mo = cal.months[_m];
+    if (!_mo.mergeIntoPrev) break;
+    if (_mo.leapEvery && !_isLeapMonth(_mo, y)) continue;
+    mdays += (_mo.days|0);
+  }
   var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false));
   var html  = [parts.html];
   var wdCnt = weekLength()|0;
@@ -2276,6 +2321,9 @@ function yearHTMLFor(targetYear, dimActive){
 function formatDateLabel(y, mi, d, includeYear){
   var cal=getCal();
   var st  = ensureSettings();
+  // Resolve merged intercalary months (e.g. Gregorian Feb 29).
+  var merged = _resolveMergedMonth(cal.months, mi, d);
+  mi = merged.mi; d = merged.day;
   var mobj = cal.months[mi] || {};
 
   function ordinal(n){
@@ -2408,7 +2456,7 @@ function _phraseToSpec(tokens){
   var t0 = (tokens[0]||'').toLowerCase();
   var t1 = (tokens[1]||'').toLowerCase();
   function monthRange(y, mi, title){
-    var md = months[mi].days|0;
+    var md = _effectiveMonthDays(mi, y) || (months[mi].days|0);
     return { title:title, start: toSerial(y, mi, 1), end: toSerial(y, mi, md), months:[{y:y,mi:mi}] };
   }
   function yearRange(y, title){
@@ -2461,25 +2509,25 @@ function parseUnifiedRange(tokens){
   var md = Parse.monthYearLoose(tokens);
 
   if (md.mi!==-1 && md.day!=null && md.year!=null){
-    var dClamp = clamp(md.day, 1, months[md.mi].days);
+    var dClamp = clamp(md.day, 1, _effectiveMonthDays(md.mi, md.year) || (months[md.mi].days|0));
     var s = toSerial(md.year, md.mi, dClamp);
     return { title:'Events — '+formatDateLabel(md.year, md.mi, dClamp, true),
              start:s, end:s, months:[{y:md.year,mi:md.mi}] };
   }
   if (md.mi!==-1 && md.day!=null){
     var nextY = nextForMonthDay(cur, md.mi, md.day).year;
-    var d2 = clamp(md.day, 1, months[md.mi].days);
+    var d2 = clamp(md.day, 1, _effectiveMonthDays(md.mi, nextY) || (months[md.mi].days|0));
     var s2 = toSerial(nextY, md.mi, d2);
     return { title:'Next '+months[md.mi].name+' '+d2, start:s2, end:s2, months:[{y:nextY,mi:md.mi}] };
   }
   if (md.day!=null && md.mi===-1){
     var nextMY = nextForDayOnly(cur, md.day, months.length);
-    var d3 = clamp(md.day, 1, months[nextMY.month].days);
+    var d3 = clamp(md.day, 1, _effectiveMonthDays(nextMY.month, nextMY.year) || (months[nextMY.month].days|0));
     var s3 = toSerial(nextMY.year, nextMY.month, d3);
     return { title:'Next '+months[nextMY.month].name+' '+d3, start:s3, end:s3, months:[{y:nextMY.year,mi:nextMY.month}] };
   }
   if (md.mi!==-1 && md.year!=null && md.day==null){
-    var mdays = months[md.mi].days|0;
+    var mdays = _effectiveMonthDays(md.mi, md.year) || (months[md.mi].days|0);
     return { title:'Events — '+months[md.mi].name+' '+md.year+' '+LABELS.era,
              start: toSerial(md.year, md.mi, 1), end: toSerial(md.year, md.mi, mdays), months:[{y:md.year,mi:md.mi}] };
   }
@@ -2863,8 +2911,7 @@ function _renderSyntheticMiniCal(title, startSerial, endSerial, syntheticEvents)
 
 function _monthRangeFromSerial(serial){
   var d = fromSerial(serial|0);
-  var m = getCal().months[d.mi] || {};
-  var days = Math.max(1, m.days|0);
+  var days = Math.max(1, _effectiveMonthDays(d.mi, d.year) || ((getCal().months[d.mi] || {}).days|0));
   return {
     start: toSerial(d.year, d.mi, 1),
     end: toSerial(d.year, d.mi, days),
@@ -2931,9 +2978,10 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
 
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
+  var merged = _resolveMergedMonth(cal.months, cur.month, cur.day_of_the_month);
   return cal.weekdays[cur.day_of_the_week] + ", " +
-         cur.day_of_the_month + " " +
-         cal.months[cur.month].name + ", " +
+         merged.day + " " +
+         cal.months[merged.mi].name + ", " +
          cur.year + " " + LABELS.era;
 }
 
@@ -2949,7 +2997,8 @@ function nextForDayOnly(cur, day, monthsLen){
   var want = Math.max(1, day|0);
   var m = cur.month, y = cur.year;
 
-  if (want <= (months[m].days|0) && cur.day_of_the_month <= want &&
+  if (!months[m].mergeIntoPrev &&
+      want <= _effectiveMonthDays(m, y) && cur.day_of_the_month <= want &&
       (!months[m].leapEvery || _isLeapMonth(months[m], y))) {
     return { month: m, year: y };
   }
@@ -2957,16 +3006,17 @@ function nextForDayOnly(cur, day, monthsLen){
   for (var i = 0; i < monthsLen * 2; i++){
     m = (m + 1) % monthsLen;
     if (m === 0) y++;
-    // Skip inactive leap-only months (e.g. Shieldmeet in a non-leap year).
+    // Skip inactive leap-only months and merged months.
+    if (months[m].mergeIntoPrev) continue;
     if (months[m].leapEvery && !_isLeapMonth(months[m], y)) continue;
-    if (want <= (months[m].days|0)) return { month: m, year: y };
+    if (want <= _effectiveMonthDays(m, y)) return { month: m, year: y };
   }
   var _nxt = _nextActiveMi(cur.month, cur.year);
   return { month: _nxt.mi, year: _nxt.y };
 }
 
 function nextForMonthDay(cur, mIndex, d){
-  var mdays = getCal().months[mIndex].days;
+  var mdays = _effectiveMonthDays(mIndex, cur.year) || (getCal().months[mIndex].days|0);
   var day = clamp(d, 1, mdays);
   var serialNow = toSerial(cur.year, cur.month, cur.day_of_the_month);
   var serialCand = toSerial(cur.year, mIndex, day);
@@ -3047,7 +3097,7 @@ function _serialToDateSpec(serial){
 function _shiftSerialByMonth(serial, dir){
   var d = fromSerial(serial|0);
   var step = (dir < 0) ? _prevActiveMi(d.mi, d.year) : _nextActiveMi(d.mi, d.year);
-  var md = Math.max(1, (getCal().months[step.mi] || {}).days|0);
+  var md = Math.max(1, _effectiveMonthDays(step.mi, step.y) || ((getCal().months[step.mi] || {}).days|0));
   var day = clamp(d.day, 1, md);
   return toSerial(step.y, step.mi, day);
 }
@@ -3086,34 +3136,37 @@ function sendCurrentDate(to, gmOnly, opts){
   if (!audienceIsGM && opts.audienceIsGM === true) audienceIsGM = true;
 
   var cal = getCal(), c = cal.current;
-  var m   = cal.months[c.month];
+  // Resolve merged months (e.g. Gregorian Leap Day → February 29)
+  var _cm = _resolveMergedMonth(cal.months, c.month, c.day_of_the_month);
+  var m   = cal.months[_cm.mi];
   var wd  = cal.weekdays[c.day_of_the_week];
   var todaySer = toSerial(c.year, c.month, c.day_of_the_month);
   var calHtml = '';
   if (!compact || dashboard){
     // Build a spec for the current month so buildCalendarsHtmlForSpec can
     // attach adjacent strips when today is in the first or last calendar row.
-    var monthStart = toSerial(c.year, c.month, 1);
-    var monthEnd   = toSerial(c.year, c.month, m.days|0);
+    var monthStart = toSerial(c.year, _cm.mi, 1);
+    var _effDays = _effectiveMonthDays(_cm.mi, c.year) || (m.days|0);
+    var monthEnd   = toSerial(c.year, _cm.mi, _effDays);
     var spec = {
       start:  monthStart,
       end:    monthEnd,
-      months: [{ y: c.year, mi: c.month }],
+      months: [{ y: c.year, mi: _cm.mi }],
       title:  m.name + ' ' + c.year + ' ' + LABELS.era
     };
     calHtml = buildCalendarsHtmlForSpec(spec);
   }
 
   // Date headline: weekday, date, year, season
-  var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
+  var _seasonLabel = _getSeasonLabel(_cm.mi, _cm.day);
   var dateLine = compact
     ? '<div style="font-weight:bold;margin:2px 0 3px 0;">' +
-      esc(wd) + ', ' + esc(m.name) + ' ' + c.day_of_the_month + ', ' +
+      esc(wd) + ', ' + esc(m.name) + ' ' + _cm.day + ', ' +
       esc(String(c.year)) + ' ' + LABELS.era +
       (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>'
     : '<div style="font-weight:bold;margin:3px 0;">' +
-      esc(wd) + ', ' + esc(m.name) + ' ' + c.day_of_the_month + ', ' +
+      esc(wd) + ', ' + esc(m.name) + ' ' + _cm.day + ', ' +
       esc(String(c.year)) + ' ' + LABELS.era +
       (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;font-size:.9em;">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>';
@@ -3309,11 +3362,11 @@ function parseDatePrefixForAdd(tokens){
   if (r){
     if (r.kind === 'dayOnly'){
       var nx = nextForDayOnly(cur, r.day, months.length);
-      var d  = clamp(r.day, 1, months[nx.month].days|0);
+      var d  = clamp(r.day, 1, _effectiveMonthDays(nx.month, nx.year) || (months[nx.month].days|0));
       return { used: 1, mHuman: nx.month+1, day: d, year: nx.year };
     } else {
-      var d2 = clamp(r.day, 1, months[r.mi].days|0);
-      var y  = (r.year != null) ? r.year : nextForMonthDay(cur, r.mi, d2).year;
+      var y  = (r.year != null) ? r.year : nextForMonthDay(cur, r.mi, r.day).year;
+      var d2 = clamp(r.day, 1, _effectiveMonthDays(r.mi, y) || (months[r.mi].days|0));
       return { used: (r.year!=null)?3:2, mHuman: r.mi+1, day: d2, year: y };
     }
   }
@@ -3324,7 +3377,7 @@ function parseDatePrefixForAdd(tokens){
   var dd  = (od != null) ? od : num;
   if (dd != null){
     var nx2 = nextForDayOnly(cur, dd, months.length);
-    var d3  = clamp(dd, 1, months[nx2.month].days|0);
+    var d3  = clamp(dd, 1, _effectiveMonthDays(nx2.month, nx2.year) || (months[nx2.month].days|0));
     return { used: 1, mHuman: nx2.month+1, day: d3, year: nx2.year };
   }
   return null;
@@ -3495,8 +3548,8 @@ function setDate(m, d, y){
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
   var oldSerial = toSerial(oldY, oldM, oldD);
   var mi = clamp(m, 1, cal.months.length) - 1;
-  var di = clamp(d, 1, cal.months[mi].days);
   var yi = int(y, cur.year);
+  var di = clamp(d, 1, _effectiveMonthDays(mi, yi) || (cal.months[mi].days|0));
   var delta = toSerial(yi, mi, di) - toSerial(oldY, oldM, oldD);
   cur.month = mi; cur.day_of_the_month = di; cur.year = yi;
   var wdlen = cal.weekdays.length;
@@ -9591,7 +9644,6 @@ function moonPanelHtml(serialOverride){
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
     button('◀ Prev Month','moon on '+_serialToDateSpec(prevSer))+' '+
-    button('Current','moon')+' '+
     button('Next Month ▶','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
   var body = '';
@@ -9696,7 +9748,6 @@ function moonPlayerPanelHtml(serialOverride){
   }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
     _navBtn(prevSer, '◀ Prev')+' '+
-    button('Current','moon')+' '+
     _navBtn(nextSer, 'Next ▶')+
     '</div>';
 
@@ -11339,7 +11390,6 @@ function handleMoonCommand(m, args){
       var pNextS = _shiftSerialByMonth(pViewSerial, 1);
       var pViewNav = '<div style="margin:4px 0;">'+
         button('◀ Prev','moon view '+pViewMoon+' '+_serialToDateSpec(pPrevS))+' '+
-        button('Current','moon view '+pViewMoon)+' '+
         button('Next ▶','moon view '+pViewMoon+' '+_serialToDateSpec(pNextS))+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
@@ -11505,7 +11555,6 @@ function handleMoonCommand(m, args){
     var nextS = _shiftSerialByMonth(viewSerial, 1);
     var viewNav = '<div style="margin:4px 0;">'+
       button('◀ Prev','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
-      button('Current','moon view '+viewMoonName)+' '+
       button('Next ▶','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
       '</div>';
     return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
@@ -11843,8 +11892,8 @@ function getPlanarState(planeName, serial, opts){
     var fixedNote = plane.note || '';
 
     // Check for off-cycle generated shift
-      sourceLabel: fixedIsGenerated ? 'generated' : 'traditional',
-      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
+    var fixedIsGenerated = isGeneratedShift(plane.name, serial);
+    if (fixedIsGenerated){
       fixedPhase = _generatedPhase(plane.name, serial);
       fixedNote = 'Anomalous ' + fixedPhase + ' shift';
     }
@@ -11857,7 +11906,9 @@ function getPlanarState(planeName, serial, opts){
       phaseDuration: null,
       nextPhase: null,
       overridden: false,
-      note: fixedNote
+      note: fixedNote,
+      sourceLabel: fixedIsGenerated ? 'generated' : 'traditional',
+      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
     };
   }
 
@@ -12533,7 +12584,6 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
   if (isGM){
     navRow = '<div style="margin:3px 0 6px 0;">'+
       button('◀ Prev Month','planes on '+_serialToDateSpec(prevSer))+' '+
-      button('Current','planes')+' '+
       button('Next Month ▶','planes on '+_serialToDateSpec(nextSer))+
       '</div>';
   } else {
@@ -12545,7 +12595,6 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
     }
     navRow = '<div style="margin:3px 0 6px 0;">'+
       _pNavBtn(prevSer, '◀ Prev Month')+' '+
-      button('Current','planes')+' '+
       _pNavBtn(nextSer, 'Next Month ▶')+
       '</div>';
   }
