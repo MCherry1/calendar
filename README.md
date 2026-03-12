@@ -157,7 +157,7 @@ agent task put these all in tables and similarly organized
 		- **You can set a moon to be full or new on whatever night you choose.**
 		- The script will fit the desired phase into the regularly-scripted motion and the phases will progress as they need to.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention..
-	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed
+	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed because we moved it below
 	- agent task insert the mapping table in here, including variation. i'll add some detailed commentary once we get the initial layout
 
 
@@ -173,6 +173,10 @@ Eberron the planet is assumed to be approximately earth like. It uses all he ear
 - **Albedo 0.50**, bright enough to stand out even in daylight (agent task was this taken from saturns rings? or matching the description and estalishing what visisble in daylight means?)
 - Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
+### Moons of Eberron
+
+agent task the big section. include all the details from the dragonmark article on c
+
 ---
 ## Weather
 - The weather subsystem can be toggled on or off as desired.
