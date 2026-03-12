@@ -414,10 +414,3 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 - **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
 
 ---
-## Chat Commands
-
-> In normal play, nearly all interaction happens through the in-chat buttons. When typed syntax matters, the script whispers the correct format in game.
-
-The full command reference now lives in [Chat Commands.md](Chat%20Commands.md). That file documents the intended month-jump workflow for direct `!cal` navigation, the supported smart date formats, every typed weather/moon/plane/event command, and how source priority is applied when multiple source packs overlap.
-
----
