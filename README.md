@@ -418,7 +418,6 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 ```
 !cal moon                       — moon phase panel for today
 !cal moon on <date>             — moon phases on a specific date
-!cal moon upcoming [span]       — upcoming notable moon events
 !cal moon sky [time]            — sky visibility at a time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]       — lore for a specific moon
 ```
@@ -455,7 +454,6 @@ Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
 ```
 !cal planes                     — current planar phase panel
 !cal planes on <date>           — planar state on a specific date
-!cal planes upcoming [span]     — upcoming planar events
 ```
 
 ### Sending Plane Info to Players

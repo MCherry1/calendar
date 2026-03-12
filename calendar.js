@@ -4301,7 +4301,7 @@ function helpRootMenu(m){
     if (featureLinks.length){
       rows.push(_menuBox('Systems',
         featureLinks.join(' ')+
-        '<div style="font-size:.75em;opacity:.55;margin-top:5px;">Moon query: <code>!cal moon on &lt;dateSpec&gt;</code><br>Plane query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code></div>'
+        '<div style="font-size:.75em;opacity:.55;margin-top:5px;">Moon query: <code>!cal moon on &lt;dateSpec&gt;</code><br>Plane query: <code>!cal planes on &lt;dateSpec&gt;</code></div>'
       ));
     }
   }
@@ -4317,7 +4317,7 @@ function helpRootMenu(m){
     if (pLinks.length){
       rows.push(_menuBox('Systems',
         pLinks.join(' ')+
-        '<div style="font-size:.75em;opacity:.55;margin-top:5px;">Moon query: <code>!cal moon on &lt;dateSpec&gt;</code><br>Plane query: <code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal planes upcoming [span]</code></div>'
+        '<div style="font-size:.75em;opacity:.55;margin-top:5px;">Moon query: <code>!cal moon on &lt;dateSpec&gt;</code><br>Plane query: <code>!cal planes on &lt;dateSpec&gt;</code></div>'
       ));
     }
   }
@@ -4349,6 +4349,14 @@ function helpEventColorsMenu(m){
   ].join('');
   whisper(m.who,
     _menuBox('Event Colors', intro + colorsNamedListHtml())+
+    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+  );
+}
+
+function helpSeasonsMenu(m){
+  var ro = !playerIsGM(m.playerid);
+  whisper(m.who,
+    _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))+
     '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
   );
 }
@@ -9505,78 +9513,6 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
 }
 
 // ---------------------------------------------------------------------------
-// 20i-b) Moon upcoming events list
-// ---------------------------------------------------------------------------
-
-// Collect upcoming full/new moon events within `daysAhead` of today,
-// sorted chronologically.  Returns menuBox HTML.
-function moonUpcomingHtml(daysAhead){
-  var st  = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
-  if (!sys || !sys.moons){
-    return _menuBox('🌙 Upcoming Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
-  }
-  var today = todaySerial();
-  moonEnsureSequences(today, daysAhead + 60);
-
-  var events = [];
-  for (var i = 0; i < sys.moons.length; i++){
-    var moon = sys.moons[i];
-    var types = ['full','new'];
-    for (var ti = 0; ti < types.length; ti++){
-      var type = types[ti];
-      var ser = today;
-      for (var safety = 0; safety < 500; safety++){
-        var nxt = _moonNextEvent(moon.name, ser, type);
-        if (nxt === null || nxt > today + daysAhead) break;
-        events.push({ serial: nxt, moon: moon.name, type: type });
-        ser = nxt; // _moonNextEvent returns events strictly after `ser`
-      }
-    }
-  }
-
-  events.sort(function(a,b){ return a.serial - b.serial || a.moon.localeCompare(b.moon); });
-
-  if (!events.length){
-    return _menuBox('🌙 Upcoming Moons',
-      '<div style="opacity:.7;">No full or new moons in the next '+daysAhead+' days.</div>'+
-      '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
-    );
-  }
-
-  var head = '<tr>'+
-    '<th style="'+STYLES.th+'">Date</th>'+
-    '<th style="'+STYLES.th+'">Moon</th>'+
-    '<th style="'+STYLES.th+'">Phase</th>'+
-    '<th style="'+STYLES.th+'">In</th>'+
-    '</tr>';
-  var body = events.slice(0,250).map(function(ev){
-    var d = fromSerial(ev.serial);
-    var m = getCal().months[d.mi] || {};
-    var label = esc((m.name||'?')+' '+d.day+', '+d.year);
-    var daysUntil = ev.serial - today;
-    var inStr = (daysUntil === 0) ? 'today' : (daysUntil === 1 ? '1 day' : daysUntil+' days');
-    var phLabel = (ev.type === 'full') ? '🌕 Full' : '🌑 New';
-    return '<tr>'+
-      '<td style="'+STYLES.td+'">'+label+'</td>'+
-      '<td style="'+STYLES.td+'">'+esc(ev.moon)+'</td>'+
-      '<td style="'+STYLES.td+'">'+phLabel+'</td>'+
-      '<td style="'+STYLES.td+'">'+inStr+'</td>'+
-      '</tr>';
-  }).join('');
-
-  var extra = events.length > 250
-    ? '<div style="font-size:.78em;opacity:.55;margin-top:4px;">Showing first 250 of '+events.length+' results.</div>'
-    : '';
-
-  return _menuBox('🌙 Upcoming Moons ('+daysAhead+' days)',
-    '<table style="'+STYLES.table+'">'+head+body+'</table>'+
-    extra+
-    '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
-  );
-}
-
-// ---------------------------------------------------------------------------
 // 20j) Moon panel HTML -- tiered
 // ---------------------------------------------------------------------------
 
@@ -11331,16 +11267,8 @@ function handleMoonCommand(m, args){
       moonEnsureSequences(pSerial, pHorizon + 30);
       return whisper(m.who, moonPlayerPanelHtml(pSerial));
     }
-    if (sub === 'upcoming' || sub === 'list'){
-      var pMoonHorizon = parseInt(getMoonState().revealHorizonDays, 10) || 7;
-      var pMoonSpan = _parseSpanDaysToken(args[2], pMoonHorizon, pMoonHorizon);
-      if (!pMoonSpan){
-        return whisper(m.who, 'Usage: <code>!cal moon upcoming [span]</code> (up to your horizon)');
-      }
-      return whisper(m.who, moonUpcomingHtml(pMoonSpan));
-    }
     return whisper(m.who,
-      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon upcoming [span]</code>'
+      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code>'
     );
   }
 
@@ -11407,15 +11335,6 @@ function handleMoonCommand(m, args){
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
     moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
     return whisper(m.who, moonPanelHtml(serialOn));
-  }
-
-  // !cal moon upcoming [span]  — list upcoming full/new moon events
-  if (sub === 'upcoming' || sub === 'list'){
-    var moonSpanDays = _parseSpanDaysToken(args[2], 56, 336 * 3);
-    if (!moonSpanDays){
-      return whisper(m.who, 'Usage: <code>!cal moon upcoming [days|4w|2m|1y]</code>');
-    }
-    return whisper(m.who, moonUpcomingHtml(moonSpanDays));
   }
 
   // !cal moon seed <word>
@@ -11501,7 +11420,6 @@ function handleMoonCommand(m, args){
     'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
     '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon upcoming [span]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon reset [&lt;name&gt;]</code>'
@@ -12240,24 +12158,7 @@ function _planeRangeLabel(days){
   return _rangeLabel(days);
 }
 
-function _parseSpanDaysToken(tok, fallbackDays, maxDays){
-  var t = String(tok || '').toLowerCase().trim();
-  if (!t) return fallbackDays;
-  var ypd = Math.max(1, _planarYearDays());
-  var m = t.match(/^(\d+)([dwmy])$/);
-  var out = null;
-  if (m){
-    var n = parseInt(m[1],10) || 0;
-    if (m[2] === 'd') out = n;
-    if (m[2] === 'w') out = n * 7;
-    if (m[2] === 'm') out = n * 28;
-    if (m[2] === 'y') out = n * ypd;
-  } else if (/^\d+$/.test(t)){
-    out = parseInt(t,10);
-  }
-  if (!isFinite(out) || out < 1) return null;
-  return Math.min(maxDays, out);
-}
+
 
 function _planePredictionWindowDays(plane, daysAhead, tier){
   tier = _normalizePlaneRevealTier(tier);
@@ -12673,111 +12574,6 @@ function _isGeneratedNote(note){
   return /anomalous/i.test(String(note || ''));
 }
 
-function _planarUpcomingRows(daysAhead, opts){
-  opts = opts || {};
-  var includeGenerated = (opts.includeGenerated !== false);
-  var today = todaySerial();
-  var end = today + Math.max(1, daysAhead|0);
-  var planes = _getAllPlaneData();
-  var rows = [];
-  var prevCanon = {};
-  var prevGen = {};
-
-  for (var i = 0; i < planes.length; i++){
-    var pName = planes[i].name;
-    prevCanon[pName] = getPlanarState(pName, today, { ignoreGenerated: true });
-    if (includeGenerated){
-      var pNow = getPlanarState(pName, today);
-      prevGen[pName] = !!(pNow && _isGeneratedNote(pNow.note));
-    }
-  }
-
-  for (var ser = today + 1; ser <= end; ser++){
-    for (var j = 0; j < planes.length; j++){
-      var name = planes[j].name;
-      var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
-      var prvCanon = prevCanon[name];
-      if (!curCanon || !prvCanon){
-        prevCanon[name] = curCanon;
-      } else {
-        // Canonical transitions of interest.
-        if (curCanon.phase !== prvCanon.phase && (curCanon.phase === 'coterminous' || curCanon.phase === 'remote')){
-          rows.push({
-            serial: ser,
-            plane: name,
-            kind: 'Cycle',
-            detail: (PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase) + ' begins'
-          });
-        }
-        prevCanon[name] = curCanon;
-      }
-
-      if (includeGenerated){
-        var curActual = getPlanarState(name, ser);
-        var curGen = !!(curActual && _isGeneratedNote(curActual.note));
-        var hadFlick = !!prevGen[name];
-        if (curGen && !hadFlick){
-          var fe = _generatedEventAt(name, ser);
-          var durTxt = (fe && fe.durationDays > 1) ? (' (~'+fe.durationDays+'d)') : '';
-          rows.push({
-            serial: ser,
-            plane: name,
-            kind: 'Anomalous',
-            detail: (PLANE_PHASE_LABELS[curActual.phase] || curActual.phase) + durTxt
-          });
-        }
-        prevGen[name] = curGen;
-      }
-    }
-  }
-
-  rows.sort(function(a,b){
-    if (a.serial !== b.serial) return a.serial - b.serial;
-    return String(a.plane).localeCompare(String(b.plane));
-  });
-  return rows;
-}
-
-function planesUpcomingHtml(daysAhead, opts){
-  opts = opts || {};
-  var includeGenerated = (opts.includeGenerated !== false);
-  var rows = _planarUpcomingRows(daysAhead, { includeGenerated: includeGenerated });
-  var title = opts.title || 'Upcoming Planar Events';
-  if (!rows.length){
-    return _menuBox(title,
-      '<div style="opacity:.7;">No '+(includeGenerated ? '' : 'canonical ')+'coterminous/remote transitions'+(includeGenerated ? ' or generated shifts' : '')+' in the next '+daysAhead+' days.</div>'+
-      '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
-    );
-  }
-
-  var head = '<tr>'+
-    '<th style="'+STYLES.th+'">Date</th>'+
-    '<th style="'+STYLES.th+'">Plane</th>'+
-    '<th style="'+STYLES.th+'">Type</th>'+
-    '<th style="'+STYLES.th+'">Detail</th>'+
-    '</tr>';
-  var body = rows.slice(0, 250).map(function(r){
-    var d = fromSerial(r.serial);
-    var m = getCal().months[d.mi] || {};
-    var label = esc((m.name || '?')+' '+d.day+', '+d.year);
-    return '<tr>'+
-      '<td style="'+STYLES.td+'">'+label+'</td>'+
-      '<td style="'+STYLES.td+'">'+esc(r.plane)+'</td>'+
-      '<td style="'+STYLES.td+'">'+esc(r.kind)+'</td>'+
-      '<td style="'+STYLES.td+'">'+esc(r.detail)+'</td>'+
-      '</tr>';
-  }).join('');
-
-  var extra = rows.length > 250
-    ? '<div style="font-size:.78em;opacity:.55;margin-top:4px;">Showing first 250 results of '+rows.length+'. Narrow the range if needed.</div>'
-    : '';
-
-  return _menuBox(title + ' ('+daysAhead+' days)',
-    '<table style="'+STYLES.table+'">'+head+body+'</table>'+
-    extra+
-    '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // 21g) Command handler  (!cal planes ...)
@@ -12813,23 +12609,9 @@ function handlePlanesCommand(m, args){
       return whisper(m.who, planesPanelHtml(false, playerTier, pSerial, playerHorizon, playerGenHorizon));
     }
 
-    if (sub === 'upcoming' || sub === 'list'){
-      var pSpan = _parseSpanDaysToken(args[2], playerHorizon, playerHorizon);
-      if (!pSpan){
-        return whisper(m.who, 'Usage: <code>!cal planes upcoming [span]</code> (up to your horizon)');
-      }
-      var pIncludeGen = (playerTier === 'high');
-      var pTitle = pIncludeGen ? 'Your Planar Forecast' : 'Your Canonical Planar Forecast';
-      return whisper(m.who, planesUpcomingHtml(pSpan, {
-        includeGenerated: pIncludeGen,
-        title: pTitle
-      }));
-    }
-
     return whisper(m.who,
       'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
-      '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
-      '<code>!cal planes upcoming [span]</code>'
+      '<code>!cal planes on &lt;dateSpec&gt;</code>'
     );
   }
 
@@ -12842,15 +12624,6 @@ function handlePlanesCommand(m, args){
     }
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
     return whisper(m.who, planesPanelHtml(true, null, serialOn));
-  }
-
-  // !cal planes upcoming [span]  — list upcoming cycle/flicker events
-  if (sub === 'upcoming' || sub === 'list'){
-    var spanDays = _parseSpanDaysToken(args[2], _planarYearDays() * 2, _planarYearDays() * 10);
-    if (!spanDays){
-      return whisper(m.who, 'Usage: <code>!cal planes upcoming [days|4w|2y|10y]</code>');
-    }
-    return whisper(m.who, planesUpcomingHtml(spanDays, { includeGenerated: true }));
   }
 
   // !cal planes set <n> <phase> [days]  — force override a plane's phase
@@ -13089,7 +12862,6 @@ function handlePlanesCommand(m, args){
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
-    '<code>!cal planes upcoming [span]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes seed &lt;name&gt; &lt;year&gt;</code> &nbsp;\u00B7&nbsp; '+

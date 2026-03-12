@@ -518,7 +518,6 @@ Aryth "has a similar effect on manifest zones as Zarantyr has on tides."
 ```
 !cal moon
 !cal moon on <dateSpec>
-!cal moon upcoming [span]
 !cal moon send [low|medium|high] [range option]
 !cal moon sky [time]              — sky visibility at time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]         — moon lore output
@@ -727,7 +726,6 @@ Deterministic, seed-based anomalies checked per plane/day.
 ```
 !cal planes
 !cal planes on <dateSpec>
-!cal planes upcoming [span]
 !cal planes send [low|medium|high] [range]
 !cal planes set <name> <phase> [days]
 !cal planes clear [<name>]
@@ -840,12 +838,11 @@ See [Section 7.10](#710-aryth-and-manifest-zones).
 
 ```
 Row 1: ⏮ Back  |  ⏭ Forward  |  📣 Send
-Row 2: 📋 Today  |  📅 Upcoming  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
+Row 2: 📋 Today  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
 Row 3: ⚙ Admin
 ```
 
 `!cal today` → deep-dive all subsystems for today (GM-only by default)
-`!cal upcoming` → 7-day strip with subsystem highlights
 
 ### 12.3 Player View
 
