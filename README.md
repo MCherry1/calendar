@@ -157,8 +157,7 @@ agent task put these all in table and similarly organized
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
-	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention..
-
+	- To fill out the mechanics, each moon was matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. Those details are shown below.
 
 ### Eberron-Specific Cosmology
 agent ttask fill this in
@@ -174,7 +173,7 @@ Eberron the planet is assumed to be approximately earth like. It uses all he ear
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
 ### Moons of Eberron
 
-agent task the big section. include all the details from the dragonmark article on c
+agent task the big section. include all the details from the dragonmark article on size color dragonmarks etc. and put in the whole table, 
 
 
 	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed because we moved it below
