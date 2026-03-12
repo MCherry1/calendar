@@ -141,7 +141,7 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 - Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
 ### Moons
 
-Lunar calendars are classic. And relevant from a nightime lighting perspective. Below are the parameters used for the moons of the included settings.
+Lunar calendars are classic. And mechanically relevant for nighttime lighting. Below are the parameters used for the moons of the included settings.
 
 agent task put these all in tables and similarly organized
 
@@ -149,6 +149,7 @@ agent task put these all in tables and similarly organized
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
 - **Faerûn**
 	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01 (full at midnight Hammer 1, 1372 DR).
+	- agent task: does the relative tilt of faerun matter? is it published somewhere? with only one celestial body it seems irrelevant. but we maybe shift
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
@@ -160,7 +161,7 @@ agent task put these all in tables and similarly organized
 	- agent task insert the mapping table in here, including variation. i'll add some detailed commentary once we get the initial layout
 
 
-### Eberron Cosmology
+### Eberron-Specific Cosmology
 agent ttask fill this in
 Eberron the planet is assumed to be approximately earth like. It uses all he earth numbers including inclination. days length is assumed to change by x hours seasonally. but the temperature doesn't change from angle towards sun etc. its set by the planar movennts
 
