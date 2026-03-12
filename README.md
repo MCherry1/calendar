@@ -313,7 +313,14 @@ Run `!cal weather manifest` in chat for the chooser, or use the weather panel's 
 
 Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather.
 
+<<<<<<< ours
 agent task include a table here with an entry for each plane and listingthe effects while coterminous or remote.
+=======
+Current Syrania behavior in the model is:
+- **Coterminous Syrania:** forces calm, clear conditions for the day (wind and precipitation collapse to calm/none).
+- **Remote Syrania:** increases precipitation pressure (`+1` precipitation tier).
+- **Syrania manifest zones:** remain the lighter local modifier (`-1` wind, `-1` precipitation), independent from planar phase.
+>>>>>>> theirs
 
 ### Forecasting
 
@@ -371,11 +378,16 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 ---
 ## Commands
 
+agent task this entire commands section is really unneeded. the script should be whispering to the user whenever they're needed. break this out into it's own markdown document called Chat Commands.md. That one shoudl include every command available in the script. you'll need to scrape the whole script for all the commands.
+
+
 > In normal play, nearly all interaction happens through the in-chat buttons. When typed syntax matters, the script whispers the correct format in game.
 
 ## Calendar Dates
 
-Show a specific 
+agent task: this specific table below is really weird. it doesn't function well at all. is this supposed to be set date? what in the world does !cal day do? You need to check on this and write a new file this is not intended function at all. We should only be jumping to:
+- next instance months in the form of mm or named month
+- specific months in the form of mm yyyy or named month yyyy
 ```
 !cal <day>                — jump to next instance of that day number
 !cal <month> <day>        — jump to next instance of specific month and day
@@ -383,18 +395,6 @@ Show a specific
 !cal Olarune              — jump to the next Olarune (month name works as a shortcut)
 ```
 ## Weather
-
-### Setting Your Location
-
-```
-!cal weather location                          — open location wizard
-!cal weather location climate <key>            — set climate (arctic, temperate, tropical, etc.)
-!cal weather location geography <key>          — set geography (coastal, mountain, plains, etc.)
-!cal weather location terrain <key>            — set terrain (forest, city, open, etc.)
-!cal weather manifest [key|none]               — open/toggle manifest zones independently of location
-!cal weather location zone <key|none>          — alias for manifest-zone control
-```
-
 ### Viewing Weather
 
 ```
@@ -406,8 +406,18 @@ Show a specific
 
 `!cal weather forecast [n]` accepts any integer from `1` to `20`.
 `!cal weather mechanics` reflects the current **Weather Mech** setting; if mechanics are off, narrative weather still remains active.
+### Setting Your Location
 
-### GM Controls
+```
+!cal weather location                          — open location wizard
+!cal weather location climate <key>            — set climate (arctic, temperate, tropical, etc.)
+!cal weather location geography <key>          — set geography (coastal, mountain, plains, etc.)
+!cal weather location terrain <key>            — set terrain (forest, city, open, etc.)
+!cal weather manifest [key|none]               — open/toggle manifest zones independently of location
+!cal weather location zone <key|none>          — alias for manifest-zone control
+```
+
+### Generating Weather
 
 ```
 !cal weather generate           — generate/extend the forecast window

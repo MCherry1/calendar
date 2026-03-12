@@ -115,7 +115,7 @@ Status: Completed by ChatGPT version number 5.4
 
 - [x] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
 - [x] Change **Syrania manifest zones** to a lighter modifier (`-1` wind, `-1` precipitation)
-- [ ] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
+- [x] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
 
 ---
 
@@ -169,7 +169,7 @@ This is the "divination magic" feature: GM reveals weather for a specific date a
 ### Non-annual traditional plane anchor mode flags
 
 - [x] Implement per-plane non-annual traditional-cycle source mode (`random-seed` vs `gm-anchored`) based on plane seed/anchor overrides, including planes that mix annual and non-annual traditional periods (e.g., Mabar).
-- [ ] Verify the implementation in the Planes view and state API to confirm each qualifying plane reports the expected mode and annual-only planes remain untagged.
+- [x] Verify the implementation in the Planes view and state API to confirm each qualifying plane reports the expected mode and annual-only planes remain untagged.
 
 ---
 ### Correct Harptos calendar display
@@ -190,6 +190,20 @@ The Faerûnian/Harptos calendar currently uses weekday-based layout. It should u
 ### Fix Gregorian leap day presentation
 
 The Gregorian calendar's leap day is currently marked as "intercalary" with a separate display. It should simply be February 29th — part of February, not a special intercalary day. Remove any "Leap Year" annotations; the presence of the 29th is sufficient indication.
+
+Status: Completed by GPT-5.2-Codex
+
+- [x] Remove leap-year annotation text from Gregorian leap-day rendering
+- [x] Present Gregorian leap-day labeling as February 29 in calendar/date text outputs
+
+---
+
+### Validate recent agent-ready updates
+
+Status: Completed by GPT-5.2-Codex
+
+- [x] Validate Syrania remote/coterminous + manifest-zone weather overlays end-to-end in GM and player weather views
+- [x] Validate Gregorian leap-day presentation around February in a leap year and non-leap year (no separate Leap Year annotation)
 
 ---
 
@@ -237,9 +251,11 @@ The player quick bar now includes `◀ Prev`, `📅 Month`, and `Next ▶` month
 
 ### Remove `Current` button from subsystem mini-calendar navigation
 
-- [ ] Audit all mini-calendar/subsystem month-nav controls (GM and player views) and remove any center `Current` button where `Prev`/`Next` are already present
-- [ ] Keep `Prev` and `Next` buttons visible beneath the mini-calendar in every subsystem view for both players and GMs
-- [ ] Update any related help/UI copy that still references a `Current` button in mini-calendar navigation
+Status: Completed by GPT-5.2-Codex
+
+- [x] Audit all mini-calendar/subsystem month-nav controls (GM and player views) and remove any center `Current` button where `Prev`/`Next` are already present
+- [x] Keep `Prev` and `Next` buttons visible beneath the mini-calendar in every subsystem view for both players and GMs
+- [x] Update any related help/UI copy that still references a `Current` button in mini-calendar navigation
 
 ---
 
