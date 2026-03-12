@@ -11329,10 +11329,22 @@ function handleMoonCommand(m, args){
       var pViewMoon = _moonParseMoonName(pViewName, pViewSys);
       if (!pViewMoon) return whisper(m.who, 'Unknown moon: <b>'+esc(pViewName)+'</b>.');
       var pViewSerial = todaySerial();
+      if (args[3]){
+        var pViewDateToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+        var pViewPref = parseDatePrefixForAdd(pViewDateToks);
+        if (pViewPref) pViewSerial = toSerial(pViewPref.year, pViewPref.mHuman - 1, pViewPref.day);
+      }
       moonEnsureSequences(pViewSerial, 60);
       var pCalBody = _singleMoonMiniCalHtml(pViewMoon, pViewSerial);
+      var pPrevS = _shiftSerialByMonth(pViewSerial, -1);
+      var pNextS = _shiftSerialByMonth(pViewSerial, 1);
+      var pViewNav = '<div style="margin:4px 0;">'+
+        button('◀ Prev','moon view '+pViewMoon+' '+_serialToDateSpec(pPrevS))+' '+
+        button('Current','moon view '+pViewMoon)+' '+
+        button('Next ▶','moon view '+pViewMoon+' '+_serialToDateSpec(pNextS))+
+        '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
-        pCalBody +
+        pViewNav + pCalBody +
         '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+'</div>'
       ));
     }
