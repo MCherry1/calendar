@@ -141,7 +141,7 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 - Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
 ### Moons
 
-Lunar calendars are classic. And relevant from a mecha
+Lunar calendars are classic. And relevant from a ligh
 
 - **Earth**
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
@@ -160,7 +160,7 @@ Lunar calendars are classic. And relevant from a mecha
 
 ### Eberron
 agent ttask fill this in
-Eberron is assumed to be approximately earth like. It uses all he earth numbers including inclination. 
+Eberron is assumed to be approximately earth like. It uses all he earth numbers including inclination. days length is assumed to change by x hours seasonally. but the temperature doesn't change from angle towards sun etc. its set by the planar movennts
 
 ### Ring of Siberys
 
