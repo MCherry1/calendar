@@ -149,7 +149,7 @@ agent task put these all in tables and similarly organized
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
 - **Faerûn**
 	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01 (full at midnight Hammer 1, 1372 DR).
-	- agent task: does the relative tilt of faerun matter? is it published somewhere? with only one celestial body it seems irrelevant. but we maybe shift
+	- agent task: does the relative tilt of faerun matter? is it published somewhere? with only one celestial body it seems irrelevant. but we maybe shift the day hour buckets
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
@@ -170,7 +170,7 @@ Eberron the planet is assumed to be approximately earth like. It uses all he ear
 - Single equatorial ring at **0° inclination**
 - Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
 - Extends roughly **370 to 3,480 miles (600 to 5,600 km)** above the surface
-- **Albedo 0.50**, bright enough to stand out even in daylight
+- **Albedo 0.50**, bright enough to stand out even in daylight (agent task was this taken from saturns rings? or matching the description and estalishing what visisble in daylight means?)
 - Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
 ---
