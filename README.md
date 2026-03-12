@@ -418,9 +418,16 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 ```
 !cal moon                       — moon phase panel for today
 !cal moon on <date>             — moon phases on a specific date
+!cal moon view [moonName]       — single-moon mini-calendar (phase-colored cells)
 !cal moon sky [time]            — sky visibility at a time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]       — lore for a specific moon
 ```
+
+#### Single-Moon Calendar
+
+`!cal moon view <moonName>` shows a dedicated mini-calendar for one moon. Each cell is color-filled by phase intensity (gold for full, dark for new) with a phase emoji and percentage in the tooltip. A colored header bar displays the moon's name and title. Navigate months with the Prev/Next buttons.
+
+Full and new moons can span multiple days when the moon's synodic period is long enough that illumination stays above 98% or below 2% for more than one day.
 
 ### Sending Moon Info to Players
 

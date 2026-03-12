@@ -9128,27 +9128,33 @@ function moonPhaseAt(moonName, serial){
 // Returns 'full', 'new', or null. Uses the sequence events directly,
 // rounding fractional serials to the nearest integer day. This ensures
 // exactly one "full" and one "new" report per synodic cycle.
+// Returns 'full', 'new', or null for a given moon on a given day.
+// Uses illumination thresholds (>=98% = full, <=2% = new) so moons with
+// longer synodic periods can be full or new for multiple consecutive days.
 function _moonPeakPhaseDay(moonName, serial){
-  var seq = (getMoonState().sequences[moonName]) || [];
-  for (var i = 0; i < seq.length; i++){
-    if (Math.round(seq[i].serial) === serial) return seq[i].type;
-  }
+  var ph = _moonPhaseAtRaw(moonName, serial);
+  if (!ph) return null;
+  if (ph.illum >= MOON_FULL_THRESHOLD) return 'full';
+  if (ph.illum <= MOON_NEW_THRESHOLD)  return 'new';
   return null;
 }
 
+var MOON_FULL_THRESHOLD = 0.98;
+var MOON_NEW_THRESHOLD  = 0.02;
+
 function _moonPhaseLabel(illum, waxing){
-  if (illum >= 0.97) return 'Full';
+  if (illum >= MOON_FULL_THRESHOLD) return 'Full';
   if (illum >= 0.55) return (waxing ? 'Waxing' : 'Waning') + ' Gibbous';
   if (illum >= 0.45) return (waxing ? 'First' : 'Last')    + ' Quarter';
-  if (illum >= 0.03) return (waxing ? 'Waxing' : 'Waning') + ' Crescent';
+  if (illum >= MOON_NEW_THRESHOLD) return (waxing ? 'Waxing' : 'Waning') + ' Crescent';
   return 'New';
 }
 
 function _moonPhaseEmoji(illum, waxing){
-  if (illum >= 0.97) return '\uD83C\uDF15';   // 🌕 Full
+  if (illum >= MOON_FULL_THRESHOLD) return '\uD83C\uDF15';   // 🌕 Full
   if (illum >= 0.55) return waxing ? '\uD83C\uDF14' : '\uD83C\uDF16';  // 🌔 🌖 Gibbous
   if (illum >= 0.45) return waxing ? '\uD83C\uDF13' : '\uD83C\uDF17';  // 🌓 🌗 Quarter
-  if (illum >= 0.03) return waxing ? '\uD83C\uDF12' : '\uD83C\uDF18';  // 🌒 🌘 Crescent
+  if (illum >= MOON_NEW_THRESHOLD) return waxing ? '\uD83C\uDF12' : '\uD83C\uDF18';  // 🌒 🌘 Crescent
   return '\uD83C\uDF11';  // 🌑 New
 }
 
@@ -9443,6 +9449,63 @@ function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays){
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Single-moon mini-calendar — shows one moon's phases across a month.
+// Cells are color-filled with the phase emoji; no dots needed.
+// ---------------------------------------------------------------------------
+
+// Phase-to-color mapping for single-moon cells.
+function _moonPhaseCellColor(illum){
+  if (illum >= MOON_FULL_THRESHOLD) return '#FFD700';  // gold for full
+  if (illum >= 0.55)  return '#B0A060';  // warm grey-gold for gibbous
+  if (illum >= 0.45)  return '#808080';  // grey for quarter
+  if (illum >= MOON_NEW_THRESHOLD) return '#505050';  // dark grey for crescent
+  return '#222222';                                     // near-black for new
+}
+
+function _singleMoonMiniCalEvents(moonName, startSerial, endSerial){
+  var out = [];
+  for (var ser = startSerial; ser <= endSerial; ser++){
+    var ph = moonPhaseAt(moonName, ser);
+    if (!ph) continue;
+    var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+    var label = _moonPhaseLabel(ph.illum, ph.waxing);
+    var pct = Math.round(ph.illum * 100);
+    out.push({
+      serial: ser,
+      name: emoji + ' ' + label + ' (' + pct + '%)',
+      color: _moonPhaseCellColor(ph.illum)
+    });
+  }
+  return out;
+}
+
+function _singleMoonMiniCalHtml(moonName, serial){
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons) return '';
+  var moonDef = null;
+  for (var i = 0; i < sys.moons.length; i++){
+    if (sys.moons[i].name === moonName){ moonDef = sys.moons[i]; break; }
+  }
+  if (!moonDef) return '';
+
+  var mr = _monthRangeFromSerial(serial);
+  moonEnsureSequences(mr.start, (mr.end - mr.start) + 60);
+  var events = _singleMoonMiniCalEvents(moonName, mr.start, mr.end);
+  var calHtml = _renderSyntheticMiniCal(moonDef.title || moonName, mr.start, mr.end, events);
+
+  // Pre-header with moon name and color band
+  var moonColor = moonDef.color || '#888';
+  var preHeader = '<div style="background:'+moonColor+';color:'+
+    (_contrast(moonColor, '#FFFFFF') > 3 ? '#FFFFFF' : '#000000')+
+    ';text-align:center;font-weight:bold;padding:3px 6px;font-size:.9em;border-radius:4px 4px 0 0;margin-bottom:-1px;">'+
+    esc(moonName)+' \u2014 '+esc(moonDef.title || '')+
+    '</div>';
+
+  return preHeader + calHtml;
+}
+
 function _moonTodaySummaryHtml(today, tier, horizonDays){
   var st = ensureSettings();
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
@@ -9570,9 +9633,14 @@ function moonPanelHtml(serialOverride){
     return button(p.label, 'moon send high ' + p.days + 'd');
   }).join(' ');
 
+  var moonViewBtns = sys.moons.map(function(moon){
+    return button(moon.name, 'moon view ' + moon.name);
+  }).join(' ');
+
   var gmControls = '<div style="margin-top:6px;font-size:.82em;opacity:.7;">'+
     '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
     '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
+    '<div style="margin-bottom:4px;margin-top:4px;">Individual: '+moonViewBtns+'</div>'+
     button('📖 Lore','moon lore')+' '+
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>'+
@@ -11245,8 +11313,31 @@ function handleMoonCommand(m, args){
       moonEnsureSequences(pSerial, pHorizon + 30);
       return whisper(m.who, moonPlayerPanelHtml(pSerial));
     }
+    if (sub === 'view' || sub === 'cal'){
+      var pViewName = String(args[2] || '').trim();
+      var pViewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      if (!pViewName){
+        var pViewBtns = pViewSys.moons.map(function(moon){
+          return button(moon.name, 'moon view ' + moon.name);
+        });
+        return whisper(m.who, _menuBox('🌙 Moon Calendar',
+          '<div style="margin-bottom:4px;">Select a moon:</div>' +
+          pViewBtns.join(' ') +
+          '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
+        ));
+      }
+      var pViewMoon = _moonParseMoonName(pViewName, pViewSys);
+      if (!pViewMoon) return whisper(m.who, 'Unknown moon: <b>'+esc(pViewName)+'</b>.');
+      var pViewSerial = todaySerial();
+      moonEnsureSequences(pViewSerial, 60);
+      var pCalBody = _singleMoonMiniCalHtml(pViewMoon, pViewSerial);
+      return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
+        pCalBody +
+        '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+'</div>'
+      ));
+    }
     return whisper(m.who,
-      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code>'
+      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon view &lt;name&gt;</code>'
     );
   }
 
@@ -11373,6 +11464,45 @@ function handleMoonCommand(m, args){
     );
   }
 
+  // !cal moon view <MoonName> [dateSpec]  — single-moon mini-calendar
+  if (sub === 'view' || sub === 'cal'){
+    var viewNameRaw = String(args[2] || '').trim();
+    var viewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    if (!viewNameRaw){
+      // Show picker buttons for each moon
+      var viewBtns = viewSys.moons.map(function(moon){
+        return button(moon.name, 'moon view ' + moon.name);
+      });
+      return whisper(m.who, _menuBox('🌙 Moon Calendar',
+        '<div style="margin-bottom:4px;">Select a moon:</div>' +
+        viewBtns.join(' ') +
+        '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
+      ));
+    }
+    var viewMoonName = _moonParseMoonName(viewNameRaw, viewSys);
+    if (!viewMoonName) return whisper(m.who, 'Unknown moon: <b>'+esc(viewNameRaw)+'</b>. Try <code>!cal moon view</code> for a list.');
+    // Optional date spec for navigating months
+    var viewSerial = todaySerial();
+    if (args[3]){
+      var viewDateToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+      var viewPref = parseDatePrefixForAdd(viewDateToks);
+      if (viewPref) viewSerial = toSerial(viewPref.year, viewPref.mHuman - 1, viewPref.day);
+    }
+    moonEnsureSequences(viewSerial, 60);
+    var calBody = _singleMoonMiniCalHtml(viewMoonName, viewSerial);
+    var prevS = _shiftSerialByMonth(viewSerial, -1);
+    var nextS = _shiftSerialByMonth(viewSerial, 1);
+    var viewNav = '<div style="margin:4px 0;">'+
+      button('◀ Prev','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
+      button('Current','moon view '+viewMoonName)+' '+
+      button('Next ▶','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
+      '</div>';
+    return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
+      viewNav + calBody +
+      '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+' '+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
+    ));
+  }
+
   // !cal moon reset [<MoonName>]  — remove GM phase overrides
   if (sub === 'reset'){
     var clearName = String(args[2] || '').trim();
@@ -11396,6 +11526,7 @@ function handleMoonCommand(m, args){
 
   whisper(m.who,
     'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon view &lt;name&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
