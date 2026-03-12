@@ -3016,21 +3016,17 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
 
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
-  var m = cal.months[cur.month] || {};
-  var datePart = (_isGregorianLeapSlotMonthObj(m)) ? '29 February' : (cur.day_of_the_month + ' ' + m.name);
+  var datePart = _displayMonthDayParts(cur.month, cur.day_of_the_month).label;
   return cal.weekdays[cur.day_of_the_week] + ", " +
          datePart + ", " +
          cur.year + " " + LABELS.era;
 }
 
 function dateLabelFromSerial(serial){
-  var cal = getCal(), st = ensureSettings();
+  var cal = getCal();
   var d = fromSerial(serial);
   var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
-  var m = cal.months[d.mi] || {};
-  var datePart = (st.calendarSystem === 'gregorian' && m.isIntercalary && String(m.name||'') === 'Leap Day')
-    ? '29 February'
-    : (d.day + ' ' + m.name);
+  var datePart = _displayMonthDayParts(d.mi, d.day).label;
   return wd + ", " + datePart + ", " + d.year + " " + LABELS.era;
 }
 
@@ -3128,10 +3124,23 @@ function _legendLine(items){
   return '<div style="font-size:.76em;opacity:.55;margin:4px 0 6px 0;">Legend: '+items.map(esc).join(' · ')+'</div>';
 }
 
+function _displayMonthDayParts(mi, day){
+  var cal = getCal();
+  var st = ensureSettings();
+  var m = cal.months[mi] || {};
+  if (st.calendarSystem === 'gregorian' && m.isIntercalary && String(m.name||'') === 'Leap Day'){
+    return { monthName: 'February', day: 29, label: 'February 29' };
+  }
+  return {
+    monthName: String(m.name || (mi + 1)),
+    day: day,
+    label: String(day) + ' ' + String(m.name || (mi + 1))
+  };
+}
+
 function _serialToDateSpec(serial){
   var d = fromSerial(serial|0);
-  var m = getCal().months[d.mi] || {};
-  return String(m.name || (d.mi + 1)) + ' ' + d.day + ' ' + d.year;
+  return _displayMonthDayParts(d.mi, d.day).label + ' ' + d.year;
 }
 
 function _shiftSerialByMonth(serial, dir){
@@ -4029,7 +4038,7 @@ function _activePlanarWeatherShiftLines(serial){
       if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -1');
       if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -3');
       if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +1');
-      if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: precipitation -1, wind -1');
+      if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: clear and calm (precipitation 0, wind 0)');
       if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: precipitation +1');
       if (e.plane === 'Mabar'  && e.phase === 'coterminous') out.push('Mabar coterminous: temperature -1');
       if (e.plane === 'Irian'  && e.phase === 'coterminous') out.push('Irian coterminous: temperature +1');
@@ -4651,13 +4660,13 @@ function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
   var cal = getCal(), c = cal.current;
-  var mObj = cal.months[c.month] || {};
   var wd = cal.weekdays[c.day_of_the_week];
+  var todayParts = _displayMonthDayParts(c.month, c.day_of_the_month);
 
   var sections = [];
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
-    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
+    esc(wd) + ', ' + esc(todayParts.label) + ', ' +
     esc(String(c.year)) + ' ' + LABELS.era + '</div>');
 
   // Events
@@ -4688,9 +4697,10 @@ function _todayAllHtml(){
         for (var pi = 0; pi < periods.length; pi++){
           var pname = periods[pi];
           var fogP = wxRec.fog && wxRec.fog[pname];
-          var cond = _deriveConditions(wxRec.final, wxRec.location||{}, pname,
+          var periodVals = (wxRec.periods && wxRec.periods[pname]) || wxRec.final;
+          var cond = _deriveConditions(periodVals, wxRec.location||{}, pname,
             wxRec.snowAccumulated, fogP);
-          var narr = _conditionsNarrative(wxRec.final, cond, pname);
+          var narr = _conditionsNarrative(periodVals, cond, pname);
           var mech = _conditionsMechHtml(cond);
           wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
             pIcons[pname] + ' <b>' + titleCase(pname) + ':</b> ' + esc(narr) +
@@ -6778,9 +6788,7 @@ function weatherTodayMechanicsHtml(){
   var f = rec.final;
   var loc = rec.location || {};
   var d = fromSerial(today);
-  var cal = getCal();
-  var mObj = cal.months[d.mi] || {};
-  var dateLabel = esc(mObj.name||'?') + ' ' + d.day;
+  var dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);
 
   var sections = [];
 
@@ -6789,13 +6797,14 @@ function weatherTodayMechanicsHtml(){
   var periodEmoji = { morning: '☀️', afternoon: '☁️', evening: '🌙' };
   for (var pi = 0; pi < periods.length; pi++){
     var period = periods[pi];
+    var periodVals = (rec.periods && rec.periods[period]) || f;
     var fogForPeriod = (period === 'afternoon')
       ? (rec.fog && rec.fog.afternoon)
       : (period === 'evening')
         ? (rec.fog && rec.fog.evening)
         : (rec.fog && rec.fog.morning);
-    var cond = _deriveConditions(f, loc, period, rec.snowAccumulated, fogForPeriod);
-    var narr = _conditionsNarrative(f, cond, period);
+    var cond = _deriveConditions(periodVals, loc, period, rec.snowAccumulated, fogForPeriod);
+    var narr = _conditionsNarrative(periodVals, cond, period);
     var mechBlock = _conditionsMechHtml(cond);
     sections.push(
       '<div style="margin-top:6px;">'+
@@ -7056,9 +7065,8 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   if (!rec) return '';
   var cal      = getCal();
   var d        = fromSerial(rec.serial);
-  var mObj     = cal.months[d.mi] || {};
   var wd       = isToday ? cal.weekdays[getCal().current.day_of_the_week] : null;
-  var dateLabel= (wd ? esc(wd)+', ' : '') + esc(mObj.name||'?')+' '+d.day;
+  var dateLabel= (wd ? esc(wd)+', ' : '') + esc(_displayMonthDayParts(d.mi, d.day).label);
   var f        = rec.final;
   var loc      = rec.location || {};
   var content  = '';
@@ -7497,8 +7505,7 @@ function weatherForecastGmHtml(daysOverride){
     var ser = today + i;
     var rec = _weatherRecordForDisplay(_forecastRecord(ser));
     var d   = fromSerial(ser);
-    var mObj= cal.months[d.mi] || {};
-    var dayLabel = esc(mObj.name||'?')+' '+d.day;
+    var dayLabel = esc(_displayMonthDayParts(d.mi, d.day).label);
 
     if (!rec){
       rows.push('<tr>'+
@@ -7583,8 +7590,7 @@ function weatherHistoryGmHtml(){
 
   var rows = ws.history.slice().reverse().slice(0,20).map(function(rec){
     var d     = fromSerial(rec.serial);
-    var mObj  = cal.months[d.mi] || {};
-    var label = esc(mObj.name||'?')+' '+d.day;
+    var label = esc(_displayMonthDayParts(d.mi, d.day).label);
     var f     = rec.final;
     var loc   = rec.location || {};
     var badges= _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
@@ -11556,7 +11562,7 @@ function handleMoonCommand(m, args){
     ms2.generatedThru = 0;
     moonEnsureSequences();
 
-    var monthName = (cal2.months[pref.mHuman - 1] || {}).name || String(pref.mHuman);
+    var monthName = _displayMonthDayParts(pref.mHuman - 1, pref.day).monthName;
     return whisper(m.who,
       '<b>'+esc(mName)+'</b> will be <b>'+sub+'</b> on '+
       esc(String(pref.day))+' '+esc(monthName)+' '+esc(String(pref.year))+'.<br>'+
@@ -12968,7 +12974,7 @@ function handlePlanesCommand(m, args){
     };
 
     var cal2 = getCal();
-    var monthName = (cal2.months[pref.mHuman - 1] || {}).name || String(pref.mHuman);
+    var monthName = _displayMonthDayParts(pref.mHuman - 1, pref.day).monthName;
     whisper(m.who,
       '<b>'+esc(planeA.name)+'</b> anchor set: <b>'+esc(PLANE_PHASE_LABELS[ancPhase])+'</b> on '+
       esc(String(pref.day))+' '+esc(monthName)+' '+esc(String(pref.year))+'.'

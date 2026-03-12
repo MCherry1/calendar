@@ -412,7 +412,6 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 - **Galifar** (Khorvaire/Eberron) — 12 months × 28 days, YK era, 7-day weeks.
 - **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tenday columns
 - **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
-- **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
 
 ---
 ## Chat Commands
