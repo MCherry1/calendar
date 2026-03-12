@@ -229,6 +229,14 @@ The player quick bar now includes `◀ Prev`, `📅 Month`, and `Next ▶` month
 
 ---
 
+### Remove `Current` button from subsystem mini-calendar navigation
+
+- [ ] Audit all mini-calendar/subsystem month-nav controls (GM and player views) and remove any center `Current` button where `Prev`/`Next` are already present
+- [ ] Keep `Prev` and `Next` buttons visible beneath the mini-calendar in every subsystem view for both players and GMs
+- [ ] Update any related help/UI copy that still references a `Current` button in mini-calendar navigation
+
+---
+
 ### Accept arbitrary GM weather forecast spans up to 20 days
 
 Status: Completed by ChatGPT version number 5
