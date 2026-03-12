@@ -53,7 +53,7 @@ Startup message appears in chat when the script initializes:
 
 In the chat window, type:
 `!cal`
-*Tip: Add a macro for even easier use.*
+> [!info]*Tip: Add a macro for even easier use.*
 
 ---
 
@@ -165,6 +165,8 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 - The weather subsystem can be toggled on or off as desired.
 - The mechanical weather effects can also be toggled on or off independently, leaving narrative weather active if desired.
 - It is a homebrew forecasting system designed for campaign play: deterministic, location-based, and readable in chat.
+
+Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation.
 
 ### Weather TOC
 
@@ -332,6 +334,7 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 ```
 
 `!cal weather forecast [n]` accepts any integer from `1` to `20`.
+`!cal weather mechanics` reflects the current **Weather Mech** setting; if mechanics are off, narrative weather still remains active.
 
 ### GM Controls
 

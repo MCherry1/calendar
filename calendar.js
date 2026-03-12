@@ -50,6 +50,7 @@ var CONFIG_DEFAULTS = {
   eventsEnabled:   true,        // false = event subsystem hidden/disabled from default views
   moonsEnabled:    true,        // false = moon system fully disabled
   weatherEnabled:  true,        // false = weather system fully disabled
+  weatherMechanicsEnabled: true, // false = keep narrative weather, suppress D&D mechanics text
   planesEnabled:   true,        // false = planar system disabled
   offCyclePlanes:  true,        // false = disable off-cycle (anomalous) planar movement
   moonDisplayMode: 'calendar',  // 'calendar' | 'list' | 'both'
@@ -768,6 +769,7 @@ function ensureSettings(){
   if (s.eventsEnabled  === undefined) s.eventsEnabled  = CONFIG_DEFAULTS.eventsEnabled;
   if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
   if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
+  if (s.weatherMechanicsEnabled === undefined) s.weatherMechanicsEnabled = CONFIG_DEFAULTS.weatherMechanicsEnabled;
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
   if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
 
@@ -4052,6 +4054,9 @@ function activeEffectsPanelHtml(){
             '</div>';
           wx += '<div style="font-size:.85em;opacity:.85;">'+esc(narr)+'</div>';
           wx += _conditionsMechHtml(cond);
+          if (st.weatherMechanicsEnabled === false){
+            wx += '<div style="font-size:.8em;opacity:.6;margin-top:3px;">Mechanical weather effects are disabled.</div>';
+          }
 
           var shifts = _activePlanarWeatherShiftLines(today);
           if (shifts.length){
@@ -4237,6 +4242,10 @@ function helpRootMenu(m){
       '🌤️ Weather: '+(st.weatherEnabled ? 'On ✓' : 'Off'),
       'settings weather '+(st.weatherEnabled ? 'off' : 'on')
     );
+    var wxMechBtn = mbP(m,
+      'Weather Mech: '+(st.weatherMechanicsEnabled !== false ? 'On ✓' : 'Off'),
+      'settings weathermechanics '+(st.weatherMechanicsEnabled !== false ? 'off' : 'on')
+    );
     var plBtn = mbP(m,
       '🌀 Planes: '+(st.planesEnabled ? 'On ✓' : 'Off'),
       'settings planes '+(st.planesEnabled ? 'off' : 'on')
@@ -4279,7 +4288,7 @@ function helpRootMenu(m){
       'settings buttons '+(st.autoButtons ? 'off' : 'on')
     );
     rows.push(_menuBox('Settings',
-      grpBtn+' '+lblBtn+' '+evBtn+' '+moonBtn+' '+wxBtn+' '+plBtn+' '+offCycBtn+' '+denBtn+' '+autoBtn+' '+
+      grpBtn+' '+lblBtn+' '+evBtn+' '+moonBtn+' '+wxBtn+' '+wxMechBtn+' '+plBtn+' '+offCycBtn+' '+denBtn+' '+autoBtn+' '+
       moonViewBtn+' '+wxViewBtn+' '+plViewBtn+' '+wxSpanBtn+' '+verbBtn+
       '<div style="font-size:.8em;opacity:.6;margin-top:5px;">Reset everything: <code>!cal resetcalendar</code></div>'
     ));
@@ -4822,7 +4831,7 @@ var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisper(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|planes|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|planes|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
@@ -4869,7 +4878,7 @@ var commands = {
       refreshAndSend();
       return whisper(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
-    if (!/^(group|labels|events|moons|weather|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
     }
     if (key==='group')    st.groupEventsBySource = (val==='on');
@@ -4877,6 +4886,7 @@ var commands = {
     if (key==='events')   st.eventsEnabled       = (val==='on');
     if (key==='moons'){    st.moonsEnabled  = (val==='on'); st._moonsAutoToggle = false; }
     if (key==='weather')  st.weatherEnabled      = (val==='on');
+    if (key==='weathermechanics' || key==='wxmechanics') st.weatherMechanicsEnabled = (val==='on');
     if (key==='planes'){  st.planesEnabled = (val==='on'); st._planesAutoToggle = false; }
     if (key==='offcycle') st.offCyclePlanes      = (val==='on');
     if (key==='buttons')  st.autoButtons         = (val==='on');
@@ -6305,6 +6315,7 @@ function _isZarantyrFull(serial){
 function _extremeEventPanelHtml(rec){
   var events = _evaluateExtremeEvents(rec);
   if (!events.length) return '';
+  var mechanicsOn = ensureSettings().weatherMechanicsEnabled !== false;
 
   var lines = ['<div style="margin-top:6px;border-top:1px solid rgba(0,0,0,.15);padding-top:5px;">'];
   lines.push('<div style="font-size:.85em;font-weight:bold;color:#B71C1C;margin-bottom:3px;">⚠ Extreme Event Conditions Present</div>');
@@ -6317,7 +6328,7 @@ function _extremeEventPanelHtml(rec){
     lines.push(
       '<div style="margin:3px 0;padding:4px 6px;background:rgba(183,28,28,.06);border-radius:4px;border:1px solid rgba(183,28,28,.2);">'+
       '<div style="font-size:.9em;font-weight:bold;">'+esc(e.event.emoji+' '+e.event.name)+'</div>'+
-      '<div style="font-size:.85em;opacity:.85;margin:2px 0;">'+esc(e.event.mechanics)+'</div>'+
+      (mechanicsOn && e.event.mechanics ? '<div style="font-size:.85em;opacity:.85;margin:2px 0;">'+esc(e.event.mechanics)+'</div>' : '')+
       '<div style="margin-top:3px;">'+triggerBtn+' '+rollBtn+'</div>'+
       '</div>'
     );
@@ -6331,13 +6342,14 @@ function _extremeEventDetailsHtml(key, rec){
   var evt = EXTREME_EVENTS[key];
   if (!evt) return '';
   var msg = evt.playerMsg(rec ? rec.location || {} : {});
+  var mechanicsOn = ensureSettings().weatherMechanicsEnabled !== false;
   return (
     '<div style="border:2px solid #B71C1C;border-radius:5px;padding:6px 10px;background:#FFF3F3;">'+
     '<div style="font-size:1.1em;font-weight:bold;color:#B71C1C;">'+esc(evt.emoji+' '+evt.name)+'</div>'+
     '<div style="margin-top:3px;">'+esc(msg)+'</div>'+
     '<div style="font-size:.85em;margin-top:4px;opacity:.85;border-top:1px solid rgba(183,28,28,.2);padding-top:3px;">'+
     '<b>Duration:</b> '+esc(evt.duration)+'<br>'+
-    '<b>Mechanics:</b> '+esc(evt.mechanics)+'<br>'+
+    (mechanicsOn ? '<b>Mechanics:</b> '+esc(evt.mechanics)+'<br>' : '<b>Mechanics:</b> Disabled in settings<br>')+
     '<b>Aftermath:</b> '+esc(evt.aftermath)+
     '</div></div>'
   );
@@ -6466,6 +6478,7 @@ function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
 
 // Render conditions mechanics block as HTML (empty string if none).
 function _conditionsMechHtml(cond){
+  if (ensureSettings().weatherMechanicsEnabled === false) return '';
   if (!cond.mechanics.length) return '';
   return '<div style="font-size:.85em;margin-top:3px;">'+cond.mechanics.join('<br>')+'</div>';
 }
@@ -6473,6 +6486,12 @@ function _conditionsMechHtml(cond){
 // Full mechanical readout for today — whispered on demand via button.
 // Covers morning, afternoon, evening conditions + any extreme events + planar effects.
 function weatherTodayMechanicsHtml(){
+  if (ensureSettings().weatherMechanicsEnabled === false){
+    return _menuBox('📋 Weather Mechanics',
+      '<div style="opacity:.7;">Mechanical weather effects are disabled. Narrative weather remains active.</div>'+
+      '<div style="margin-top:6px;">'+button('⬅ Back', 'weather')+'</div>'
+    );
+  }
   var today = todaySerial();
   var rec = _forecastRecord(today);
   if (!rec || !rec.final) return _menuBox('📋 Weather Mechanics', '<div style="opacity:.7;">No weather data for today.</div>');
@@ -7252,7 +7271,7 @@ function weatherForecastGmHtml(daysOverride){
     _weatherTodaySummaryHtml(today, null, displayMode === 'calendar')+
     body+
     '<div style="margin-top:6px;">'+
-    button('📋 Today\'s Mechanics','weather mechanics')+' '+
+    (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics','weather mechanics')+' ' : '')+
     button('Reroll Today','weather reroll '+today)+' '+
     button('Regenerate All','weather generate')+' '+
     button('⬅ Back','weather')+

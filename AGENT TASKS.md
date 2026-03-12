@@ -31,7 +31,6 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 ---
 ## Match Script to README.md and Design.md
 - Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented. Completed by ChatGPT version number 5.4
-	- you were supposed to insert your version number for XXX. I htink this was done by v5.4
 ---
 ## Update README.md
 - Do not overwrite any text in the README.
@@ -99,8 +98,10 @@ Status: Completed by ChatGPT version number 5.4
 
 ### Add an independent weather-mechanics toggle
 
-- [ ] Allow weather narration to remain enabled while mechanical weather effects are disabled
-- [ ] Surface the toggle in settings/UI and document the behavior in README
+Status: Completed by ChatGPT version number 5.4
+
+- [x] Allow weather narration to remain enabled while mechanical weather effects are disabled
+- [x] Surface the toggle in settings/UI and document the behavior in README
 
 ---
 
