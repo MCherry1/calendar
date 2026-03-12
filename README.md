@@ -137,7 +137,11 @@ GMs can decide how much to reveal, and under what circumstances. The script prov
 ---
 ## Modeling the Skies
 
-The script models the sky as a physical system rather than flavor-only text. Moon brightness, eclipse behavior, and nighttime lighting all derive from explicit mechanics. These mechanics are described below.
+The script models the sky as a physical system rather than flavor-only text. Moon brightness, movement, nighttime lighting, and everything else all derive from explicit numbers. The goal is to create a constantly advancing game-world state that requires little GM intervention.
+
+This script uses astronomy-inspired proxies so the moons, eclipses, and night lighting behave intuitively over long campaigns.
+The model cares about **apparent sky geometry**, not a declared cosmological stance. It makes no assumption about whether Arrah or Eberron is the center of the system or whether the distant stars move.
+- Real-world reference bodies are used where that makes the invented sky more coherent, but the end result is still tuned for Eberron's lore rather than strict solar-system simulation.
 
 ### Observer Model
 
@@ -147,9 +151,6 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 
 ### Eberron
 
-- Eberron uses astronomy-inspired proxies so the moons, eclipses, and night lighting behave consistently over long campaigns.
-- The model cares about **apparent sky geometry**, not a declared cosmological stance on whether Arrah orbits Eberron or vice versa.
-- Real-world reference bodies are used where that makes the invented sky more coherent, but the end result is still tuned for Eberron's lore rather than strict solar-system simulation.
 
 ### Ring of Siberys
 

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "README.md",
+                "file": "AGENT TASKS.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "README"
+              "title": "AGENT TASKS"
             }
           }
         ]
@@ -195,12 +195,12 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "8ff685fd5b407f4a",
+  "active": "35b8e0bf7f289d3b",
   "lastOpenFiles": [
+    "README.md",
     "AGENT TASKS.md",
     "CLAUDE.md",
     "DESIGN.md",
-    "README.md",
     "TASKS.md",
     "AGENTS.md",
     "conflict-files-obsidian-git.md",
