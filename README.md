@@ -373,7 +373,7 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 
 > In normal play, nearly all interaction happens through the in-chat buttons. When typed syntax matters, the script whispers the correct format in game.
 
-## Dates
+## Calendar Dates
 
 Show a specific 
 ```
