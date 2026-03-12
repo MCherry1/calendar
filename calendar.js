@@ -464,7 +464,9 @@ var CALENDAR_STRUCTURE_SETS = {
     { regularIndex:11 },
     { isIntercalary:true, name:'Feast of the Moon', days:1 }
   ],
-  // Gregorian with leap day every 4 years, inserted after February.
+  // Gregorian with leap day inserted after February.
+  // The slot uses the full Gregorian rule in _isLeapMonth:
+  // divisible by 4, except centuries unless divisible by 400.
   // Total: 365 days non-leap, 366 days leap.
   gregorian: [
     { regularIndex: 0 },
@@ -1370,7 +1372,13 @@ var colorsAPI = {
 
 // Returns true if month object m is a leap-only month active in year y.
 function _isLeapMonth(m, y){
+  if (_isGregorianLeapSlotMonthObj(m)) return _isGregorianLeapYear(y);
   return !!(m.leapEvery && (y % m.leapEvery === 0));
+}
+
+function _isGregorianLeapYear(y){
+  y = parseInt(y, 10) || 0;
+  return (y % 4 === 0) && ((y % 100 !== 0) || (y % 400 === 0));
 }
 
 function _isGregorianLeapSlotMonthObj(m){
@@ -4033,9 +4041,9 @@ function _activePlanarWeatherShiftLines(serial){
 
 function _planarWeatherInfluenceText(e){
   if (!e) return null;
-  if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+2 temp)';
+  if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+3 temp)';
   if (e.plane === 'Fernia' && e.phase === 'remote')      return '🔥 Fernia remote (-1 temp)';
-  if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-2 temp)';
+  if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-3 temp)';
   if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+1 temp)';
   if (e.plane === 'Syrania'&& e.phase === 'coterminous') return '🌤 Syrania coterminous (clear, calm)';
   if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip)';

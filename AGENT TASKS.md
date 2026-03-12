@@ -64,7 +64,7 @@ These are README / repo-doc tasks extracted from embedded notes in the README.
 
 ### Expand README moon and sky reference material
 
-- [ ] Include the Eberron moon reference-body mapping table in README instead of only pointing to `DESIGN.md`
+- [x] Include the Eberron moon reference-body mapping table in README instead of only pointing to `DESIGN.md`
 - [ ] Expand **Modeling the Skies** with the remaining stable explanatory material
 - [ ] Add Ring of Siberys detail for apparent color, angular size, and nearest Zarantyr clearance
 
@@ -78,7 +78,20 @@ These are README / repo-doc tasks extracted from embedded notes in the README.
 
 ### Add planar anomaly appendix to README
 
-- [ ] Add a per-plane table covering generated anomaly duration, trigger dice, and expected annual event count
+- [x] Add a per-plane table covering generated anomaly duration, trigger dice, and expected annual event count
+
+---
+
+### Embedded README notes resolved on 2026-03-12
+
+- [x] Replace the Eberron reference-mapping table in `README.md` with per-moon reference and inspiration notes
+- [x] Move the weather forecasting guidance above the mechanics tables in `README.md`
+- [x] Add a per-plane weather-effects table to the planar weather section in `README.md`
+- [x] Move the command reference out of `README.md` into `Chat Commands.md`
+- [x] Rewrite the calendar-navigation docs around the intended month-jump workflow while still documenting the parser's supported date forms
+- [x] Document smart date formats for moon, plane, and event commands in `Chat Commands.md`
+- [x] Document event-source priority behavior in `Chat Commands.md`
+- [x] Apply the full Gregorian leap-year rule in `calendar.js` while keeping February 29 inline with February
 
 ---
 
@@ -146,6 +159,7 @@ Status: Completed by ChatGPT version number 5.4
 - [x] No manifest-zone forecasting
 - [x] Wire Fernia/Risia temperature effects (±3 on new scale) through the manifest zone mechanic instead of current approach
 - [x] Fernia and Risia can both be active at once; their temperature effects cancel, but both still display as active influences
+- [ ] 
 
 ---
 
