@@ -102,6 +102,14 @@ These are well-defined implementation tasks. The design is decided, the target b
 
 ---
 
+### Fix mini-calendar last-row clipping
+
+- [ ] Investigate the mini-calendar row-height/clipping bug where the final row appears shorter or visibly clipped
+- [ ] Fix the base mini-calendar cell sizing so number text and event dots fit consistently in every row
+- [ ] Verify the fix across the default calendar, weather/moon/plane mini-calendars, and adjacent/overflow rows
+
+---
+
 ### Rebalance Syrania weather effects
 
 - [ ] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
