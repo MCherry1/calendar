@@ -290,37 +290,16 @@ function _weatherTempMechanics(band){
 // Wind still uses the fixed stage table below. Temperature mechanics are now
 // derived from WEATHER_TEMPERATURE_BANDS_F so the live generator and rules
 // share the same -5..15 band scale.
+// Temperature mechanics now derived from WEATHER_TEMPERATURE_BANDS_F via _weatherTempMechanics().
+// Wind mechanics still use this lookup table.
 var CONFIG_WEATHER_MECHANICS = {
-  temp: {
-    '-5': 'DC 30 Con save or exhaustion. Special protection required.',
-    '-4': 'DC 25 Con save or exhaustion. Disadvantage without heavy cold-weather clothing.',
-    '-3': 'DC 25 Con save or exhaustion. Disadvantage without heavy cold-weather clothing.',
-    '-2': 'DC 20 Con save or exhaustion. Disadvantage without medium cold-weather clothing.',
-    '-1': 'DC 20 Con save or exhaustion. Disadvantage without medium cold-weather clothing.',
-    0:  'DC 15 Con save or exhaustion. Disadvantage without light cold-weather clothing.',
-    1:  'DC 15 Con save or exhaustion. Disadvantage without light cold-weather clothing.',
-    2:  'DC 10 Con save or exhaustion.',
-    3:  'DC 10 Con save or exhaustion.',
-    4:  null,
-    5:  null,
-    6:  null,
-    7:  'DC 10 Con save or exhaustion (compounding factors).',
-    8:  'DC 10 Con save or exhaustion.',
-    9:  'DC 15 Con save or exhaustion.',
-    10: 'DC 15 Con save or exhaustion. Heavy armor wearers at disadvantage.',
-    11: 'DC 20 Con save or exhaustion. Medium and heavy armor wearers at disadvantage.',
-    12: 'DC 20 Con save or exhaustion. All armor wearers at disadvantage.',
-    13: 'DC 25 Con save or exhaustion. All armor wearers at disadvantage.',
-    14: 'DC 25 Con save or exhaustion. All armor wearers at disadvantage.',
-    15: 'DC 30 Con save or exhaustion. Mundane armor and clothing insufficient.'
-  },
   wind: {
     0: null,
     1: null,
     2: 'Fogs and gases dispersed.',
     3: 'Disadvantage on ranged attack rolls. Long range attacks automatically miss. Flying costs an additional foot of movement. Open flames extinguished.',
     4: 'Ranged attack rolls automatically miss. Flying speeds reduced to 0. Walking costs an additional foot of movement.',
-    5: 'DC15 Strength check or fall prone. Small trees uprooted. Projectiles '
+    5: 'DC 15 Strength check or fall prone. Small trees uprooted. Projectiles deal 2d6 bludgeoning (DC 10 Dex save). Severe hazard.'
   }
   // Precip mechanics are now fully derived per-condition by _deriveConditions.
   // See CONFIG_WEATHER_FLAVOR for narrative and that function for visibility rules.
@@ -9491,7 +9470,6 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
 
     var fSer = _moonNextEvent(moon.name, today, 'full');
     var nSer = _moonNextEvent(moon.name, today, 'new');
-    var horizonEnd = today + horizon;
     if (fSer != null && fSer > today && fSer <= horizonEnd && (!best || fSer < best.serial)){
       best = { serial:fSer, moon:moon.name, type:'full', str:_moonNextEventStr(moon, today, 'full', tier, horizon) };
     }
