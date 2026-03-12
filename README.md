@@ -142,8 +142,12 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 ### Moons
 
 Lunar calendars are classic. And mechanically relevant for nighttime lighting. Below are the parameters used for the moons of the included settings.
+agent task clean this para below up.
+- Moons are intended as a flexible narrative tool, so their phases are adjustable by GMs as needed. 
+		- **You can set a moon to be full or new on whatever night you choose.**
+		- The script will fit the desired phase into the regularly-scripted motion and the phases will progress as they need to.
 
-agent task put these all in tables and similarly organized
+agent task put these all in table and similarly organized
 
 - **Earth**
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
@@ -153,12 +157,7 @@ agent task put these all in tables and similarly organized
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
-	- Moons are intended as a flexible narrative tool, so their phases are adjustable by GMs as needed. 
-		- **You can set a moon to be full or new on whatever night you choose.**
-		- The script will fit the desired phase into the regularly-scripted motion and the phases will progress as they need to.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention..
-	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed because we moved it below
-	- agent task insert the mapping table in here, including variation. i'll add some detailed commentary once we get the initial layout
 
 
 ### Eberron-Specific Cosmology
@@ -176,6 +175,10 @@ Eberron the planet is assumed to be approximately earth like. It uses all he ear
 ### Moons of Eberron
 
 agent task the big section. include all the details from the dragonmark article on c
+
+
+	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed because we moved it below
+	- agent task insert the mapping table in here, including variation. i'll add some detailed commentary once we get the initial layout
 
 ---
 ## Weather
