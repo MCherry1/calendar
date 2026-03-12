@@ -344,11 +344,12 @@ The planar subsystem is Eberron-specific and tracks the Planes of Existence. The
 ### Categories of Event
 
 There are three types of events in this system:
-#### **Canonical (*traditional*) cycles**
-	- use the structure published in *Exploring Eberron*.
-	- **Anchor dates** for the multi-year cycles are needed where canon leaves them unspecified.
+#### Traditional
+- Use the structure published in *Exploring Eberron*.
+- **Anchor dates** for the multi-year cycles are needed where canon leaves them unspecified.
 	- GMs can provide their own anchor date for each plane, setting the traditional cycle of the planes to suit their campaign.
 	- In the absence of a GM-defined anchor, the script generates it's own anchor date from the world seed. (This seed is used throughout the script. Using the same seed in different API sandboxes or campaigns will always generate the same world state.)
+#### GM Defined
 - **GM controls** can force any plane **coterminous**, **remote**, or **neither** (*off*), regardless of pre-existing schedules.
 - **Generated** events add non-traditional coterminous/remote events using plane-specific dice profiles and durations.
 	- These generated events can be disabled independent of the 
