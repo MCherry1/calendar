@@ -205,10 +205,9 @@ The live generator maps directly on the `-5` to `15` band scale shown below.
 
 - **Temperature saves:** At the GM's discretion, creatures must make Constitution saves, suffering levels of exhaustion on failure.
 	- It is recommended to require rolls for each day (or hour, if following the DMG) of travel, each Short or Long Rest, any periods of outdoor activity, and for each combat.
-- **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing use normal armor-proficiency rules.
+- **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing map to normal armor proficiencies. I
 - **Armor as heat burden:** At the hot end of the scale, armor becomes progressively more punishing.
-- **Resistance and immunity:** Cold or fire resistance grants adv. on the relevant save; immunity succeeds automatically.
-- **Cadence:** Daily checks are usually the smoothest table experience. Hourly checks are harsher and slower, but can fit survival-focused play.
+- **Resistance and immunity:** Cold or fire resistance grants advantage on the relevant save; while immunity succeeds automatically.
 
 | Temperature |  °F Approx.  | Mechanical Effect                                                            |
 | :---------: | :----------: | :--------------------------------------------------------------------------- |
