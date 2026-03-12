@@ -341,19 +341,21 @@ The planar subsystem is Eberron-specific and tracks the Planes of Existence. The
 
 **Remote** planes suppress or invert those same traits.
 
-### Categories of Event
+### Sources
 
 There are three types of events in this system:
 #### Traditional
-- Use the structure published in *Exploring Eberron*.
+- Use the cycle structure published in *Exploring Eberron*.
 - **Anchor dates** for the multi-year cycles are needed where canon leaves them unspecified.
 	- GMs can provide their own anchor date for each plane, setting the traditional cycle of the planes to suit their campaign.
 	- In the absence of a GM-defined anchor, the script generates it's own anchor date from the world seed. (This seed is used throughout the script. Using the same seed in different API sandboxes or campaigns will always generate the same world state.)
 #### GM Defined
-- **GM controls** can force any plane **coterminous**, **remote**, or **neither** (*off*), regardless of pre-existing schedules.
+- **GM controls** can force any plane **coterminous**, **remote**, or **neither** (*off*), regardless of pre-existing schedules, for any duration desired.
+
+#### Generated
 - **Generated** events add non-traditional coterminous/remote events using plane-specific dice profiles and durations.
-	- These generated events can be disabled independent of the 
-- **Isolation rules** prevent generated anomalies from overriding active canonical or GM-defined planar periods.
+- Generated events can be enabled or disabled independent of the rest of the system.
+- The script prevents generated events from overriding active canonical or GM-defined planar periods.
 - **Toggles** let the GM disable off-cycle/generated events entirely.
 
 ---
