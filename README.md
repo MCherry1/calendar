@@ -244,8 +244,7 @@ All effects are cumulative
 |  2   | Moderate | Fogs and airborne gases dispersed                                                                                                                                         |
 |  3   |  Strong  | Open flames extinguished<br>Disadv. on ranged attacks<br>Long-range attacks auto-miss<br>Flying costs +1 ft per ft                                                        |
 |  4   |   Gale   | Ranged attacks auto-miss<br>Nonmagical flying req. DC 10 Str save or flying speed becomes 0<br>The air is difficult terrain (+2 ft. per ft)<br>Walking costs +1 ft per ft |
-|  5   |  Storm   | DC 15 Strength save or fall prone<br>Small trees uprooted, objects become projectiles<br>Severe hazard                                                                    |
-
+|  5   |  Storm   | DC 15 Str save or fall prone<br>Small trees uprooted, objects become projectiles (DC 10 Dex Save, 2d6 Bludgeoning Damage)<br>Severe Hazard Potential                      |
 
 ### Precipitation
 
