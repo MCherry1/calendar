@@ -183,14 +183,13 @@ also mention the stuff about integer multiple periods.
 ---
 ## Weather
 
-Weather tables in D&D suck. This one sucks a little less, (humbly).
+Weather tables in D&D suck. This one sucks a little less.
 
 - The weather subsystem can be toggled on or off as desired.
-- The mechanical weather effects can also be toggled on or off independently, leaving only narrative weather active.
-- 
+- The mechanical weather effects can also be toggled on or off independently, leaving only narrative weather.
+- This system is homebrew.
 
-
-Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation.
+Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation. agent task please make sure theres a button for this
 
 ### Weather TOC
 
@@ -201,7 +200,8 @@ Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (
 - [Forecasting](#forecasting)
 
 ### Temperature
-The live generator rolls directly on the `-5` to `15` band scale shown below.
+
+The live generator maps directly on the `-5` to `15` band scale shown below.
 
 - **Temperature saves:** At the GM's discretion, creatures make Constitution saves during severe travel, exposed rests, prolonged outdoor activity, or combat in dangerous weather.
 - **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing use normal armor-proficiency rules.
