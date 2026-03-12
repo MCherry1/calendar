@@ -186,15 +186,15 @@ var WEATHER_TEMPERATURE_BANDS_F = [
   { band:4, minF:35, maxF:44, label:'chilly', nominalDC:null, coldRequirement:'none', coldRequirementLabel:'None normally', heatArmorDisadvantage:'none', notes:['rain plus wind may create situational cold checks'] },
   { band:5, minF:45, maxF:54, label:'cool', nominalDC:null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
   { band:6, minF:55, maxF:64, label:'mild', nominalDC:null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
-  { band:7, minF:65, maxF:74, label:'temperate', nominalDC:10, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['normally no heat check unless combined with harsh sun, humidity, exertion, or poor water access'] },
-  { band:8, minF:75, maxF:84, label:'warm', nominalDC:10, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['easy heat tier under direct sun, stagnant air, or heavy exertion'] },
-  { band:9, minF:85, maxF:94, label:'hot', nominalDC:15, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['humidity, dehydration, forced march, and radiant terrain worsen risk'] },
-  { band:10, minF:95, maxF:104, label:'sweltering', nominalDC:15, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'heavy', heatArmorDisadvantageLabel:'Disadvantage if wearing heavy armor', notes:['sun, humidity, radiant stone or sand, and forced pace can increase effective DC'] },
-  { band:11, minF:105, maxF:114, label:'brutal heat', nominalDC:20, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'medium_or_heavy', heatArmorDisadvantageLabel:'Disadvantage if wearing medium or heavy armor', notes:['labor, poor hydration, hot wind, and no shade strongly worsen risk'] },
-  { band:12, minF:115, maxF:124, label:'scorching', nominalDC:20, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['reflective terrain, no airflow, and hot surfaces worsen risk'] },
+  { band:7, minF:65, maxF:74, label:'temperate', nominalDC:null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
+  { band:8, minF:75, maxF:84, label:'warm', nominalDC:null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
+  { band:9, minF:85, maxF:94, label:'hot', nominalDC:null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['humidity, dehydration, forced march, and radiant terrain may warrant situational checks'] },
+  { band:10, minF:95, maxF:104, label:'sweltering', nominalDC:10, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['sun, humidity, radiant stone or sand, and forced pace can increase effective DC'] },
+  { band:11, minF:105, maxF:114, label:'brutal heat', nominalDC:15, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'heavy', heatArmorDisadvantageLabel:'Disadvantage if wearing heavy armor', notes:['labor, poor hydration, hot wind, and no shade strongly worsen risk'] },
+  { band:12, minF:115, maxF:124, label:'scorching', nominalDC:20, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'medium_or_heavy', heatArmorDisadvantageLabel:'Disadvantage if wearing medium or heavy armor', notes:['reflective terrain, no airflow, and hot surfaces worsen risk'] },
   { band:13, minF:125, maxF:134, label:'searing', nominalDC:25, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['light, loose clothing only','furnace winds, exposed stone, smoke, and no shade worsen risk'] },
   { band:14, minF:135, maxF:144, label:'hellish', nominalDC:25, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['light, loose clothing only','special cooling, magic, shelter, and shade become critical'] },
-  { band:15, minF:145, maxF:null, label:'infernal', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'special_only', heatArmorDisadvantageLabel:'Mundane armor and clothing insufficient', notes:['planar heat, lava fields, magical fire, and radiant exposure','ordinary gear no longer solves the problem'] }
+  { band:15, minF:145, maxF:null, label:'infernal', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['planar heat, lava fields, magical fire, and radiant exposure','ordinary gear no longer solves the problem'] }
 ];
 
 var WEATHER_COLD_CLOTHING_TIERS = {
@@ -225,7 +225,7 @@ var WEATHER_TEMPERATURE_SYSTEM_RULES = {
   },
   heat: {
     rule: 'If a creature wears armor forbidden by the current heat band, it has disadvantage on the save.',
-    tiers: { heavy:[10], medium_or_heavy:[11], any_armor:[12,13,14], special_only:[15] }
+    tiers: { heavy:[11], medium_or_heavy:[12], any_armor:[13,14,15] }
   }
 };
 

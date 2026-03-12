@@ -246,15 +246,15 @@ The live generator maps directly on the `-5` to `15` band scale shown below.
 |      4      |  [35 .. 44]  |                                                              |
 |      5      |  [45 .. 54]  |                                                              |
 |      6      |  [55 .. 64]  |                                                              |
-|      7      |  [65 .. 74]  | DC 10                                               |
-|      8      |  [75 .. 84]  | DC 10                                               |
-|      9      |  [85 .. 94]  | DC 15; heavy armor at disadv.                       |
-|     10      | [95 .. 104]  | DC 15; heavy armor at disadv.                       |
-|     11      | [105 .. 114] | DC 20; medium and heavy armor at disadv.            |
-|     12      | [115 .. 124] | DC 20; medium and heavy armor at disadv.            |
-|     13      | [125 .. 134] | DC 25; light, medium, and heavy armor at disadv.    |
-|     14      | [135 .. 144] | DC 25; light, medium, and heavy armor at disadv.    |
-|     15      |   ≥ 145°F    | DC 30; light, medium, and heavy armor at disadv.    |
+|      7      |  [65 .. 74]  |                                                              |
+|      8      |  [75 .. 84]  |                                                              |
+|      9      |  [85 .. 94]  |                                                              |
+|     10      | [95 .. 104]  | DC 10                                                        |
+|     11      | [105 .. 114] | DC 15; heavy armor at disadv.                                |
+|     12      | [115 .. 124] | DC 20; medium and heavy armor at disadv.                     |
+|     13      | [125 .. 134] | DC 25; all armor at disadv.                                  |
+|     14      | [135 .. 144] | DC 25; all armor at disadv.                                  |
+|     15      |   ≥ 145°F    | DC 30; all armor at disadv.                                  |
 ### Wind
 
 All effects are cumulative
