@@ -9505,6 +9505,78 @@ function _moonTodaySummaryHtml(today, tier, horizonDays){
 }
 
 // ---------------------------------------------------------------------------
+// 20i-b) Moon upcoming events list
+// ---------------------------------------------------------------------------
+
+// Collect upcoming full/new moon events within `daysAhead` of today,
+// sorted chronologically.  Returns menuBox HTML.
+function moonUpcomingHtml(daysAhead){
+  var st  = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons){
+    return _menuBox('🌙 Upcoming Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+  var today = todaySerial();
+  moonEnsureSequences(today, daysAhead + 60);
+
+  var events = [];
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    var types = ['full','new'];
+    for (var ti = 0; ti < types.length; ti++){
+      var type = types[ti];
+      var ser = today;
+      for (var safety = 0; safety < 500; safety++){
+        var nxt = _moonNextEvent(moon.name, ser, type);
+        if (nxt === null || nxt > today + daysAhead) break;
+        events.push({ serial: nxt, moon: moon.name, type: type });
+        ser = nxt; // _moonNextEvent returns events strictly after `ser`
+      }
+    }
+  }
+
+  events.sort(function(a,b){ return a.serial - b.serial || a.moon.localeCompare(b.moon); });
+
+  if (!events.length){
+    return _menuBox('🌙 Upcoming Moons',
+      '<div style="opacity:.7;">No full or new moons in the next '+daysAhead+' days.</div>'+
+      '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
+    );
+  }
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Date</th>'+
+    '<th style="'+STYLES.th+'">Moon</th>'+
+    '<th style="'+STYLES.th+'">Phase</th>'+
+    '<th style="'+STYLES.th+'">In</th>'+
+    '</tr>';
+  var body = events.slice(0,250).map(function(ev){
+    var d = fromSerial(ev.serial);
+    var m = getCal().months[d.mi] || {};
+    var label = esc((m.name||'?')+' '+d.day+', '+d.year);
+    var daysUntil = ev.serial - today;
+    var inStr = (daysUntil === 0) ? 'today' : (daysUntil === 1 ? '1 day' : daysUntil+' days');
+    var phLabel = (ev.type === 'full') ? '🌕 Full' : '🌑 New';
+    return '<tr>'+
+      '<td style="'+STYLES.td+'">'+label+'</td>'+
+      '<td style="'+STYLES.td+'">'+esc(ev.moon)+'</td>'+
+      '<td style="'+STYLES.td+'">'+phLabel+'</td>'+
+      '<td style="'+STYLES.td+'">'+inStr+'</td>'+
+      '</tr>';
+  }).join('');
+
+  var extra = events.length > 250
+    ? '<div style="font-size:.78em;opacity:.55;margin-top:4px;">Showing first 250 of '+events.length+' results.</div>'
+    : '';
+
+  return _menuBox('🌙 Upcoming Moons ('+daysAhead+' days)',
+    '<table style="'+STYLES.table+'">'+head+body+'</table>'+
+    extra+
+    '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 20j) Moon panel HTML -- tiered
 // ---------------------------------------------------------------------------
 
@@ -11259,8 +11331,16 @@ function handleMoonCommand(m, args){
       moonEnsureSequences(pSerial, pHorizon + 30);
       return whisper(m.who, moonPlayerPanelHtml(pSerial));
     }
+    if (sub === 'upcoming' || sub === 'list'){
+      var pMoonHorizon = parseInt(getMoonState().revealHorizonDays, 10) || 7;
+      var pMoonSpan = _parseSpanDaysToken(args[2], pMoonHorizon, pMoonHorizon);
+      if (!pMoonSpan){
+        return whisper(m.who, 'Usage: <code>!cal moon upcoming [span]</code> (up to your horizon)');
+      }
+      return whisper(m.who, moonUpcomingHtml(pMoonSpan));
+    }
     return whisper(m.who,
-      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code>'
+      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon upcoming [span]</code>'
     );
   }
 
@@ -11327,6 +11407,15 @@ function handleMoonCommand(m, args){
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
     moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
     return whisper(m.who, moonPanelHtml(serialOn));
+  }
+
+  // !cal moon upcoming [span]  — list upcoming full/new moon events
+  if (sub === 'upcoming' || sub === 'list'){
+    var moonSpanDays = _parseSpanDaysToken(args[2], 56, 336 * 3);
+    if (!moonSpanDays){
+      return whisper(m.who, 'Usage: <code>!cal moon upcoming [days|4w|2m|1y]</code>');
+    }
+    return whisper(m.who, moonUpcomingHtml(moonSpanDays));
   }
 
   // !cal moon seed <word>
@@ -11412,6 +11501,7 @@ function handleMoonCommand(m, args){
     'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
     '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon upcoming [span]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon reset [&lt;name&gt;]</code>'
