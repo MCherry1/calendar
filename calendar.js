@@ -4035,9 +4035,9 @@ function _activePlanarWeatherShiftLines(serial){
     for (var i = 0; i < eff.length; i++){
       var e = eff[i];
       if (e.plane === 'Fernia' && e.phase === 'coterminous') out.push('Fernia coterminous: temperature +3');
-      if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -1');
+      if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -2');
       if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -3');
-      if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +1');
+      if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +2');
       if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: clear and calm (precipitation 0, wind 0)');
       if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: precipitation +1');
       if (e.plane === 'Mabar'  && e.phase === 'coterminous') out.push('Mabar coterminous: temperature -1');
@@ -4051,9 +4051,9 @@ function _activePlanarWeatherShiftLines(serial){
 function _planarWeatherInfluenceText(e){
   if (!e) return null;
   if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+3 temp)';
-  if (e.plane === 'Fernia' && e.phase === 'remote')      return '🔥 Fernia remote (-1 temp)';
+  if (e.plane === 'Fernia' && e.phase === 'remote')      return '🔥 Fernia remote (-2 temp)';
   if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-3 temp)';
-  if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+1 temp)';
+  if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+2 temp)';
   if (e.plane === 'Syrania'&& e.phase === 'coterminous') return '🌤 Syrania coterminous (clear, calm)';
   if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip)';
   if (e.plane === 'Mabar'  && e.phase === 'coterminous') return '🌑 Mabar coterminous (-1 temp)';
@@ -6214,9 +6214,9 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
       for (var _pe = 0; _pe < _plEff.length; _pe++){
         var _ppe = _plEff[_pe];
         if (_ppe.plane === 'Fernia'  && _ppe.phase === 'coterminous') finalVals.temp += 3;
-        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')      finalVals.temp -= 1;
+        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')      finalVals.temp -= 2;
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 3;
-        if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 1;
+        if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 2;
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = 0; finalVals.wind = 0; }
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
       }

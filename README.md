@@ -349,12 +349,12 @@ Planes can also alter weather while they are **coterminous** or **remote**. Thes
 | Daanvi | Civilization and ritual order may strengthen, but no obvious global effect is expected. | Century-long remote period with no obvious global effect. | None |
 | Dal Quor | Not applicable in normal play. | Only reachable through dreaming; no natural manifest zones. | None |
 | Dolurrh | Ghosts slip through more easily and resurrection becomes risky. | Traditional resurrection fails without retrieving the spirit. | None |
-| Fernia | Extreme heat, empowered fire, and burning-bright conditions spread. | Intense heat loses some bite. | `+3` temperature / `-1` temperature |
+| Fernia | Extreme heat, empowered fire, and burning-bright conditions spread. | Intense heat loses more of its bite. | `+3` temperature / `-2` temperature |
 | Irian | Life, fertility, and radiant vitality surge. | The world feels faded and healing is weaker. | `+1` temperature / none |
 | Kythri | No stable global effect. | No stable global effect. | None |
 | Lamannia | Natural and manifest-zone effects are enhanced. | Nature feels weaker and beast/elemental magic shortens. | `+1` precipitation / none |
 | Mabar | Long Shadows and necrotic darkness intensify at night. | Necrotic influence recedes and undead are easier to turn. | `-1` temperature during coterminous nights / none |
-| Risia | Extreme cold, empowered ice, and frozen stillness spread. | Intense cold loses some bite. | `-3` temperature / `+1` temperature |
+| Risia | Extreme cold, empowered ice, and frozen stillness spread. | Intense cold loses more of its bite. | `-3` temperature / `+2` temperature |
 | Shavarath | Anger, conflict, and war magic intensify. | Mostly suppresses Shavarath's own spike events. | None |
 | Syrania | Goodwill spreads and the day's weather is forced clear and calm. | Skies turn gray and social friction rises. | wind `0`, precipitation `0` / `+1` precipitation |
 | Thelanis | New gateways and fey crossings become easier. | Fey influence and manifest-zone effects are suppressed. | None |

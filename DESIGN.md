@@ -275,7 +275,7 @@ The generator outputs values on the −5 to 15 band scale, indexing directly int
 
 > Flavor/mechanics groupings: cold (≤3), cool (4), mild (5–6), warm (7–8), hot (9+)
 
-**Manifest zone temperature effects:** Fernia ±3, Risia ±3, Irian +1, Mabar −1. Planar coterminous/remote: Fernia coterminous +3 / remote −1, Risia coterminous −3 / remote +1.
+**Manifest zone temperature effects:** Fernia ±3, Risia ±3, Irian +1, Mabar −1. Planar coterminous/remote: Fernia coterminous +3 / remote −2, Risia coterminous −3 / remote +2.
 
 ### 6.4 Wind Scale (0–5)
 
