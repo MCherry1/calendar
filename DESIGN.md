@@ -670,7 +670,7 @@ For cyclic planes:
 - Orbit: 10 years; Windows: 1 day coterminous, 1 day remote
 - Transitions: 1,679 days waning + 1,679 days waxing
 - Anchor: year 998, Rhaan 9, coterminous, seed-anchor enabled
-- Special: coterminous anomaly enforces clear/calm weather override
+- Special: coterminous anomaly enforces clear/calm weather override (precip 0, wind 0); remote anomaly adds +1 precip, +1 wind (gray, unsettled skies)
 
 #### Thelanis — The Faerie Court
 - Type: cyclic

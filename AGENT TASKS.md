@@ -115,7 +115,7 @@ Status: Completed by ChatGPT version number 5.4
 
 - [x] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
 - [x] Change **Syrania manifest zones** to a lighter modifier (`-1` wind, `-1` precipitation)
-- [ ] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
+- [x] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
 
 ---
 
@@ -176,11 +176,13 @@ This is the "divination magic" feature: GM reveals weather for a specific date a
 ---
 ### Correct Harptos calendar display
 
+Status: Completed
+
 The Faerûnian/Harptos calendar currently uses weekday-based layout. It should use tendays:
-- [ ] Each month = 3 rows × 10 columns
-- [ ] Column labels: `1st` through `10th`
-- [ ] Date format: `16th of <Month>, <Year> DR`
-- [ ] Festival/intercalary day strip:
+- [x] Each month = 3 rows × 10 columns
+- [x] Column labels: `1st` through `10th`
+- [x] Date format: `16th of <Month>, <Year> DR`
+- [x] Festival/intercalary day strip:
   - Looks like a day/event cell with no number
   - Hover shows the event name
   - Sits in its own row with one festival cell and a centered 9-day-width blank/default cell

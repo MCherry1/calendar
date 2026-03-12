@@ -811,6 +811,12 @@ function weekLength(){
   return n > 0 ? n : 7;
 }
 
+// Returns true if the active calendar uses tenday (Harptos) layout:
+// fixed 10-column grid aligned to month start, no overflow cells.
+function _isTendayLayout(){
+  return (ensureSettings().calendarSystem === 'faerunian');
+}
+
 function colorForMonth(mi){
   var st  = ensureSettings();
   var cal = getCal();
@@ -2243,8 +2249,12 @@ function renderMonthTable(opts){
   // Merged intercalary day (e.g. Gregorian leap day): rendered as part of parent month.
   if (mobj.mergeIntoPrev) return '';
 
-  // Intercalary day: banner row instead of a grid.
-  if (mobj.isIntercalary) return renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents);
+  // Intercalary day: in tenday layout, shown as shoulder strips on adjacent months.
+  // In standard layout, rendered as a standalone banner.
+  if (mobj.isIntercalary){
+    if (_isTendayLayout()) return '';
+    return renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents);
+  }
 
   // Effective day count: include days from any following mergeIntoPrev months.
   var mdays = mobj.days|0;
@@ -2259,6 +2269,56 @@ function renderMonthTable(opts){
   var wdCnt = weekLength()|0;
 
   if (mode === 'full'){
+    if (_isTendayLayout()){
+      // Tenday (Harptos): fixed rows of wdCnt aligned to month start, no overflow.
+      // Adjacent intercalary festival strips shown before/after the month grid.
+      var _tendayFestivalStrip = function(festMi){
+        var fm = cal.months[festMi];
+        if (!fm || !fm.isIntercalary) return '';
+        if (fm.leapEvery && !_isLeapMonth(fm, y)) return '';
+        var fSer = toSerial(y, festMi, 1);
+        var tSer = todaySerial();
+        var fEvts = (includeCalendarEvents === false) ? [] : getEventsFor(festMi, 1, y);
+        var fExtra = (typeof extraEventsFn === 'function') ? (extraEventsFn(fSer) || []) : [];
+        var allEvts = sortEventsByPriority((fEvts || []).concat(fExtra));
+        var ttl = allEvts.length ? allEvts.map(eventDisplayName).filter(Boolean).join('\n') : fm.name;
+        var isToday = fSer === tSer;
+        var isPast = !!dimActive && fSer < tSer;
+        var cellStyle = STYLES.calTd + 'text-align:center;font-style:italic;';
+        if (isToday) cellStyle += STYLES.today;
+        if (isPast)  cellStyle += 'opacity:.45;';
+        var dots = _eventDotsHtml(allEvts);
+        var titleAttr = ' title="'+esc(ttl)+'" aria-label="'+esc(ttl)+'"';
+        return '<tr'+titleAttr+'>' +
+          '<td style="'+cellStyle+'">'+_calendarCellInnerHtml('<div style="font-size:.8em;">'+esc(fm.name)+'</div>'+dots)+'</td>' +
+          '<td colspan="'+(wdCnt-1)+'" style="'+STYLES.calTd+'opacity:.15;"></td>' +
+          '</tr>';
+      };
+      // Show preceding intercalary festival(s) as shoulder strips.
+      for (var _pi = mi-1; _pi >= 0; _pi--){
+        if (!cal.months[_pi].isIntercalary) break;
+        html.push(_tendayFestivalStrip(_pi));
+      }
+      // Month days: rows of wdCnt, purely sequential.
+      for (var _td = 1; _td <= mdays; _td += wdCnt){
+        html.push('<tr>');
+        for (var _tc = 0; _tc < wdCnt && (_td + _tc) <= mdays; _tc++){
+          var _day = _td + _tc;
+          var ctx = makeDayCtx(y, mi, _day, dimActive, extraEventsFn, includeCalendarEvents);
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
+        }
+        html.push('</tr>');
+      }
+      // Show following intercalary festival(s) as shoulder strips.
+      for (var _fi = mi+1; _fi < cal.months.length; _fi++){
+        if (cal.months[_fi].mergeIntoPrev) continue;
+        if (!cal.months[_fi].isIntercalary) break;
+        html.push(_tendayFestivalStrip(_fi));
+      }
+      html.push(closeMonthTable());
+      return html.join('');
+    }
+    // Standard weekday-based grid with overflow cells.
     var gridStart    = weekStartSerial(y, mi, 1);
     var lastRowStart = weekStartSerial(y, mi, mdays);
     for (var rowStart = gridStart; rowStart <= lastRowStart; rowStart += wdCnt){
@@ -2626,21 +2686,40 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsF
     return html.join('');
   }
 
-  var firstRow = weekStartSerial(year, mi, minD);
-  var lastRow  = weekStartSerial(year, mi, maxD);
-  for (var rowStart = firstRow; rowStart <= lastRow; rowStart += wdCnt){
-    html.push('<tr>');
-    for (var c=0; c<wdCnt; c++){
-      var s = rowStart + c;
-      var d = fromSerial(s);
-      if (d.year === year && d.mi === mi && wantedSet[d.day]){
-        var ctx = makeDayCtx(d.year, d.mi, d.day, !!dimActive, extraEventsFn, includeCalendarEvents);
-        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
-      } else {
-        html.push('<td style="'+STYLES.calTd+'">'+_calendarCellInnerHtml('')+'</td>');
+  if (_isTendayLayout()){
+    // Tenday: rows aligned to month, no week-start offset.
+    var firstRowD = Math.floor((minD - 1) / wdCnt) * wdCnt + 1;
+    var lastRowD  = Math.floor((maxD - 1) / wdCnt) * wdCnt + 1;
+    for (var _rd = firstRowD; _rd <= lastRowD; _rd += wdCnt){
+      html.push('<tr>');
+      for (var _rc = 0; _rc < wdCnt; _rc++){
+        var _dd = _rd + _rc;
+        if (_dd >= 1 && _dd <= (getCal().months[mi].days|0) && wantedSet[_dd]){
+          var ctx = makeDayCtx(year, mi, _dd, !!dimActive, extraEventsFn, includeCalendarEvents);
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
+        } else {
+          html.push('<td style="'+STYLES.calTd+'">'+_calendarCellInnerHtml('')+'</td>');
+        }
       }
+      html.push('</tr>');
     }
-    html.push('</tr>');
+  } else {
+    var firstRow = weekStartSerial(year, mi, minD);
+    var lastRow  = weekStartSerial(year, mi, maxD);
+    for (var rowStart = firstRow; rowStart <= lastRow; rowStart += wdCnt){
+      html.push('<tr>');
+      for (var c=0; c<wdCnt; c++){
+        var s = rowStart + c;
+        var d = fromSerial(s);
+        if (d.year === year && d.mi === mi && wantedSet[d.day]){
+          var ctx = makeDayCtx(d.year, d.mi, d.day, !!dimActive, extraEventsFn, includeCalendarEvents);
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
+        } else {
+          html.push('<td style="'+STYLES.calTd+'">'+_calendarCellInnerHtml('')+'</td>');
+        }
+      }
+      html.push('</tr>');
+    }
   }
   html.push(closeMonthTable());
   return html.join('');
@@ -2979,15 +3058,24 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
   var merged = _resolveMergedMonth(cal.months, cur.month, cur.day_of_the_month);
+  var mobj = cal.months[merged.mi] || {};
+  // Harptos: "16th of Eleasis, 1491 DR"; intercalary days by name only.
+  if (ensureSettings().calendarSystem === 'faerunian'){
+    if (mobj.isIntercalary) return mobj.name + ', ' + cur.year + ' ' + LABELS.era;
+    return formatDateLabel(cur.year, merged.mi, merged.day, true);
+  }
   return cal.weekdays[cur.day_of_the_week] + ", " +
          merged.day + " " +
-         cal.months[merged.mi].name + ", " +
+         mobj.name + ", " +
          cur.year + " " + LABELS.era;
 }
 
 function dateLabelFromSerial(serial){
   var cal = getCal();
   var d = fromSerial(serial);
+  if (ensureSettings().calendarSystem === 'faerunian'){
+    return formatDateLabel(d.year, d.mi, d.day, true);
+  }
   var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
   return wd + ", " + d.day + " " + cal.months[d.mi].name + ", " + d.year + " " + LABELS.era;
 }
@@ -3159,15 +3247,16 @@ function sendCurrentDate(to, gmOnly, opts){
 
   // Date headline: weekday, date, year, season
   var _seasonLabel = _getSeasonLabel(_cm.mi, _cm.day);
+  var _dateHead = (st.calendarSystem === 'faerunian')
+    ? formatDateLabel(c.year, _cm.mi, _cm.day, true)
+    : esc(wd) + ', ' + esc(m.name) + ' ' + _cm.day + ', ' + esc(String(c.year)) + ' ' + LABELS.era;
   var dateLine = compact
     ? '<div style="font-weight:bold;margin:2px 0 3px 0;">' +
-      esc(wd) + ', ' + esc(m.name) + ' ' + _cm.day + ', ' +
-      esc(String(c.year)) + ' ' + LABELS.era +
+      _dateHead +
       (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>'
     : '<div style="font-weight:bold;margin:3px 0;">' +
-      esc(wd) + ', ' + esc(m.name) + ' ' + _cm.day + ', ' +
-      esc(String(c.year)) + ' ' + LABELS.era +
+      _dateHead +
       (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;font-size:.9em;">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>';
 
@@ -3992,8 +4081,8 @@ function _activePlanarWeatherShiftLines(serial){
       if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -1');
       if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -3');
       if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +1');
-      if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: precipitation -1, wind -1');
-      if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: precipitation +1');
+      if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: clear, calm (precip 0, wind 0)');
+      if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: gray skies (+1 precip, +1 wind)');
       if (e.plane === 'Mabar'  && e.phase === 'coterminous') out.push('Mabar coterminous: temperature -1');
       if (e.plane === 'Irian'  && e.phase === 'coterminous') out.push('Irian coterminous: temperature +1');
       if (e.plane === 'Lamannia'&& e.phase === 'coterminous')out.push('Lamannia coterminous: precipitation +1');
@@ -4009,7 +4098,7 @@ function _planarWeatherInfluenceText(e){
   if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-2 temp)';
   if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+1 temp)';
   if (e.plane === 'Syrania'&& e.phase === 'coterminous') return '🌤 Syrania coterminous (clear, calm)';
-  if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip)';
+  if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip, +1 wind)';
   if (e.plane === 'Mabar'  && e.phase === 'coterminous') return '🌑 Mabar coterminous (-1 temp)';
   if (e.plane === 'Irian'  && e.phase === 'coterminous') return '✨ Irian coterminous (+1 temp)';
   if (e.plane === 'Lamannia'&& e.phase === 'coterminous')return '🌿 Lamannia coterminous (+1 precip)';
@@ -6171,7 +6260,7 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 3;
         if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 1;
         if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = 0; finalVals.wind = 0; }
-        if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
+        if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote'){       finalVals.precip = Math.min(5, finalVals.precip + 1); finalVals.wind = Math.min(5, finalVals.wind + 1); }
       }
     } catch(e){ /* planar system not ready */ }
   }
