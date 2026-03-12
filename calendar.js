@@ -12386,27 +12386,47 @@ function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
       }
       prevCanon[name] = curCanon;
 
-      // Generated (off-cycle) event transitions
+      // Generated (off-cycle) event spans
       if (includeGenerated){
         var curActual = getPlanarState(name, ser);
         var curIsGen = !!(curActual && _isGeneratedNote(curActual.note));
-        var prevWasGen = prevGen[name] && prevGen[name].gen;
+        var prevEntry = prevGen[name] || { phase: null, gen: false };
+        var prevWasGen = !!prevEntry.gen;
 
-        if (curIsGen && !prevWasGen){
-          // Generated event starts
-          var gEmoji = PLANE_PHASE_EMOJI[curActual.phase] || '🟣';
-          out.push({
-            serial: ser,
-            name: gEmoji + '✨ ' + name + ': Anomalous ' + (PLANE_PHASE_LABELS[curActual.phase] || curActual.phase),
-            color: '#BA68C8'
-          });
-        } else if (!curIsGen && prevWasGen){
-          // Generated event ends
-          out.push({
-            serial: ser,
-            name: '⚪ ' + name + ': Anomaly fades',
-            color: '#CE93D8'
-          });
+        if (curIsGen){
+          var gPhase = curActual.phase || 'waning';
+          var gEmoji = PLANE_PHASE_EMOJI[gPhase] || '🟣';
+          var gLabel = (PLANE_PHASE_LABELS[gPhase] || gPhase).toLowerCase();
+          var gColor = (gPhase === 'coterminous' || gPhase === 'remote') ? '#CE93D8' : '#E1BEE7';
+
+          var nextActual = getPlanarState(name, ser + 1);
+          var nextIsGen = !!(nextActual && _isGeneratedNote(nextActual.note));
+          var nextPhase = nextActual ? nextActual.phase : null;
+
+          var startsHere = (!prevWasGen || prevEntry.phase !== gPhase);
+          var endsHere = (!nextIsGen || nextPhase !== gPhase);
+
+          if (startsHere){
+            out.push({
+              serial: ser,
+              name: gEmoji + '✨ ' + name + ': Anomalous ' + gLabel + ' begins',
+              color: '#BA68C8'
+            });
+          } else {
+            out.push({
+              serial: ser,
+              name: gEmoji + '✨ ' + name + ': Anomalous ' + gLabel,
+              color: gColor
+            });
+          }
+
+          if (endsHere){
+            out.push({
+              serial: ser,
+              name: gEmoji + '✨ ' + name + ': Anomalous ' + gLabel + ' ends',
+              color: '#CE93D8'
+            });
+          }
         }
         prevGen[name] = { phase: curActual ? curActual.phase : null, gen: curIsGen };
       }
