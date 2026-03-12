@@ -246,15 +246,15 @@ The live generator maps directly on the `-5` to `15` band scale shown below.
 |      4      |  [35 .. 44]  |                                                              |
 |      5      |  [45 .. 54]  |                                                              |
 |      6      |  [55 .. 64]  |                                                              |
-|      7      |  [65 .. 74]  | DC 10                                               |
-|      8      |  [75 .. 84]  | DC 10                                               |
-|      9      |  [85 .. 94]  | DC 15; heavy armor at disadv.                       |
-|     10      | [95 .. 104]  | DC 15; heavy armor at disadv.                       |
-|     11      | [105 .. 114] | DC 20; medium and heavy armor at disadv.            |
-|     12      | [115 .. 124] | DC 20; medium and heavy armor at disadv.            |
-|     13      | [125 .. 134] | DC 25; light, medium, and heavy armor at disadv.    |
-|     14      | [135 .. 144] | DC 25; light, medium, and heavy armor at disadv.    |
-|     15      |   ≥ 145°F    | DC 30; light, medium, and heavy armor at disadv.    |
+|      7      |  [65 .. 74]  |                                                              |
+|      8      |  [75 .. 84]  |                                                              |
+|      9      |  [85 .. 94]  |                                                              |
+|     10      | [95 .. 104]  | DC 10                                                        |
+|     11      | [105 .. 114] | DC 15; heavy armor at disadv.                                |
+|     12      | [115 .. 124] | DC 20; medium and heavy armor at disadv.                     |
+|     13      | [125 .. 134] | DC 25; all armor at disadv.                                  |
+|     14      | [135 .. 144] | DC 25; all armor at disadv.                                  |
+|     15      |   ≥ 145°F    | DC 30; all armor at disadv.                                  |
 ### Wind
 
 All effects are cumulative
@@ -418,10 +418,16 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 ```
 !cal moon                       — moon phase panel for today
 !cal moon on <date>             — moon phases on a specific date
-!cal moon upcoming [span]       — upcoming notable moon events
+!cal moon view [moonName]       — single-moon mini-calendar (phase-colored cells)
 !cal moon sky [time]            — sky visibility at a time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]       — lore for a specific moon
 ```
+
+#### Single-Moon Calendar
+
+`!cal moon view <moonName>` shows a dedicated mini-calendar for one moon. Each cell is color-filled by phase intensity (gold for full, dark for new) with a phase emoji and percentage in the tooltip. A colored header bar displays the moon's name and title. Navigate months with the Prev/Next buttons.
+
+Full and new moons can span multiple days when the moon's synodic period is long enough that illumination stays above 98% or below 2% for more than one day.
 
 ### Sending Moon Info to Players
 
@@ -455,7 +461,6 @@ Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
 ```
 !cal planes                     — current planar phase panel
 !cal planes on <date>           — planar state on a specific date
-!cal planes upcoming [span]     — upcoming planar events
 ```
 
 ### Sending Plane Info to Players

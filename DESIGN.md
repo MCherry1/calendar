@@ -257,30 +257,9 @@ The model combines deterministic season/location baselines with stochastic rolls
 
 ### 6.3 Temperature Scale
 
-**Current implementation:** 0–10 (11 bands, 15°F each starting at −25°F)
-**Target:** −5 to 15 (migration in progress — see tasks.md)
+**Active implementation:** −5 to 15 (21 bands, 10°F each)
 
-#### Active Temperature Scale (0–10, legacy/current)
-
-| Stage | Label | Fahrenheit Band | Mechanical Core |
-|---|---|---|---|
-| 0 | Extreme Cold | ≤ −25°F | DC 25 Con save or exhaustion; disadvantage without heavy cold-weather clothing |
-| 1 | Frigid | −24°F to −10°F | DC 20 Con save or exhaustion; disadvantage without medium/heavy cold-weather clothing |
-| 2 | Freezing | −9°F to 5°F | DC 15 Con save or exhaustion; disadvantage without light/medium/heavy cold-weather clothing |
-| 3 | Cold | 6°F to 20°F | DC 10 Con save or exhaustion |
-| 4 | Chilly | 21°F to 35°F | No direct temperature save |
-| 5 | Mild | 36°F to 50°F | No direct temperature save |
-| 6 | Warm | 51°F to 65°F | No direct temperature save |
-| 7 | Hot | 66°F to 80°F | DC 10 Con save or exhaustion |
-| 8 | Sweltering | 81°F to 95°F | DC 15 Con save or exhaustion; heavy armor at disadvantage |
-| 9 | Blistering | 96°F to 110°F | DC 20 Con save or exhaustion; medium + heavy armor at disadvantage |
-| 10 | Extreme Heat | ≥ 111°F | DC 25 Con save or exhaustion; all armor wearers at disadvantage |
-
-> Flavor/mechanics groupings: cold (0–3), cool (4), mild (5–6), warm (7), hot (8–10)
-
-#### Expanded Scale (−5 to 15, target)
-
-The script contains canonical expanded band table (`WEATHER_TEMPERATURE_BANDS_F`) plus companion rules dictionaries (`WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) as drop-in data for the migration.
+The generator outputs values on the −5 to 15 band scale, indexing directly into `WEATHER_TEMPERATURE_BANDS_F` and companion rule tables (`WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`).
 
 | Band Range | Fahrenheit | Risk Level |
 |---|---|---|
@@ -293,6 +272,10 @@ The script contains canonical expanded band table (`WEATHER_TEMPERATURE_BANDS_F`
 | 7 to 9 | 65°F to 94°F | Heat checks, DC 10–15 under compounding factors |
 | 10 to 14 | 95°F to 144°F | Escalating heat burden and armor disadvantage |
 | 15 | ≥ 145°F | Infernal heat, DC 30, mundane gear insufficient |
+
+> Flavor/mechanics groupings: cold (≤3), cool (4), mild (5–6), warm (7–8), hot (9+)
+
+**Manifest zone temperature effects:** Fernia ±3, Risia ±3, Irian +1, Mabar −1. Planar coterminous/remote: Fernia coterminous +3 / remote −1, Risia coterminous −3 / remote +1.
 
 ### 6.4 Wind Scale (0–5)
 
@@ -535,7 +518,6 @@ Aryth "has a similar effect on manifest zones as Zarantyr has on tides."
 ```
 !cal moon
 !cal moon on <dateSpec>
-!cal moon upcoming [span]
 !cal moon send [low|medium|high] [range option]
 !cal moon sky [time]              — sky visibility at time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]         — moon lore output
@@ -744,7 +726,6 @@ Deterministic, seed-based anomalies checked per plane/day.
 ```
 !cal planes
 !cal planes on <dateSpec>
-!cal planes upcoming [span]
 !cal planes send [low|medium|high] [range]
 !cal planes set <name> <phase> [days]
 !cal planes clear [<name>]
@@ -857,12 +838,11 @@ See [Section 7.10](#710-aryth-and-manifest-zones).
 
 ```
 Row 1: ⏮ Back  |  ⏭ Forward  |  📣 Send
-Row 2: 📋 Today  |  📅 Upcoming  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
+Row 2: 📋 Today  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
 Row 3: ⚙ Admin
 ```
 
 `!cal today` → deep-dive all subsystems for today (GM-only by default)
-`!cal upcoming` → 7-day strip with subsystem highlights
 
 ### 12.3 Player View
 

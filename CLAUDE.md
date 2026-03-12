@@ -88,11 +88,10 @@ All subsystems use unified tier names. No legacy "mundane/magical/abridged" in n
 ### GM Interface (`!cal`)
 Button bar (three rows):
 1. `⏮ Back` | `⏭ Forward` | `📣 Send`
-2. `📋 Today` | `📅 Upcoming` | `🌤 Weather` | `🌙 Moons` | `🌀 Planes`
+2. `📋 Today` | `🌤 Weather` | `🌙 Moons` | `🌀 Planes`
 3. `⚙ Admin`
 
 `!cal today` = deep-dive all subsystems for today (GM only)
-`!cal upcoming` = 7-day strip with subsystem highlights (GM only)
 
 ### Key Design Principles
 - **Lore fidelity is a hard constraint** — mechanical systems reflect narrative logic
