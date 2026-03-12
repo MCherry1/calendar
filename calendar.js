@@ -1373,6 +1373,15 @@ function _isLeapMonth(m, y){
   return !!(m.leapEvery && (y % m.leapEvery === 0));
 }
 
+function _isGregorianLeapSlotMonthObj(m){
+  return !!(ensureSettings().calendarSystem === 'gregorian' && m && m.isIntercalary && String(m.name||'') === 'Leap Day');
+}
+
+function _isGregorianLeapSlotIndex(mi){
+  var months = getCal().months;
+  return _isGregorianLeapSlotMonthObj(months[mi]);
+}
+
 // Base days per year: sum of all non-leap month days.
 // Cached — recompute if months array changes (via _invalidateSerialCache).
 var _serialCache = { baseDpy: null, hasLeap: null, avgDpy: null };
@@ -1515,6 +1524,11 @@ function _nextActiveMi(mi, y){
   var ny  = y + (nmi === 0 ? 1 : 0);
   var safety = 0;
   while (safety++ < len){
+    if (_isGregorianLeapSlotIndex(nmi)){
+      nmi = (nmi + 1) % len;
+      if (nmi === 0) ny++;
+      continue;
+    }
     if (!months[nmi].leapEvery || _isLeapMonth(months[nmi], ny)) return { mi: nmi, y: ny };
     nmi = (nmi + 1) % len;
     if (nmi === 0) ny++;
@@ -1530,6 +1544,11 @@ function _prevActiveMi(mi, y){
   var py  = y - (mi === 0 ? 1 : 0);
   var safety = 0;
   while (safety++ < len){
+    if (_isGregorianLeapSlotIndex(pmi)){
+      pmi = (pmi - 1 + len) % len;
+      if (pmi === len - 1) py--;
+      continue;
+    }
     if (!months[pmi].leapEvery || _isLeapMonth(months[pmi], py)) return { mi: pmi, y: py };
     pmi = (pmi + len - 1) % len;
     if (pmi === len - 1) py--;
@@ -2176,16 +2195,18 @@ function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeC
   var titleAttr = title ? ' title="'+esc(title)+'" aria-label="'+esc(title)+'"' : '';
   var dots = _eventDotsHtml(ctx.events);
   var wdCnt = weekLength()|0;
+  var isGregorianLeapDay = (ensureSettings().calendarSystem === 'gregorian' && String(mobj.name||'') === 'Leap Day');
+  var headerName = isGregorianLeapDay ? 'February 29' : mobj.name;
   return [
     '<table style="'+STYLES.table+'">',
     '<tr><th colspan="'+wdCnt+'" style="'+STYLES.head+'">',
     '<div style="'+STYLES.monthHeaderBase+hdrStyle+'">',
-      esc(mobj.name),
-      (mobj.leapEvery ? ' <span style="font-size:.75em;opacity:.75;">(every '+mobj.leapEvery+' yrs)</span>' : ''),
+      esc(headerName),
+      (mobj.leapEvery && !isGregorianLeapDay ? ' <span style="font-size:.75em;opacity:.75;">(every '+mobj.leapEvery+' yrs)</span>' : ''),
     '</div>',
     '</th></tr>',
     '<tr'+titleAttr+'><td colspan="'+wdCnt+'" style="'+cellStyle+'">',
-    _calendarCellInnerHtml('<div style="font-size:.9em;line-height:1.5;">'+esc(mobj.name)+'</div>'+dots),
+    _calendarCellInnerHtml('<div style="font-size:.9em;line-height:1.5;">'+esc(headerName)+'</div>'+dots),
     '</td></tr>',
     '</table>'
   ].join('');
@@ -2202,6 +2223,9 @@ function renderMonthTable(opts){
 
   var mobj  = cal.months[mi];
 
+  // Gregorian leap-day slot is rendered within February and not as a standalone month.
+  if (_isGregorianLeapSlotMonthObj(mobj)) return '';
+
   // Leap month not active this year: render nothing.
   if (mobj.leapEvery && !_isLeapMonth(mobj, y)) return '';
 
@@ -2209,6 +2233,17 @@ function renderMonthTable(opts){
   if (mobj.isIntercalary) return renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents);
 
   var mdays = mobj.days|0;
+  var febLeapSlot = null;
+  var showGregorianFeb29 = false;
+  if (ensureSettings().calendarSystem === 'gregorian' && !mobj.isIntercalary && String(mobj.name||'') === 'February'){
+    for (var gmi=0; gmi<cal.months.length; gmi++){
+      if (_isGregorianLeapSlotMonthObj(cal.months[gmi])){ febLeapSlot = gmi; break; }
+    }
+    if (febLeapSlot != null && _isLeapMonth(cal.months[febLeapSlot], y)){
+      showGregorianFeb29 = true;
+      mdays = mdays + 1;
+    }
+  }
   var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false));
   var html  = [parts.html];
   var wdCnt = weekLength()|0;
@@ -2224,6 +2259,25 @@ function renderMonthTable(opts){
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimActive, extraEventsFn, includeCalendarEvents);
           html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
+        } else if (showGregorianFeb29 && d.year === y && d.mi === febLeapSlot && d.day === 1){
+          var leapSer = s;
+          var leapBaseEvents = (includeCalendarEvents === false) ? [] : getEventsFor(febLeapSlot, 1, y);
+          var leapExtraEvents = [];
+          if (typeof extraEventsFn === 'function'){
+            var leapAdd = extraEventsFn(leapSer);
+            if (Array.isArray(leapAdd)) leapExtraEvents = leapAdd;
+          }
+          var leapEvents = sortEventsByPriority((leapBaseEvents || []).concat(leapExtraEvents || []));
+          var leapTitle = leapEvents.length ? leapEvents.map(eventDisplayName).filter(Boolean).join('\n') : '';
+          var leapCtx = {
+            y:y, mi:mi, d:29, serial:leapSer,
+            isToday: (leapSer === todaySerial()),
+            isPast:  !!dimActive && (leapSer < todaySerial()),
+            isFuture:!!dimActive && (leapSer > todaySerial()),
+            events: leapEvents,
+            title: leapTitle
+          };
+          html.push(tdHtmlForDay(leapCtx, parts.monthColor, STYLES.calTd, ''));
         } else {
           // Overflow cell: adjacent month's day, tinted with that month's color.
           var ovColor = colorForMonth(d.mi);
@@ -2246,9 +2300,30 @@ function renderMonthTable(opts){
   for (var i=0; i<wdCnt; i++){
     var s2 = startSer + i;
     var d2 = fromSerial(s2);
-    var ctx2 = makeDayCtx(d2.year, d2.mi, d2.day, dimActive, extraEventsFn, includeCalendarEvents);
-    var numeralStyle = (d2.mi === mi) ? '' : 'opacity:.5;';
-    html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.calTd, numeralStyle));
+    if (showGregorianFeb29 && d2.year === y && d2.mi === febLeapSlot && d2.day === 1){
+      var leapSer2 = s2;
+      var leapBaseEvents2 = (includeCalendarEvents === false) ? [] : getEventsFor(febLeapSlot, 1, y);
+      var leapExtraEvents2 = [];
+      if (typeof extraEventsFn === 'function'){
+        var leapAdd2 = extraEventsFn(leapSer2);
+        if (Array.isArray(leapAdd2)) leapExtraEvents2 = leapAdd2;
+      }
+      var leapEvents2 = sortEventsByPriority((leapBaseEvents2 || []).concat(leapExtraEvents2 || []));
+      var leapTitle2 = leapEvents2.length ? leapEvents2.map(eventDisplayName).filter(Boolean).join('\n') : '';
+      var leapCtx2 = {
+        y:y, mi:mi, d:29, serial:leapSer2,
+        isToday: (leapSer2 === todaySerial()),
+        isPast:  !!dimActive && (leapSer2 < todaySerial()),
+        isFuture:!!dimActive && (leapSer2 > todaySerial()),
+        events: leapEvents2,
+        title: leapTitle2
+      };
+      html.push(tdHtmlForDay(leapCtx2, parts.monthColor, STYLES.calTd, ''));
+    } else {
+      var ctx2 = makeDayCtx(d2.year, d2.mi, d2.day, dimActive, extraEventsFn, includeCalendarEvents);
+      var numeralStyle = (d2.mi === mi) ? '' : 'opacity:.5;';
+      html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.calTd, numeralStyle));
+    }
   }
   html.push('</tr>', closeMonthTable());
   return html.join('');
@@ -2297,6 +2372,8 @@ function formatDateLabel(y, mi, d, includeYear){
     lbl = mobj.isIntercalary
       ? esc(mobj.name)
       : (ordinal(d) + ' of ' + esc(mobj.name));
+  } else if (st.calendarSystem === 'gregorian' && mobj.isIntercalary && String(mobj.name||'') === 'Leap Day'){
+    lbl = 'February 29';
   } else {
     lbl = esc(mobj.name)+' '+d;
   }
@@ -2931,17 +3008,22 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
 
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
+  var m = cal.months[cur.month] || {};
+  var datePart = (_isGregorianLeapSlotMonthObj(m)) ? '29 February' : (cur.day_of_the_month + ' ' + m.name);
   return cal.weekdays[cur.day_of_the_week] + ", " +
-         cur.day_of_the_month + " " +
-         cal.months[cur.month].name + ", " +
+         datePart + ", " +
          cur.year + " " + LABELS.era;
 }
 
 function dateLabelFromSerial(serial){
-  var cal = getCal();
+  var cal = getCal(), st = ensureSettings();
   var d = fromSerial(serial);
   var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
-  return wd + ", " + d.day + " " + cal.months[d.mi].name + ", " + d.year + " " + LABELS.era;
+  var m = cal.months[d.mi] || {};
+  var datePart = (st.calendarSystem === 'gregorian' && m.isIntercalary && String(m.name||'') === 'Leap Day')
+    ? '29 February'
+    : (d.day + ' ' + m.name);
+  return wd + ", " + datePart + ", " + d.year + " " + LABELS.era;
 }
 
 function nextForDayOnly(cur, day, monthsLen){
@@ -9591,7 +9673,6 @@ function moonPanelHtml(serialOverride){
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
     button('◀ Prev Month','moon on '+_serialToDateSpec(prevSer))+' '+
-    button('Current','moon')+' '+
     button('Next Month ▶','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
   var body = '';
@@ -9696,7 +9777,6 @@ function moonPlayerPanelHtml(serialOverride){
   }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
     _navBtn(prevSer, '◀ Prev')+' '+
-    button('Current','moon')+' '+
     _navBtn(nextSer, 'Next ▶')+
     '</div>';
 
@@ -11340,7 +11420,7 @@ function handleMoonCommand(m, args){
       var pNextS = _shiftSerialByMonth(pViewSerial, 1);
       var pViewNav = '<div style="margin:4px 0;">'+
         button('◀ Prev','moon view '+pViewMoon+' '+_serialToDateSpec(pPrevS))+' '+
-        button('Current','moon view '+pViewMoon)+' '+
+  
         button('Next ▶','moon view '+pViewMoon+' '+_serialToDateSpec(pNextS))+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
@@ -11506,7 +11586,6 @@ function handleMoonCommand(m, args){
     var nextS = _shiftSerialByMonth(viewSerial, 1);
     var viewNav = '<div style="margin:4px 0;">'+
       button('◀ Prev','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
-      button('Current','moon view '+viewMoonName)+' '+
       button('Next ▶','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
       '</div>';
     return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
@@ -11842,10 +11921,11 @@ function getPlanarState(planeName, serial, opts){
   if (plane.type === 'fixed'){
     var fixedPhase = plane.fixedPhase || 'remote';
     var fixedNote = plane.note || '';
+    var fixedIsGenerated = false;
 
     // Check for off-cycle generated shift
-      sourceLabel: fixedIsGenerated ? 'generated' : 'traditional',
-      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
+    if (!ignoreGenerated && isGeneratedShift(plane.name, serial)){
+      fixedIsGenerated = true;
       fixedPhase = _generatedPhase(plane.name, serial);
       fixedNote = 'Anomalous ' + fixedPhase + ' shift';
     }
@@ -11858,7 +11938,9 @@ function getPlanarState(planeName, serial, opts){
       phaseDuration: null,
       nextPhase: null,
       overridden: false,
-      note: fixedNote
+      note: fixedNote,
+      sourceLabel: fixedIsGenerated ? 'generated' : 'traditional',
+      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
     };
   }
 
@@ -12534,7 +12616,6 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
   if (isGM){
     navRow = '<div style="margin:3px 0 6px 0;">'+
       button('◀ Prev Month','planes on '+_serialToDateSpec(prevSer))+' '+
-      button('Current','planes')+' '+
       button('Next Month ▶','planes on '+_serialToDateSpec(nextSer))+
       '</div>';
   } else {
@@ -12546,7 +12627,6 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
     }
     navRow = '<div style="margin:3px 0 6px 0;">'+
       _pNavBtn(prevSer, '◀ Prev Month')+' '+
-      button('Current','planes')+' '+
       _pNavBtn(nextSer, 'Next Month ▶')+
       '</div>';
   }
