@@ -243,19 +243,19 @@ All effects are cumulative
 |  1   |  Breezy  | None                                                                                                                                                                      |
 |  2   | Moderate | Fogs and airborne gases dispersed                                                                                                                                         |
 |  3   |  Strong  | Open flames extinguished<br>Disadv. on ranged attacks<br>Long-range attacks auto-miss<br>Flying costs +1 ft per ft                                                        |
-|  4   |   Gale   | Ranged attacks auto-miss<br>Nonmagical flying req. DC 10 Str save or flying speed becomes 0<br>The air is difficult terrain (+2 ft. per ft)<br>Walking costs +1 ft per ft |
-|  5   |  Storm   | DC 15 Str save or fall prone<br>Small trees uprooted, objects become projectiles (DC 10 Dex Save, 2d6 Bludgeoning Damage)<br>Severe Hazard Potential                      |
+|  4   |   Gale   | Ranged attacks auto-miss<br>Nonmagical flying req. DC 15 Str save or flying speed becomes 0<br>The air is difficult terrain (+2 ft. per ft)<br>Walking costs +1 ft per ft |
+|  5   |  Storm   | All creatures DC 15 Str save or fall prone<br>Small trees uprooted, objects become projectiles (DC 10 Dex Save, 2d6 Bludgeoning Damage)<br>Severe Hazard Potential        |
 
 ### Precipitation
 
-| Precip | Sky / Condition      | Notes |
-| :----: | :------------------- | :---- |
-|   0    | Clear                | None |
-|   1    | Partly Cloudy        | Light atmospheric moisture |
-|   2    | Overcast             | Darker daytime conditions |
+| Precip | Sky / Condition      | Notes                                                 |
+| :----: | :------------------- | :---------------------------------------------------- |
+|   0    | Clear                | None                                                  |
+|   1    | Partly Cloudy        | Light atmospheric moisture                            |
+|   2    | Overcast             | Darker daytime conditions                             |
 |   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature |
-|   4    | Heavy Precipitation  | Heavy rain, heavy snow, or ice storm |
-|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation |
+|   4    | Heavy Precipitation  | Heavy rain, heavy snow, or ice storm                  |
+|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation                |
 
 ### Location
 
