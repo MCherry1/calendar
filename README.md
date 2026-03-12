@@ -60,12 +60,16 @@ In the chat window, type:
 ## Calendar Navigation
 
 The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
+
+agent task please ensure the line breaks below are kept in the roll20 chat output for a bit of visual pbreathing room.
 ### GM Buttons
 ```
 ⏮ Back  |  ⏭ Forward
+
 📣 Send
 
 📋 Today
+
 🌤 Weather
 🌙 Moons
 🌀 Planes
@@ -77,6 +81,7 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ◀ Prev  |  Next ▶
 
 📋 Today
+
 🌤 Weather
 🌙 Moons
 🌀 Planes
@@ -88,9 +93,9 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
 ---
-## Knowledge Tiers
+## Knowledge Tiers: What do players know?
 
-The calendar is most useful when it can share information selectively. Players get practical information; GMs keep the deeper state and the hidden levers.
+The best thing about calendars is the organization. The second best thing is sharing.
 
 All subsystems use the same three-tier system:
 
@@ -100,9 +105,9 @@ All subsystems use the same three-tier system:
 | `medium` | Skilled Forecast | Several days, with increasing uncertainty at range |
 | `high` | Expert Forecast | Precise information across a longer horizon |
 
-`low` is the baseline tier and often does not require an explicit reveal.
+`low` is the baseline tier and never requires an explicit reveal.
 
-Knowledge is **upgrade-only** — once revealed, it never downgrades. Players retain the best tier of knowledge they've been given for each date.
+Knowledge is **upgrade-only** — once revealed, it never downgrades. Players retain the best tier of knowledge they've been given for each date within each system.
 
 GMs can decide how much to reveal, and under what circumstances. The script provides built-in reveal windows, but those can just as easily represent a skill check, divination magic, an almanac, an observatory, or campaign-specific research.
 
@@ -125,13 +130,11 @@ GMs can decide how much to reveal, and under what circumstances. The script prov
 ---
 ## Moons: Modeling the Skies
 
-The script models the sky as a physical system rather than flavor-only text. Moon brightness, movement, nighttime lighting, and everything else all derive from explicit numbers. The goal is to create a constantly advancing game-world state that requires little GM intervention, and generates useful mechanics (lighting) and information (narrative) for D&D.
-
-
+The script models the sky as a physical system rather than flavor-only text. Moon brightness, movement, nighttime lighting, and everything else all derive from explicit numbers. The goal is to create a constantly advancing game-world state that requires little GM intervention, and generates useful mechanics and information for D&D.
 
 ### Observer Model
 
-- The model cares about **apparent sky geometry**
+- The model cares about **apparent sky geometry.**
 - The script does **not** track latitude, longitude, or time zones.
 - It does not make a declared cosmological stance. It does not worry about sidereal orbital periods, nor the motion of distant stars or constellations (for now). 
 - Sky reports are intentionally local and practical: they answer "what do we see where we are?" instead of simulating a full global observatory model.
@@ -151,12 +154,13 @@ Lunar calendars are classic. And relevant from a mecha
 		- **You can set a moon to be full or new on whatever night you choose.**
 		- The script will fit the desired phase into the regularly-scripted motion and the phases will progress as they need to.
 	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention..
-	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
+	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed
 	- agent task insert the mapping table in here. a
 
 
 ### Eberron
-
+agent ttask fill this in
+Eberron is assumed to be approximately earth like. It uses all he earth numbers including inclination. 
 
 ### Ring of Siberys
 
