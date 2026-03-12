@@ -240,9 +240,9 @@ The live generator maps directly on the `-5` to `15` band scale shown below.
 |     −1      | [−15 .. −6]  | DC 20; disadv. without medium cold-weather clothing |
 |      0      |  [−5 .. 4]   | DC 15; disadv. without light cold-weather clothing  |
 |      1      |  [5 .. 14]   | DC 15; disadv. without light cold-weather clothing  |
-|      2      |  [15 .. 24]  | DC 10                                               |
-|      3      |  [25 .. 34]  | DC 10. Precipitation shifts into                    |
-|      4      |  [35 .. 44]  |                                                     |
+|      2      |  [15 .. 24]  | DC 10. Precipitation shifts to snow.                |
+|      3      |  [25 .. 34]  | DC 10. Precipitation shifts to ice.                 |
+|      4      |  [35 .. 44]  | Precipitation shifts to rain.                       |
 |      5      |  [45 .. 54]  |                                                     |
 |      6      |  [55 .. 64]  |                                                     |
 |      7      |  [65 .. 74]  |                                                     |
@@ -269,14 +269,14 @@ All effects are cumulative
 
 ### Precipitation
 
-| Precip | Sky / Condition      | Notes                                                 |
-| :----: | :------------------- | :---------------------------------------------------- |
-|   0    | Clear                | None                                                  |
-|   1    | Partly Cloudy        | Light atmospheric moisture                            |
-|   2    | Overcast             | Darker daytime conditions                             |
-|   3    | Active Precipitation | Rain, snow, or sleet — type determined by temperature |
-|   4    | Heavy Precipitation  | Heavy rain, heavy snow, or ice storm                  |
-|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation                |
+| Precip | Sky / Condition      | Notes                                  |
+| :----: | :------------------- | :------------------------------------- |
+|   0    | Clear                | None                                   |
+|   1    | Partly Cloudy        | Light atmospheric moisture             |
+|   2    | Overcast             | Darker daytime conditions              |
+|   3    | Active Precipitation | Rain, snow, or sleet                   |
+|   4    | Heavy Precipitation  | Heavy rain, heavy snow, or ice storm   |
+|   5    | Extreme / Deluge     | Blizzard or deluge-class precipitation |
 
 ### Location
 
