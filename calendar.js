@@ -639,6 +639,8 @@ var STYLES = {
   th:              'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:            'border:1px solid #444;padding:0;',
   td:              'border:1px solid #444;width:2em;height:2em;text-align:center;vertical-align:middle;',
+  calTd:           'border:1px solid #444;width:2em;padding:0;text-align:center;vertical-align:middle;',
+  calCellInner:    'min-height:2.35em;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;padding:1px 0 2px;box-sizing:border-box;',
   monthHeaderBase: 'padding:6px;text-align:left;',
   gmbuttonWrap:    'display:inline-block;margin:2px 4px 2px 0;',
   today:  'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;font-size:1.2em;',
@@ -2141,12 +2143,16 @@ function styleForDayCell(baseStyle, events, isToday, monthColor, isPast, isFutur
   return style;
 }
 
+function _calendarCellInnerHtml(content, extraStyle){
+  return '<div style="'+STYLES.calCellInner+(extraStyle||'')+'">'+content+'</div>';
+}
+
 function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture);
   var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"' : '';
   var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
   var dots = _eventDotsHtml(ctx.events);
-  return '<td'+titleAttr+' style="'+style+'">'+numWrap+dots+'</td>';
+  return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(numWrap+dots)+'</td>';
 }
 
 // Render a single full-width banner row for an intercalary (festival) day.
@@ -2169,7 +2175,7 @@ function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeC
     events: events, title: title };
   var mColor  = colorForMonth(mi);
   var hdrStyle = colorsAPI.styleMonthHeader(mColor);
-  var cellStyle = styleForDayCell(STYLES.td, ctx.events, ctx.isToday, mColor, ctx.isPast, ctx.isFuture);
+  var cellStyle = styleForDayCell(STYLES.calTd, ctx.events, ctx.isToday, mColor, ctx.isPast, ctx.isFuture);
   cellStyle += 'text-align:center;font-style:italic;';
   var titleAttr = title ? ' title="'+esc(title)+'" aria-label="'+esc(title)+'"' : '';
   var dots = _eventDotsHtml(ctx.events);
@@ -2183,7 +2189,7 @@ function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeC
     '</div>',
     '</th></tr>',
     '<tr'+titleAttr+'><td colspan="'+wdCnt+'" style="'+cellStyle+'">',
-    '<div style="font-size:.9em;line-height:1.5;">'+esc(mobj.name)+'</div>'+dots,
+    _calendarCellInnerHtml('<div style="font-size:.9em;line-height:1.5;">'+esc(mobj.name)+'</div>'+dots),
     '</td></tr>',
     '</table>'
   ].join('');
@@ -2221,12 +2227,12 @@ function renderMonthTable(opts){
         var d = fromSerial(s);
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimActive, extraEventsFn, includeCalendarEvents);
-          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
+          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
         } else {
           // Overflow cell: adjacent month's day, tinted with that month's color.
           var ovColor = colorForMonth(d.mi);
-          var ovStyle = STYLES.td + 'background-color:'+ovColor+';opacity:.22;';
-          html.push('<td style="'+ovStyle+'"><div style="opacity:.55;">'+d.day+'</div></td>');
+          var ovStyle = STYLES.calTd + 'background-color:'+ovColor+';opacity:.22;';
+          html.push('<td style="'+ovStyle+'">'+_calendarCellInnerHtml('<div style="opacity:.55;">'+d.day+'</div>')+'</td>');
         }
       }
       html.push('</tr>');
@@ -2246,7 +2252,7 @@ function renderMonthTable(opts){
     var d2 = fromSerial(s2);
     var ctx2 = makeDayCtx(d2.year, d2.mi, d2.day, dimActive, extraEventsFn, includeCalendarEvents);
     var numeralStyle = (d2.mi === mi) ? '' : 'opacity:.5;';
-    html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.td, numeralStyle));
+    html.push(tdHtmlForDay(ctx2, parts.monthColor, STYLES.calTd, numeralStyle));
   }
   html.push('</tr>', closeMonthTable());
   return html.join('');
@@ -2571,7 +2577,7 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsF
 
   var minD = _setMin(wantedSet), maxD = _setMax(wantedSet);
   if (minD == null || maxD == null){
-    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.td+';opacity:.6;">(no days)</td></tr>');
+    html.push('<tr><td colspan="'+wdCnt+'" style="'+STYLES.calTd+';opacity:.6;">'+_calendarCellInnerHtml('(no days)')+'</td></tr>');
     html.push(closeMonthTable());
     return html.join('');
   }
@@ -2585,9 +2591,9 @@ function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsF
       var d = fromSerial(s);
       if (d.year === year && d.mi === mi && wantedSet[d.day]){
         var ctx = makeDayCtx(d.year, d.mi, d.day, !!dimActive, extraEventsFn, includeCalendarEvents);
-        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.td, ''));
+        html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
       } else {
-        html.push('<td style="'+STYLES.td+'"></td>');
+        html.push('<td style="'+STYLES.calTd+'">'+_calendarCellInnerHtml('')+'</td>');
       }
     }
     html.push('</tr>');

@@ -88,10 +88,12 @@ These are well-defined implementation tasks. The design is decided, the target b
 
 ### Retire the player `Month` button and the calendar-level `Upcoming` view
 
-- [ ] Remove the center `Month` button from the player quick bar
-- [ ] Remove the top-level calendar `Upcoming` button/view/command flow
-- [ ] Remove top-level `Upcoming` references from README/help/UI copy
-- [ ] Keep subsystem-specific forecast/upcoming commands only if they are still intentionally supported
+Status: Completed by ChatGPT version number 5.4
+
+- [x] Remove the center `Month` button from the player quick bar
+- [x] Remove the top-level calendar `Upcoming` button/view/command flow
+- [x] Remove top-level `Upcoming` references from README/help/UI copy
+- [x] Keep subsystem-specific forecast/upcoming commands only if they are still intentionally supported
 
 ---
 
@@ -104,9 +106,11 @@ These are well-defined implementation tasks. The design is decided, the target b
 
 ### Fix mini-calendar last-row clipping
 
-- [ ] Investigate the mini-calendar row-height/clipping bug where the final row appears shorter or visibly clipped
-- [ ] Fix the base mini-calendar cell sizing so number text and event dots fit consistently in every row
-- [ ] Verify the fix across the default calendar, weather/moon/plane mini-calendars, and adjacent/overflow rows
+Status: Completed by ChatGPT version number 5.4
+
+- [x] Investigate the mini-calendar row-height/clipping bug where the final row appears shorter or visibly clipped
+- [x] Fix the base mini-calendar cell sizing so number text and event dots fit consistently in every row
+- [x] Verify the fix across the default calendar, weather/moon/plane mini-calendars, and adjacent/overflow rows
 
 ---
 
