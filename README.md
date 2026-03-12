@@ -32,7 +32,6 @@ A Roll20 API script for managing a fantasy campaign calendar with:
   - [Moons](#moons-1)
   - [Planes](#planes-1)
   - [Events](#events-1)
-- [Knowledge Tiers](#knowledge-tiers)
 - [Calendar Systems](#calendar-systems)
 - [Design Reference](#design-reference)
 
@@ -66,7 +65,7 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ⏮ Back  |  ⏭ Forward
 📣 Send
 
-📋 Today  |  📅 Upcoming
+📋 Today
 🌤 Weather
 🌙 Moons
 🌀 Planes
@@ -75,7 +74,7 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 ```
 ### Player Buttons
 ```
-◀ Prev  |  📅 Month  |  Next ▶
+◀ Prev  |  Next ▶
 
 📋 Today
 🌤 Weather
@@ -86,7 +85,6 @@ The main `!cal` view shows a mini-calendar for the current month, along with sev
 - **Previous / Next** — see adjacent months
 - **Send** — sends the current calendar view to players in public chat
 - **Today** — summary for the current in-game date
-- **Upcoming** — calendar-only preview strip for the next several days
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
 ---
@@ -165,6 +163,7 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 ---
 ## Weather
 - The weather subsystem can be toggled on or off as desired.
+- The mechanical weather effects can also be toggled on or off independently, leaving narrative weather active if desired.
 - It is a homebrew forecasting system designed for campaign play: deterministic, location-based, and readable in chat.
 
 ### Weather TOC
@@ -252,16 +251,12 @@ Typical examples include:
 
 Clear the manifest zone without changing the location when leaving the area.
 
-> **Current implementation note:** Manifest-zone selection is still the final step of the location wizard and is stored with the active location profile.
-
 Run `!cal weather location` in chat for the full list of valid keys and the interactive wizard.
 
 ### Planar Overlays
 
 Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. The Today and forecast views annotate when a moon, plane, or manifest zone is actively influencing the weather.
 
-
-> 
 ### Forecasting
 
 Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date. 
@@ -269,7 +264,7 @@ Weather is generated deterministically from your location profile and a seed wor
 The generation pipeline runs per-day:
 1. **Baseline** — Climate, geography, and terrain set temperature, wind, and precipitation probabilities.
 2. **Continuity** — Each day nudges toward the previous day's conditions, producing coherent weather evolution rather than random swings.
-3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. The current implementation uses those three snapshots per day.
+3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one.
 4. **Fog** — Rolls separately, with persistence across days and interaction with wind.
 5. **Overlays** — Manifest zone and planar modifiers apply last.
 
@@ -302,8 +297,6 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 - **Eberron** — 12 months × 28 days, YK era, 7-day weeks
 - **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + festival days, DR era, tenday columns
 - **Gregorian** — Standard Earth calendar
-
-> **Current implementation note:** Harptos date math and festival days are present, but the rendered calendar still uses weekday columns until the tenday-layout task is completed.
 ---
 ## Commands
 
@@ -357,8 +350,6 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 !cal weather reveal medium [n]  — reveal and send a skilled forecast for 1-10 days
 !cal weather reveal high [n]    — reveal and send an expert forecast for 1-10 days
 ```
-
-> **Current implementation note:** Today's common-knowledge weather is recorded automatically. Per-day low/medium/high reveal flags for arbitrary future dates remain tracked work in [AGENT TASKS.md](AGENT%20TASKS.md).
 
 ---
 

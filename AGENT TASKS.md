@@ -2,7 +2,7 @@
 
 **Repository:** `mcherry1/calendar`
 
-See [DESIGN.md](DESIGN.md) for full architectural context. This file tracks implementation work only.
+See [DESIGN.md](DESIGN.md) for full architectural context. README is the target-behavior guide unless a statement is ambiguous; when code does not match README, track the code change here.
 
 As these tasks are taken care of, remove them from this list.
 
@@ -17,8 +17,11 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 
 ## README Drift (checked 2026-03-11)
 
+- **Calendar Navigation:** README now treats the player quick bar as `Prev / Next / Today / Weather / Moons / Planes` and removes the top-level calendar `Upcoming` view from the intended UX. The code still exposes a player `Month` button and a top-level `Upcoming` flow.
+- **Weather → Mechanics Toggle:** README now specifies that narrative weather and mechanical weather effects can be toggled independently. The code currently has only a single weather on/off toggle.
 - **Weather → Location:** manifest-zone selection is still the final step of the location wizard and remains part of the active location profile instead of independent parallel state.
 	- The Manifest Zone selection should be independant of location, with a few exceptions. 1. when the location is changed, the active manifest zones should be removed, and a whispered note to the GM should inform them of that fact. Manifest zones are location specific 
+- **Weather → Syrania Manifest Zones:** README treats manifest zones as lighter thematic overlays, while the embedded note resolves Syrania specifically to `-1` wind / `-1` precipitation and reserves calm-clear sky domination for coterminous Syrania. The code still models Syrania manifest zones as precipitation-only clearer skies.
 - **Commands → Weather → Sending Weather to Players:** `!cal weather send` now broadcasts whatever weather is already revealed, and `!cal weather reveal medium|high [1-10]` grants the current range-based forecast reveals. Per-day reveal flags and arbitrary-date reveal syntax are still not implemented.
 	- send should not have any arguments followed. it should simply function as "send whatever is revealed"
 	- weather should have a per day reveal flag that defines how much information the players have acquired. the low reveal level should be automatically granted when the day in questions falls into the bucket for that. I think we currently low reveal to different degrees between today (rough ToD info, tomorrow (limited forecast), day after tomorrow (same). 
