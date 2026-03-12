@@ -467,6 +467,7 @@ Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
 !cal moon new <MoonName> <date>           — anchor a moon's new phase to a date
 !cal moon reset [<MoonName>]              — clear phase anchors
 ```
+agent task: dates above should be written in correct format, or a hint shoudlbe included here for dd, mm dd, mm dd yyyy etc.
 
 ---
 
@@ -476,7 +477,7 @@ Examples: `!cal moon send medium 3m` · `!cal moon send high 56d`
 
 ```
 !cal planes                     — current planar phase panel
-!cal planes on <date>           — planar state on a specific date
+!cal planes on <date>           — planar states on a specific date
 ```
 
 ### Sending Plane Info to Players
@@ -510,7 +511,7 @@ Examples: `!cal planes send medium 6d` · `!cal planes send high 3m`
 !cal addmonthly <day> <name> [color]      — add a monthly recurring event
 !cal addyearly <month> <day> <name> [color] — add a yearly recurring event
 ```
-
+agent task: describe the date formatting when dd, mm dd, mm dd yyyy etc.
 ### Managing Events
 
 ```
@@ -529,8 +530,7 @@ Examples: `!cal planes send medium 6d` · `!cal planes send high 3m`
 !cal source up <name>                     — raise source priority
 !cal source down <name>                   — lower source priority
 ```
+agent task describe how the priroity statuys is ussed.
 
 ---
-## Design Reference
 
-For deeper mechanics, data tables, and implementation notes, see [DESIGN.md](DESIGN.md). For the active backlog, see [AGENT TASKS.md](AGENT%20TASKS.md).
