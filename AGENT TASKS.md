@@ -15,7 +15,7 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 - **Weather overnight period:** the README notes ask whether weather should gain an overnight snapshot in addition to morning/afternoon/evening. That is a design change, not just documentation.
 - **Sky-model day-length explanation:** the README requests a concrete explanation of how inclination affects day length in the Eberron sky model, but the desired level of numeric detail is not yet specified.
 
-## README Drift (checked 2026-03-11)
+## README Drift (checked 2026-03-12)
 
 - **Calendar Navigation:** README now treats the player quick bar as `Prev / Next / Today / Weather / Moons / Planes` and removes the top-level calendar `Upcoming` view from the intended UX. The code still exposes a player `Month` button and a top-level `Upcoming` flow.
 - **Weather → Mechanics Toggle:** README now specifies that narrative weather and mechanical weather effects can be toggled independently. The code currently has only a single weather on/off toggle.
