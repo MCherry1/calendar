@@ -186,6 +186,7 @@ The Eberron implementation uses integer-multiple synodic periods on a 336-day ye
 | Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |               0.07 |       0.0014 |   0.23 |
 
 #### Reference Mapping (Eberron → Solar System Analogs)
+agent task: this information is in the table above already. change this section into one with many subheaders for each of hte eberron moons. provide inforamation on the refernce moon chosen, and the inspiration for it.
 
 | Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo | Notes                                                                                             |
 | ------------ | ---------------- | ----------- | --------------: | -----------: | -----: | ------------------------------------------------------------------------------------------------- |
@@ -217,7 +218,7 @@ Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (
 - [Precipitation](#precipitation)
 - [Location](#location)
 - [Forecasting](#forecasting)
-
+agent task: move the forecasting section here, above the mechanics section.
 ### Mechanics
 
 The following tables are homebrewed. They use common D&D mechanics, sometimes repurposed, sometimes expanded.
@@ -308,9 +309,11 @@ Clear manifest zones without changing the location when leaving the area.
 
 Run `!cal weather manifest` in chat for the chooser, or use the weather panel's **Set Manifest Zone** button.
 
-### Planar Overlays
+### Planar Effects
 
 Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather.
+
+agent task include a table here with an entry for each plane and listingthe effects while coterminous or remote.
 
 ### Forecasting
 
@@ -332,7 +335,7 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 ---
 ## Planes
 
-The planar subsystem is an Eberron-specific layer that tracks when planes move closer to or farther from the Material Plane.
+The planar subsystem is Eberron-specific and tracks when alternate planes planes are coterminous, remote, or neither.
 
 - **Coterminous** planes strengthen their associated traits.
 - **Remote** planes suppress or invert those same traits.
