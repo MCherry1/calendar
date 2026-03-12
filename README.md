@@ -183,10 +183,12 @@ also mention the stuff about integer multiple periods.
 ---
 ## Weather
 
-Weather t
+Weather tables in D&D suck. This one sucks a little less, (humbly).
+
 - The weather subsystem can be toggled on or off as desired.
-- The mechanical weather effects can also be toggled on or off independently, leaving narrative weather active if desired.
-- It is a homebrew forecasting system designed for campaign play: deterministic, location-based, and readable in chat.
+- The mechanical weather effects can also be toggled on or off independently, leaving only narrative weather active.
+- 
+
 
 Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation.
 
