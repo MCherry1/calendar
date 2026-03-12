@@ -173,7 +173,8 @@ Eberron the planet is assumed to be approximately earth like. It uses all he ear
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
 ### Moons of Eberron
 
-agent task the big section. include all the details from the dragonmark article on size color dragonmarks etc. and put in the whole table, 
+agent task the big section. include all the details from the dragonmark article on size color dragonmarks etc. and put in the whole table, each moon gets its own subheader section, with a description about the reference moon and why it was selectied. for barrakas mention the option to make it brighter, and for eyre mention the other two choices briefly.
+also mention the stuff about integer multiple periods.
 
 
 	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed because we moved it below
@@ -181,6 +182,8 @@ agent task the big section. include all the details from the dragonmark article 
 
 ---
 ## Weather
+
+Weather t
 - The weather subsystem can be toggled on or off as desired.
 - The mechanical weather effects can also be toggled on or off independently, leaving narrative weather active if desired.
 - It is a homebrew forecasting system designed for campaign play: deterministic, location-based, and readable in chat.
