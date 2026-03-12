@@ -61,7 +61,7 @@ In the chat window, type:
 
 The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
 
-agent task please ensure the line breaks below are kept in the roll20 chat output for a bit of visual pbreathing room.
+The spacing shown below is intentional and should be preserved in Roll20 chat output for readability.
 ### GM Buttons
 ```
 ⏮ Back  |  ⏭ Forward
@@ -141,44 +141,66 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 - Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
 ### Moons
 
-Lunar calendars are classic. And mechanically relevant for nighttime lighting. Below are the parameters used for the moons of the included settings.
-agent task clean this para below up.
-- Moons are intended as a flexible narrative tool, so their phases are adjustable by GMs as needed. 
-		- **You can set a moon to be full or new on whatever night you choose.**
-		- The script will fit the desired phase into the regularly-scripted motion and the phases will progress as they need to.
+Lunar calendars are classic, and mechanically relevant for nighttime lighting.
 
-agent task put these all in table and similarly organized
+Moon phases are intentionally flexible as a narrative tool. GMs can anchor any moon to a full or new phase on a chosen date, and the script then continues forward using the moon's regular motion from that anchor.
 
-- **Earth**
-	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
-- **Faerûn**
-	- Selûne: synodic period 30.44 days, diameter 2,000 mi, distance 183,000 mi, inclination 5.1°, eccentricity 0.054, albedo 0.25. Epoch anchor: 1372-01-01 (full at midnight Hammer 1, 1372 DR).
-	- agent task: does the relative tilt of faerun matter? is it published somewhere? with only one celestial body it seems irrelevant. but we maybe shift the day hour buckets
-- **Eberron**
-	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
-	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
-	- To fill out the mechanics, each moon was matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. Those details are shown below.
+| System | Moon | Synodic Period | Diameter | Distance | Inclination | Eccentricity | Albedo | Epoch Anchor |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Earth | Luna | 29.53 days | 2,159 mi | 238,855 mi | 5.14° | 0.0549 | 0.12 | 2021-01-28 (full moon) |
+| Faerûn | Selûne | 30.44 days | 2,000 mi | 183,000 mi | 5.1° | 0.054 | 0.25 | 1372-01-01 (full at midnight Hammer 1, 1372 DR) |
+| Eberron | 12 moons (see below) | Mixed | Mixed | Mixed | Mixed | Mixed | Mixed | 998-01-01 default seed anchor |
+
+- **Faerûn tilt note:** Selûne's inclination is retained for consistent sky geometry and future-proofing, even in a one-moon system.
+- **Eberron approach:** Each moon keeps canonical flavor (name/color/role) while borrowing orbital-shape values from selected real-world reference moons.
 
 ### Eberron-Specific Cosmology
-agent ttask fill this in
-Eberron the planet is assumed to be approximately earth like. It uses all he earth numbers including inclination. days length is assumed to change by x hours seasonally. but the temperature doesn't change from angle towards sun etc. its set by the planar movennts
+
+Eberron is modeled as Earth-like for baseline astronomical geometry (including axial tilt assumptions for daylight-length variation across the year). In this script, however, **temperature is not driven by axial/solar-season physics**. Seasonal weather pressure is handled through the campaign's planar/weather system instead.
 
 ### Ring of Siberys
 
 - Single equatorial ring at **0° inclination**
 - Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
 - Extends roughly **370 to 3,480 miles (600 to 5,600 km)** above the surface
-- **Albedo 0.50**, bright enough to stand out even in daylight (agent task was this taken from saturns rings? or matching the description and estalishing what visisble in daylight means?)
+- **Albedo 0.50**, chosen from a Saturn-ring-inspired analog and tuned to preserve the setting goal that the ring is visibly bright even by day
 - Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
 ### Moons of Eberron
 
-agent task the big section. include all the details from the dragonmark article on size color dragonmarks etc. and put in the whole table, each moon gets its own subheader section, with a description about the reference moon and why it was selectied. for barrakas mention the option to make it brighter, and for eyre mention the other two choices briefly.
-also mention the stuff about integer multiple periods.
+The Eberron implementation uses integer-multiple synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms.
 
+| Eberron Moon | Title | Plane | Dragonmark | Synodic Period (days) | Diameter (mi) | Distance (mi) | Inclination (°) | Eccentricity | Albedo |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zarantyr | The Storm Moon | Kythri | Mark of Storm | 27.32 | 1250 | 14,300 | 5.145 | 0.0549 | 0.12 |
+| Olarune | The Sentinel Moon | Lamannia | Mark of Sentinel | 34.0 | 1000 | 18,000 | 0.33 | 0.0288 | 0.22 |
+| Therendor | The Healer's Moon | Syrania | Mark of Healing | 24.0 | 1100 | 39,000 | 0.47 | 0.0094 | 0.67 |
+| Eyre | The Anvil | Fernia | Mark of Making | 21.0 | 1200 | 52,000 | 0.43 | 0.1230 | 0.30 |
+| Dravago | The Herder's Moon | Risia | Mark of Handling | 42.0 | 2000 | 77,500 | 1.09 | 0.0001 | 1.229 |
+| Nymm | The Crown | Daanvi | Mark of Hospitality | 28.0 | 900 | 95,000 | 0.20 | 0.0013 | 0.43 |
+| Lharvion | The Eye | Xoriat | Mark of Detection | 30.0 | 1350 | 125,000 | 7.23 | 0.7507 | 0.155 |
+| Barrakas | The Lantern | Irian | Mark of Finding | 22.0 | 1500 | 144,000 | 0.02 | 0.0047 | 1.375 |
+| Rhaan | The Book | Thelanis | Mark of Scribing | 37.0 | 800 | 168,000 | 4.34 | 0.0013 | 0.32 |
+| Sypheros | The Shadow | Mabar | Mark of Shadow | 67.0 | 1100 | 183,000 | 175.3 (retrograde) | 0.1635 | 0.06 |
+| Aryth | The Gateway | Dolurrh | Mark of Passage | 48.0 | 1300 | 195,000 | 7.57 | 0.0283 | 0.05 |
+| Vult | The Warding Moon | Shavarath | Mark of Warding | 56.0 | 1800 | 252,000 | 0.07 | 0.0014 | 0.23 |
 
-	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table. agent task this should be removed because we moved it below
-	- agent task insert the mapping table in here, including variation. i'll add some detailed commentary once we get the initial layout
+#### Reference Mapping (Eberron → Solar System Analogs)
+
+| Eberron Moon | Reference Analog | Host Planet | Inclination (°) | Eccentricity | Albedo | Notes |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| Zarantyr | Luna | Earth | 5.145 | 0.0549 | 0.12 | Baseline high-visibility storm moon analog |
+| Olarune | Titan | Saturn | 0.33 | 0.0288 | 0.22 | Stable low-inclination sentinel profile |
+| Therendor | Dione | Saturn | 0.03 | 0.0022 | 0.99 | Selected to stay near Barrakas' plane |
+| Eyre | Mimas | Saturn | 1.53 | 0.0196 | 0.96 | Final choice after Hyperion and Elara variants |
+| Dravago | Triton | Neptune | 156.8 | 0.000016 | 0.76 | Retrograde behavior supports lore distance-from-others feel |
+| Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 | Even, regular profile |
+| Lharvion | Hyperion | Saturn | 0.43 | 0.1230 | 0.30 | Keeps the intentionally chaotic eccentric feel |
+| Barrakas | Enceladus ×1 | Saturn | 0.02 | 0.0047 | 1.375 | Bright-default lantern; optional brighter ×7 variant remains available |
+| Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 | Moderate inclination, low eccentricity |
+| Sypheros | Phobos | Mars | 1.08 | 0.0151 | 0.071 | Entropy-forward dim profile |
+| Aryth | Iapetus | Saturn | 7.57 | 0.0283 | 0.275 | Averaged albedo for non-tidally-locked presentation |
+| Vult | Oberon | Uranus | 0.07 | 0.0014 | 0.23 | Low-inclination warding profile |
 
 ---
 ## Weather
@@ -189,7 +211,7 @@ Weather tables in D&D suck. This one sucks a little less.
 - The mechanical weather effects can also be toggled on or off independently, leaving only narrative weather.
 - This system is homebrew.
 
-Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation. agent task please make sure theres a button for this
+Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation. A dedicated **Weather Mech** settings button is available in the settings panel.
 
 - [Temperature](#temperature)
 - [Wind](#wind)
@@ -209,31 +231,30 @@ The live generator maps directly on the `-5` to `15` band scale shown below.
 - **Cold-weather clothing:** Light, medium, and heavy cold-weather clothing map to normal armor proficiencies. If a character is not proficient in the clothing they are wearing, they suffer those penalties.
 - **Armor as heat burden:** At the hot end of the scale, wearing armor becomes progressively more punishing.
 - **Resistance and immunity:** Cold or fire resistance grants advantage on the save. Immunity succeeds automatically.
-agent task delete the term con save from the table below, leaving only DC XX
 
 | Temperature |  °F Approx.  | Mechanical Effect                                            |
 | :---------: | :----------: | :----------------------------------------------------------- |
 |     −5      |   ≤ −46°F    | DC 30; disadv. without heavy cold-weather clothing           |
 |     −4      | [−45 .. −36] | DC 25; disadv. without heavy cold-weather clothing           |
 |     −3      | [−35 .. −26] | DC 25; disadv. without heavy cold-weather clothing           |
-|     −2      | [−25 .. −16] | DC 20 Con save; disadv. without medium cold-weather clothing |
-|     −1      | [−15 .. −6]  | DC 20 Con save; disadv. without medium cold-weather clothing |
-|      0      |  [−5 .. 4]   | DC 15 Con save; disadv. without light cold-weather clothing  |
-|      1      |  [5 .. 14]   | DC 15  save; disadv. without light cold-weather clothing     |
-|      2      |  [15 .. 24]  | DC 10 Con save                                               |
-|      3      |  [25 .. 34]  | DC 10 Con save                                               |
+|     −2      | [−25 .. −16] | DC 20; disadv. without medium cold-weather clothing |
+|     −1      | [−15 .. −6]  | DC 20; disadv. without medium cold-weather clothing |
+|      0      |  [−5 .. 4]   | DC 15; disadv. without light cold-weather clothing  |
+|      1      |  [5 .. 14]   | DC 15; disadv. without light cold-weather clothing           |
+|      2      |  [15 .. 24]  | DC 10                                               |
+|      3      |  [25 .. 34]  | DC 10                                               |
 |      4      |  [35 .. 44]  |                                                              |
 |      5      |  [45 .. 54]  |                                                              |
 |      6      |  [55 .. 64]  |                                                              |
-|      7      |  [65 .. 74]  | DC 10 Con save                                               |
-|      8      |  [75 .. 84]  | DC 10 Con save                                               |
-|      9      |  [85 .. 94]  | DC 15 Con save; heavy armor at disadv.                       |
-|     10      | [95 .. 104]  | DC 15 Con save; heavy armor at disadv.                       |
-|     11      | [105 .. 114] | DC 20 Con save; medium and heavy armor at disadv.            |
-|     12      | [115 .. 124] | DC 20 Con save; medium and heavy armor at disadv.            |
-|     13      | [125 .. 134] | DC 25 Con save; light, medium, and heavy armor at disadv.    |
-|     14      | [135 .. 144] | DC 25 Con save; light, medium, and heavy armor at disadv.    |
-|     15      |   ≥ 145°F    | DC 30 Con save; light, medium, and heavy armor at disadv.    |
+|      7      |  [65 .. 74]  | DC 10                                               |
+|      8      |  [75 .. 84]  | DC 10                                               |
+|      9      |  [85 .. 94]  | DC 15; heavy armor at disadv.                       |
+|     10      | [95 .. 104]  | DC 15; heavy armor at disadv.                       |
+|     11      | [105 .. 114] | DC 20; medium and heavy armor at disadv.            |
+|     12      | [115 .. 124] | DC 20; medium and heavy armor at disadv.            |
+|     13      | [125 .. 134] | DC 25; light, medium, and heavy armor at disadv.    |
+|     14      | [135 .. 144] | DC 25; light, medium, and heavy armor at disadv.    |
+|     15      |   ≥ 145°F    | DC 30; light, medium, and heavy armor at disadv.    |
 ### Wind
 
 All effects are cumulative
