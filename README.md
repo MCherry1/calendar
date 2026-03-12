@@ -121,8 +121,24 @@ GMs can decide how much to reveal, and under what circumstances. The script prov
 - GMs can create their own events, which are then stored in state.
 - There is no limit to the number of events created. They can be deleted as necessary.
 - If no color is assigned at creation, a random color is assigned.
+
 ---
-## Moons
+## Moons: Modeling the Skies
+
+The script models the sky as a physical system rather than flavor-only text. Moon brightness, movement, nighttime lighting, and everything else all derive from explicit numbers. The goal is to create a constantly advancing game-world state that requires little GM intervention, and generates useful mechanics (lighting) and information (narrative) for D&D.
+
+
+
+### Observer Model
+
+- The model cares about **apparent sky geometry**, not a declared cosmological stance. It does not worry about sidereal orbital periods, nor the motion of distant stars or constellations (for now). 
+- The script does **not** track latitude, longitude, or time zones.
+- Sky reports are intentionally local and practical: they answer "what do we see where we are?" instead of simulating a full global observatory model.
+- Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
+### Moons
+
+Lunar calendars are classic. And relevant from a mecha
+
 - **Earth**
 	- Luna: synodic period 29.53 days, diameter 2,159 mi, distance 238,855 mi, inclination 5.14°, eccentricity 0.0549, albedo 0.12. Epoch anchor: 2021-01-28 (full moon).
 - **Faerûn**
@@ -130,24 +146,13 @@ GMs can decide how much to reveal, and under what circumstances. The script prov
 - **Eberron**
 	- Eberron's moons are vastly more important to the setting, more complex, and less defined by canon than a typical fantasy moon.
 	- Each moon has a canonical color, approximate diameter, and mean orbital distance.
-	- Moons are intended as a flexible narrative tool, so their phases are adjustable as needed.
-	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention. The reference moon's values are used as-is, with one exception: Barrakas applies an albedo multiplier for supernatural brightness (its association with Irian, the plane of life and light).
+	- Moons are intended as a flexible narrative tool, so their phases are adjustable by GMs as needed. 
+		- **You can set a moon to be full or new on whatever night you choose.**
+		- The script will fit the desired phase into the regularly-scripted motion and the phases will progress as they need to.
+	- Each moon is matched to a real Solar System moon to model its inclination, eccentricity, and albedo — providing consistent, astronomy-inspired orbital behavior without requiring custom parameter invention..
 	- See [DESIGN.md §7.4](DESIGN.md) for the full reference mapping table.
+	- agent task insert the mapping table in here. a
 
----
-## Modeling the Skies
-
-The script models the sky as a physical system rather than flavor-only text. Moon brightness, movement, nighttime lighting, and everything else all derive from explicit numbers. The goal is to create a constantly advancing game-world state that requires little GM intervention.
-
-This script uses astronomy-inspired proxies so the moons, eclipses, and night lighting behave intuitively over long campaigns.
-The model cares about **apparent sky geometry**, not a declared cosmological stance. It makes no assumption about whether Arrah or Eberron is the center of the system or whether the distant stars move.
-- Real-world reference bodies are used where that makes the invented sky more coherent, but the end result is still tuned for Eberron's lore rather than strict solar-system simulation.
-
-### Observer Model
-
-- The script does **not** track latitude, longitude, or time zones.
-- Sky reports are intentionally local and practical: they answer "what do we see where we are?" instead of simulating a full global observatory model.
-- Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
 
 ### Eberron
 
@@ -160,7 +165,6 @@ The model cares about **apparent sky geometry**, not a declared cosmological sta
 - **Albedo 0.50**, bright enough to stand out even in daylight
 - Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
-
 ---
 ## Weather
 - The weather subsystem can be toggled on or off as desired.

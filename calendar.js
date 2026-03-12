@@ -3220,7 +3220,7 @@ function sendCurrentDate(to, gmOnly, opts){
       // Only show weather if a location has been configured
       if (_ws.location){
         weatherEnsureForecast();
-        var _wxRec    = _forecastRecord(todaySer);
+        var _wxRec    = _weatherRecordForDisplay(_forecastRecord(todaySer));
         if (_wxRec && _wxRec.final){
           var _f  = _wxRec.final;
           var _tL = CONFIG_WEATHER_LABELS.temp[Math.min(_f.temp, 10)] || _tempBand(_f.temp);
@@ -3952,19 +3952,6 @@ function _activePlanarWeatherShiftLines(serial){
   return out;
 }
 
-function _manifestZoneWeatherInfluenceText(mz){
-  if (!mz || !mz.name) return null;
-  var name = String(mz.name);
-  if (name === 'Fernia')   return '🔥 Fernia manifest zone (+3 temp)';
-  if (name === 'Risia')    return '❄️ Risia manifest zone (-3 temp)';
-  if (name === 'Irian')    return '✨ Irian manifest zone (+1 temp)';
-  if (name === 'Mabar')    return '🌑 Mabar manifest zone (-1 temp)';
-  if (name === 'Lamannia') return '🌿 Lamannia manifest zone (+1 precip)';
-  if (name === 'Syrania')  return '🌤 Syrania manifest zone (clearer skies)';
-  if (name === 'Kythri')   return '🌀 Kythri manifest zone (chaotic swings)';
-  return null;
-}
-
 function _planarWeatherInfluenceText(e){
   if (!e) return null;
   if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+2 temp)';
@@ -3982,18 +3969,11 @@ function _planarWeatherInfluenceText(e){
 function _weatherInfluenceTexts(rec){
   var out = [];
   if (!rec) return out;
-  var wsLoc = getWeatherState().location || {};
-  var loc = rec.location || {};
-  if (!loc.manifestZone && wsLoc.manifestZone){
-    loc = {
-      climate: loc.climate,
-      geography: loc.geography,
-      terrain: loc.terrain,
-      manifestZone: wsLoc.manifestZone
-    };
+  var zoneEntries = _activeManifestZonesForSerial(rec.serial);
+  for (var zi = 0; zi < zoneEntries.length; zi++){
+    var mzText = _manifestZoneInfluenceText(zoneEntries[zi].def);
+    if (mzText) out.push(mzText);
   }
-  var mzText = _manifestZoneWeatherInfluenceText(loc.manifestZone);
-  if (mzText) out.push(mzText);
   try {
     var eff = getActivePlanarEffects(rec.serial);
     for (var i = 0; i < eff.length; i++){
@@ -4027,7 +4007,7 @@ function activeEffectsPanelHtml(){
         wx = '<div style="opacity:.7;">No weather location set.</div>';
       } else {
         weatherEnsureForecast();
-        var rec = _forecastRecord(today);
+        var rec = _weatherRecordForDisplay(_forecastRecord(today));
         if (!rec || !rec.final){
           wx = '<div style="opacity:.7;">No weather generated for today.</div>';
         } else {
@@ -4035,9 +4015,6 @@ function activeEffectsPanelHtml(){
           var locLine = esc(titleCase(loc.climate||'')) + ' / ' +
             esc(titleCase(String(loc.geography||'inland').replace(/_/g,' '))) + ' / ' +
             esc(titleCase(loc.terrain||'open'));
-          if (loc.manifestZone && loc.manifestZone.name){
-            locLine += ' <span style="color:#E65100;">['+esc(loc.manifestZone.name)+']</span>';
-          }
           var cond = _deriveConditions(
             rec.final,
             loc,
@@ -4047,6 +4024,10 @@ function activeEffectsPanelHtml(){
           );
           var narr = _conditionsNarrative(rec.final, cond, 'afternoon');
           wx += '<div style="font-size:.85em;opacity:.75;">'+locLine+'</div>';
+          var manifestStatus = _manifestZoneStatusLabel(_activeManifestZoneEntries());
+          if (manifestStatus !== 'None'){
+            wx += '<div style="font-size:.82em;opacity:.68;margin-top:2px;">Manifest zones: '+esc(manifestStatus)+'</div>';
+          }
           wx += '<div style="margin:3px 0;">' +
             _weatherTraitBadge('temp',   rec.final.temp)+'&nbsp;' +
             _weatherTraitBadge('wind',   rec.final.wind)+'&nbsp;' +
@@ -4603,7 +4584,7 @@ function _todayAllHtml(){
   if (st.weatherEnabled !== false){
     try {
       weatherEnsureForecast();
-      var wxRec = _forecastRecord(today);
+      var wxRec = _weatherRecordForDisplay(_forecastRecord(today));
       if (wxRec && wxRec.final){
         var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b></div>';
         var periods = ['morning','afternoon','evening'];
@@ -5600,6 +5581,66 @@ var WEATHER_TERRAINS_UI = {
   coastal_bluff:'Exposed cliff near water: coastal moisture with amplified wind'
 };
 
+var MANIFEST_ZONE_ORDER = [
+  'fernia','risia','irian','mabar','lamannia','syrania','kythri',
+  'shavarath','daanvi','dolurrh','thelanis','xoriat','dalquor'
+];
+
+var MANIFEST_ZONE_DEFS = {
+  fernia: {
+    key: 'fernia', name: 'Fernia', emoji: '🔥',
+    summary: 'Warmth', effectLabel: '+3 temp', tempMod: 3
+  },
+  risia: {
+    key: 'risia', name: 'Risia', emoji: '❄️',
+    summary: 'Cold', effectLabel: '-3 temp', tempMod: -3
+  },
+  irian: {
+    key: 'irian', name: 'Irian', emoji: '✨',
+    summary: 'Radiant warmth', effectLabel: '+1 temp', tempMod: 1
+  },
+  mabar: {
+    key: 'mabar', name: 'Mabar', emoji: '🌑',
+    summary: 'Shadow cold', effectLabel: '-1 temp', tempMod: -1
+  },
+  lamannia: {
+    key: 'lamannia', name: 'Lamannia', emoji: '🌿',
+    summary: 'Lush weather', effectLabel: '+1 precip', precipMod: 1
+  },
+  syrania: {
+    key: 'syrania', name: 'Syrania', emoji: '🌤',
+    summary: 'Milder skies', effectLabel: '-1 precip, -1 wind', precipMod: -1, windMod: -1
+  },
+  kythri: {
+    key: 'kythri', name: 'Kythri', emoji: '🌀',
+    summary: 'Chaotic swings', effectLabel: 'chaotic swings', chaotic: true
+  },
+  shavarath: {
+    key: 'shavarath', name: 'Shavarath', emoji: '⚔️',
+    summary: 'Martial resonance', effectLabel: 'no weather shift'
+  },
+  daanvi: {
+    key: 'daanvi', name: 'Daanvi', emoji: '📏',
+    summary: 'Orderly', effectLabel: 'no weather shift'
+  },
+  dolurrh: {
+    key: 'dolurrh', name: 'Dolurrh', emoji: '🪦',
+    summary: 'Deathly', effectLabel: 'no weather shift'
+  },
+  thelanis: {
+    key: 'thelanis', name: 'Thelanis', emoji: '🧚',
+    summary: 'Fey', effectLabel: 'no weather shift'
+  },
+  xoriat: {
+    key: 'xoriat', name: 'Xoriat', emoji: '👁️',
+    summary: 'Madness', effectLabel: 'no weather shift'
+  },
+  dalquor: {
+    key: 'dalquor', name: 'Dal Quor', emoji: '💤',
+    summary: 'Dreams', effectLabel: 'no weather shift'
+  }
+};
+
 // ---------------------------------------------------------------------------
 // 18a) State accessors
 // ---------------------------------------------------------------------------
@@ -5607,20 +5648,177 @@ var WEATHER_TERRAINS_UI = {
 function getWeatherState(){
   var root = state[state_name];
   if (!root.weather) root.weather = {
-    location:     null,  // { name, climate, terrain, manifestZone, sig }
+    location:     null,  // { name, climate, geography, terrain, sig }
+    manifestZones: {},   // key -> { key, setOn, arythFullActivated, arythFullExitWarned }
     forecast:     [],    // array of day records keyed by serial
     history:      [],    // locked past days (up to 60)
     playerReveal: {}     // serial(str) → best detail tier revealed: 'high'|'medium'|'low'
   };
   var ws = root.weather;
   if (!ws.playerReveal) ws.playerReveal = {};
+  if (!ws.manifestZones || typeof ws.manifestZones !== 'object') ws.manifestZones = {};
+  if (ws.location && ws.location.manifestZone){
+    var legacyKey = _manifestZoneKey(ws.location.manifestZone.name || ws.location.manifestZone.key || '');
+    if (legacyKey && !ws.manifestZones[legacyKey]){
+      ws.manifestZones[legacyKey] = {
+        key: legacyKey,
+        setOn: todaySerial(),
+        arythFullActivated: false,
+        arythFullExitWarned: false
+      };
+    }
+    delete ws.location.manifestZone;
+    ws.location.sig = _locSig(ws.location);
+  }
   return ws;
 }
 
 // Location signature for resurrection matching.
 function _locSig(loc){
   if (!loc) return '';
-  return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'')+'/'+(loc.manifestZone ? loc.manifestZone.name : 'none');
+  return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'');
+}
+
+function _manifestZoneKey(nameOrKey){
+  var raw = String(nameOrKey || '').toLowerCase().replace(/[\s'_-]+/g, '');
+  if (!raw) return null;
+  if (raw === 'dalquor' || raw === 'dalquor') return 'dalquor';
+  for (var i = 0; i < MANIFEST_ZONE_ORDER.length; i++){
+    var key = MANIFEST_ZONE_ORDER[i];
+    var def = MANIFEST_ZONE_DEFS[key];
+    if (!def) continue;
+    var defKey = String(def.key || key).toLowerCase().replace(/[\s'_-]+/g, '');
+    var defName = String(def.name || '').toLowerCase().replace(/[\s'_-]+/g, '');
+    if (raw === defKey || raw === defName) return key;
+  }
+  return null;
+}
+
+function _manifestZoneDefsForKeys(keys){
+  return (keys || []).map(function(key){
+    var norm = _manifestZoneKey(key);
+    return norm ? MANIFEST_ZONE_DEFS[norm] : null;
+  }).filter(Boolean);
+}
+
+function _activeManifestZoneEntries(){
+  var zones = getWeatherState().manifestZones || {};
+  return Object.keys(zones).map(function(key){
+    var norm = _manifestZoneKey(key);
+    if (!norm || !MANIFEST_ZONE_DEFS[norm]) return null;
+    var entry = zones[key] || {};
+    return {
+      key: norm,
+      def: MANIFEST_ZONE_DEFS[norm],
+      setOn: entry.setOn || null,
+      arythFullActivated: !!entry.arythFullActivated,
+      arythFullExitWarned: !!entry.arythFullExitWarned
+    };
+  }).filter(Boolean).sort(function(a, b){
+    return MANIFEST_ZONE_ORDER.indexOf(a.key) - MANIFEST_ZONE_ORDER.indexOf(b.key);
+  });
+}
+
+function _activeManifestZoneDefs(){
+  return _activeManifestZoneEntries().map(function(entry){ return entry.def; });
+}
+
+function _manifestZoneStatusLabel(entries){
+  entries = entries || _activeManifestZoneEntries();
+  if (!entries.length) return 'None';
+  return entries.map(function(entry){
+    return (entry.def.emoji || '◇') + ' ' + entry.def.name;
+  }).join(' · ');
+}
+
+function _activeManifestZonesForSerial(serial){
+  return (serial === todaySerial()) ? _activeManifestZoneEntries() : [];
+}
+
+function _manifestZoneInfluenceText(def){
+  if (!def) return null;
+  return (def.emoji || '◇') + ' ' + def.name + ' manifest zone (' + (def.effectLabel || 'no weather shift') + ')';
+}
+
+function _applyManifestZonesToValues(values, entries, serial){
+  entries = entries || [];
+  if (!entries.length) return values;
+
+  for (var i = 0; i < entries.length; i++){
+    var def = entries[i].def || entries[i];
+    if (!def) continue;
+    if (typeof def.tempMod === 'number') values.temp += def.tempMod;
+    if (typeof def.precipMod === 'number') values.precip = Math.max(0, Math.min(5, values.precip + def.precipMod));
+    if (typeof def.windMod === 'number') values.wind = Math.max(0, Math.min(5, values.wind + def.windMod));
+    if (def.chaotic){
+      var kR = _seededRand((serial|0) * 77 + 999);
+      values.temp += Math.floor(kR() * 5) - 2;
+      values.precip = Math.max(0, Math.min(5, values.precip + Math.floor(kR() * 3) - 1));
+      values.wind = Math.max(0, Math.min(5, values.wind + Math.floor(kR() * 3) - 1));
+    }
+  }
+
+  values.temp = _clampWeatherTempBand(values.temp);
+  values.precip = Math.max(0, Math.min(5, values.precip));
+  values.wind = Math.max(0, Math.min(5, values.wind));
+  return values;
+}
+
+function _weatherRecordForDisplay(rec){
+  if (!rec || rec.serial !== todaySerial()) return rec;
+  var entries = _activeManifestZonesForSerial(rec.serial);
+  if (!entries.length) return rec;
+
+  var out = deepClone(rec);
+  var periods = ['morning', 'afternoon', 'evening'];
+  for (var i = 0; i < periods.length; i++){
+    var pname = periods[i];
+    if (!out.periods || !out.periods[pname]) continue;
+    out.periods[pname] = _applyManifestZonesToValues(out.periods[pname], entries, rec.serial);
+  }
+  if (out.final){
+    out.final = _applyManifestZonesToValues(out.final, entries, rec.serial);
+  }
+  if (!out.location) out.location = {};
+  out.location.activeManifestZones = entries.map(function(entry){ return entry.def.name; });
+  return out;
+}
+
+function _isArythFull(serial){
+  if (ensureSettings().calendarSystem !== 'eberron') return false;
+  try {
+    moonEnsureSequences(serial, 60);
+    var ph = moonPhaseAt('Aryth', serial);
+    return !!(ph && ph.illum >= 0.97);
+  } catch(e){
+    return false;
+  }
+}
+
+function _manifestZoneOnDateChange(prevSerial, newSerial){
+  if (!(newSerial > prevSerial)) return;
+  if (ensureSettings().weatherEnabled === false) return;
+  var ws = getWeatherState();
+  var prevFull = _isArythFull(prevSerial);
+  var newFull = _isArythFull(newSerial);
+
+  if (!prevFull && newFull){
+    warnGM('Aryth is full. Consider a manifest zone.');
+  }
+
+  if (prevFull && !newFull){
+    var tracked = _activeManifestZoneEntries().filter(function(entry){
+      return entry.arythFullActivated && !entry.arythFullExitWarned;
+    });
+    if (tracked.length){
+      warnGM('Aryth is no longer full. Consider deactivating: ' +
+        tracked.map(function(entry){ return entry.def.name; }).join(', ') + '.');
+      tracked.forEach(function(entry){
+        if (!ws.manifestZones[entry.key]) return;
+        ws.manifestZones[entry.key].arythFullExitWarned = true;
+      });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -5900,27 +6098,13 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
   var fogEvening   = _rollFog('evening',   periods.evening,   geography, terrain, mi, fogAfternoon);
   var fog = { morning: fogMorning, afternoon: fogAfternoon, evening: fogEvening };
 
-  // final = afternoon peak; manifest zones override last.
+  // final = afternoon peak. Local manifest zones apply at display time for
+  // the current day only; forecasts remain location-profile driven.
   var finalVals = {
     temp:   periods.afternoon.temp,
     wind:   periods.afternoon.wind,
     precip: periods.afternoon.precip
   };
-  if (loc.manifestZone){
-    var mz = loc.manifestZone;
-    if (typeof mz.tempFloor === 'number') finalVals.temp = Math.max(finalVals.temp, mz.tempFloor);
-    if (typeof mz.tempCeil  === 'number') finalVals.temp = Math.min(finalVals.temp, mz.tempCeil);
-    if (typeof mz.tempMod   === 'number') finalVals.temp += mz.tempMod;
-    if (typeof mz.precipMod === 'number') finalVals.precip = Math.max(0, Math.min(5, finalVals.precip + mz.precipMod));
-    if (typeof mz.windMod   === 'number') finalVals.wind   = Math.max(0, Math.min(5, finalVals.wind   + mz.windMod));
-    if (mz.chaotic){
-      // Kythri: random ±2 swing to temp, ±1 to precip/wind
-      var kR = _seededRand(serial * 77 + 999);
-      finalVals.temp   += Math.floor(kR() * 5) - 2; // -2 to +2
-      finalVals.precip  = Math.max(0, Math.min(5, finalVals.precip + Math.floor(kR() * 3) - 1));
-      finalVals.wind    = Math.max(0, Math.min(5, finalVals.wind   + Math.floor(kR() * 3) - 1));
-    }
-  }
 
   // Planar coterminous/remote weather influences (± modifiers, not hard overrides).
   // These stack with manifest zone effects for layered environmental storytelling.
@@ -5949,7 +6133,7 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
 
   return {
     serial:          serial,
-    location:        { climate: climate, geography: geography, terrain: terrain, manifestZone: loc.manifestZone || null },
+    location:        { climate: climate, geography: geography, terrain: terrain },
     monthIdx:        mi,
     base:            base,
     arc:             { morning: arcMorning, afternoon: arcAfternoon, evening: arcEvening },
@@ -6262,6 +6446,7 @@ var EXTREME_EVENTS = {
 // Returns array of { key, event, probability } for events that qualify.
 // Probability > 0 means conditions are met. Events with p=0 are excluded.
 function _evaluateExtremeEvents(rec){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec) return [];
   var f   = rec.final;
   var loc = rec.location || {};
@@ -6292,6 +6477,7 @@ function _evaluateExtremeEvents(rec){
 function _rollExtremeEvent(key, rec){
   var evt = EXTREME_EVENTS[key];
   if (!evt) return false;
+  rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return false;
   var f   = rec.final;
   var loc = rec.location || {};
@@ -6493,7 +6679,7 @@ function weatherTodayMechanicsHtml(){
     );
   }
   var today = todaySerial();
-  var rec = _forecastRecord(today);
+  var rec = _weatherRecordForDisplay(_forecastRecord(today));
   if (!rec || !rec.final) return _menuBox('📋 Weather Mechanics', '<div style="opacity:.7;">No weather data for today.</div>');
 
   var f = rec.final;
@@ -6650,6 +6836,7 @@ function _weatherTraitBadge(trait, stage){
 }
 
 function _weatherDayGmHtml(rec, showBreakdown){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec) return '<div style="opacity:.6;">(no data)</div>';
 
   var tier = _uncertaintyTier(rec);
@@ -6768,6 +6955,7 @@ function _readReveal(entry){
 
 // Render one player-facing day block at the given detail tier.
 function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec) return '';
   var cal      = getCal();
   var d        = fromSerial(rec.serial);
@@ -6986,7 +7174,7 @@ function weatherTodayGmHtml(){
   var st  = ensureSettings();
   var ws  = getWeatherState();
   var ser = todaySerial();
-  var rec = _forecastRecord(ser);
+  var rec = _weatherRecordForDisplay(_forecastRecord(ser));
 
   var loc = ws.location;
   if (!loc){
@@ -6998,8 +7186,14 @@ function weatherTodayGmHtml(){
 
   var locLine = '<div style="font-size:.85em;opacity:.75;">'+
     esc(titleCase(loc.climate))+' / '+esc(titleCase((loc.geography||'inland').replace(/_/g,' ')))+' / '+esc(titleCase(loc.terrain))+
-    (loc.manifestZone ? ' &nbsp;<span style="color:#E65100;">['+esc(loc.manifestZone.name)+']</span>' : '')+
     '</div>';
+  var manifestEntries = _activeManifestZoneEntries();
+  var manifestLine = manifestEntries.length
+    ? '<div style="font-size:.82em;opacity:.7;margin-top:2px;">Manifest zones: <b>'+esc(_manifestZoneStatusLabel(manifestEntries))+'</b></div>'
+    : '';
+  var arythLine = _isArythFull(ser)
+    ? '<div style="font-size:.8em;opacity:.65;margin-top:2px;">Aryth is full. Consider a manifest zone.</div>'
+    : '';
 
   var body = rec
     ? _weatherDayGmHtml(rec, true)
@@ -7011,6 +7205,7 @@ function weatherTodayGmHtml(){
     button('Reroll Today','weather reroll')+' '+
     button('Set Location','weather location')+' '+
     button('History','weather history');
+  var zoneButtons = '<div style="margin-top:4px;">'+button('Set Manifest Zone','weather manifest')+'</div>';
 
   var mediumRow =
     '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Reveal skilled forecast:</div>'+
@@ -7043,15 +7238,17 @@ function weatherTodayGmHtml(){
   }
 
   return _menuBox("Today's Weather",
-    locLine + body +
+    locLine + manifestLine + arythLine + body +
     tidalLine +
     extremeHtml +
     '<div style="margin-top:6px;">'+ topButtons +'</div>'+
+    zoneButtons +
     mediumRow + highRow
   );
 }
 
 function _weatherEmojiForRecord(rec){
+  rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return '🌥️';
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
@@ -7072,7 +7269,7 @@ function _weatherEmojiForRecord(rec){
 }
 
 function _weatherMiniCellTitle(serial){
-  var rec = _forecastRecord(serial);
+  var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return null;
   var f = rec.final;
   var loc = rec.location || {};
@@ -7180,7 +7377,7 @@ function _weatherForecastMiniCalHtml(startSerial, days, opts){
 }
 
 function _weatherTodaySummaryHtml(serial, detailTier, includeInfluence){
-  var rec = _forecastRecord(serial);
+  var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return '';
   var loc = rec.location || {};
   var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
@@ -7201,7 +7398,7 @@ function weatherForecastGmHtml(daysOverride){
 
   for (var i=0; i<forecastDays; i++){
     var ser = today + i;
-    var rec = _forecastRecord(ser);
+    var rec = _weatherRecordForDisplay(_forecastRecord(ser));
     var d   = fromSerial(ser);
     var mObj= cal.months[d.mi] || {};
     var dayLabel = esc(mObj.name||'?')+' '+d.day;
@@ -7370,37 +7567,199 @@ function weatherLocationWizardHtml(step, partial){
         '</div>';
     }).join('');
     var ctx = esc(titleCase(partial.climate||'?'))+' / '+esc(titleCase((partial.geography||'inland').replace(/_/g,' ')));
-    return _menuBox('Set Location — Step 3: Terrain ('+ctx+')', terrainButtons);
+    return _menuBox('Set Location — Step 3: Terrain ('+ctx+')',
+      '<div style="opacity:.8;margin-bottom:6px;">Selecting a terrain finalizes the location. Manifest zones are managed separately.</div>'+
+      terrainButtons
+    );
   }
 
-  // Step 4: Manifest Zone — this step finalizes the location
+  // Backward-compat alias: manifest zones are now managed separately.
   if (step === 'zone'){
-    var ctx2 = esc(titleCase(partial.climate||'?'))+' / '+
-               esc(titleCase((partial.geography||'inland').replace(/_/g,' ')))+' / '+
-               esc(titleCase(partial.terrain||'?'));
-    return _menuBox('Set Location — Step 4: Manifest Zone ('+ctx2+')',
-      '<div style="opacity:.8;margin-bottom:6px;">Active manifest zone? Selecting finalizes the location.</div>'+
-      '<div style="margin:3px 0;">'+button('None — finalize','weather location zone none')+'</div>'+
-      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Temperature-affecting zones:</div>'+
-      '<div style="margin:3px 0;">'+button('Fernia (warmth, temp +3)','weather location zone fernia')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Risia (cold, temp -3)','weather location zone risia')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Irian (radiant warmth, temp +1)','weather location zone irian')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Mabar (shadow cold, temp -1)','weather location zone mabar')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Lamannia (lush, precip +1)','weather location zone lamannia')+'</div>'+
-      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Atmospheric zones:</div>'+
-      '<div style="margin:3px 0;">'+button('Syrania (clear skies, precip -1)','weather location zone syrania')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Kythri (chaotic, random swings)','weather location zone kythri')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Shavarath (martial resonance, no weather effect)','weather location zone shavarath')+'</div>'+
-      '<div style="font-size:.85em;opacity:.6;margin:4px 0;">Flavor zones (no weather effect):</div>'+
-      '<div style="margin:3px 0;">'+button('Daanvi (orderly)','weather location zone daanvi')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Dolurrh (deathly)','weather location zone dolurrh')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Thelanis (fey)','weather location zone thelanis')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Xoriat (madness)','weather location zone xoriat')+'</div>'+
-      '<div style="margin:3px 0;">'+button('Dal Quor (dreams)','weather location zone dalquor')+'</div>'
+    return _menuBox('Manifest Zones',
+      '<div style="opacity:.8;margin-bottom:6px;">Manifest zones are now independent of the location wizard.</div>'+
+      '<div>'+button('Open Manifest Zones','weather manifest')+'</div>'
     );
   }
 
   return '';
+}
+
+function _clearManifestZones(){
+  var ws = getWeatherState();
+  var removed = _activeManifestZoneEntries();
+  ws.manifestZones = {};
+  return removed;
+}
+
+function _setWeatherLocationFromWizard(m, partial){
+  var newLoc = {
+    climate:   partial.climate   || 'temperate',
+    geography: partial.geography || 'inland',
+    terrain:   partial.terrain   || 'open'
+  };
+  newLoc.sig = _locSig(newLoc);
+
+  var ws = getWeatherState();
+  var oldLoc = ws.location || null;
+  var oldSig = oldLoc ? _locSig(oldLoc) : '';
+  var locationChanged = !!oldLoc && oldSig !== newLoc.sig;
+  var clearedZones = locationChanged ? _clearManifestZones() : [];
+  var hadLocation = !!oldLoc;
+
+  ws.location = newLoc;
+  delete ws._wizard;
+
+  var today = todaySerial();
+  var resurrected = 0, staled = 0;
+  ws.forecast.forEach(function(rec){
+    if (rec.locked || rec.serial < today) return;
+    var recSig = rec.location ? _locSig(rec.location) : '';
+    if (recSig === newLoc.sig){
+      rec.stale = false;
+      resurrected++;
+    } else {
+      rec.stale = true;
+      staled++;
+    }
+  });
+
+  var dispClimate = esc(titleCase(newLoc.climate));
+  var dispGeo = esc(titleCase(newLoc.geography.replace(/_/g, ' ')));
+  var dispTerrain = esc(titleCase(newLoc.terrain));
+  var msg = 'Location set: <b>'+dispClimate+' / '+dispGeo+' / '+dispTerrain+'</b>.';
+
+  if (clearedZones.length){
+    msg += '<br><span style="color:#E65100;">Cleared manifest zones: ' +
+      esc(clearedZones.map(function(entry){ return entry.def.name; }).join(', ')) +
+      '.</span>';
+  }
+
+  if (hadLocation){
+    if (resurrected > 0 && staled === 0){
+      msg += '<br><span style="color:#2E7D32;">Forecast restored from matching records.</span>';
+    } else if (resurrected > 0){
+      msg += '<br><span style="color:#1565C0;">'+resurrected+' day(s) restored; '+staled+' stale.</span>';
+    } else {
+      msg += '<br><span style="color:#E65100;">Future forecast marked stale. Regenerate to update.</span>';
+    }
+  }
+
+  whisper(m.who,
+    _menuBox('Location Set', msg)+
+    '<div style="margin-top:4px;">'+
+    button('Regenerate Forecast','weather generate')+' '+
+    button('View Forecast','weather forecast')+
+    '</div>'
+  );
+}
+
+function manifestZoneChooserHtml(){
+  var ws = getWeatherState();
+  var loc = ws.location;
+  if (!loc){
+    return _menuBox('Manifest Zones',
+      '<div style="opacity:.7;">Set a weather location first. Manifest zones are local overlays and clear when the location changes.</div>'+
+      '<div style="margin-top:6px;">'+button('Set Location','weather location')+'</div>'
+    );
+  }
+
+  var entries = _activeManifestZoneEntries();
+  var active = {};
+  for (var i = 0; i < entries.length; i++) active[entries[i].key] = 1;
+  var noneActive = !entries.length;
+  var rows = [];
+
+  function nameCell(label, detail, isActive){
+    var nameStyle = isActive ? 'font-weight:bold;' : 'opacity:.6;font-style:italic;';
+    return '<div style="'+nameStyle+'">'+esc(label)+'</div>' +
+      (detail ? '<div style="font-size:.78em;opacity:.65;margin-top:2px;">'+esc(detail)+'</div>' : '');
+  }
+
+  rows.push('<tr>'+
+    '<td style="'+STYLES.td+'">'+nameCell('None', 'Clear all active manifest zones', noneActive)+'</td>'+
+    '<td style="'+STYLES.td+';text-align:center;">'+button(noneActive ? 'On' : 'Off', 'weather manifest none')+'</td>'+
+    '</tr>');
+
+  for (var mi = 0; mi < MANIFEST_ZONE_ORDER.length; mi++){
+    var key = MANIFEST_ZONE_ORDER[mi];
+    var def = MANIFEST_ZONE_DEFS[key];
+    var isActive = !!active[key];
+    rows.push('<tr>'+
+      '<td style="'+STYLES.td+'">'+
+        nameCell((def.emoji || '◇') + ' ' + def.name, def.summary + ' · ' + (def.effectLabel || 'no weather shift'), isActive)+
+      '</td>'+
+      '<td style="'+STYLES.td+';text-align:center;">'+button(isActive ? 'On' : 'Off', 'weather manifest toggle '+key)+'</td>'+
+      '</tr>');
+  }
+
+  var head = '<tr>'+
+    '<th style="'+STYLES.th+'">Zone</th>'+
+    '<th style="'+STYLES.th+'">Toggle</th>'+
+    '</tr>';
+
+  var locLine = '<div style="font-size:.82em;opacity:.75;margin-bottom:4px;">Current location: <b>'+
+    esc(titleCase(loc.climate))+' / '+esc(titleCase(loc.geography.replace(/_/g,' ')))+' / '+esc(titleCase(loc.terrain))+
+    '</b></div>';
+  var activeLine = '<div style="font-size:.82em;opacity:.7;margin-bottom:6px;">Active: <b>'+esc(_manifestZoneStatusLabel(entries))+'</b></div>';
+  var arythLine = _isArythFull(todaySerial())
+    ? '<div style="font-size:.8em;opacity:.7;margin-bottom:6px;">Aryth is full. Consider a manifest zone.</div>'
+    : '';
+
+  return _menuBox('Manifest Zones',
+    locLine +
+    activeLine +
+    arythLine +
+    '<div style="font-size:.8em;opacity:.6;margin-bottom:6px;">Manifest zones affect today\'s weather only; forecast rows stay tied to the base location profile.</div>'+
+    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
+    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+  );
+}
+
+function _toggleManifestZoneForGm(m, zoneKey){
+  var ws = getWeatherState();
+  if (!ws.location){
+    whisper(m.who, 'Set a weather location first: ' + button('Set Location', 'weather location'));
+    return;
+  }
+
+  if (zoneKey === 'none' || zoneKey === 'clear'){
+    var removed = _clearManifestZones();
+    if (!removed.length){
+      whisper(m.who, 'No manifest zones are active.');
+      return;
+    }
+    whisper(m.who, 'Cleared manifest zones: <b>'+esc(removed.map(function(entry){ return entry.def.name; }).join(', '))+'</b>.');
+    return;
+  }
+
+  var key = _manifestZoneKey(zoneKey);
+  var def = key ? MANIFEST_ZONE_DEFS[key] : null;
+  if (!def){
+    whisper(m.who, 'Unknown manifest zone.');
+    return;
+  }
+
+  if (ws.manifestZones[key]){
+    delete ws.manifestZones[key];
+    whisper(m.who,
+      'Manifest zone deactivated: <b>'+esc(def.name)+'</b>. ' +
+      'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.'
+    );
+    return;
+  }
+
+  var arythFull = _isArythFull(todaySerial());
+  ws.manifestZones[key] = {
+    key: key,
+    setOn: todaySerial(),
+    arythFullActivated: arythFull,
+    arythFullExitWarned: false
+  };
+  whisper(m.who,
+    'Manifest zone activated: <b>'+esc(def.name)+'</b>. ' +
+    'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.' +
+    (arythFull ? ' <span style="opacity:.75;">Tracked for Aryth full.</span>' : '')
+  );
 }
 
 // ---------------------------------------------------------------------------
