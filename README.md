@@ -335,7 +335,7 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 ---
 ## Planes
 
-The planar subsystem is Eberron-specific and tracks when alternate planes planes are coterminous, remote, or neither.
+The planar subsystem is Eberron-specific and tracks Planes of Existence  planes planes are coterminous, remote, or neither.
 
 - **Coterminous** planes strengthen their associated traits.
 - **Remote** planes suppress or invert those same traits.
