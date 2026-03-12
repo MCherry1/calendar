@@ -336,9 +336,16 @@ GMs can extend the forecast window ahead, reroll individual dates before reveali
 ## Planes
 
 The planar subsystem is Eberron-specific and tracks the Planes of Existence. These 13 planes exist alongside the Material Plane where Eberron sits, influencing it in many ways. One of those ways is through alignments. In this system, a Plane of Existence can be **coterminous**, **remote**, or **neither**.
-- **Coterminous** planes strengthen their associated traits.
-- **Remote** planes suppress or invert those same traits.
-- **Canonical (*traditional*) cycles** use the structure published in *Exploring Eberron*.
+
+**Coterminous** planes strengthen their associated traits.
+
+**Remote** planes suppress or invert those same traits.
+
+### Categories of Event
+
+There are three types of events in this system:
+#### **Canonical (*traditional*) cycles**
+	- use the structure published in *Exploring Eberron*.
 	- **Anchor dates** for the multi-year cycles are needed where canon leaves them unspecified.
 	- GMs can provide their own anchor date for each plane, setting the traditional cycle of the planes to suit their campaign.
 	- In the absence of a GM-defined anchor, the script generates it's own anchor date from the world seed. (This seed is used throughout the script. Using the same seed in different API sandboxes or campaigns will always generate the same world state.)
