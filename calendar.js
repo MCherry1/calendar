@@ -10315,10 +10315,11 @@ var _SUN_ANGULAR_DIAM_DEG = 0.53;
 
 function _eclipseTimeBlock(frac){
   var h = ((frac % 1) + 1) % 1 * 24;
-  if (h < 6)  return 'nighttime';
-  if (h < 12) return 'morning';
-  if (h < 18) return 'afternoon';
-  return 'evening';
+  if (h < 6)  return 'Early hours';
+  if (h < 12) return 'Morning';
+  if (h < 17) return 'Afternoon';
+  if (h < 22) return 'Evening';
+  return 'Night';
 }
 
 function _moonByName(sys, name){
@@ -10459,7 +10460,7 @@ function getEclipses(serial){
 
   moonEnsureSequences();
 
-  var eclipses = [];
+  var candidates = [];
   var moons = sys.moons;
 
   // Solar eclipses: moon near new phase AND ecliptic latitude near 0
@@ -10471,21 +10472,18 @@ function getEclipses(serial){
     if (Math.abs(lat) < 1.5){ // within 1.5° of ecliptic — solar eclipse
       var depth = 1 - (Math.abs(lat) / 1.5); // 0–1, 1 = perfect alignment
       var op = _moonOrbitalParams(moons[i].name, serial);
-      // A moon can only produce a total eclipse if its apparent size >= the sun's (1.0)
       var type;
       if (op.apparentSize >= 1.0 && depth > 0.85)
         type = 'total solar';
       else if (op.apparentSize >= 0.7 && depth > 0.5)
         type = 'partial solar';
       else
-        type = 'transit'; // small moon crossing the sun — visible but not dramatic
-      eclipses.push({
+        type = 'transit';
+      candidates.push({
         type: type,
         moon: moons[i].name,
         depth: depth,
-        apparentSize: op.apparentSize,
-        description: esc(moons[i].name) + ' ' + type + ' eclipse' +
-          (type === 'total solar' ? ' \u2014 the sky darkens!' : '')
+        apparentSize: op.apparentSize
       });
     }
   }
@@ -10497,15 +10495,13 @@ function getEclipses(serial){
       var longB = _moonSkyLong(moons[b], serial);
       var dLong = Math.abs(longA - longB);
       if (dLong > 180) dLong = 360 - dLong;
-      if (dLong > 8) continue; // must be within 8° of each other
+      if (dLong > 8) continue;
 
       var latA = _moonEclipticLat(moons[a], serial);
       var latB = _moonEclipticLat(moons[b], serial);
       var dLat = Math.abs(latA - latB);
-      if (dLat > 3) continue; // must be within 3° ecliptic latitude
+      if (dLat > 3) continue;
 
-      // Which moon is in front? Use modeled orbital distance for this day.
-      // In this setting, synodic cadence is magical and not a proxy for distance.
       var phA = moonPhaseAt(moons[a].name, serial);
       var phB = moonPhaseAt(moons[b].name, serial);
       var distA = _moonDistanceAt(moons[a], serial);
@@ -10514,43 +10510,91 @@ function getEclipses(serial){
       var farther = (closer === moons[a]) ? moons[b] : moons[a];
       var fartherPh = (closer === moons[a]) ? phB : phA;
 
-      // Only visually notable if the farther moon is bright enough to see the occultation
       if (fartherPh.illum < 0.3) continue;
 
       var conjDepth = 1 - (Math.max(dLong, dLat) / 8);
-      eclipses.push({
+      candidates.push({
         type: 'lunar conjunction',
         moon: closer.name,
         occultedMoon: farther.name,
-        depth: conjDepth,
-        description: esc(closer.name) + ' occults ' + esc(farther.name) +
-          (conjDepth > 0.7 ? ' — dramatic alignment!' : ' — close conjunction')
+        depth: conjDepth
       });
     }
+  }
+
+  // Compute timing, coverage, and descriptions; filter to peak-day only.
+  var eclipses = [];
+  for (var ci = 0; ci < candidates.length; ci++){
+    var c = candidates[ci];
+    var ti = _estimateEclipseTiming(serial, c, sys);
+    if (!ti) continue; // coverage too low
+
+    // Peak-day check: compare noon coverage today vs yesterday and tomorrow.
+    // Only report on the day with the highest coverage to prevent multi-day reports.
+    var midday = serial + 0.5;
+    var todayM = _eclipseMetricsAt(sys, c, midday);
+    var yesterM = _eclipseMetricsAt(sys, c, midday - 1);
+    var tomorM = _eclipseMetricsAt(sys, c, midday + 1);
+    var todayC = todayM ? todayM.cover : 0;
+    var yesterC = yesterM ? yesterM.cover : 0;
+    var tomorC = tomorM ? tomorM.cover : 0;
+    if (todayC < yesterC) continue; // yesterday was better — skip trailing edge
+    if (todayC < tomorC) continue; // tomorrow will be better — skip leading edge
+
+    // Build description with size comparison and coverage.
+    c.timing = ti;
+    c.peakCoveragePct = ti.peakCoveragePct;
+    c.description = _buildEclipseDescription(c, sys);
+    eclipses.push(c);
   }
 
   return eclipses;
 }
 
+// Build eclipse description with relative size and coverage.
+function _buildEclipseDescription(e, sys){
+  var pct = e.peakCoveragePct || 0;
+  if (e.type === 'total solar' || e.type === 'partial solar' || e.type === 'transit'){
+    var sizeRatio = e.apparentSize || 1;
+    var sizePct = Math.round(Math.abs(sizeRatio - 1) * 100);
+    var sizeWord = sizeRatio >= 1 ? 'larger' : 'smaller';
+    return esc(e.moon) + ' eclipses the ' + sizePct + '% ' + sizeWord +
+      ' sun, covering ' + pct + '% of the sun!' +
+      (e.type === 'total solar' ? ' The sky darkens!' : '');
+  }
+  if (e.type === 'lunar conjunction'){
+    var fm = _moonByName(sys, e.moon);
+    var bm = _moonByName(sys, e.occultedMoon);
+    var fData = fm ? (MOON_ORBITAL_DATA[fm.name] || {}) : {};
+    var bData = bm ? (MOON_ORBITAL_DATA[bm.name] || {}) : {};
+    var fSize = fData.angularSizeVsSun || 1;
+    var bSize = bData.angularSizeVsSun || 1;
+    var relPct = Math.round(Math.abs(fSize / bSize - 1) * 100);
+    var relWord = fSize >= bSize ? 'larger' : 'smaller';
+    return esc(e.moon) + ' eclipses the ' + relPct + '% ' + relWord +
+      ' ' + esc(e.occultedMoon) + ', covering ' + pct + '% of ' + esc(e.occultedMoon) + '!';
+  }
+  return '';
+}
+
 // Notable eclipses for the !cal default view
 function _eclipseNotableToday(serial){
-  var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
   var ecl = getEclipses(serial);
   var notes = [];
   for (var i = 0; i < ecl.length; i++){
-    var ti = _estimateEclipseTiming(serial, ecl[i], sys);
+    var e = ecl[i];
+    var ti = e.timing;
     var dur = ti ? (Math.round(ti.durationHours * 10) / 10) : null;
     var tInfo = ti
-      ? ' <span style="opacity:.75;">(' + esc(ti.startBlock) + '→' + esc(ti.endBlock) +
-        ', peaks ' + esc(ti.peakBlock) + ', ~' + dur + 'h, ~' + ti.peakCoveragePct + '% cover)</span>'
+      ? ' <span style="opacity:.75;">(' + esc(ti.startBlock) + '\u2192' + esc(ti.endBlock) +
+        ', peaks ' + esc(ti.peakBlock) + ', ~' + dur + 'h)</span>'
       : '';
-    if (ecl[i].type === 'total solar')
-      notes.push('\uD83C\uDF11\u2600\uFE0F <b>Total eclipse!</b> ' + ecl[i].description + tInfo);
-    else if (ecl[i].type === 'partial solar')
-      notes.push('\uD83C\uDF11 ' + ecl[i].description + tInfo);
-    else if (ecl[i].type === 'lunar conjunction' && ecl[i].depth > 0.5)
-      notes.push('\uD83C\uDF15 ' + ecl[i].description + tInfo);
+    if (e.type === 'total solar')
+      notes.push('\uD83C\uDF11\u2600\uFE0F <b>Total eclipse!</b> ' + e.description + tInfo);
+    else if (e.type === 'partial solar' || e.type === 'transit')
+      notes.push('\uD83C\uDF11 ' + e.description + tInfo);
+    else if (e.type === 'lunar conjunction' && e.depth > 0.5)
+      notes.push('\uD83C\uDF15 ' + e.description + tInfo);
   }
   return notes;
 }

@@ -142,10 +142,12 @@ Status: Completed by ChatGPT version number 5.4
 
 ### Eclipse and crossing math overhaul
 
-- [ ] Fix potential multi-day eclipse reports (eclipses should be single-day events with time-of-day precision)
-- [ ] Add percentage coverage to eclipses, based on relative angular sizes of the bodies
-- [ ] Phrase all events as eclipses in the form: `X eclipses the nn% smaller/larger Y, covering mm% of Y!`
-- [ ] Add time-of-day labels to all eclipses and moon-crossing events:
+Status: Completed
+
+- [x] Fix potential multi-day eclipse reports (eclipses should be single-day events with time-of-day precision)
+- [x] Add percentage coverage to eclipses, based on relative angular sizes of the bodies
+- [x] Phrase all events as eclipses in the form: `X eclipses the nn% smaller/larger Y, covering mm% of Y!`
+- [x] Add time-of-day labels to all eclipses and moon-crossing events:
   - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
 
 ---
