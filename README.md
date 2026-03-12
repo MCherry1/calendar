@@ -313,26 +313,15 @@ Run `!cal weather manifest` in chat for the chooser, or use the weather panel's 
 
 Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather.
 
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
+
 agent task include a table here with an entry for each plane and listingthe effects while coterminous or remote.
 =======
 =======
->>>>>>> theirs
 =======
->>>>>>> theirs
 Current Syrania behavior in the model is:
 - **Coterminous Syrania:** forces calm, clear conditions for the day (wind and precipitation collapse to calm/none).
 - **Remote Syrania:** increases precipitation pressure (`+1` precipitation tier).
 - **Syrania manifest zones:** remain the lighter local modifier (`-1` wind, `-1` precipitation), independent from planar phase.
-<<<<<<< ours
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
 
 ### Forecasting
 
