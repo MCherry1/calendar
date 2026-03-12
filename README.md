@@ -191,15 +191,16 @@ Weather tables in D&D suck. This one sucks a little less.
 
 Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation. agent task please make sure theres a button for this
 
-### Weather TOC
-
 - [Temperature](#temperature)
 - [Wind](#wind)
 - [Precipitation](#precipitation)
 - [Location](#location)
 - [Forecasting](#forecasting)
 
-### Temperature
+### Mechanics
+
+The following tables are homebrewed.
+#### Temperature
 
 The live generator maps directly on the `-5` to `15` band scale shown below.
 
