@@ -24,16 +24,6 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 - **Calendar Systems:** Harptos date math is present, but the rendered calendar still uses weekday columns; tenday layout remains tracked in the agent-ready section below.
 	- this needs to be implemented, with rows of 10, redone weekday labels using 1st, 2nd, etc.
 
-## Review Findings (2026-03-12)
-
-Identifier of record: Codex (GPT-5)
-
-- [ ] Fix stale planar-weather influence text after the weather rebalance. `calendar.js` still reports Syrania coterminous as `precipitation -1, wind -1` in `_activePlanarWeatherShiftLines()`, and `_planarWeatherInfluenceText()` still reports Fernia/Risia coterminous as `+2/-2 temp`, even though `_generateDayWeather()` now applies Fernia/Risia as `+3/-3` and Syrania coterminous as a calm/clear override.
-- [ ] Fix GM weather period breakdowns to use the actual per-period values. `_todayAllHtml()` and `weatherTodayMechanicsHtml()` currently derive morning/evening text and mechanics from `rec.final` instead of `rec.periods[pname]`, so the "detailed" breakdown repeats afternoon conditions instead of the generated period data.
-- [ ] Finish Gregorian leap-day presentation cleanup across all date/weather outputs. `currentDateLabel()` and `dateLabelFromSerial()` still render `29 February`, and several weather/player forecast/history/mechanics labels still concatenate the raw leap-slot month/day (`Leap Day 1`) instead of presenting `February 29`.
-- [ ] Reopen the README completion pass. `README.md` still contains unresolved `agent task:` placeholders and literal `=======` merge markers, so the completed "Check README for accuracy..." and "README is incomplete. Fill in the sections where tasks are clear." entries are not actually complete.
-
----
 ## Match Script to README.md and Design.md
 - Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented. Completed by ChatGPT version number 5.4
 ---
