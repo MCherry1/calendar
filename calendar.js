@@ -4639,8 +4639,8 @@ function _todayAllHtml(){
           var pLabel = _moonPhaseLabel(ph.illum, ph.waxing);
           var pct = Math.round(ph.illum * 100);
           var extra = '';
-          if (ph.illum >= 0.97) extra = ' <b style="color:#FFD700;">FULL</b>';
-          else if (ph.illum <= 0.03) extra = ' <b>' + (ph.longShadows ? 'NEW (Long Shadows)' : 'NEW') + '</b>';
+          if (ph.illum >= MOON_FULL_THRESHOLD) extra = ' <b style="color:#FFD700;">FULL</b>';
+          else if (ph.illum <= MOON_NEW_THRESHOLD) extra = ' <b>' + (ph.longShadows ? 'NEW (Long Shadows)' : 'NEW') + '</b>';
           moonLines.push(emoji + ' ' + esc(moon.name) +
             ' <span style="opacity:.5;">(' + pct + '% ' + esc(pLabel) + ')</span>' + extra);
         }
@@ -5788,7 +5788,7 @@ function _isArythFull(serial){
   try {
     moonEnsureSequences(serial, 60);
     var ph = moonPhaseAt('Aryth', serial);
-    return !!(ph && ph.illum >= 0.97);
+    return !!(ph && ph.illum >= MOON_FULL_THRESHOLD);
   } catch(e){
     return false;
   }
@@ -6496,7 +6496,7 @@ function _rollExtremeEvent(key, rec){
 
 function _isZarantyrFull(serial){
   var ph = moonPhaseAt('Zarantyr', serial);
-  return !!(ph && ph.illum >= 0.97);
+  return !!(ph && ph.illum >= MOON_FULL_THRESHOLD);
 }
 
 // Render the extreme event panel for the GM Today view.
@@ -10965,9 +10965,8 @@ function _anomalyStartsOnDay(planeName, serial){
       var moonPh = moonPhaseAt(profile.moonName, serial);
       if (!moonPh) return null;
 
-      // Full: illum >= 0.97. New: illum < 0.03.
-      var isFull = (moonPh.illum >= 0.97);
-      var isNew  = (moonPh.illum < 0.03);
+      var isFull = (moonPh.illum >= MOON_FULL_THRESHOLD);
+      var isNew  = (moonPh.illum <= MOON_NEW_THRESHOLD);
       if (!isFull && !isNew) return null;
 
       // Roll the moon die (d20 death saving throw)
@@ -10994,8 +10993,8 @@ function _anomalyStartsOnDay(planeName, serial){
     try {
       var hmMoonPh = moonPhaseAt(profile.moonName, serial);
       if (hmMoonPh){
-        var hmIsFull = (hmMoonPh.illum >= 0.97);
-        var hmIsNew  = (hmMoonPh.illum < 0.03);
+        var hmIsFull = (hmMoonPh.illum >= MOON_FULL_THRESHOLD);
+        var hmIsNew  = (hmMoonPh.illum <= MOON_NEW_THRESHOLD);
         if (hmIsFull || hmIsNew){
           // Moon-qualified day: roll the moon die
           var hmMoonRoll = _dN(serial, salt + '_hmoon', profile.moonDie);
