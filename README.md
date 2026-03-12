@@ -187,7 +187,6 @@ Weather tables in D&D suck. This one sucks a little less.
 
 - The weather subsystem can be toggled on or off as desired.
 - The mechanical weather effects can also be toggled on or off independently, leaving only narrative weather.
-- This system is homebrew.
 
 Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (on|off)` to hide/show the D&D rules text without disabling narrative weather or forecast generation. agent task please make sure theres a button for this
 
@@ -199,7 +198,7 @@ Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (
 
 ### Mechanics
 
-The following tables are homebrewed.
+The following tables are homebrewed. They use common D&D mechanics, sometimes repurposed, sometimes expanded.
 #### Temperature
 
 The live generator maps directly on the `-5` to `15` band scale shown below.
@@ -234,7 +233,7 @@ agent task delete the term con save from the table below, leaving only DC XX
 |     13      | [125 .. 134] | DC 25 Con save; light, medium, and heavy armor at disadv.    |
 |     14      | [135 .. 144] | DC 25 Con save; light, medium, and heavy armor at disadv.    |
 |     15      |   ≥ 145°F    | DC 30 Con save; light, medium, and heavy armor at disadv.    |
-### Wind
+#### Wind
 
 All effects are cumulative
 
