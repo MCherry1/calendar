@@ -178,10 +178,8 @@ That means axial tilt mostly shows up as broad seasonal daylight framing: longer
 - Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
 - Extends roughly **370 to 3,480 miles (600 to 5,600 km)** above the surface
 - **Albedo 0.50**, chosen from a Saturn-ring-inspired analog and tuned to preserve the setting goal that the ring is visibly bright even by day
-	- agent task please list what saturns rings actual albedo range is, describe their makeup.
 - Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
-- agent task insert the angular size of this ring in the sky, and provide an reference via comparing it to eberrrons and earths mooons
 ### Moons of Eberron
 
 The Eberron implementation uses integer-multiple synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms.
@@ -202,9 +200,6 @@ The Eberron implementation uses integer-multiple synodic periods on a 336-day ye
 | Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |               0.07 |       0.0014 |   0.23 |
 
 #### Eberron Moon Reference Inspirations
-agent tasks: please also describe the source of the name of each of the moons as it's important.
-and rewrite these to be more.. inspired. they should be more poetic, still short, but its about inspiration not factaul statements.
-agent task please list the relative size of these moons vs earths moon so people can imagine them as well.
 ##### Zarantyr
 **Reference body:** Luna (Earth). The Storm Moon uses the real Moon's mix of tidal importance, moderate eccentricity, and broad inclination sweep so the closest moon also feels like the most forceful and weather-shaping one.
 
@@ -216,7 +211,6 @@ agent task please list the relative size of these moons vs earths moon so people
 
 ##### Eyre
 **Reference body:** Mimas (Saturn). Mimas provides the scarred-anvil inspiration: a bright icy moon dominated by a single enormous crater, which suits Eyre's forge-marked identity better than a darker but more eccentric analog.
-agent task this is a stupid description. please rewrite this one: I could have chosen Io, the classic volcanic moon who's surface is constantly changign with lava flows. or prometheus, named for hte god who gave humanity fire. but instead we choose mimas. a lesser known moon named for a giant that was killed from a blow by the forge god hephatus' hammer. the biggest crater in the solar system (fact checl) crater inserrt name here dominates hxx% of thee surface of this moon. itwould be visible from he surface of a planet, much like the anvil of eyre is visible to those who look.
 
 ##### Dravago
 **Reference body:** Triton (Neptune). Triton's retrograde orbit is the key inspiration here: Dravago keeps its distance from the other moons by literally moving against them, with frozen stillness and high reflectivity reinforcing Risia's influence.

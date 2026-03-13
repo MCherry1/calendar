@@ -50,6 +50,17 @@ Progress: Stable sky-model expansion completed by GPT-5 Codex on 2026-03-13. Rin
 - [x] Include the Eberron moon reference-body mapping table in README instead of only pointing to `DESIGN.md`
 - [x] Expand **Modeling the Skies** with the remaining stable explanatory material
 - [ ] Add Ring of Siberys detail for apparent color, angular size, and nearest Zarantyr clearance
+- [ ] Add a Saturn-rings reference note covering real albedo range and physical makeup
+- [ ] Add an angular-size comparison for the Ring of Siberys versus Earth's Moon and the major Eberron moons
+
+---
+
+### Refine Eberron moon inspiration notes in README
+
+- [ ] Add name-origin notes for each Eberron moon
+- [ ] Add relative-size comparisons versus Earth's Moon so the moon table is easier to visualize
+- [ ] Rewrite the per-moon inspiration blurbs to be shorter and more evocative, not just factual
+- [ ] Rewrite Eyre's Mimas note to accurately explain the forge / hammer / crater inspiration
 
 ---
 
@@ -58,6 +69,14 @@ Progress: Stable sky-model expansion completed by GPT-5 Codex on 2026-03-13. Rin
 Status: Completed by GPT-5 Codex on 2026-03-13
 
 - [x] Create a repo doc that explains how the script's seed-driven deterministic generation works for weather / moons / planes
+
+---
+
+### Replace planar "anomaly" terminology with "generated event" wording
+
+- [ ] Remove user-facing uses of "anomaly", "anomalies", and "anomalous" from markdown docs and UI copy where those refer to generated planar events
+- [ ] Update deterministic-seed and design-facing documentation to describe those shifts as generated events instead of anomalies
+- [ ] Keep or defer internal identifier renames separately if a full code-symbol refactor is not worth the churn
 
 ---
 
@@ -85,6 +104,15 @@ Status: Completed by GPT-5 Codex on 2026-03-13
 ## Agent Ready
 
 These are well-defined implementation tasks. The design is decided, the target behavior is clear, and the work is primarily mechanical code changes. A capable coding agent can complete these without further design discussion.
+
+---
+
+### Tighten top-level calendar jump syntax and documentation
+
+- [ ] Audit what `!cal <dateSpec>` forms actually render in the top-level mini-calendar flow
+- [ ] Remove or rewrite confusing direct-jump examples in `Chat Commands.md` that do not map cleanly to month-based output
+- [ ] Reject or warn on ambiguous bare-number / single-day top-level jump inputs that do not make sense for a month mini-calendar
+- [ ] Whisper clearer syntax guidance for valid month-oriented jump forms
 
 ---
 
