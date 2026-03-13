@@ -52,23 +52,29 @@ These are README / repo-doc tasks extracted from embedded notes in the README.
 
 ### Expand Knowledge Tiers guidance in README
 
-- [ ] Add a recommended medium-tier skill-check table using DC 10 / 15 / 20 / 25 guidance
-- [ ] Add guidance for expert-tier reveals via magical or tool-assisted means
-- [ ] Document the default recommended reveal windows using Fibonacci-style progressions
+Status: Completed by GPT-5 Codex on 2026-03-13
+
+- [x] Add a recommended medium-tier skill-check table using DC 10 / 15 / 20 / 25 guidance
+- [x] Add guidance for expert-tier reveals via magical or tool-assisted means
+- [x] Document the default recommended reveal windows using Fibonacci-style progressions
 
 ---
 
 ### Expand README moon and sky reference material
 
+Progress: Stable sky-model expansion completed by GPT-5 Codex on 2026-03-13. Ring of Siberys detail remains open.
+
 - [x] Include the Eberron moon reference-body mapping table in README instead of only pointing to `DESIGN.md`
-- [ ] Expand **Modeling the Skies** with the remaining stable explanatory material
+- [x] Expand **Modeling the Skies** with the remaining stable explanatory material
 - [ ] Add Ring of Siberys detail for apparent color, angular size, and nearest Zarantyr clearance
 
 ---
 
 ### Add deterministic-seed author documentation
 
-- [ ] Create a repo doc that explains how the script's seed-driven deterministic generation works for weather / moons / planes
+Status: Completed by GPT-5 Codex on 2026-03-13
+
+- [x] Create a repo doc that explains how the script's seed-driven deterministic generation works for weather / moons / planes
 
 ---
 

@@ -106,6 +106,20 @@ Knowledge is **upgrade-only** — once revealed, it never downgrades. Players re
 
 GMs can decide how much to reveal, and under what circumstances. The script provides built-in reveal windows, but those can just as easily represent a skill check, divination magic, an almanac, an observatory, or campaign-specific research.
 
+Recommended medium-tier DC ladder:
+
+| System | DC 10 | DC 15 | DC 20 | DC 25 |
+| --- | --- | --- | --- | --- |
+| Weather | 1 day | 3 days | 6 days | 10 days |
+| Moons | 1 month | 3 months | 6 months | 10 months |
+| Planes | 1 day | 3 days | 6 days | 10 days |
+
+Use that table as the default "skilled forecast" pacing for Survival, Nature, navigator's tools, almanacs, observatory records, or planar scholarship. The script's reveal buttons already line up with those windows even when your campaign fiction explains them differently.
+
+`high` is the tier for magic, instruments, or institutions that justify precise knowledge rather than informed guesswork: divination, dragonmarked observatories, long-kept almanacs, planar charts, weather stations, or privileged archival access. Use it when the fiction supports exact timing inside the granted window.
+
+If you want custom reveal horizons beyond the preset buttons, widen them in Fibonacci-style steps instead of simple doubling: `1, 2, 3, 5, 8, 13`, then round into table-friendly units. In practice that means weather and planes usually grow by days, while moons grow by months.
+
 ---
 ## Events
 ### General
@@ -134,6 +148,9 @@ The script models the sky as a physical system rather than flavor-only text. Moo
 - It does not make a declared cosmological stance. It does not worry about sidereal orbital periods, nor the motion of distant stars or constellations (for now). 
 - Sky reports are intentionally local and practical: they answer "what do we see where we are?" instead of simulating a full global observatory model.
 - Time is presented as broad play-facing buckets such as early hours, morning, afternoon, evening, and night.
+- Inclination matters mainly for **where** a moon appears in the sky and **how often** it can line up for crossings or eclipses; it is not treated as a second weather engine.
+
+In practice, the sky model is optimized for play-facing observables: phase, brightness, apparent motion, and dramatic alignments. It is meant to answer "what can the characters notice tonight?" rather than produce a full latitude-by-latitude astronomy simulator.
 ### Moons
 
 Lunar calendars are classic, and mechanically relevant for nighttime lighting.
@@ -152,6 +169,8 @@ Moon phases are intentionally flexible as a narrative tool. GMs can anchor any m
 ### Eberron-Specific Cosmology
 
 Eberron is modeled as Earth-like for baseline astronomical geometry (including axial tilt assumptions for daylight-length variation across the year). In this script, however, **temperature is not driven by axial/solar-season physics**. Seasonal weather pressure is handled through the campaign's planar/weather system instead.
+
+That means axial tilt mostly shows up as broad seasonal daylight framing: longer summer days, shorter winter days, and corresponding shifts in the script's coarse time-of-day buckets. Because the script does not track latitude, it intentionally stops short of city-by-city sunrise tables or exact numeric day-length curves.
 
 ### Ring of Siberys
 
@@ -237,7 +256,7 @@ Use **Admin → Settings → Weather Mech** or `!cal settings weathermechanics (
 - [Forecasting](#forecasting)
 ### Forecasting
 
-Weather is generated deterministically from your location profile and a seed word. The same location and seed always produce the same weather — useful for planning retroactively or maintaining consistency if you revisit a date.
+Weather is generated from your location profile, then stored and advanced sequentially. The climate/geography/terrain tables are deterministic, while the actual day rolls become stable once the forecast window is generated and remain so unless the GM rerolls, regenerates, or changes location.
 
 The generation pipeline runs per-day:
 1. **Baseline** — Climate, geography, and terrain set temperature, wind, and precipitation probabilities.
