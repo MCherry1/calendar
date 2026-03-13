@@ -81,7 +81,7 @@ Design clarified by user on 2026-03-13. This task is now implementation-ready.
 
 - [ ] Report **true overlaps only**. Remove near-miss conjunction / crossing reports that do not have real disk overlap.
 - [ ] Reclassify event types by actual overlap and relative apparent size:
-  - `Total Eclipse`: the occluded body reaches **100% coverage** at peak.
+  - `Total Eclipse`: the occluded body reaches greater than **98% coverage** at peak.
   - `Partial Eclipse`: peak coverage is **greater than 0% but less than 100%**, and the occluding body's apparent diameter is **more than 75%** of the occluded body's apparent diameter.
   - `Transit`: peak coverage is **greater than 0% but less than 100%**, and the occluding body's apparent diameter is **75% or less** of the occluded body's apparent diameter.
 - [ ] Coverage must be computed from the actual apparent disk overlap at peak and reported as the **percentage of the occluded body covered**.
