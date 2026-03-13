@@ -1722,7 +1722,14 @@ var Parse = (function(){
     }
 
     if (idx<tokens.length){
-      if (/^\d+$/.test(tokens[idx])){ day = parseInt(tokens[idx],10); idx++; }
+      if (/^\d+$/.test(tokens[idx])){
+        var n2 = parseInt(tokens[idx],10);
+        var maxDay = (mi !== -1 && cal.months[mi]) ? (cal.months[mi].days|0) : 0;
+        var looksLikeMonthYear = (mi !== -1 && idx === 1 && tokens.length === 2 &&
+          (n2 > maxDay || String(tokens[idx]).length >= 3));
+        if (looksLikeMonthYear){ year = n2; idx++; }
+        else { day = n2; idx++; }
+      }
       else {
         var od = ordinalDay(tokens[idx]);
         if (od != null){ day = od|0; idx++; }
@@ -2515,6 +2522,102 @@ function _phraseToSpec(tokens){
   }
   if ((t0==='last'||t0==='previous'||t0==='prev') && t1==='year'){ return yearRange(cur.year-1, 'Last Year '+(cur.year-1)+' '+LABELS.era); }
   return null;
+}
+
+function _calendarMonthRange(y, mi, title){
+  var months = getCal().months;
+  var md = months[mi].days|0;
+  return {
+    title: title || (months[mi].name + ' ' + y + ' ' + LABELS.era),
+    start: toSerial(y, mi, 1),
+    end: toSerial(y, mi, md),
+    months: [{ y:y, mi:mi }]
+  };
+}
+
+function _calendarYearRange(y, title){
+  var months = getCal().months;
+  var s = toSerial(y, 0, 1);
+  var end = toSerial(y + 1, 0, 1) - 1;
+  var mList = months.map(function(_, i){ return { y:y, mi:i }; })
+    .filter(function(entry){
+      var m = months[entry.mi];
+      return !m.leapEvery || _isLeapMonth(m, y);
+    });
+  return {
+    title: title || ('Year ' + y + ' ' + LABELS.era),
+    start: s,
+    end: end,
+    months: mList
+  };
+}
+
+function _parseTopLevelCalendarSpec(tokens){
+  tokens = _tokenizeRangeArgs(tokens);
+  var cal = getCal();
+  var cur = cal.current;
+  var months = cal.months;
+
+  if (!tokens.length) return _calendarMonthRange(cur.year, cur.month, 'This Month');
+
+  if (tokens.length && _isPhrase(tokens[0].toLowerCase())){
+    var phraseSpec = _phraseToSpec(tokens);
+    if (phraseSpec) return phraseSpec;
+  }
+
+  var ow = Parse.ordinalWeekday.fromTokens(tokens);
+  if (ow){
+    var owYear = (typeof ow.year === 'number') ? ow.year : cur.year;
+    var owMi = (ow.mi !== -1) ? ow.mi : cur.month;
+    return _calendarMonthRange(owYear, owMi, months[owMi].name + ' ' + owYear + ' ' + LABELS.era);
+  }
+
+  var md = Parse.monthYearLoose(tokens);
+  if (md.mi !== -1 && md.day != null && md.year != null){
+    return _calendarMonthRange(md.year, md.mi, months[md.mi].name + ' ' + md.year + ' ' + LABELS.era);
+  }
+  if (md.mi !== -1 && md.day != null){
+    var day = clamp(md.day, 1, months[md.mi].days|0);
+    var nextY = nextForMonthDay(cur, md.mi, day).year;
+    return _calendarMonthRange(nextY, md.mi, months[md.mi].name + ' ' + nextY + ' ' + LABELS.era);
+  }
+  if (md.mi !== -1 && md.year != null){
+    return _calendarMonthRange(md.year, md.mi, months[md.mi].name + ' ' + md.year + ' ' + LABELS.era);
+  }
+  if (md.mi !== -1){
+    var y = (md.mi >= cur.month) ? cur.year : (cur.year + 1);
+    return _calendarMonthRange(y, md.mi, months[md.mi].name + ' ' + y + ' ' + LABELS.era);
+  }
+  if (md.year != null && md.day == null){
+    return _calendarYearRange(md.year, 'Year ' + md.year + ' ' + LABELS.era);
+  }
+
+  return null;
+}
+
+function _topLevelCalendarGuidanceHtml(tokens){
+  tokens = _tokenizeRangeArgs(tokens);
+  var entered = tokens.length ? ('<div style="margin-bottom:4px;"><code>!cal ' + esc(tokens.join(' ')) + '</code> does not map cleanly to a month view.</div>') : '';
+  return _menuBox('Calendar Jump Syntax',
+    entered +
+    '<div style="opacity:.82;">Top-level <code>!cal</code>, <code>!cal show</code>, and <code>!cal send</code> jumps render whole months or years.</div>' +
+    '<div style="margin-top:5px;">Use a month name, a month plus year, or a full date that includes a month:</div>' +
+    '<div style="margin-top:4px;"><code>!cal Zarantyr</code><br><code>!cal Zarantyr 998</code><br><code>!cal Rhaan 14</code><br><code>!cal next month</code><br><code>!cal this year</code></div>' +
+    '<div style="margin-top:5px;opacity:.72;">Bare day-only inputs like <code>!cal 14</code> or <code>!cal 1st</code> are not supported here.</div>'
+  );
+}
+
+function _deliverTopLevelCalendarRange(opts){
+  opts = opts || {};
+  var spec = _parseTopLevelCalendarSpec(opts.args || []);
+  if (!spec){
+    if (opts.who) whisper(opts.who, _topLevelCalendarGuidanceHtml(opts.args || []));
+    return false;
+  }
+  var calHtml = buildCalendarsHtmlForSpec(spec);
+  if (opts.dest === 'broadcast') sendToAll(calHtml);
+  else whisper(opts.who, calHtml);
+  return true;
 }
 
 function parseUnifiedRange(tokens){
@@ -4857,7 +4960,7 @@ var commands = {
       _showDefaultCalView(m);
       return;
     }
-    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' });
+    _deliverTopLevelCalendarRange({ who:m.who, args:restTokens, dest:'whisper' });
   },
 
   show: function(m, a){
@@ -4866,7 +4969,7 @@ var commands = {
       _showDefaultCalView(m);
       return;
     }
-    deliverRange({ who:m.who, args:restTokens, mode:'cal', dest:'whisper' });
+    _deliverTopLevelCalendarRange({ who:m.who, args:restTokens, dest:'whisper' });
   },
 
   now: function(m){
@@ -5001,7 +5104,7 @@ var commands = {
   send: { gm:true, run:function(m, a){
     var restTokens = _normalizePackedWords(a.slice(2).join(' ')).split(/\s+/).filter(Boolean);
     if (!restTokens.length){ sendCurrentDate(null, false, { playerid:m.playerid, includeButtons:false }); return; }
-    deliverRange({ args:restTokens, mode:'cal', dest:'broadcast' });
+    _deliverTopLevelCalendarRange({ who:m.who, args:restTokens, dest:'broadcast' });
   }},
 
   advance: { gm:true, run:function(m,a){ stepDays( parseInt(a[2],10) || 1); } },

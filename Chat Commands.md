@@ -6,7 +6,7 @@ Most play should happen through the in-chat buttons. When typed syntax matters, 
 
 ### Month Navigation for `!cal`, `!cal show`, and `!cal send`
 
-The intended direct-navigation workflow is month-oriented:
+Top-level `!cal`, `!cal show`, and `!cal send` jumps are month-oriented. They render a whole month or year, not a single-day card.
 
 ```text
 !cal                      — current month
@@ -14,6 +14,8 @@ The intended direct-navigation workflow is month-oriented:
 !cal 1                    — next occurrence of month 1
 !cal Zarantyr 998         — that month in a specific year
 !cal 1 998                — that month in a specific year
+!cal Rhaan 14            — the month containing the next Rhaan 14
+!cal Rhaan 14 998        — the month containing that exact date
 !cal this month
 !cal next month
 !cal last month
@@ -22,14 +24,17 @@ The intended direct-navigation workflow is month-oriented:
 !cal last year
 ```
 
-The underlying range parser also still accepts exact dates and ordinal-weekday queries when you need them:
+Exact-date month jumps still work when you include a month:
 
 ```text
-!cal 14
 !cal Rhaan 14
+!cal 9 14
 !cal Rhaan 14 998
+!cal 9 14 998
 !cal first Sul of Aryth 998
 ```
+
+Bare day-only inputs such as `!cal 14` or `!cal 1st` are rejected here; include a month.
 
 ### Single-Date Specs
 
