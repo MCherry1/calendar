@@ -42,6 +42,21 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 </details>
 
+### Local launcher for Roll20 autoupload
+
+If you use a browser autouploader extension, you can launch Roll20 through the helper script in this repo:
+
+1. Copy `tools/Launch-Roll20ApiSync.local.example.ps1` to `tools/Launch-Roll20ApiSync.local.ps1`
+2. Paste your campaign's **API Scripts** page URL into `$Roll20ApiUrl`
+3. Run `powershell -ExecutionPolicy Bypass -File .\tools\Launch-Roll20ApiSync.ps1`
+
+That helper will:
+- run `git pull --ff-only`
+- confirm `calendar.js` exists locally
+- open your Roll20 API page in Edge (or your default browser if Edge is unavailable)
+
+Your autouploader extension still does the actual sync to Roll20; this script just makes sure your local copy is up to date before the page opens.
+
 ---
 
 ## How to Use
