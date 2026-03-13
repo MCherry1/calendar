@@ -860,7 +860,28 @@ Moon Send Medium:          1m (DC 10)  3m (DC 15)  6m (DC 20)  10m (DC 25)
 Planes Send Medium:        1d (DC 10)  3d (DC 15)  6d (DC 20)  10d (DC 25)
 ```
 
-### 12.5 CLI Flexibility
+### 12.5 Today View Density
+
+The GM Today view (`!cal today`) respects the `subsystemVerbosity` setting:
+
+**`normal` mode** — full detail (current behavior):
+- All weather periods (5) with narrative + mechanics
+- All moons listed with phase/illumination
+- Separate lighting section with lux breakdown
+- Separate planar weather shift lines
+
+**`minimal` mode** — summary briefing:
+- **Weather:** Stable days (all periods within ±1 temperature band, ±1 wind/precip) collapse to a single representative line using afternoon values. Divergent days show only the periods that changed. Extreme events always shown.
+- **Moons:** Only notable moons shown — full (≥97%), new (≤3%), or within 1 day of full/new. Others suppressed with a count suffix, e.g., "(+10 moons unremarkable)". Eclipses always shown.
+- **Tonight's Lighting:** Merged into the Moons section as a single trailing line (condition + lux + cloud note). Per-moon source breakdown suppressed.
+- **Planar:** Weather shift modifiers merged inline with their phase line. Empty sections suppressed entirely.
+- **Drill-down buttons:** Each subsystem section includes an inline detail button linking to the full subsystem view (`☁ Detail` / `🌙 Detail` / `🌀 Detail`).
+
+The player Today view (`_playerTodayHtml`) is already summary-oriented through the tier system and is not affected by `subsystemVerbosity`.
+
+The `uiDensity` setting controls spacing/font sizing in the calendar grid and does not affect Today view content selection.
+
+### 12.6 CLI Flexibility
 
 Buttons issue CLI commands, but GMs can type custom values directly:
 ```
@@ -913,3 +934,4 @@ Single file: `calendar.js` (~13,400 lines). All state stored in Roll20's `state`
 10. **Manifest zone design** — Parallel to location system, Aryth reminder integration
 11. **Temperature scale expansion** — Expanded band table (−5 to 15) added to script; migration from 0–10 in progress
 12. **Documentation consolidation** — All subsystem design docs merged into this file
+13. **Today view density** — Summary mode for `!cal today` gated on `subsystemVerbosity`; collapses stable weather, shows only notable moons, inlines lighting and planar shifts
