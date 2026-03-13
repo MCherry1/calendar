@@ -3318,13 +3318,13 @@ function sendCurrentDate(to, gmOnly, opts){
           var _f  = _wxRec.final;
           var _tL = CONFIG_WEATHER_LABELS.temp[_f.temp] || _tempBand(_f.temp);
           var _wxLoc   = _wxRec.location || {};
-          var _wxCond  = _deriveConditions(_f, _wxLoc, 'afternoon', _wxRec.snowAccumulated, _wxRec.fog && _wxRec.fog.afternoon);
-          var _wxNarr = _conditionsNarrative(_f, _wxCond, 'afternoon');
+          var _wxCond  = _deriveConditions(_f, _wxLoc, WEATHER_PRIMARY_PERIOD, _wxRec.snowAccumulated, _weatherPrimaryFog(_wxRec));
+          var _wxNarr = _conditionsNarrative(_f, _wxCond, WEATHER_PRIMARY_PERIOD);
           weatherLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
             '\u2601\uFE0F ' + esc(_wxNarr) +
             '</div>';
-          // Auto-record low-tier common-knowledge reveal for today
-          _recordReveal(_ws, todaySer, 'low', 'common');
+          // Auto-record low-tier common-knowledge reveal for the short common window.
+          _grantCommonWeatherReveals(_ws, todaySer);
         }
       }
     } catch(e){ /* weather not ready — skip silently */ }
@@ -4114,11 +4114,11 @@ function activeEffectsPanelHtml(){
           var cond = _deriveConditions(
             rec.final,
             loc,
-            'afternoon',
+            WEATHER_PRIMARY_PERIOD,
             rec.snowAccumulated,
-            rec.fog && rec.fog.afternoon
+            _weatherPrimaryFog(rec)
           );
-          var narr = _conditionsNarrative(rec.final, cond, 'afternoon');
+          var narr = _conditionsNarrative(rec.final, cond, WEATHER_PRIMARY_PERIOD);
           wx += '<div style="font-size:.85em;opacity:.75;">'+locLine+'</div>';
           var manifestStatus = _manifestZoneStatusLabel(_activeManifestZoneEntries());
           if (manifestStatus !== 'None'){
@@ -4692,8 +4692,7 @@ function _todayAllHtml(){
       if (wxRec && wxRec.final){
         var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b></div>';
         wxHtml += _weatherInfluenceHtml(wxRec);
-        var periods = ['morning','afternoon','evening'];
-        var pIcons = { morning:'☀', afternoon:'☁', evening:'🌙' };
+        var periods = WEATHER_DAY_PERIODS;
         for (var pi = 0; pi < periods.length; pi++){
           var pname = periods[pi];
           var fogP = wxRec.fog && wxRec.fog[pname];
@@ -4703,7 +4702,7 @@ function _todayAllHtml(){
           var narr = _conditionsNarrative(periodVals, cond, pname);
           var mech = _conditionsMechHtml(cond);
           wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
-            pIcons[pname] + ' <b>' + titleCase(pname) + ':</b> ' + esc(narr) +
+            _weatherPeriodIcon(pname) + ' <b>' + esc(_weatherPeriodLabel(pname)) + ':</b> ' + esc(narr) +
             (mech ? '<div style="margin-left:12px;">'+mech+'</div>' : '') +
             '</div>';
         }
@@ -5268,6 +5267,52 @@ var WEATHER_UNCERTAINTY = {
   vague:     { maxDist: 20, label: 'Vague'     }
 };
 
+var WEATHER_DAY_PERIODS = ['early_morning', 'morning', 'afternoon', 'evening', 'late_night'];
+var WEATHER_PRIMARY_PERIOD = 'afternoon';
+var WEATHER_LOW_TOD_PERIODS = ['early_morning', 'afternoon', 'late_night'];
+var WEATHER_PERIOD_META = {
+  early_morning: { label:'Early Morning', shortLabel:'Early', icon:'🌅' },
+  morning:       { label:'Morning',       shortLabel:'Morning', icon:'☀' },
+  afternoon:     { label:'Afternoon',     shortLabel:'Afternoon', icon:'☁' },
+  evening:       { label:'Evening',       shortLabel:'Evening', icon:'🌆' },
+  late_night:    { label:'Late Night',    shortLabel:'Night', icon:'🌙' }
+};
+
+function _weatherPeriodLabel(period){
+  var meta = WEATHER_PERIOD_META[period] || {};
+  return meta.label || titleCase(String(period || '').replace(/_/g, ' '));
+}
+
+function _weatherPeriodShortLabel(period){
+  var meta = WEATHER_PERIOD_META[period] || {};
+  return meta.shortLabel || _weatherPeriodLabel(period);
+}
+
+function _weatherPeriodIcon(period){
+  var meta = WEATHER_PERIOD_META[period] || {};
+  return meta.icon || '•';
+}
+
+function _weatherPrimaryValues(rec){
+  if (!rec) return null;
+  if (rec.periods && rec.periods[WEATHER_PRIMARY_PERIOD]) return rec.periods[WEATHER_PRIMARY_PERIOD];
+  return rec.final || null;
+}
+
+function _weatherPrimaryFog(rec){
+  return rec && rec.fog ? rec.fog[WEATHER_PRIMARY_PERIOD] : null;
+}
+
+function _weatherPrevNightValues(prevRec){
+  if (!prevRec) return null;
+  if (prevRec.periods && prevRec.periods.late_night) return prevRec.periods.late_night;
+  return prevRec.final || null;
+}
+
+function _weatherPrevNightFog(prevRec){
+  return (prevRec && prevRec.fog) ? prevRec.fog.late_night : null;
+}
+
 // Stochastic TOD bell curve. One 1d20 roll per trait per period.
 // 1→−2, 2–4→−1, 5–16→0, 17–19→+1, 20→+2. Applied after arc, clamped.
 var WEATHER_TOD_BELL = [
@@ -5276,15 +5321,44 @@ var WEATHER_TOD_BELL = [
 ];
 
 // Deterministic TOD arc — the predictable daily shape per climate.
-// afternoon = reference (offset 0). Arc is scaled by geo × terrain arcMult.
+// Afternoon is the reference point (offset 0). Arc is scaled by geo × terrain
+// arcMult. Early morning and late night support the five-bucket day model.
 var WEATHER_TOD_ARC = {
-  polar:       { temp:{morning:-2,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening: 0} },
-  continental: { temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
-  temperate:   { temp:{morning:-2,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning:-1,afternoon:0,evening:+1} },
-  dry:         { temp:{morning:-4,afternoon:0,evening:-3}, wind:{morning:-1,afternoon:0,evening:-1}, precip:{morning:-1,afternoon:0,evening: 0} },
-  tropical:    { temp:{morning:-2,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} },
-  monsoon:     { temp:{morning:-2,afternoon:0,evening: 0}, wind:{morning:-1,afternoon:0,evening:+1}, precip:{morning:-1,afternoon:0,evening:+2} },
-  mediterranean:{ temp:{morning:-3,afternoon:0,evening:-2}, wind:{morning:-1,afternoon:0,evening: 0}, precip:{morning: 0,afternoon:0,evening:+1} }
+  polar: {
+    temp:   { early_morning:-3, morning:-2, afternoon:0, evening:-2, late_night:-3 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:-1 },
+    precip: { early_morning:0,  morning:0,  afternoon:0, evening:0, late_night:0 }
+  },
+  continental: {
+    temp:   { early_morning:-4, morning:-3, afternoon:0, evening:-2, late_night:-3 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
+    precip: { early_morning:0,  morning:-1, afternoon:0, evening:+1, late_night:+1 }
+  },
+  temperate: {
+    temp:   { early_morning:-3, morning:-2, afternoon:0, evening:-2, late_night:-3 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
+    precip: { early_morning:0,  morning:-1, afternoon:0, evening:+1, late_night:+1 }
+  },
+  dry: {
+    temp:   { early_morning:-5, morning:-4, afternoon:0, evening:-3, late_night:-4 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:-1, late_night:-2 },
+    precip: { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 }
+  },
+  tropical: {
+    temp:   { early_morning:-2, morning:-2, afternoon:0, evening:0, late_night:-1 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
+    precip: { early_morning:0,  morning:0,  afternoon:0, evening:+1, late_night:+1 }
+  },
+  monsoon: {
+    temp:   { early_morning:-2, morning:-2, afternoon:0, evening:0, late_night:0 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:+1, late_night:+1 },
+    precip: { early_morning:0,  morning:-1, afternoon:0, evening:+2, late_night:+1 }
+  },
+  mediterranean: {
+    temp:   { early_morning:-4, morning:-3, afternoon:0, evening:-2, late_night:-3 },
+    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
+    precip: { early_morning:0,  morning:0,  afternoon:0, evening:+1, late_night:+1 }
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -5869,7 +5943,7 @@ function _weatherRecordForDisplay(rec){
   if (!entries.length) return rec;
 
   var out = deepClone(rec);
-  var periods = ['morning', 'afternoon', 'evening'];
+  var periods = WEATHER_DAY_PERIODS;
   for (var i = 0; i < periods.length; i++){
     var pname = periods[i];
     if (!out.periods || !out.periods[pname]) continue;
@@ -6016,8 +6090,9 @@ function _rollTrait(formula, seedNudge){
 // 18f) Time-of-day calculations — two layers
 //
 // Layer 1 (deterministic arc): predictable daily shape from WEATHER_TOD_ARC,
-//   scaled by terrain multiplier. Mornings are cooler/calmer, afternoons peak,
-//   evenings cool again with precip building in humid climates.
+//   scaled by terrain multiplier. Early hours inherit some of the previous
+//   night, afternoons peak, and evening / late night cool again with
+//   precipitation often building in humid climates.
 //
 // Layer 2 (stochastic bell): one 1d20 roll per trait per period.
 //   1=−2, 2–4=−1, 5–16=0, 17–19=+1, 20=+2 (critical shifts are rare).
@@ -6055,7 +6130,13 @@ function _todStochastic(){
 // Called once per period per day at generation time. Result stored on record.
 // ---------------------------------------------------------------------------
 
-var _FOG_BASE = { morning: 0.40, evening: 0.20, afternoon: 0.05 };
+var _FOG_BASE = {
+  early_morning: 0.30,
+  morning:       0.40,
+  afternoon:     0.05,
+  evening:       0.20,
+  late_night:    0.10
+};
 
 var _FOG_GEO_MULT = {
   river_valley: 2.0,
@@ -6124,7 +6205,20 @@ function _rollFog(period, pv, geography, terrain, monthIdx, prevPeriodFog){
 // 18g) Generate a single day's weather record
 // ---------------------------------------------------------------------------
 
-function _generateDayWeather(serial, prevFinal, locationOverride){
+function _blendWeatherValues(primary, secondary, primaryWeight, secondaryWeight){
+  primary = primary || {};
+  secondary = secondary || {};
+  primaryWeight = Math.max(1, primaryWeight|0);
+  secondaryWeight = Math.max(1, secondaryWeight|0);
+  var total = primaryWeight + secondaryWeight;
+  return {
+    temp: _clampWeatherTempBand(Math.round((((primary.temp||0) * primaryWeight) + ((secondary.temp||0) * secondaryWeight)) / total)),
+    wind: Math.max(0, Math.min(5, Math.round((((primary.wind||0) * primaryWeight) + ((secondary.wind||0) * secondaryWeight)) / total))),
+    precip: Math.max(0, Math.min(5, Math.round((((primary.precip||0) * primaryWeight) + ((secondary.precip||0) * secondaryWeight)) / total)))
+  };
+}
+
+function _generateDayWeather(serial, prevRec, locationOverride){
   var loc = locationOverride || getWeatherState().location;
   if (!loc) return null;
 
@@ -6150,6 +6244,7 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
   }
 
   var nudge = { temp:0, wind:0, precip:0 };
+  var prevFinal = prevRec && prevRec.final ? prevRec.final : null;
   if (prevFinal && CONFIG_WEATHER_SEED_STRENGTH > 0){
     nudge.temp   = _nudge(prevFinal.temp,   formula.temp.base);
     nudge.wind   = _nudge(prevFinal.wind,   formula.wind.base);
@@ -6163,16 +6258,6 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
     precip: _rollTrait(formula.precip, nudge.precip)
   };
 
-  // TOD Layer 1: deterministic arc (scaled by combined geo × terrain arcMult).
-  var arcMorning   = _todArc(climate, arcMult, 'morning');
-  var arcAfternoon = _todArc(climate, arcMult, 'afternoon');  // always {0,0,0}
-  var arcEvening   = _todArc(climate, arcMult, 'evening');
-
-  // TOD Layer 2: stochastic bell per trait per period.
-  var rngMorning   = _todStochastic();
-  var rngAfternoon = _todStochastic();
-  var rngEvening   = _todStochastic();
-
   // Combine arc + stochastic and clamp to composed formula range.
   function periodVals(arc, rng){
     var traits = ['temp', 'wind', 'precip'];
@@ -6185,25 +6270,40 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
     return out;
   }
 
-  var periods = {
-    morning:   periodVals(arcMorning,   rngMorning),
-    afternoon: periodVals(arcAfternoon, rngAfternoon),
-    evening:   periodVals(arcEvening,   rngEvening)
-  };
+  var arc = {};
+  var rng = {};
+  var periods = {};
+  for (var pi = 0; pi < WEATHER_DAY_PERIODS.length; pi++){
+    var pname = WEATHER_DAY_PERIODS[pi];
+    arc[pname] = _todArc(climate, arcMult, pname);
+    rng[pname] = _todStochastic();
+    periods[pname] = periodVals(arc[pname], rng[pname]);
+  }
+
+  // Early morning should feel like the previous night's weather breaking
+  // into the new day, not a hard reset.
+  var prevNight = _weatherPrevNightValues(prevRec);
+  if (prevNight){
+    periods.early_morning = _blendWeatherValues(prevNight, periods.early_morning, 2, 1);
+  }
 
   // Roll fog per period at generation time — stored so display is consistent.
-  // Chained so each period can inherit persistence from the previous one.
-  var fogMorning   = _rollFog('morning',   periods.morning,   geography, terrain, mi);
-  var fogAfternoon = _rollFog('afternoon', periods.afternoon, geography, terrain, mi, fogMorning);
-  var fogEvening   = _rollFog('evening',   periods.evening,   geography, terrain, mi, fogAfternoon);
-  var fog = { morning: fogMorning, afternoon: fogAfternoon, evening: fogEvening };
+  // Chained so each period can inherit persistence from the previous one,
+  // beginning with the previous night's stored fog when available.
+  var fog = {};
+  var prevFog = _weatherPrevNightFog(prevRec);
+  for (var fi = 0; fi < WEATHER_DAY_PERIODS.length; fi++){
+    var fogPeriod = WEATHER_DAY_PERIODS[fi];
+    fog[fogPeriod] = _rollFog(fogPeriod, periods[fogPeriod], geography, terrain, mi, prevFog);
+    prevFog = fog[fogPeriod];
+  }
 
   // final = afternoon peak. Local manifest zones apply at display time for
   // the current day only; forecasts remain location-profile driven.
   var finalVals = {
-    temp:   periods.afternoon.temp,
-    wind:   periods.afternoon.wind,
-    precip: periods.afternoon.precip
+    temp:   periods[WEATHER_PRIMARY_PERIOD].temp,
+    wind:   periods[WEATHER_PRIMARY_PERIOD].wind,
+    precip: periods[WEATHER_PRIMARY_PERIOD].precip
   };
 
   // Planar coterminous/remote weather influences (± modifiers, not hard overrides).
@@ -6239,8 +6339,8 @@ function _generateDayWeather(serial, prevFinal, locationOverride){
     location:        { climate: climate, geography: geography, terrain: terrain },
     monthIdx:        mi,
     base:            base,
-    arc:             { morning: arcMorning, afternoon: arcAfternoon, evening: arcEvening },
-    rng:             { morning: rngMorning, afternoon: rngAfternoon, evening: rngEvening },
+    arc:             arc,
+    rng:             rng,
     periods:         periods,
     fog:             fog,
     final:           finalVals,
@@ -6276,14 +6376,14 @@ function _generateForecast(fromSerial_, count, forceRegen){
   count = (count != null) ? Math.max(1, count|0) : CONFIG_WEATHER_FORECAST_DAYS;
   var generated = 0;
 
-  // Find the last known final values for seeding
-  var prevFinal = null;
+  // Find the last known record for continuity seeding.
+  var prevRec = null;
   var prevIdx = _forecastIndex(fromSerial_ - 1);
-  if (prevIdx >= 0) prevFinal = ws.forecast[prevIdx].final;
+  if (prevIdx >= 0) prevRec = ws.forecast[prevIdx];
   else {
     // Check history
     for (var h=0; h<ws.history.length; h++){
-      if (ws.history[h].serial === fromSerial_ - 1){ prevFinal = ws.history[h].final; break; }
+      if (ws.history[h].serial === fromSerial_ - 1){ prevRec = ws.history[h]; break; }
     }
   }
 
@@ -6292,7 +6392,7 @@ function _generateForecast(fromSerial_, count, forceRegen){
     var existing = _forecastRecord(ser);
     if (existing && !forceRegen && !existing.stale) continue;
 
-    var rec = _generateDayWeather(ser, prevFinal, loc);
+    var rec = _generateDayWeather(ser, prevRec, loc);
     if (!rec) break;
 
     if (existing){
@@ -6300,7 +6400,7 @@ function _generateForecast(fromSerial_, count, forceRegen){
     } else {
       ws.forecast.push(rec);
     }
-    prevFinal = rec.final;
+    prevRec = rec;
     generated++;
   }
 
@@ -6773,7 +6873,7 @@ function _conditionsMechHtml(cond){
 }
 
 // Full mechanical readout for today — whispered on demand via button.
-// Covers morning, afternoon, evening conditions + any extreme events + planar effects.
+// Covers the full five-bucket day model + any extreme events + planar effects.
 function weatherTodayMechanicsHtml(){
   if (ensureSettings().weatherMechanicsEnabled === false){
     return _menuBox('📋 Weather Mechanics',
@@ -6792,23 +6892,18 @@ function weatherTodayMechanicsHtml(){
 
   var sections = [];
 
-  // Period breakdown: morning, afternoon, evening
-  var periods = ['morning', 'afternoon', 'evening'];
-  var periodEmoji = { morning: '☀️', afternoon: '☁️', evening: '🌙' };
+  // Period breakdown across the full day model.
+  var periods = WEATHER_DAY_PERIODS;
   for (var pi = 0; pi < periods.length; pi++){
     var period = periods[pi];
     var periodVals = (rec.periods && rec.periods[period]) || f;
-    var fogForPeriod = (period === 'afternoon')
-      ? (rec.fog && rec.fog.afternoon)
-      : (period === 'evening')
-        ? (rec.fog && rec.fog.evening)
-        : (rec.fog && rec.fog.morning);
+    var fogForPeriod = rec.fog && rec.fog[period];
     var cond = _deriveConditions(periodVals, loc, period, rec.snowAccumulated, fogForPeriod);
     var narr = _conditionsNarrative(periodVals, cond, period);
     var mechBlock = _conditionsMechHtml(cond);
     sections.push(
       '<div style="margin-top:6px;">'+
-      '<b>' + (periodEmoji[period]||'') + ' ' + titleCase(period) + ':</b> ' + esc(narr) +
+      '<b>' + _weatherPeriodIcon(period) + ' ' + esc(_weatherPeriodLabel(period)) + ':</b> ' + esc(narr) +
       (mechBlock || '') +
       '</div>'
     );
@@ -6859,19 +6954,23 @@ function weatherTodayMechanicsHtml(){
 }
 
 // One-line narrative for a period's conditions.
-// period: 'morning' | 'afternoon' | 'evening' — used for fog phrasing.
+// period uses WEATHER_DAY_PERIODS and is primarily used for fog phrasing.
 function _conditionsNarrative(pv, cond, period){
   var base = _flavorText(pv);
   if (cond.fog !== 'none' && pv.precip <= 1){
     if (cond.fog === 'dense'){
-      if (period === 'morning')        base = pv.precip === 0 ? 'Dense fog.' : 'Dense fog and overcast.';
+      if (period === 'early_morning')  base = pv.precip === 0 ? 'Dense predawn fog.' : 'Dense fog before dawn.';
+      else if (period === 'morning')   base = pv.precip === 0 ? 'Dense fog.' : 'Dense fog and overcast.';
       else if (period === 'afternoon') base = pv.precip === 0 ? 'Dense fog persisting into the day.' : 'Overcast with thick fog.';
-      else                             base = pv.precip === 0 ? 'Dense fog settling in.' : 'Foggy and overcast.';
+      else if (period === 'evening')   base = pv.precip === 0 ? 'Dense fog settling in.' : 'Foggy and overcast.';
+      else                             base = pv.precip === 0 ? 'Dense night fog.' : 'Low cloud and heavy fog.';
     } else {
       // light fog
-      if (period === 'morning')        base = pv.precip === 0 ? 'Patchy morning fog.' : base;
+      if (period === 'early_morning')  base = pv.precip === 0 ? 'Patchy predawn fog.' : base;
+      else if (period === 'morning')   base = pv.precip === 0 ? 'Patchy morning fog.' : base;
       else if (period === 'afternoon') base = pv.precip === 0 ? 'Patchy fog.' : base;
-      else                             base = pv.precip === 0 ? 'Light evening fog.' : base;
+      else if (period === 'evening')   base = pv.precip === 0 ? 'Light evening fog.' : base;
+      else                             base = pv.precip === 0 ? 'Light night fog.' : base;
     }
   }
   return base;
@@ -6905,6 +7004,62 @@ function _flavorText(pv){
     base += windClause;
   }
   return base;
+}
+
+function _roughWeatherDescriptor(pv, cond){
+  if (!pv) return 'Weather looks steady.';
+  cond = cond || { precipType:'none', fog:'none' };
+
+  if ((pv.wind|0) >= 3 || cond.precipType === 'blizzard' || cond.precipType === 'ice_storm' ||
+      cond.precipType === 'deluge' || cond.precipType === 'heavy_rain'){
+    return 'Storm conditions look likely.';
+  }
+
+  switch (cond.precipType){
+    case 'snow':
+    case 'snow_light':
+      return 'Snow looks likely.';
+    case 'sleet':
+    case 'sleet_light':
+      return 'Sleet looks likely.';
+    case 'rain':
+    case 'rain_light':
+      return 'Rain looks likely.';
+  }
+
+  if (cond.fog === 'dense' || cond.fog === 'light') return 'Fog looks likely.';
+  if ((pv.wind|0) === 2) return 'Looks breezy.';
+  if ((pv.precip|0) >= 1) return 'Looks mostly cloudy.';
+  if ((pv.temp|0) <= 1) return 'Looks clear and cold.';
+  if ((pv.temp|0) >= 10) return 'Looks clear and hot.';
+  return 'Looks like clear skies.';
+}
+
+function _weatherLowTodayHtml(rec, loc){
+  var lines = [];
+  for (var i = 0; i < WEATHER_LOW_TOD_PERIODS.length; i++){
+    var period = WEATHER_LOW_TOD_PERIODS[i];
+    var pv = (rec.periods && rec.periods[period]) || _weatherPrimaryValues(rec) || rec.final || {};
+    var cond = _deriveConditions(pv, loc, period, rec.snowAccumulated, rec.fog && rec.fog[period]);
+    lines.push(
+      '<div style="margin-top:2px;">'+
+      _weatherPeriodIcon(period)+' <b>'+esc(_weatherPeriodShortLabel(period))+':</b> '+
+      esc(_roughWeatherDescriptor(pv, cond))+
+      '</div>'
+    );
+  }
+  return '<div style="font-size:.85em;margin-top:3px;">'+lines.join('')+'</div>';
+}
+
+function _weatherCommonDayHeadline(rec, dayOffset){
+  var loc = rec.location || {};
+  var pv = _weatherPrimaryValues(rec) || rec.final || {};
+  var cond = _deriveConditions(pv, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+  var dayLabel = (dayOffset <= 0) ? 'Today'
+    : (dayOffset === 1) ? 'Tomorrow'
+    : (dayOffset === 2) ? 'The day after tomorrow'
+    : '';
+  return dayLabel ? (dayLabel + ': ' + _roughWeatherDescriptor(pv, cond)) : _roughWeatherDescriptor(pv, cond);
 }
 
 // ---------------------------------------------------------------------------
@@ -6987,8 +7142,7 @@ function _weatherDayGmHtml(rec, showBreakdown){
     }
 
     var baseStr  = 'Base T:'+rec.base.temp+' W:'+rec.base.wind+' P:'+rec.base.precip;
-    var pNames   = ['morning','afternoon','evening'];
-    var pIcons   = { morning:'☀', afternoon:'☁', evening:'🌙' };
+    var pNames   = WEATHER_DAY_PERIODS;
 
     var bLines = ['<div style="margin-top:4px;"><div style="font-size:.8em;opacity:.6;">'+esc(baseStr)+'</div>'];
     for (var pi=0; pi<pNames.length; pi++){
@@ -7000,7 +7154,7 @@ function _weatherDayGmHtml(rec, showBreakdown){
       var mechHtml= _conditionsMechHtml(cond);
       bLines.push(
         '<div style="margin-top:3px;font-size:.85em;">'+
-        pIcons[pname]+' <b>'+titleCase(pname)+':</b> '+narr+critNote(delta)+'<br>'+
+        _weatherPeriodIcon(pname)+' <b>'+esc(_weatherPeriodLabel(pname))+':</b> '+narr+critNote(delta)+'<br>'+
         '<span style="margin-left:10px;">'+periodBadges(pv)+'</span>'+
         (mechHtml ? '<div style="margin-left:10px;opacity:.9;">'+mechHtml+'</div>' : '')+
         '</div>'
@@ -7039,6 +7193,14 @@ var WEATHER_SOURCE_LABELS = {
   high:     'Expert Forecast'
 };
 
+function _grantCommonWeatherReveals(ws, today){
+  if (!ws) ws = getWeatherState();
+  if (!isFinite(today)) today = todaySerial();
+  _recordReveal(ws, today, 'low', 'common');
+  if (_forecastRecord(today + 1)) _recordReveal(ws, today + 1, 'low', 'common');
+  if (_forecastRecord(today + 2)) _recordReveal(ws, today + 2, 'low', 'common');
+}
+
 // Record a reveal for a serial. Only upgrades, never downgrades.
 // source: 'common' | 'medium' | 'high'
 function _recordReveal(ws, serial, tier, source){
@@ -7070,6 +7232,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   var f        = rec.final;
   var loc      = rec.location || {};
   var content  = '';
+  var dayOffset = rec.serial - todaySerial();
 
   // Source attribution line
   var srcLine = sourceLabel
@@ -7083,8 +7246,7 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
     var todHtml = '';
     if (rec.periods){
       var p       = rec.periods;
-      var pNames  = ['morning','afternoon','evening'];
-      var pIcons  = { morning:'☀', afternoon:'☁', evening:'🌙' };
+      var pNames  = WEATHER_DAY_PERIODS;
       var pLines  = [];
       for (var pi=0; pi<pNames.length; pi++){
         var pname = pNames[pi];
@@ -7094,14 +7256,14 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
         var mhtml = isToday ? _conditionsMechHtml(cond) : '';
         pLines.push(
           '<div style="margin-top:2px;">'+
-          pIcons[pname]+' <b>'+titleCase(pname)+':</b> '+narr+
+          _weatherPeriodIcon(pname)+' <b>'+esc(_weatherPeriodLabel(pname))+':</b> '+narr+
           (mhtml ? '<div style="margin-left:12px;">'+mhtml+'</div>' : '')+
           '</div>'
         );
       }
       todHtml = '<div style="font-size:.85em;margin-top:3px;">'+pLines.join('')+'</div>';
     }
-    var dayCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+    var dayCond = _deriveConditions(f, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
 
     // Nighttime lighting — show on today only
     var nightHtml = '';
@@ -7113,20 +7275,21 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
     }
 
     content =
-      '<div>'+esc(_conditionsNarrative(f, dayCond, 'afternoon'))+'</div>'+
+      '<div>'+esc(_conditionsNarrative(f, dayCond, WEATHER_PRIMARY_PERIOD))+'</div>'+
       todHtml+
       nightHtml;
 
   } else if (detailTier === 'medium'){
     // Single narrative — no mechanics on future days
-    var mc = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-    content = '<div>'+esc(_conditionsNarrative(f, mc, 'afternoon'))+'</div>';
+    var mc = _deriveConditions(f, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+    content = '<div>'+esc(_conditionsNarrative(f, mc, WEATHER_PRIMARY_PERIOD))+'</div>';
 
   } else {
-    // Abridged: narrative prose
-    var abCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-    var abNarr = _conditionsNarrative(f, abCond, 'afternoon');
-    content = '<div style="opacity:.85;">'+esc(abNarr)+'</div>';
+    if (dayOffset <= 0){
+      content = _weatherLowTodayHtml(rec, loc);
+    } else {
+      content = '<div style="opacity:.85;">'+esc(_weatherCommonDayHeadline(rec, dayOffset))+'</div>';
+    }
   }
 
   return '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12);">'+
@@ -7207,7 +7370,7 @@ function _playerForecastViewData(maxDays){
   maxDays = _weatherViewDays(maxDays);
 
   weatherEnsureForecast();
-  _recordReveal(ws, today, 'low', 'common');
+  _grantCommonWeatherReveals(ws, today);
 
   for (var i=0; i<maxDays; i++){
     var ser  = today + i;
@@ -7232,7 +7395,7 @@ function _playerForecastViewData(maxDays){
   var body = '';
   if (displayMode !== 'list'){
     body += miniCal;
-    body += _legendLine(['☀ Morning', '☁ Afternoon', '🌙 Evening', 'Emoji row = afternoon outlook']);
+    body += _legendLine(['🌅 Early', '☀ Morning', '☁ Afternoon', '🌆 Evening', '🌙 Night', 'Emoji row = afternoon outlook']);
     body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">Only weather you currently know is marked.</div>';
   }
   if (displayMode !== 'calendar'){
@@ -7356,7 +7519,7 @@ function _weatherEmojiForRecord(rec){
   rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return '🌥️';
   var loc = rec.location || {};
-  var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+  var cond = _deriveConditions(rec.final, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
   if (!cond || !cond.precipType) return '🌥️';
   if (cond.precipType === 'blizzard')    return '🌨️';
   if (cond.precipType === 'snow')        return '❄️';
@@ -7378,8 +7541,8 @@ function _weatherMiniCellTitle(serial){
   if (!rec || !rec.final) return null;
   var f = rec.final;
   var loc = rec.location || {};
-  var cond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-  return _conditionsNarrative(f, cond, 'afternoon');
+  var cond = _deriveConditions(f, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+  return _conditionsNarrative(f, cond, WEATHER_PRIMARY_PERIOD);
 }
 
 function _renderWeatherMonthStripWantedDays(year, mi, wantedSet, startSerial, endSerial){
@@ -7484,9 +7647,16 @@ function _weatherForecastMiniCalHtml(startSerial, days, opts){
 function _weatherTodaySummaryHtml(serial, detailTier, includeInfluence){
   var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return '';
-  var loc = rec.location || {};
-  var cond = _deriveConditions(rec.final, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-  var txt = _conditionsNarrative(rec.final, cond, 'afternoon');
+  if (detailTier === 'low'){
+    return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b></div>' +
+      _weatherLowTodayHtml(rec, rec.location || {}) +
+      (includeInfluence ? _weatherInfluenceHtml(rec) : '');
+  }
+  var txt = _conditionsNarrative(
+    rec.final,
+    _deriveConditions(rec.final, rec.location || {}, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec)),
+    WEATHER_PRIMARY_PERIOD
+  );
   return '<div style="font-size:.82em;opacity:.72;margin:3px 0 6px 0;"><b>Today:</b> '+esc(txt)+'</div>' +
     (includeInfluence ? _weatherInfluenceHtml(rec) : '');
 }
@@ -7517,9 +7687,9 @@ function weatherForecastGmHtml(daysOverride){
 
     var f     = rec.final;
     var loc   = rec.location || {};
-    var cond  = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
+    var cond  = _deriveConditions(f, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
     var badges = _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
-    var narr   = _conditionsNarrative(f, cond, 'afternoon');
+    var narr   = _conditionsNarrative(f, cond, WEATHER_PRIMARY_PERIOD);
     var influenceText = _weatherInfluenceTexts(rec);
     var influenceHtml = influenceText.length
       ? '<div style="font-size:.74em;opacity:.55;margin-top:2px;">'+esc(influenceText.join(' · '))+'</div>'
@@ -7594,8 +7764,8 @@ function weatherHistoryGmHtml(){
     var f     = rec.final;
     var loc   = rec.location || {};
     var badges= _weatherTraitBadge('temp',f.temp)+'&nbsp;'+_weatherTraitBadge('wind',f.wind)+'&nbsp;'+_weatherTraitBadge('precip',f.precip);
-    var hCond = _deriveConditions(f, loc, 'afternoon', rec.snowAccumulated, rec.fog && rec.fog.afternoon);
-    var hNarr = esc(_conditionsNarrative(f, hCond, 'afternoon'));
+    var hCond = _deriveConditions(f, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+    var hNarr = esc(_conditionsNarrative(f, hCond, WEATHER_PRIMARY_PERIOD));
     return '<tr>'+
       '<td style="'+STYLES.td+'">'+label+'</td>'+
       '<td style="'+STYLES.td+'">'+badges+'</td>'+
@@ -7887,6 +8057,8 @@ function handleWeatherCommand(m, args){
       // Show today at the best tier they've been granted, or low if nothing recorded
       var ws0   = getWeatherState();
       var tSer  = todaySerial();
+      weatherEnsureForecast();
+      _grantCommonWeatherReveals(ws0, tSer);
       var rec0  = _forecastRecord(tSer);
       var rev0  = _readReveal(ws0.playerReveal && ws0.playerReveal[String(tSer)]);
       var tier0 = rev0.tier || 'low';
@@ -7950,25 +8122,12 @@ function handleWeatherCommand(m, args){
       break;
 
     case 'send': {
-      var sendMethod = String(args[2]||'').toLowerCase();
-      if (!sendMethod){
+      if (!args[2]){
         sendRevealedForecast(m);
         whisper(m.who, weatherTodayGmHtml());
         break;
       }
-      if (sendMethod !== 'medium' && sendMethod !== 'high' && sendMethod !== 'today'){
-        warnGM('Usage: weather send');
-        break;
-      }
-      warnGM('Legacy syntax: use !cal weather reveal ... to grant knowledge, then !cal weather send to broadcast what players already know.');
-      if (sendMethod === 'today'){
-        sendRevealedForecast(m);
-        whisper(m.who, weatherTodayGmHtml());
-        break;
-      }
-      var sendDays   = parseInt(args[3], 10) || 1;
-      sendPlayerForecast(m, sendMethod, sendDays);
-      // Refresh today view so buttons are visible again
+      warnGM('Usage: weather send');
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
@@ -8056,22 +8215,22 @@ function handleWeatherCommand(m, args){
         warnGM('That day is locked (it\'s in the past). Cannot reroll.');
         break;
       }
-      var prevFinalForReroll = null;
       var prevRec = _forecastRecord(targetSer - 1);
-      if (prevRec) prevFinalForReroll = prevRec.final;
-      var newRec = _generateDayWeather(targetSer, prevFinalForReroll, null);
+      var newRec = _generateDayWeather(targetSer, prevRec, null);
       if (newRec){
         var ws2 = getWeatherState();
         var idx2 = _forecastIndex(targetSer);
         if (idx2 >= 0) ws2.forecast[idx2] = newRec;
         else ws2.forecast.push(newRec);
         ws2.forecast.sort(function(a,b){ return a.serial - b.serial; });
-        // Cascade: update the next day's accumulation flags so they reflect
-        // the newly rolled record. Only updates if next day exists and is unlocked.
+        // Cascade one day forward so continuity and early-morning carryover stay coherent.
         var nextRec2 = _forecastRecord(targetSer + 1);
         if (nextRec2 && !nextRec2.locked){
-          nextRec2.snowAccumulated = !!(newRec.final.temp <= 3 && newRec.final.precip >= 1);
-          nextRec2.wetAccumulated  = !!(newRec.final.temp >= 5 && newRec.final.precip >= 2);
+          var regenNext = _generateDayWeather(targetSer + 1, newRec, nextRec2.location || null);
+          if (regenNext){
+            var nextIdx2 = _forecastIndex(targetSer + 1);
+            if (nextIdx2 >= 0) ws2.forecast[nextIdx2] = regenNext;
+          }
         }
       }
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));

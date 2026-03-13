@@ -261,7 +261,7 @@ Weather is generated from your location profile, then stored and advanced sequen
 The generation pipeline runs per-day:
 1. **Baseline** — Climate, geography, and terrain set temperature, wind, and precipitation probabilities.
 2. **Continuity** — Each day nudges toward the previous day's conditions, producing coherent weather evolution rather than random swings.
-3. **Daily arc** — Morning, afternoon, and evening conditions are derived from a daily arc with some randomness. You get three snapshots per day, not one.
+3. **Daily arc** — Early morning, morning, afternoon, evening, and late-night conditions are derived from a daily arc with some randomness. Early morning carries some of the previous night's feel forward while the new day takes shape.
 4. **Fog** — Rolls separately, with persistence across days and interaction with wind.
 5. **Overlays** — Manifest zone and planar modifiers apply last.
 

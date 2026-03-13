@@ -122,13 +122,7 @@ every Sul         — every matching weekday in the month
 !cal weather reveal (medium|high) [1-10]
 ```
 
-`!cal weather send` broadcasts whatever weather knowledge the players already have. The legacy forms below still parse, but they only exist for backward compatibility:
-
-```text
-!cal weather send today
-!cal weather send medium [days]
-!cal weather send high [days]
-```
+`!cal weather send` broadcasts whatever weather knowledge the players already have. It does not take extra arguments.
 
 ### GM Weather Generation and Events
 
