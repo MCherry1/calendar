@@ -4,14 +4,33 @@
 
 See [DESIGN.md](DESIGN.md) for full architectural context. README is the target-behavior guide unless a statement is ambiguous; when code does not match README, track the code change here.
 
-As these tasks are taken care of, remove them from this list.
-
 If there is design ambiguity in this tasks list: keep the task intact and add a comment to the **Needs Design Input** section.
+
+---
+
+## Task Lifecycle
+
+Every task follows this pipeline:
+
+1. **Agent implements the task** from one of the sections below.
+2. **When complete**, the agent moves the task into the **Needs Review by Different Agent** section. The entry must include:
+   - Which agent completed it (e.g., "Claude Opus 4.6", "GPT-5 Codex", "ChatGPT 5.4")
+   - The date it was completed
+3. **A different agent reviews the task.** An agent must never review work completed by the same agent or a different version of itself. The reviewer must be a genuinely different agent so every task gets two independent looks.
+4. **After review passes**, the reviewer removes the task from **Needs Review** entirely. The task is done and the file stays clean.
+
+If the reviewer finds issues, they should fix them in the same pass and then remove the task. If the issues are too large to fix inline, the reviewer moves the task back to the appropriate work section with notes on what needs to be redone.
 
 ---
 ## Needs Design Input
 
 None currently. Add new items here only when the desired implementation behavior is still ambiguous enough to block coding.
+
+---
+
+## Needs Review by Different Agent
+
+No tasks currently awaiting review.
 
 ---
 
