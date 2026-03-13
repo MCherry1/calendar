@@ -29,7 +29,9 @@ These are README / repo-doc tasks extracted from embedded notes in the README.
 
 ### README presentation cleanup
 
-- [ ] Convert major README sections to collapsible `<details><summary>...</summary></details>` blocks where that improves readability
+Status: Completed by GPT-5 Codex on 2026-03-13
+
+- [x] Convert major README sections to collapsible `<details><summary>...</summary></details>` blocks where that improves readability
 
 ---
 
@@ -111,10 +113,12 @@ These are well-defined implementation tasks. The design is decided, the target b
 
 ### Tighten top-level calendar jump syntax and documentation
 
-- [ ] Audit what `!cal <dateSpec>` forms actually render in the top-level mini-calendar flow
-- [ ] Remove or rewrite confusing direct-jump examples in `Chat Commands.md` that do not map cleanly to month-based output
-- [ ] Reject or warn on ambiguous bare-number / single-day top-level jump inputs that do not make sense for a month mini-calendar
-- [ ] Whisper clearer syntax guidance for valid month-oriented jump forms
+Status: Completed by GPT-5 Codex on 2026-03-13
+
+- [x] Audit what `!cal <dateSpec>` forms actually render in the top-level mini-calendar flow
+- [x] Remove or rewrite confusing direct-jump examples in `Chat Commands.md` that do not map cleanly to month-based output
+- [x] Reject or warn on ambiguous bare-number / single-day top-level jump inputs that do not make sense for a month mini-calendar
+- [x] Whisper clearer syntax guidance for valid month-oriented jump forms
 
 ---
 

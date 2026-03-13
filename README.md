@@ -34,13 +34,21 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 
 ## Installation
 
+<details open>
+<summary>Show installation steps</summary>
+
 1. In Roll20, open your campaign's **API Scripts** page (Game Settings → API Scripts).
 2. Create a new script and paste in the contents of `calendar.js`.
 3. Save. It initializes automatically on first load.
 
+</details>
+
 ---
 
 ## How to Use
+
+<details open>
+<summary>Show the basic startup flow</summary>
 
 Startup message appears in chat when the script initializes:
 > Galifar Calendar Initialized
@@ -50,9 +58,14 @@ In the chat window, type:
 `!cal`
 > [!info]*Tip: Add a macro for even easier use.*
 
+</details>
+
 ---
 
 ## Calendar Navigation
+
+<details>
+<summary>Show navigation layout and button meanings</summary>
 
 The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
 
@@ -87,8 +100,13 @@ The spacing shown below is intentional and should be preserved in Roll20 chat ou
 - **Today** — summary for the current in-game date
 - **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
 - **Admin** — change displays, settings, and everything else related to the script
+
+</details>
 ---
 ## Knowledge Tiers: What do players know?
+
+<details>
+<summary>Show reveal tiers and default pacing</summary>
 
 The best thing about calendars is the organization. The second best thing is sharing.
 
@@ -120,8 +138,14 @@ Use that table as the default "skilled forecast" pacing for Survival, Nature, na
 
 If you want custom reveal horizons beyond the preset buttons, widen them in Fibonacci-style steps instead of simple doubling: `1, 2, 3, 5, 8, 13`, then round into table-friendly units. In practice that means weather and planes usually grow by days, while moons grow by months.
 
+</details>
+
 ---
 ## Events
+
+<details>
+<summary>Show event behavior and source notes</summary>
+
 ### General
 - Individual cells within the minical are color-filled on the day of an event.
 - For days with multiple events, small colored dots appear beneath the numbered date.
@@ -136,8 +160,13 @@ If you want custom reveal horizons beyond the preset buttons, widen them in Fibo
 - There is no limit to the number of events created. They can be deleted as necessary.
 - If no color is assigned at creation, a random color is assigned.
 
+</details>
+
 ---
 ## Moons: Modeling the Skies
+
+<details>
+<summary>Show moon-system modeling details</summary>
 
 The script models the sky as a physical system rather than flavor-only text. Moon brightness, movement, nighttime lighting, and everything else all derive from explicit numbers. The goal is to create a constantly advancing game-world state that requires little GM intervention, and generates useful mechanics and information for D&D.
 
@@ -236,8 +265,13 @@ The Eberron implementation uses integer-multiple synodic periods on a 336-day ye
 ##### Vult
 **Reference body:** Oberon (Uranus). Oberon's cratered outer-guard profile and disciplined, near-circular orbit fit the Warding Moon as a distant, defensive sentinel.
 
+</details>
+
 ---
 ## Weather
+
+<details>
+<summary>Show weather model, mechanics, and overlays</summary>
 
 Weather tables in D&D suck. This one sucks a little less.
 
@@ -380,8 +414,13 @@ Planes can also alter weather while they are **coterminous** or **remote**. Thes
 
 Syrania remains the strongest direct weather override in the model. Its **coterminous** state forces calm, clear conditions for the day, while **remote** Syrania adds precipitation pressure. Syranian manifest zones stay the lighter local modifier of `-1` wind and `-1` precipitation.
 
+</details>
+
 ---
 ## Planes
+
+<details>
+<summary>Show planar alignment model and generated-event tables</summary>
 
 The planar subsystem is Eberron-specific and tracks the Planes of Existence. These 13 planes exist alongside the Material Plane where Eberron sits, influencing it in many ways. One of those ways is through alignments. In this system, a Plane of Existence can be **coterminous**, **remote**, or **neither**.
 
@@ -421,14 +460,21 @@ There are three types of events in this system:
 | Thelanis | ~2.8 | Mostly coterminous | `3` or `7` days | `d20 (20)` + `d12 (12 cot / 1 remote)` |
 | Xoriat | ~0.84 | 100% remote | `d20` days | `d100 (1)` + `d4 (1)` |
 
+</details>
+
 ---
 
 ## Calendar Systems
+
+<details>
+<summary>Show supported calendar-system variants</summary>
 
 Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 
 - **Galifar** (Khorvaire/Eberron) — 12 months × 28 days, YK era, 7-day weeks.
 - **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tenday columns
 - **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
+
+</details>
 
 ---
