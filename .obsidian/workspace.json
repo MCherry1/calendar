@@ -193,6 +193,10 @@
   },
   "active": "161788ecb967845a",
   "lastOpenFiles": [
+    "tools/Launch-Roll20ApiSync.ps1",
+    "tools/Launch-Roll20ApiSync.local.example.ps1",
+    "tools",
+    "Launch-Roll20ApiSync.cmd",
     "Design Tasks.md",
     "AGENT TASKS.md",
     "DESIGN.md",
