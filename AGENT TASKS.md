@@ -12,17 +12,23 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 ## Needs Design Input
 
 - **Weather low-tier auto-reveal buckets:** current code auto-records low-tier weather for the current day. The desired tomorrow/day-after common-knowledge buckets are described below, but the exact split still needs confirmation before implementation.
+	- answer yes we should see below
 - **Weather overnight period:** the README notes ask whether weather should gain an overnight snapshot in addition to morning/afternoon/evening. That is a design change, not just documentation.
+	- answer I think we have 5 bucketa of time. early morning, morning, afternoon, evening, later night. approx 0-6, 6-12, 12-5, 5-9, 9-12. earlt morning shoudl probably just use the same weather as the previosu day/night, but be shifting into the new day's rolls.
 - **Sky-model day-length explanation:** the README requests a concrete explanation of how inclination affects day length in the Eberron sky model, but the desired level of numeric detail is not yet specified.
+	- answer like how muich longer are days in he summer than the winter? this probably just shifts the sunset and sunrises, but we aren't erally trackign location. I think int hte winter this just shifts our hour bucketed tod definitions above. 
 
 ## README Drift (checked 2026-03-12)
 
+
+agent task check on this section here. if these are implemented then great. if not, then add them to the concrete tasks list and remove this section. if they need more input, ask direct questiosn.
 - **Weather → Syrania Remote:** manifest zones now behave as lighter overlays, but Syrania's remote-state documentation/implementation still needs a final consistency pass against the planar model.
+	- uh add this as a task then. dont need deisgn goal.
 - **Commands → Weather → Sending Weather to Players:** `!cal weather send` now broadcasts whatever weather is already revealed, and `!cal weather reveal medium|high [1-10]` grants the current range-based forecast reveals. Per-day reveal flags and arbitrary-date reveal syntax are still not implemented.
-	- send should not have any arguments followed. it should simply function as "send whatever is revealed"
-	- weather should have a per day reveal flag that defines how much information the players have acquired. the low reveal level should be automatically granted when the day in questions falls into the bucket for that. I think we currently low reveal to different degrees between today (rough ToD info, tomorrow (limited forecast), day after tomorrow (same). 
+	- send should not have any arguments followed. it should simply function as "send whatever is revealed" agent task do this
+	- weather should have a per day reveal flag that defines how much information the players have acquired. the low reveal level should be automatically granted when the day in questions falls into the bucket for that. I think we currently low reveal to different degrees between today (rough ToD info, tomorrow (limited forecast), day after tomorrow (same). agent task do this
 - **Calendar Systems:** Harptos date math is present, but the rendered calendar still uses weekday columns; tenday layout remains tracked in the agent-ready section below.
-	- this needs to be implemented, with rows of 10, redone weekday labels using 1st, 2nd, etc.
+	- this needs to be implemented, with rows of 10, redone weekday labels using 1st, 2nd, etc. agent task was this done? 
 
 ## Match Script to README.md and Design.md
 - Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented. Completed by ChatGPT version number 5.4
