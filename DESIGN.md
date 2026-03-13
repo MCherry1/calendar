@@ -36,7 +36,7 @@ This is a Roll20 API script (`calendar.js`) for managing a fantasy campaign cale
 	- 12 moons of Eberron
 	- 1 moon of Faerun (Selune)
 	- 1 moon of Earth
-- 13 planes of existence with canonical cycles and generated anomalous events
+- 13 planes of existence with canonical cycles and generated off-cycle events
 - Nighttime lighting calculation
 - Campaign events and observances with GM/player reveal controls
 
@@ -275,7 +275,7 @@ The generator outputs values on the −5 to 15 band scale, indexing directly int
 
 > Flavor/mechanics groupings: cold (≤3), cool (4), mild (5–6), warm (7–8), hot (9+)
 
-**Manifest zone temperature effects:** Fernia ±3, Risia ±3, Irian +1, Mabar −1. Planar coterminous/remote: Fernia coterminous +3 / remote −1, Risia coterminous −3 / remote +1.
+**Manifest zone temperature effects:** Fernia ±3, Risia ±3, Irian +1, Mabar −1. Planar coterminous/remote: Fernia coterminous +3 / remote −2, Risia coterminous −3 / remote +2.
 
 ### 6.4 Wind Scale (0–5)
 
@@ -585,7 +585,7 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 
 13 planes of existence, each with:
 - **Canonical (Traditional) movements:** fixed phases or calculated multi-year cycles from published material
-- **Generated (Off-cycle) movements:** deterministic, seed-based anomalous events
+- **Generated (Off-cycle) movements:** deterministic, seed-based generated events
 
 These two event types are categorically distinct. Generated events are gated behind higher knowledge tiers.
 
@@ -670,7 +670,7 @@ For cyclic planes:
 - Orbit: 10 years; Windows: 1 day coterminous, 1 day remote
 - Transitions: 1,679 days waning + 1,679 days waxing
 - Anchor: year 998, Rhaan 9, coterminous, seed-anchor enabled
-- Special: coterminous anomaly enforces clear/calm weather override (precip 0, wind 0); remote anomaly adds +1 precip, +1 wind (gray, unsettled skies)
+- Special: coterminous generated shift enforces clear/calm weather override
 
 #### Thelanis — The Faerie Court
 - Type: cyclic
@@ -683,7 +683,7 @@ For cyclic planes:
 
 ### 8.4 Generated (Off-Cycle) Events
 
-Deterministic, seed-based anomalies checked per plane/day.
+Deterministic, seed-based generated events checked per plane/day.
 
 **Global rules:**
 - Disabled entirely if `offCyclePlanes` is false (independent toggle — open task)
@@ -712,7 +712,7 @@ Deterministic, seed-based anomalies checked per plane/day.
 | Syrania | standard | d100 (100) + d4 (4) + d8 (8 cot / 1 remote) | ~0.21/year | 1 day | mostly cot |
 | Dal Quor | sealed | — | 0 | — | — |
 
-**Mabar note:** Coterminous anomalies are night-only; remote anomalies are day-only.
+**Mabar note:** Coterminous generated events are night-only; remote generated events are day-only.
 **Daanvi balancing act:** Post-event 10-day alternation pressure can force opposite phase based on day-weighted d10 threshold.
 
 ### 8.5 Plane Panel Display
@@ -745,7 +745,7 @@ Custom ranges also accepted: `!cal planes send high 3m`, `!cal planes send mediu
 
 - `!cal planes send` supports both day-based and month-based ranges.
 - Player uncertainty windows and exactness thresholds for generated predictions (especially at high tier) are more detailed in implementation than earlier doc descriptions.
-- GM custom-event suppression is registered as custom events used by anomaly suppression logic.
+- GM custom-event suppression is registered as custom events used by generated-event suppression logic.
 
 ---
 
