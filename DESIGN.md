@@ -882,7 +882,7 @@ Valid range suffixes: `Nd`, `Nw`, `Nm` or plain number (days). Date specs valid 
 
 ### No Legacy Aliases
 
-The canonical tier names are `low`, `medium`, `high`. Legacy aliases (`mundane` → `medium`, `magical` → `high`) still exist as migration shims in moon and plane state readers. These can be removed once no saved state uses the old names.
+The canonical tier names are `low`, `medium`, `high`. No legacy aliases remain.
 
 ### Date Parsing
 

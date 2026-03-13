@@ -8864,9 +8864,6 @@ function getMoonState(){
   if (!isFinite(ms.generatedFrom)) ms.generatedFrom = null;
   if (!ms.revealTier) ms.revealTier = 'medium';
   ms.revealTier = String(ms.revealTier || '').toLowerCase();
-  // Migrate legacy tier names
-  if (ms.revealTier === 'mundane') ms.revealTier = 'medium';
-  if (ms.revealTier === 'magical') ms.revealTier = 'high';
   if (!MOON_REVEAL_TIERS[ms.revealTier]) ms.revealTier = 'medium';
   ms.revealHorizonDays = parseInt(ms.revealHorizonDays, 10);
   if (!isFinite(ms.revealHorizonDays) || ms.revealHorizonDays < 7) ms.revealHorizonDays = 7;
@@ -11005,7 +11002,7 @@ var GENERATED_SEALED = { 'Dal Quor':true };
 //   loreNote: flavor text for display
 // ---------------------------------------------------------------------------
 
-var PLANAR_ANOMALY_PROFILE = {
+var PLANAR_GENERATED_EVENT_PROFILE = {
 
   // SHAVARATH — The Eternal Battleground
   // "Frequently grows coterminous for a single day." d20 attack roll + d12 damage.
@@ -11212,8 +11209,8 @@ var PLANAR_ANOMALY_PROFILE = {
 };
 
 // Duration: resolve from new profile format.
-function _anomalyDurationDays(planeName, serial){
-  var profile = PLANAR_ANOMALY_PROFILE[planeName] || PLANAR_ANOMALY_PROFILE.__default;
+function _generatedEventDurationDays(planeName, serial){
+  var profile = PLANAR_GENERATED_EVENT_PROFILE[planeName] || PLANAR_GENERATED_EVENT_PROFILE.__default;
   var dur = profile.duration;
   if (typeof dur === 'number') return dur;
   if (dur && typeof dur.die === 'number'){
@@ -11235,9 +11232,9 @@ function _anomalyDurationDays(planeName, serial){
 
 // Check whether a new generated event starts on a given serial for a given plane.
 // Supports four mechanisms: standard, linked, moontied, cooldown.
-function _anomalyStartsOnDay(planeName, serial){
+function _generatedEventStartsOnDay(planeName, serial){
   if (GENERATED_SEALED[planeName]) return null;
-  var profile = PLANAR_ANOMALY_PROFILE[planeName] || PLANAR_ANOMALY_PROFILE.__default;
+  var profile = PLANAR_GENERATED_EVENT_PROFILE[planeName] || PLANAR_GENERATED_EVENT_PROFILE.__default;
   if (!profile || profile.mechanism === 'sealed') return null;
 
   var salt = planeName + '_gen_' + serial;
@@ -11269,7 +11266,7 @@ function _anomalyStartsOnDay(planeName, serial){
       else if (hit && !remoteHit && d.remoteHit != null) phaseFromDice = 'coterminous';
     }
 
-    var dur = _anomalyDurationDays(planeName, serial);
+    var dur = _generatedEventDurationDays(planeName, serial);
     var phase;
     if (profile.phaseBias === 'dice' && phaseFromDice){
       phase = phaseFromDice;
@@ -11307,7 +11304,7 @@ function _anomalyStartsOnDay(planeName, serial){
       else if (lHit && !lRemHit) linkedPhase = 'coterminous';
     }
 
-    var lDur = _anomalyDurationDays(planeName, serial);
+    var lDur = _generatedEventDurationDays(planeName, serial);
     return {
       startSerial: serial, endSerial: serial + lDur - 1,
       durationDays: lDur, phase: linkedPhase || 'coterminous'
@@ -11357,7 +11354,7 @@ function _anomalyStartsOnDay(planeName, serial){
           var hmMoonRoll = _dN(serial, salt + '_hmoon', profile.moonDie);
           var hmHitRange = hmIsFull ? profile.moonFullHit : profile.moonNewHit;
           if (hmHitRange && hmMoonRoll >= hmHitRange[0] && hmMoonRoll <= hmHitRange[1]){
-            var hmDur = _anomalyDurationDays(planeName, serial);
+            var hmDur = _generatedEventDurationDays(planeName, serial);
             var hmPhase = hmIsFull ? 'coterminous' : 'remote';
             return {
               startSerial: serial, endSerial: serial + hmDur - 1,
@@ -11396,7 +11393,7 @@ function _anomalyStartsOnDay(planeName, serial){
       else if (hfHit && !hfRemHit && hfd.remoteHit != null) hmFbPhaseFromDice = 'coterminous';
     }
 
-    var hmFbDur = _anomalyDurationDays(planeName, serial);
+    var hmFbDur = _generatedEventDurationDays(planeName, serial);
     var hmFbPhase;
     if (profile.phaseBias === 'dice' && hmFbPhaseFromDice){
       hmFbPhase = hmFbPhaseFromDice;
@@ -11465,12 +11462,12 @@ var _ANOMALY_MAX_SCAN = 30; // Xoriat can last d20 days
 
 function _generatedEventAt(planeName, serial){
   if (GENERATED_SEALED[planeName]) return null;
-  var profile = PLANAR_ANOMALY_PROFILE[planeName];
+  var profile = PLANAR_GENERATED_EVENT_PROFILE[planeName];
   if (profile && profile.mechanism === 'sealed') return null;
-  var evt = _anomalyStartsOnDay(planeName, serial);
+  var evt = _generatedEventStartsOnDay(planeName, serial);
   if (evt) return evt;
   for (var offset = 1; offset <= _ANOMALY_MAX_SCAN; offset++){
-    evt = _anomalyStartsOnDay(planeName, serial - offset);
+    evt = _generatedEventStartsOnDay(planeName, serial - offset);
     if (evt && serial <= evt.endSerial) return evt;
   }
   return null;
@@ -11499,7 +11496,7 @@ function isGeneratedShift(planeName, serial){
       var thisEvt = _generatedEventAt(planeName, serial);
       if (thisEvt && gmEvts.length > 0){
         // Check if this generated event is the nearest one to any GM custom event
-        var profile = PLANAR_ANOMALY_PROFILE[planeName];
+        var profile = PLANAR_GENERATED_EVENT_PROFILE[planeName];
         var expectedPerYear = (profile && profile.expectedPerYear) || 3;
         // Max suppression reach: half a year divided by expected events
         // This prevents suppression from reaching too far
@@ -11569,7 +11566,7 @@ function _nextGeneratedForecast(planeName, serial, maxDays){
   }
 
   for (var d = 1; d <= maxDays; d++){
-    var evt = _anomalyStartsOnDay(planeName, serial + d);
+    var evt = _generatedEventStartsOnDay(planeName, serial + d);
     if (evt){
       return {
         phase: evt.phase, daysUntilStart: d,
@@ -12104,9 +12101,6 @@ function getPlanesState(){
   if (!ps.seedOverrides) ps.seedOverrides = {};       // planeName -> anchorYear
   if (!ps.revealTier) ps.revealTier = 'medium';
   ps.revealTier = String(ps.revealTier || '').toLowerCase();
-  // Migrate legacy tier names
-  if (ps.revealTier === 'mundane') ps.revealTier = 'medium';
-  if (ps.revealTier === 'magical') ps.revealTier = 'high';
   if (!PLANE_REVEAL_TIERS[ps.revealTier]) ps.revealTier = 'medium';
   ps.revealHorizonDays = parseInt(ps.revealHorizonDays, 10);
   if (!isFinite(ps.revealHorizonDays) || ps.revealHorizonDays < baselineHorizon) ps.revealHorizonDays = baselineHorizon;
@@ -12676,11 +12670,11 @@ function _planePredictionWindowDays(plane, daysAhead, tier){
     else base += 12;
   }
 
-  var profile = PLANAR_ANOMALY_PROFILE[(plane && plane.name) || ''] || PLANAR_ANOMALY_PROFILE.__default || { triggerDie:100, confirmDie:20 };
+  var profile = PLANAR_GENERATED_EVENT_PROFILE[(plane && plane.name) || ''] || PLANAR_GENERATED_EVENT_PROFILE.__default || { triggerDie:100, confirmDie:20 };
   var dailyChance = 1 / ((profile.triggerDie || 100) * (profile.confirmDie || 20));
   base += Math.max(1, Math.ceil(dailyChance * 336 * 3));
 
-  if (plane && /disrupted|anomal|no one knows|unpredictable/i.test(String(plane.note || ''))){
+  if (plane && /disrupted|generated|no one knows|unpredictable/i.test(String(plane.note || ''))){
     base += (tier === 'high') ? 3 : 8;
   }
 
@@ -12935,9 +12929,9 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
 
     // Generated shift detection
     var hasGenNow = _isGeneratedNote(ps.note);
-    var anomalyTag = '';
+    var generatedTag = '';
     if (hasGenNow){
-      anomalyTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(non-canonical)</span>';
+      generatedTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(non-canonical)</span>';
     } else if (!ps.overridden && isGM){
       var lookahead = PLANE_GENERATED_LOOKAHEAD.gmDays;
       var ff = _nextGeneratedForecast(name, today, lookahead);
@@ -12946,7 +12940,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
         var ffText = ff.activeNow ? (ffLabel + ' shift active')
           : ('Generated ' + ffLabel + ' in ' + ff.daysUntilStart + 'd');
         if (ff.durationDays > 1) ffText += ' (~' + ff.durationDays + 'd)';
-        anomalyTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(ffText)+'</span>';
+        generatedTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(ffText)+'</span>';
       }
     } else if (!hasGenNow && !ps.overridden && !isGM && genHorizon > 0){
       var pLookahead = genHorizon;
@@ -12970,7 +12964,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
             }
           }
           if (pff.durationDays > 1) pffText += ' (~' + pff.durationDays + 'd)';
-          anomalyTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(pffText)+'</span>';
+          generatedTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(pffText)+'</span>';
         }
       }
     }
@@ -12990,7 +12984,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
       rows.push(
         '<div style="margin:1px 0;line-height:1.3;font-size:.9em;opacity:.65;">'+
           emoji+' <span style="min-width:78px;display:inline-block;">'+esc(name)+'</span> '+
-          esc(label) + overrideTag + anchorModeTag + nextTag + anomalyTag +
+          esc(label) + overrideTag + anchorModeTag + nextTag + generatedTag +
         '</div>'
       );
       continue;
@@ -13023,7 +13017,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
       '<div style="margin:3px 0;line-height:1.4;">'+
         emoji+' <b style="min-width:82px;display:inline-block;">'+esc(name)+'</b>'+
         '<span style="opacity:.85;">'+esc(label)+'</span>'+
-        overrideTag + anchorModeTag + nextTag + anomalyTag +
+        overrideTag + anchorModeTag + nextTag + generatedTag +
       '</div>'+
       effectHtml + cycleSummaryHtml + noteHtml
     );
@@ -13100,7 +13094,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
 }
 
 function _isGeneratedNote(note){
-  return /(generated|anomalous)/i.test(String(note || ''));
+  return /generated/i.test(String(note || ''));
 }
 
 

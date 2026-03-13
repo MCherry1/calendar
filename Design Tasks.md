@@ -38,6 +38,7 @@ Ready task
 - **Don't add tasks for undecided design.** If you discover something that needs a design decision, create a `design/` file for it.
 - **Upgrade-only for DESIGN.md.** Design decisions are additive. Don't remove content from DESIGN.md unless explicitly asked.
 - **README is the target-behavior guide** unless a statement is ambiguous; when code does not match README, track the code change here.
+- **Keep docs in sync with code.** When changing data tables, constants, or behavior in `calendar.js`, update the corresponding sections in DESIGN.md and README.md in the same commit. The code is the source of truth — docs must never contradict it.
 
 ---
 
