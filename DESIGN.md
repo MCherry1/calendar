@@ -90,7 +90,7 @@ All systems exposed through `!cal` commands and panel UIs with GM/player reveal 
 - Era label: DR (Dalereckoning)
 - Weekday names not used in date display
 
-> **Implementation note:** Harptos tenday column layout is an open task (Phase 4 in tasks.md). The calendar system definitions are correct; the display rendering may still be showing weekday columns.
+> **Implementation note:** Harptos tenday column layout is an open task (see Design Tasks.md). The calendar system definitions are correct; the display rendering may still be showing weekday columns.
 
 ### 3.3 Gregorian / Earth
 
@@ -335,7 +335,7 @@ Runtime state tracks: active location profile, forecast records, locked history,
 2. Build baseline from climate + geography + terrain tables
 3. Roll afternoon `temp/wind/precip` via bell-like opposed dice
 4. Apply continuity nudge from prior day (`CONFIG_WEATHER_SEED_STRENGTH`)
-5. Derive morning/afternoon/evening states using deterministic arc + stochastic offset
+5. Derive early morning/morning/afternoon/evening/late night states using deterministic arc + stochastic offset
 6. Roll fog by period with persistence/wind logic
 7. Apply manifest-zone local modifiers
 8. Apply planar-weather shifts/overrides (e.g., coterminous Syrania forces calm/clear)
@@ -417,15 +417,15 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 | --------- | ----------------- | --------- | ------------------- | --------------------: | ------------: | ------------: | ------------------: | -----------: | -----: | --------- | --------: | ---------- | ---------- |
 | Zarantyr  | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |          1250 |        14,300 |               5.145 |       0.0549 |   0.12 | random    |       1.4 | kythri     | 998-01-01  |
 | Olarune   | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |          1000 |        18,000 |                0.33 |       0.0288 |   0.22 | random    |       1.7 | lamannia   | 998-01-01  |
-| Therendor | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |          1100 |        39,000 |                0.47 |       0.0094 |   0.67 | random    |       1.2 | syrania    | 998-01-01  |
-| Eyre      | The Anvil         | Fernia    | Mark of Making      |                  21.0 |          1200 |        52,000 |                0.43 |       0.1230 |   0.30 | random    |       1.0 | fernia     | 998-01-01  |
-| Dravago   | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |          2000 |        77,500 |                1.09 |       0.0001 |  1.229 | random    |       2.1 | risia      | 998-01-01  |
+| Therendor | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |          1100 |        39,000 |                0.03 |       0.0022 |   0.99 | random    |       1.2 | syrania    | 998-01-01  |
+| Eyre      | The Anvil         | Fernia    | Mark of Making      |                  21.0 |          1200 |        52,000 |                1.53 |       0.0196 |   0.96 | random    |       1.0 | fernia     | 998-01-01  |
+| Dravago   | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |          2000 |        77,500 | 156.8 (retrograde)  |     0.000016 |   0.76 | random    |       2.1 | risia      | 998-01-01  |
 | Nymm      | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |           900 |        95,000 |                0.20 |       0.0013 |   0.43 | random    |       1.4 | daanvi     | 998-01-01  |
-| Lharvion  | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |          1350 |       125,000 |                7.23 |       0.7507 |  0.155 | random    |       1.5 | xoriat     | 998-01-01  |
+| Lharvion  | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |          1350 |       125,000 |                0.43 |       0.1230 |   0.30 | random    |       1.5 | xoriat     | 998-01-01  |
 | Barrakas  | The Lantern       | Irian     | Mark of Finding     |                  22.0 |          1500 |       144,000 |                0.02 |       0.0047 |  1.375 | random    |       1.1 | irian      | 998-01-01  |
 | Rhaan     | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |           800 |       168,000 |                4.34 |       0.0013 |   0.32 | random    |       1.9 | thelanis   | 998-01-01  |
-| Sypheros  | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |          1100 |       183,000 | 175.3° (retrograde) |       0.1635 |   0.06 | random    |       3.4 | mabar      | 998-01-01  |
-| Aryth     | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |          1300 |       195,000 |                7.57 |       0.0283 |   0.05 | random    |       2.4 | dolurrh    | 998-01-01  |
+| Sypheros  | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |          1100 |       183,000 |                1.08 |       0.0151 |  0.071 | random    |       3.4 | mabar      | 998-01-01  |
+| Aryth     | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |          1300 |       195,000 |                7.57 |       0.0283 |  0.275 | random    |       2.4 | dolurrh    | 998-01-01  |
 | Vult      | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |          1800 |       252,000 |                0.07 |       0.0014 |   0.23 | random    |       2.8 | shavarath  | 998-01-01  |
 
 #### Faerûnian (Toril)
@@ -489,15 +489,13 @@ For each moon/day:
 7. Aggregate night-light intensity
 8. Tide emphasis (Eberron-specific weighting)
 
-**Phase thresholds:** Full ≥ 97% illumination. New ≤ 3% illumination.
-> TODO: Verify these thresholds — reports of multiple consecutive "full" days for some moons suggest they may be too wide.
+**Phase thresholds:** Full ≥ 98% illumination. New ≤ 2% illumination.
 
 ### 7.8 Eclipse System
 
 - **Solar eclipses:** moon passes between Eberron and sun
 - **Lunar eclipses/occultations:** moon passes behind Eberron's shadow or behind another moon
-- TODO: Eclipses should carry a time-of-day label (early hours 0–6, morning 6–12, afternoon 12–17, evening 17–22, night 22–0)
-- TODO: Verify multi-day eclipse issue — some moons show eclipses on consecutive days
+- Eclipse timing currently uses four time blocks (nighttime 0–6, morning 6–12, afternoon 12–18, evening 18–24). The eclipse overhaul task in Design Tasks.md will align these to the five weather buckets and fix multi-day duplicate reporting.
 
 ### 7.9 Moon Mini-Calendar Display
 
@@ -821,7 +819,7 @@ Multiple zones can be active simultaneously:
 - Active manifest zones affect weather/mechanics (e.g., Fernia zone = temperature shift, Risia zone = temperature shift)
 - Effects shown in "Today" view alongside weather, moons, planar state
 - No forecasting for manifest zones — always-visible when active
-- Shavarath manifest zone has **no wind effect** — only temperature-based effects (Fernia +, Risia −)
+- Weather-modifying manifest zones: Fernia (+3 temp), Risia (−3 temp), Irian (+1 temp), Mabar (−1 temp), Lamannia (+1 precip), Syrania (−1 wind, −1 precip), Kythri (chaotic swings). All others (Daanvi, Dolurrh, Shavarath, Thelanis, Xoriat, Dal Quor) have no weather shift.
 
 ### 11.4 Aryth Integration
 
@@ -884,7 +882,7 @@ Valid range suffixes: `Nd`, `Nw`, `Nm` or plain number (days). Date specs valid 
 
 ### No Legacy Aliases
 
-This script has not been used in any real game yet. All legacy tier aliases (`mundane`, `magical`, `abridged`, `survival`, `magic`, `magical`) should be removed. The canonical tier names are `low`, `medium`, `high`.
+The canonical tier names are `low`, `medium`, `high`. No legacy aliases remain.
 
 ### Date Parsing
 
@@ -895,7 +893,7 @@ Smart date parsing applied uniformly:
 
 ### File Structure
 
-Single file: `calendar.js` (~12,300+ lines). All state stored in Roll20's `state` object.
+Single file: `calendar.js` (~13,400 lines). All state stored in Roll20's `state` object.
 
 ---
 

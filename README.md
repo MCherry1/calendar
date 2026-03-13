@@ -26,9 +26,8 @@ A Roll20 API script for managing a fantasy campaign calendar with:
   - [Location](#location)
   - [Forecasting](#forecasting)
 - [Planes](#planes)
-- [Chat Commands](#chat-commands)
 - [Calendar Systems](#calendar-systems)
-- [Design Reference](#design-reference)
+- [Chat Commands](Chat%20Commands.md)
 
 ---
 
@@ -217,15 +216,15 @@ The Eberron implementation uses integer-multiple synodic periods on a 336-day ye
 | ------------ | ----------------- | --------- | ------------------- | --------------------: | --------------------: | -----------------: | -----------------: | -----------: | -----: |
 | Zarantyr     | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |                  1250 |             14,300 |              5.145 |       0.0549 |   0.12 |
 | Olarune      | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |                  1000 |             18,000 |               0.33 |       0.0288 |   0.22 |
-| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |                  1100 |             39,000 |               0.47 |       0.0094 |   0.67 |
-| Eyre         | The Anvil         | Fernia    | Mark of Making      |                  21.0 |                  1200 |             52,000 |               0.43 |       0.1230 |   0.30 |
-| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |                  2000 |             77,500 |               1.09 |       0.0001 |  1.229 |
+| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |                  1100 |             39,000 |               0.03 |       0.0022 |   0.99 |
+| Eyre         | The Anvil         | Fernia    | Mark of Making      |                  21.0 |                  1200 |             52,000 |               1.53 |       0.0196 |   0.96 |
+| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |                  2000 |             77,500 | 156.8 (retrograde) |     0.000016 |   0.76 |
 | Nymm         | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |                   900 |             95,000 |               0.20 |       0.0013 |   0.43 |
-| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |                  1350 |            125,000 |               7.23 |       0.7507 |  0.155 |
+| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |                  1350 |            125,000 |               0.43 |       0.1230 |   0.30 |
 | Barrakas     | The Lantern       | Irian     | Mark of Finding     |                  22.0 |                  1500 |            144,000 |               0.02 |       0.0047 |  1.375 |
 | Rhaan        | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |                   800 |            168,000 |               4.34 |       0.0013 |   0.32 |
-| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |                  1100 |            183,000 | 175.3 (retrograde) |       0.1635 |   0.06 |
-| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |                  1300 |            195,000 |               7.57 |       0.0283 |   0.05 |
+| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |                  1100 |            183,000 |               1.08 |       0.0151 |  0.071 |
+| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |                  1300 |            195,000 |               7.57 |       0.0283 |  0.275 |
 | Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |               0.07 |       0.0014 |   0.23 |
 
 #### Eberron Moon Reference Inspirations
@@ -251,10 +250,10 @@ The Eberron implementation uses integer-multiple synodic periods on a 336-day ye
 **Reference body:** Hyperion (Saturn). Hyperion's chaotic tumble, cratered sponge-like surface, and high eccentricity make it the best inspiration for the Eye's unsettling, never-the-same-twice character.
 
 ##### Barrakas
-**Reference body:** Enceladus (Saturn). Enceladus supplies the Lantern's defining trait outright: extreme brightness from highly reflective ice, plus a near-equatorial orbit that makes its light feel even and dependable. reflects more light than it receives
+**Reference body:** Enceladus (Saturn). Enceladus supplies the Lantern's defining trait outright: extreme brightness from highly reflective ice, plus a near-equatorial orbit that makes its light feel even and dependable.
 
 ##### Rhaan
-**Reference body:** Miranda (Uranus). Miranda's patchwork geology and towering cliff faces support the Book's stitched-together, story-laden feel, while its slightly unusual path keeps it from looking too orderly. rhaan is covered with ridges that look like scribbles. workl that in.
+**Reference body:** Miranda (Uranus). Miranda's patchwork geology and towering cliff faces support the Book's stitched-together, story-laden feel, while its slightly unusual path keeps it from looking too orderly. Miranda's surface ridges resemble scrawled writing — fitting for the moon of Scribing.
 
 ##### Sypheros
 **Reference body:** Phobos (Mars). Phobos was chosen for its doomed inward spiral and dim, fear-tinged identity, making the Shadow feel like a moon already being consumed by entropy.
@@ -472,7 +471,7 @@ There are three types of events in this system:
 Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 
 - **Galifar** (Khorvaire/Eberron) — 12 months × 28 days, YK era, 7-day weeks.
-- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tenday columns
+- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tendays (display currently uses weekday columns; tenday layout is pending)
 - **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
 
 </details>
