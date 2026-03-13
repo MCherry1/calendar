@@ -495,8 +495,7 @@ For each moon/day:
 
 - **Solar eclipses:** moon passes between Eberron and sun
 - **Lunar eclipses/occultations:** moon passes behind Eberron's shadow or behind another moon
-- TODO: Eclipses should carry a time-of-day label using the five weather buckets (Early Morning 0–6, Morning 6–12, Afternoon 12–17, Evening 17–21, Late Night 21–24)
-- TODO: Verify multi-day eclipse issue — some moons show eclipses on consecutive days
+- Eclipse timing currently uses four time blocks (nighttime 0–6, morning 6–12, afternoon 12–18, evening 18–24). The eclipse overhaul task in Design Tasks.md will align these to the five weather buckets and fix multi-day duplicate reporting.
 
 ### 7.9 Moon Mini-Calendar Display
 
@@ -820,7 +819,7 @@ Multiple zones can be active simultaneously:
 - Active manifest zones affect weather/mechanics (e.g., Fernia zone = temperature shift, Risia zone = temperature shift)
 - Effects shown in "Today" view alongside weather, moons, planar state
 - No forecasting for manifest zones — always-visible when active
-- Shavarath manifest zone has **no wind effect** — only temperature-based effects (Fernia +, Risia −)
+- Weather-modifying manifest zones: Fernia (+3 temp), Risia (−3 temp), Irian (+1 temp), Mabar (−1 temp), Lamannia (+1 precip), Syrania (−1 wind, −1 precip), Kythri (chaotic swings). All others (Daanvi, Dolurrh, Shavarath, Thelanis, Xoriat, Dal Quor) have no weather shift.
 
 ### 11.4 Aryth Integration
 
@@ -883,7 +882,7 @@ Valid range suffixes: `Nd`, `Nw`, `Nm` or plain number (days). Date specs valid 
 
 ### No Legacy Aliases
 
-This script has not been used in any real game yet. All legacy tier aliases (`mundane`, `magical`, `abridged`, `survival`, `magic`, `magical`) should be removed. The canonical tier names are `low`, `medium`, `high`.
+The canonical tier names are `low`, `medium`, `high`. Legacy aliases (`mundane` → `medium`, `magical` → `high`) still exist as migration shims in moon and plane state readers. These can be removed once no saved state uses the old names.
 
 ### Date Parsing
 
@@ -894,7 +893,7 @@ Smart date parsing applied uniformly:
 
 ### File Structure
 
-Single file: `calendar.js` (~12,300+ lines). All state stored in Roll20's `state` object.
+Single file: `calendar.js` (~13,400 lines). All state stored in Roll20's `state` object.
 
 ---
 
