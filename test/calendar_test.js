@@ -17,7 +17,7 @@ if (isDeno) {
   assertNotEquals = assertMod.assertNotEquals;
   assert = assertMod.assert;
   describe = (name, fn) => { Deno.test(name, async (tc) => { await fn(tc); }); };
-  it = (ctx, name, fn) => ctx.step(name, fn);
+  it = async (ctx, name, fn) => { await ctx.step(name, fn); };
   readFile = (path) => Deno.readTextFileSync(path);
 } else {
   // Node.js imports
@@ -63,8 +63,8 @@ const t = () => globalThis.Calendar._test;
 // 1) SERIAL / DATE MATH
 // ============================================================================
 
-describe("Serial / Date Math", (ctx) => {
-  it(ctx, "toSerial and fromSerial round-trip (Eberron)", () => {
+describe("Serial / Date Math", async (ctx) => {
+  await it(ctx, "toSerial and fromSerial round-trip (Eberron)", () => {
     freshInstall();
     const { toSerial, fromSerial } = t();
 
@@ -87,7 +87,7 @@ describe("Serial / Date Math", (ctx) => {
     }
   });
 
-  it(ctx, "consecutive days have consecutive serials", () => {
+  await it(ctx, "consecutive days have consecutive serials", () => {
     freshInstall();
     const { toSerial } = t();
     const s1 = toSerial(998, 0, 28);
@@ -95,7 +95,7 @@ describe("Serial / Date Math", (ctx) => {
     assertEquals(s2 - s1, 1);
   });
 
-  it(ctx, "year boundary is correct for Eberron (336 days)", () => {
+  await it(ctx, "year boundary is correct for Eberron (336 days)", () => {
     freshInstall();
     const { toSerial, daysPerYear } = t();
     assertEquals(daysPerYear(), 336);
@@ -104,7 +104,7 @@ describe("Serial / Date Math", (ctx) => {
     assertEquals(firstNextYear - lastDay, 1);
   });
 
-  it(ctx, "toSerial is monotonically increasing", () => {
+  await it(ctx, "toSerial is monotonically increasing", () => {
     freshInstall();
     const { toSerial } = t();
     let prev = toSerial(998, 0, 1);
@@ -117,7 +117,7 @@ describe("Serial / Date Math", (ctx) => {
     }
   });
 
-  it(ctx, "weekdayIndex cycles correctly (7-day week)", () => {
+  await it(ctx, "weekdayIndex cycles correctly (7-day week)", () => {
     freshInstall();
     const { weekdayIndex, weekLength: wl } = t();
     assertEquals(wl(), 7);
@@ -133,8 +133,8 @@ describe("Serial / Date Math", (ctx) => {
 // 2) CALENDAR SYSTEMS
 // ============================================================================
 
-describe("Calendar Systems", (ctx) => {
-  it(ctx, "Eberron has correct structure", () => {
+describe("Calendar Systems", async (ctx) => {
+  await it(ctx, "Eberron has correct structure", () => {
     freshInstall();
     const { CALENDAR_SYSTEMS } = t();
     const eberron = CALENDAR_SYSTEMS.eberron;
@@ -148,13 +148,13 @@ describe("Calendar Systems", (ctx) => {
     assertEquals(names[11], "Vult");
   });
 
-  it(ctx, "Faerunian system exists with different structure", () => {
+  await it(ctx, "Faerunian system exists with different structure", () => {
     freshInstall();
     const { CALENDAR_SYSTEMS } = t();
     assert(CALENDAR_SYSTEMS.faerunian);
   });
 
-  it(ctx, "Gregorian system exists", () => {
+  await it(ctx, "Gregorian system exists", () => {
     freshInstall();
     const { CALENDAR_SYSTEMS } = t();
     assert(CALENDAR_SYSTEMS.gregorian);
@@ -165,8 +165,8 @@ describe("Calendar Systems", (ctx) => {
 // 3) DATE NAVIGATION
 // ============================================================================
 
-describe("Date Navigation", (ctx) => {
-  it(ctx, "stepDays(1) advances current date by one day", () => {
+describe("Date Navigation", async (ctx) => {
+  await it(ctx, "stepDays(1) advances current date by one day", () => {
     freshInstall();
     const { getCal, stepDays } = t();
     const before = getCal().current.day_of_the_month;
@@ -176,7 +176,7 @@ describe("Date Navigation", (ctx) => {
     else assertEquals(after, before + 1);
   });
 
-  it(ctx, "stepDays forward then back returns to original serial", () => {
+  await it(ctx, "stepDays forward then back returns to original serial", () => {
     freshInstall();
     const { stepDays, todaySerial } = t();
     const before = todaySerial();
@@ -185,7 +185,7 @@ describe("Date Navigation", (ctx) => {
     assertEquals(todaySerial(), before);
   });
 
-  it(ctx, "stepDays(336) advances exactly one Eberron year", () => {
+  await it(ctx, "stepDays(336) advances exactly one Eberron year", () => {
     freshInstall();
     const { getCal, stepDays } = t();
     const cur = getCal().current;
@@ -197,7 +197,7 @@ describe("Date Navigation", (ctx) => {
     assertEquals(after.day_of_the_month, d0);
   });
 
-  it(ctx, "setDate jumps to a specific date", () => {
+  await it(ctx, "setDate jumps to a specific date", () => {
     freshInstall();
     const { getCal, setDate } = t();
     setDate(6, 15, 999);
@@ -212,15 +212,15 @@ describe("Date Navigation", (ctx) => {
 // 4) EVENTS
 // ============================================================================
 
-describe("Events", (ctx) => {
-  it(ctx, "default events are loaded on install", () => {
+describe("Events", async (ctx) => {
+  await it(ctx, "default events are loaded on install", () => {
     freshInstall();
     const events = t().getCal().events;
     assert(Array.isArray(events));
     assert(events.length > 0);
   });
 
-  it(ctx, "getEventsFor finds known default events", () => {
+  await it(ctx, "getEventsFor finds known default events", () => {
     freshInstall();
     const { getEventsFor, getCal } = t();
     // Find an event with a simple numeric day spec (not ordinal weekday)
@@ -233,14 +233,14 @@ describe("Events", (ctx) => {
     assert(found.some(e => e.name === numericEvent.name));
   });
 
-  it(ctx, "eventKey is stable", () => {
+  await it(ctx, "eventKey is stable", () => {
     freshInstall();
     const { eventKey } = t();
     const ev = { month: 3, day: 15, year: null, name: "Test Holiday" };
     assertEquals(eventKey(ev), eventKey(ev));
   });
 
-  it(ctx, "compareEvents orders by year then month", () => {
+  await it(ctx, "compareEvents orders by year then month", () => {
     freshInstall();
     const { compareEvents } = t();
     assert(compareEvents({ month: 1, day: 1, year: 998 },
@@ -249,7 +249,7 @@ describe("Events", (ctx) => {
                          { month: 6, day: 1, year: 998 }) < 0);
   });
 
-  it(ctx, "default events have hex colors", () => {
+  await it(ctx, "default events have hex colors", () => {
     freshInstall();
     const { getCal, getEventColor } = t();
     for (const e of getCal().events.slice(0, 10)) {
@@ -263,15 +263,15 @@ describe("Events", (ctx) => {
 // 5) UTILITIES
 // ============================================================================
 
-describe("Utilities", (ctx) => {
-  it(ctx, "_stableHash is deterministic", () => {
+describe("Utilities", async (ctx) => {
+  await it(ctx, "_stableHash is deterministic", () => {
     freshInstall();
     const { _stableHash } = t();
     assertEquals(_stableHash("hello"), _stableHash("hello"));
     assertNotEquals(_stableHash("hello"), _stableHash("world"));
   });
 
-  it(ctx, "clamp restricts values to range", () => {
+  await it(ctx, "clamp restricts values to range", () => {
     freshInstall();
     const { clamp } = t();
     assertEquals(clamp(5, 1, 10), 5);
@@ -279,27 +279,27 @@ describe("Utilities", (ctx) => {
     assertEquals(clamp(15, 1, 10), 10);
   });
 
-  it(ctx, "esc escapes HTML entities", () => {
+  await it(ctx, "esc escapes HTML entities", () => {
     freshInstall();
     const { esc } = t();
     assertEquals(esc("<b>bold</b>"), "&lt;b&gt;bold&lt;/b&gt;");
     assertEquals(esc('"quotes"'), "&quot;quotes&quot;");
   });
 
-  it(ctx, "titleCase capitalizes first letter", () => {
+  await it(ctx, "titleCase capitalizes first letter", () => {
     freshInstall();
     const { titleCase } = t();
     assertEquals(titleCase("hello"), "Hello");
   });
 
-  it(ctx, "sanitizeHexColor validates hex colors", () => {
+  await it(ctx, "sanitizeHexColor validates hex colors", () => {
     freshInstall();
     const { sanitizeHexColor } = t();
     assert(sanitizeHexColor("#FF0000"));
     assert(!sanitizeHexColor("not-a-color"));
   });
 
-  it(ctx, "textColor returns readable contrast on dark and light backgrounds", () => {
+  await it(ctx, "textColor returns readable contrast on dark and light backgrounds", () => {
     freshInstall();
     const { textColor, _contrast } = t();
     const onDark = textColor("#000000");
@@ -309,7 +309,7 @@ describe("Utilities", (ctx) => {
     assert(_contrast("#000000", onDark) >= 4.5);
   });
 
-  it(ctx, "colorForMonth returns hex for each month", () => {
+  await it(ctx, "colorForMonth returns hex for each month", () => {
     freshInstall();
     const { colorForMonth } = t();
     for (let i = 0; i < 12; i++) {
@@ -323,8 +323,8 @@ describe("Utilities", (ctx) => {
 // 6) GREGORIAN LEAP YEAR
 // ============================================================================
 
-describe("Gregorian Leap Year", (ctx) => {
-  it(ctx, "standard leap year rules", () => {
+describe("Gregorian Leap Year", async (ctx) => {
+  await it(ctx, "standard leap year rules", () => {
     freshInstall();
     const { _isGregorianLeapYear } = t();
     assert(_isGregorianLeapYear(2000));
@@ -335,7 +335,7 @@ describe("Gregorian Leap Year", (ctx) => {
     assert(!_isGregorianLeapYear(2100));
   });
 
-  it(ctx, "_leapsBefore counts correctly", () => {
+  await it(ctx, "_leapsBefore counts correctly", () => {
     freshInstall();
     const { _leapsBefore } = t();
     assertEquals(_leapsBefore(0, 4), 0);
@@ -349,8 +349,8 @@ describe("Gregorian Leap Year", (ctx) => {
 // 7) MOON SYSTEM
 // ============================================================================
 
-describe("Moon System", (ctx) => {
-  it(ctx, "Eberron has 12 moons with required properties", () => {
+describe("Moon System", async (ctx) => {
+  await it(ctx, "Eberron has 12 moons with required properties", () => {
     freshInstall();
     const moons = t().MOON_SYSTEMS.eberron.moons;
     assertEquals(moons.length, 12);
@@ -362,7 +362,7 @@ describe("Moon System", (ctx) => {
     }
   });
 
-  it(ctx, "_moonHashStr is deterministic and in [0,1)", () => {
+  await it(ctx, "_moonHashStr is deterministic and in [0,1)", () => {
     freshInstall();
     const { _moonHashStr } = t();
     const h = _moonHashStr("test-seed");
@@ -371,7 +371,7 @@ describe("Moon System", (ctx) => {
     assert(h >= 0 && h < 1);
   });
 
-  it(ctx, "_moonPrng produces repeatable sequences", () => {
+  await it(ctx, "_moonPrng produces repeatable sequences", () => {
     freshInstall();
     const { _moonPrng } = t();
     const a = _moonPrng(0.42), b = _moonPrng(0.42);
@@ -381,7 +381,7 @@ describe("Moon System", (ctx) => {
     for (const v of sa) assert(v >= 0 && v < 1);
   });
 
-  it(ctx, "_eberronMoonCore returns data for all named moons", () => {
+  await it(ctx, "_eberronMoonCore returns data for all named moons", () => {
     freshInstall();
     const { _eberronMoonCore, MOON_SYSTEMS } = t();
     for (const m of MOON_SYSTEMS.eberron.moons) {
@@ -392,7 +392,7 @@ describe("Moon System", (ctx) => {
     }
   });
 
-  it(ctx, "moonPhaseAt returns data after sequence generation", () => {
+  await it(ctx, "moonPhaseAt returns data after sequence generation", () => {
     freshInstall();
     const { moonEnsureSequences, moonPhaseAt, todaySerial, MOON_SYSTEMS } = t();
     const today = todaySerial();
@@ -408,8 +408,8 @@ describe("Moon System", (ctx) => {
 // 8) WEATHER SYSTEM
 // ============================================================================
 
-describe("Weather System", (ctx) => {
-  it(ctx, "getWeatherState initializes with correct defaults", () => {
+describe("Weather System", async (ctx) => {
+  await it(ctx, "getWeatherState initializes with correct defaults", () => {
     freshInstall();
     const ws = t().getWeatherState();
     assert(ws);
@@ -418,7 +418,7 @@ describe("Weather System", (ctx) => {
     assert(Array.isArray(ws.history));
   });
 
-  it(ctx, "_clampWeatherTempBand clamps to valid range", () => {
+  await it(ctx, "_clampWeatherTempBand clamps to valid range", () => {
     freshInstall();
     const { _clampWeatherTempBand } = t();
     assertEquals(_clampWeatherTempBand(0), 0);
@@ -427,7 +427,7 @@ describe("Weather System", (ctx) => {
     assertEquals(_clampWeatherTempBand(7), 7);
   });
 
-  it(ctx, "_weatherTempLabel returns labels for all bands", () => {
+  await it(ctx, "_weatherTempLabel returns labels for all bands", () => {
     freshInstall();
     const { _weatherTempLabel } = t();
     for (let band = -5; band <= 15; band++) {
@@ -436,7 +436,7 @@ describe("Weather System", (ctx) => {
     }
   });
 
-  it(ctx, "WEATHER_CLIMATES has expected climate types", () => {
+  await it(ctx, "WEATHER_CLIMATES has expected climate types", () => {
     freshInstall();
     const { WEATHER_CLIMATES } = t();
     for (const key of ["polar", "temperate", "tropical", "continental"]) {
@@ -449,8 +449,8 @@ describe("Weather System", (ctx) => {
 // 9) NIGHTTIME LIGHTING
 // ============================================================================
 
-describe("Nighttime Lighting", (ctx) => {
-  it(ctx, "nighttimeLightCondition returns condition objects for various lux levels", () => {
+describe("Nighttime Lighting", async (ctx) => {
+  await it(ctx, "nighttimeLightCondition returns condition objects for various lux levels", () => {
     freshInstall();
     const { nighttimeLightCondition } = t();
     for (const lux of [0, 0.001, 0.01, 0.1, 0.5, 1.0]) {
@@ -466,8 +466,8 @@ describe("Nighttime Lighting", (ctx) => {
 // 10) SEASONS
 // ============================================================================
 
-describe("Season Sets", (ctx) => {
-  it(ctx, "Eberron season set exists", () => {
+describe("Season Sets", async (ctx) => {
+  await it(ctx, "Eberron season set exists", () => {
     freshInstall();
     assert(t().SEASON_SETS.eberron);
   });
@@ -477,8 +477,8 @@ describe("Season Sets", (ctx) => {
 // 11) INTEGRATION
 // ============================================================================
 
-describe("Integration", (ctx) => {
-  it(ctx, "checkInstall produces valid state", () => {
+describe("Integration", async (ctx) => {
+  await it(ctx, "checkInstall produces valid state", () => {
     freshInstall();
     const { getCal, ensureSettings, state_name } = t();
     const root = globalThis.state[state_name];
@@ -492,7 +492,7 @@ describe("Integration", (ctx) => {
     assertEquals(s.calendarSystem, "eberron");
   });
 
-  it(ctx, "advance through an entire month day-by-day", () => {
+  await it(ctx, "advance through an entire month day-by-day", () => {
     freshInstall();
     const { getCal, stepDays, todaySerial } = t();
     const start = todaySerial();
@@ -502,14 +502,14 @@ describe("Integration", (ctx) => {
     assertEquals(getCal().current.month, (m0 + 1) % 12);
   });
 
-  it(ctx, "formatDateLabel produces readable output", () => {
+  await it(ctx, "formatDateLabel produces readable output", () => {
     freshInstall();
     const label = t().formatDateLabel(998, 0, 1, true);
     assert(typeof label === "string" && label.length > 0);
     assert(label.includes("998"));
   });
 
-  it(ctx, "monthIndexByName resolves Eberron month names", () => {
+  await it(ctx, "monthIndexByName resolves Eberron month names", () => {
     freshInstall();
     const { monthIndexByName } = t();
     assertEquals(monthIndexByName("zarantyr"), 0);
