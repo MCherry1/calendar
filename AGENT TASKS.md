@@ -13,171 +13,172 @@ If there is design ambiguity in this tasks list: keep the task intact and add a 
 
 None currently. Add new items here only when the desired implementation behavior is still ambiguous enough to block coding.
 
-## Match Script to README.md and Design.md
-- Check README for accuracy against the script implementation, add section at the top of this file that lists which sections are not how the script is currently implemented. Completed by ChatGPT version number 5.4
----
-## Update README.md
-- Do not overwrite any text in the README.
-- README is incomplete. Fill in the sections where tasks are clear. Completed by ChatGPT version number 5.4
 ---
 
-## Documentation Tasks
+## Best Claude Only — Review Completed Work
 
-These are README / repo-doc tasks extracted from embedded notes in the README.
+These items were completed by various ChatGPT versions (5, 5.2-Codex, 5.4, GPT-5 Codex). Each needs a thorough review by Claude Opus to verify correctness, code quality, lore fidelity, and consistency with DESIGN.md.
 
----
+### Review: Match Script to README.md and Design.md
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify that the README accuracy audit was thorough — cross-check each README section against the current script implementation
+- [ ] Confirm no stale or incorrect claims remain in README after the audit
 
-### README presentation cleanup
+### Review: Update README.md
+*Originally completed by ChatGPT 5.4*
+- [ ] Check that filled-in README sections are accurate, well-written, and consistent with DESIGN.md
+- [ ] Verify no existing README text was overwritten or lost
 
-Status: Completed by GPT-5 Codex on 2026-03-13
+### Review: README presentation cleanup
+*Originally completed by GPT-5 Codex on 2026-03-13*
+- [ ] Verify collapsible `<details>` blocks are used appropriately and don't hide critical information
+- [ ] Check that all sections render correctly in GitHub markdown
 
-- [x] Convert major README sections to collapsible `<details><summary>...</summary></details>` blocks where that improves readability
+### Review: Expand Knowledge Tiers guidance in README
+*Originally completed by GPT-5 Codex on 2026-03-13*
+- [ ] Verify the medium-tier skill-check table uses correct DC 10/15/20/25 guidance matching DESIGN.md
+- [ ] Verify expert-tier reveal guidance is accurate and lore-consistent
+- [ ] Check that Fibonacci-style progression windows are documented correctly
 
----
+### Review: Add deterministic-seed author documentation
+*Originally completed by GPT-5 Codex on 2026-03-13*
+- [ ] Verify the seed documentation accurately describes how weather/moon/plane deterministic generation works in the actual code
+- [ ] Check for any omissions or inaccuracies in the seed explanation
 
-### Expand Knowledge Tiers guidance in README
+### Review: Replace planar "anomaly" terminology with "generated event"
+*Originally completed by GPT-5 Codex on 2026-03-13*
+- [ ] Grep for any remaining user-facing uses of "anomaly"/"anomalies"/"anomalous" in docs and UI copy
+- [ ] Verify deterministic-seed and design docs consistently use "generated event" terminology
 
-Status: Completed by GPT-5 Codex on 2026-03-13
+### Review: Add planar generated-event appendix to README
+*Originally completed (uncredited)*
+- [ ] Verify the per-plane table covers duration, trigger dice, and expected annual event count for all 13 planes
+- [ ] Cross-check table values against the actual code constants
 
-- [x] Add a recommended medium-tier skill-check table using DC 10 / 15 / 20 / 25 guidance
-- [x] Add guidance for expert-tier reveals via magical or tool-assisted means
-- [x] Document the default recommended reveal windows using Fibonacci-style progressions
+### Review: Embedded README notes resolved on 2026-03-12
+*Originally completed (uncredited)*
+- [ ] Verify per-moon reference/inspiration notes replaced the old mapping table correctly
+- [ ] Verify weather forecasting guidance is above mechanics tables in README
+- [ ] Verify per-plane weather-effects table exists and is accurate
+- [ ] Verify command reference was fully moved to `Chat Commands.md` with nothing lost
+- [ ] Verify calendar-navigation docs reflect the month-jump workflow
+- [ ] Verify smart date formats are documented for moon, plane, and event commands
+- [ ] Verify event-source priority behavior is documented
+- [ ] Verify Gregorian leap-year rule uses full algorithm (div by 4, not by 100 unless also by 400)
 
----
+### Review: Tighten top-level calendar jump syntax and documentation
+*Originally completed by GPT-5 Codex on 2026-03-13*
+- [ ] Test `!cal <dateSpec>` forms and verify ambiguous inputs are rejected/warned
+- [ ] Check `Chat Commands.md` for any confusing direct-jump examples that remain
 
-### Expand README moon and sky reference material
+### Review: Retire the player Month button and calendar-level Upcoming view
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify the player `Month` button is fully removed from the quick bar
+- [ ] Verify all top-level `Upcoming` button/view/command flows are removed
+- [ ] Check README/help/UI copy for stale `Upcoming` references
 
-Progress: Stable sky-model expansion completed by GPT-5 Codex on 2026-03-13. Ring of Siberys detail remains open.
+### Review: Add an independent weather-mechanics toggle
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify weather narration stays enabled when mechanics are disabled
+- [ ] Verify the toggle appears in settings/UI and is documented in README
 
-- [x] Include the Eberron moon reference-body mapping table in README instead of only pointing to `DESIGN.md`
-- [x] Expand **Modeling the Skies** with the remaining stable explanatory material
-- [ ] Add Ring of Siberys detail for apparent color, angular size, and nearest Zarantyr clearance
-- [ ] Add a Saturn-rings reference note covering real albedo range and physical makeup
-- [ ] Add an angular-size comparison for the Ring of Siberys versus Earth's Moon and the major Eberron moons
+### Review: Fix mini-calendar last-row clipping
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify cell sizing is consistent across all rows in all mini-calendar variants
+- [ ] Check that number text and event dots fit in every cell without clipping
 
----
+### Review: Rebalance Syrania weather effects
+*Originally completed (uncredited)*
+- [ ] Verify coterminous Syrania uses "calm, clear skies" effect
+- [ ] Verify Syrania manifest zones use `-1 wind, -1 precipitation` modifier
+- [ ] Check that remote Syrania behavior matches the planar model documentation
 
-### Refine Eberron moon inspiration notes in README
+### Review: Manifest zone system redesign
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify manifest zones are location-parallel (independent of weather location)
+- [ ] Verify Set Manifest Zone button exists in admin panel with correct UI (2-column, toggles, bold/faint styling)
+- [ ] Verify multiple simultaneous manifest zones work correctly
+- [ ] Verify manifest zones clear on location change with summary message
+- [ ] Verify Aryth full-moon reminder and deactivation warning work across date advancement
+- [ ] Verify Fernia/Risia ±3 temperature effects are wired through manifest zone mechanic
+- [ ] Verify Fernia+Risia simultaneous activation cancels temperature but both display
 
-- [ ] Add name-origin notes for each Eberron moon
-- [ ] Add relative-size comparisons versus Earth's Moon so the moon table is easier to visualize
-- [ ] Rewrite the per-moon inspiration blurbs to be shorter and more evocative, not just factual
-- [ ] Rewrite Eyre's Mimas note to accurately explain the forge / hammer / crater inspiration
+### Review: Expand weather day model to five buckets
+*Originally completed by GPT-5 Codex on 2026-03-13*
+- [ ] Verify all five buckets (Early Morning, Morning, Afternoon, Evening, Late Night) use correct hour windows
+- [ ] Verify Early Morning inherits previous night's weather with transition
+- [ ] Check that all weather generation, display, mechanics, and reveal text use five buckets (no leftover three-bucket code)
 
----
+### Review: Non-annual traditional plane anchor mode flags
+*Originally completed (uncredited)*
+- [ ] Verify per-plane non-annual traditional-cycle source mode works for qualifying planes
+- [ ] Verify annual-only planes remain untagged
 
-### Add deterministic-seed author documentation
+### Review: Fix Gregorian leap day presentation
+*Originally completed by GPT-5.2-Codex*
+- [ ] Verify leap day renders as "February 29" without "intercalary" or "Leap Year" annotations
+- [ ] Check both leap year and non-leap year February rendering
 
-Status: Completed by GPT-5 Codex on 2026-03-13
+### Review: Validate recent agent-ready updates
+*Originally completed by GPT-5.2-Codex*
+- [ ] Re-validate Syrania remote/coterminous + manifest-zone weather overlays in GM and player views
+- [ ] Re-validate Gregorian leap-day presentation around February
 
-- [x] Create a repo doc that explains how the script's seed-driven deterministic generation works for weather / moons / planes
+### Review: Refactor temperature generators to −5 to 15 scale
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify all climate definitions output on the -5 to 15 band scale (not the old 0-10 stage scale)
+- [ ] Verify `_composeFormula()` / `_rollTrait()` pipeline indexes directly into `WEATHER_TEMPERATURE_BANDS_F`
+- [ ] Verify Fernia/Risia manifest zone modifiers use ±3 on the new scale
 
----
+### Review: Show weather influence sources
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify plane, manifest zone, and moon modifiers appear as annotation lines in both GM and player weather views
+- [ ] Check that annotations are informative but don't clutter the main display
 
-### Replace planar "anomaly" terminology with "generated event" wording
+### Review: Ensure players can use !cal subsystem views
+*Originally completed by ChatGPT 5.4*
+- [ ] Verify player access to weather forecast (revealed data only), moon phases, and planar status
+- [ ] Verify players see a simplified Today view
+- [ ] Check permission gating is correct (players see only what's been revealed)
 
-Status: Completed by GPT-5 Codex on 2026-03-13
+### Review: Expose adjacent month navigation for players
+*Originally completed by GPT-5*
+- [ ] Verify player quick bar includes Prev/Next month navigation buttons
+- [ ] Verify navigation works correctly for players
 
-- [x] Remove user-facing uses of "anomaly", "anomalies", and "anomalous" from markdown docs and UI copy where those refer to generated planar events
-- [x] Update deterministic-seed and design-facing documentation to describe those shifts as generated events instead of anomalies
-- [x] Keep or defer internal identifier renames separately if a full code-symbol refactor is not worth the churn
+### Review: Remove Current button from subsystem mini-calendar navigation
+*Originally completed by GPT-5.2-Codex*
+- [ ] Verify no center `Current` button exists in any mini-calendar/subsystem view (GM or player)
+- [ ] Verify Prev/Next buttons are visible in every subsystem view for both roles
+- [ ] Check help/UI copy for stale `Current` button references
 
----
+### Review: Accept arbitrary GM weather forecast spans up to 20 days
+*Originally completed by GPT-5*
+- [ ] Verify `!cal weather forecast [n]` and `!cal settings weatherdays [n]` accept 1-20 correctly
+- [ ] Test edge cases (0, 21, non-integer, negative)
 
-### Add planar generated-event appendix to README
+### Review: Simplify weather broadcast flow
+*Originally completed by GPT-5*
+- [ ] Verify `!cal weather send` broadcasts only what players already know
+- [ ] Verify `!cal weather reveal medium|high [1-10]` handles range-based reveal-and-send
 
-- [x] Add a per-plane table covering generated-event duration, trigger dice, and expected annual event count
+### Review: Ring of Siberys presentation
+*Originally completed by GPT-5*
+- [ ] Verify Ring of Siberys documentation covers inclination, daylight visibility, albedo, nighttime illumination, Saturn-ring scaling, and height comparisons
+- [ ] Cross-check lore accuracy against Keith Baker's published Eberron material
 
----
-
-### Embedded README notes resolved on 2026-03-12
-
-- [x] Replace the Eberron reference-mapping table in `README.md` with per-moon reference and inspiration notes
-- [x] Move the weather forecasting guidance above the mechanics tables in `README.md`
-- [x] Add a per-plane weather-effects table to the planar weather section in `README.md`
-- [x] Move the command reference out of `README.md` into `Chat Commands.md`
-- [x] Rewrite the calendar-navigation docs around the intended month-jump workflow while still documenting the parser's supported date forms
-- [x] Document smart date formats for moon, plane, and event commands in `Chat Commands.md`
-- [x] Document event-source priority behavior in `Chat Commands.md`
-- [x] Apply the full Gregorian leap-year rule in `calendar.js` while keeping February 29 inline with February
-
----
+### Review: Specific-date weather reveals (completed portions)
+*Low-tier reveals expanded by GPT-5 Codex on 2026-03-13*
+- [ ] Verify each date stores reveal flags (`low`, `medium`, `high`) correctly
+- [ ] Verify low reveal auto-grants common-knowledge forecasts for today, tomorrow, and day-after-tomorrow
+- [ ] Verify today's low reveal includes rough time-of-day guidance
+- [ ] Verify tomorrow and day-after-tomorrow use one qualitative day headline
 
 ---
 
 ## Agent Ready
 
-These are well-defined implementation tasks. The design is decided, the target behavior is clear, and the work is primarily mechanical code changes. A capable coding agent can complete these without further design discussion.
-
----
-
-### Tighten top-level calendar jump syntax and documentation
-
-Status: Completed by GPT-5 Codex on 2026-03-13
-
-- [x] Audit what `!cal <dateSpec>` forms actually render in the top-level mini-calendar flow
-- [x] Remove or rewrite confusing direct-jump examples in `Chat Commands.md` that do not map cleanly to month-based output
-- [x] Reject or warn on ambiguous bare-number / single-day top-level jump inputs that do not make sense for a month mini-calendar
-- [x] Whisper clearer syntax guidance for valid month-oriented jump forms
-
----
-
-### Retire the player `Month` button and the calendar-level `Upcoming` view
-
-Status: Completed by ChatGPT version number 5.4
-
-- [x] Remove the center `Month` button from the player quick bar
-- [x] Remove the top-level calendar `Upcoming` button/view/command flow
-- [x] Remove top-level `Upcoming` references from README/help/UI copy
-- [x] Keep subsystem-specific forecast/upcoming commands only if they are still intentionally supported
-
----
-
-### Add an independent weather-mechanics toggle
-
-Status: Completed by ChatGPT version number 5.4
-
-- [x] Allow weather narration to remain enabled while mechanical weather effects are disabled
-- [x] Surface the toggle in settings/UI and document the behavior in README
-
----
-
-### Fix mini-calendar last-row clipping
-
-Status: Completed by ChatGPT version number 5.4
-
-- [x] Investigate the mini-calendar row-height/clipping bug where the final row appears shorter or visibly clipped
-- [x] Fix the base mini-calendar cell sizing so number text and event dots fit consistently in every row
-- [x] Verify the fix across the default calendar, weather/moon/plane mini-calendars, and adjacent/overflow rows
-
----
-
-### Rebalance Syrania weather effects
-
-- [x] Keep "calm, clear skies" as the **coterminous Syrania** planar effect
-- [x] Change **Syrania manifest zones** to a lighter modifier (`-1` wind, `-1` precipitation)
-- [x] Ensure remote Syrania weather behavior is documented and implemented consistently with the planar model
-
----
-
-### Manifest zone system redesign
-
-Status: Completed by ChatGPT version number 5.4
-
-- [x] Treat manifest zones as location-parallel state (independent of weather location)
-- [x] Add **Set Manifest Zone** button below **Set Location** in the admin panel
-- [x] New chooser UI: 2-column table (Zone name | On/Off toggle), supporting all 13 planes + None
-- [x] Support **multiple** simultaneously active manifest zones
-- [x] Visual state: active zones bold, inactive zones faint + italic
-- [x] Toggle click posts a simple chat confirmation, doesn't re-render the full table
-- [x] Clear all active manifest zones on location change, with summary message
-- [x] Aryth full-moon reminder: "Aryth is full. Consider a manifest zone."
-- [x] Track which zones were activated during Aryth full
-- [x] On date advance past Aryth full: warning to deactivate those zones
-- [x] Show manifest-zone status in Today view (always visible when active)
-- [x] No manifest-zone forecasting
-- [x] Wire Fernia/Risia temperature effects (±3 on new scale) through the manifest zone mechanic instead of current approach
-- [x] Fernia and Risia can both be active at once; their temperature effects cancel, but both still display as active influences
+These are well-defined implementation tasks. The design is decided, the target behavior is clear, and the work is primarily mechanical code changes.
 
 ---
 
@@ -227,43 +228,20 @@ Design clarified by user on 2026-03-13. This task is now implementation-ready.
 
 ---
 
-### Specific-date weather reveals (divination mechanic)
+### Specific-date weather reveals (remaining work)
 
 This is the "divination magic" feature: GM reveals weather for a specific date at a specific location without revealing everything in between.
-
-Progress: Common-knowledge low-tier reveals were expanded by GPT-5 Codex on 2026-03-13. Targeted date-spec reveal commands remain open.
 
 - [ ] GM command: `!cal weather reveal <dateSpec>` using the existing standard date syntax, including ranges such as `14-17` and `4 5-7`
 - [ ] Generation engine must still generate intermediate days for seeding, but those aren't revealed
 - [ ] Revealed range uses the same week-strip presentation as regular forecasts, with blank cells where no data is revealed
 - [ ] Player-facing forecast command shows only revealed data at the current location, with location name included
 - [ ] GM-only reveal command with custom range input (cap at ~3 months to prevent chat flooding)
-- [x] Each date stores a reveal flag (`low`, `medium`, `high`); no flag means unrevealed
-- [x] Low reveal should auto-grant common-knowledge forecasts for today, tomorrow, and the day after tomorrow
-- [x] Today's low reveal should include rough time-of-day guidance rather than a single all-day label
-- [x] Tomorrow and the day after tomorrow should use one qualitative day headline / descriptor rather than full period breakdowns
 - [ ] Always uses currently set location (GM switches location for planning, then switches back)
 - [ ] **Location quick-switch**: Add a "recent locations" list (last 3 used) in the Location setting menu for fast switching
 
 ---
 
-### Expand weather day model to five buckets
-
-Status: Completed by GPT-5 Codex on 2026-03-13
-
-- [x] Replace the current morning / afternoon / evening weather model with five play-facing buckets: Early Morning, Morning, Afternoon, Evening, Late Night
-- [x] Use approximate bucket windows of `0-6`, `6-12`, `12-17`, `17-21`, and `21-24`
-- [x] Early Morning should inherit the previous night's weather while transitioning into the new day's rolls
-- [x] Update weather generation, display text, mechanics text, and reveal text that currently assume only three daily periods
-
----
-
-### Non-annual traditional plane anchor mode flags
-
-- [x] Implement per-plane non-annual traditional-cycle source mode (`random-seed` vs `gm-anchored`) based on plane seed/anchor overrides, including planes that mix annual and non-annual traditional periods (e.g., Mabar).
-- [x] Verify the implementation in the Planes view and state API to confirm each qualifying plane reports the expected mode and annual-only planes remain untagged.
-
----
 ### Correct Harptos calendar display
 
 The Faerûnian/Harptos calendar currently uses weekday-based layout. It should use tendays:
@@ -279,99 +257,24 @@ The Faerûnian/Harptos calendar currently uses weekday-based layout. It should u
 
 ---
 
-### Fix Gregorian leap day presentation
-
-The Gregorian calendar's leap day is currently marked as "intercalary" with a separate display. It should simply be February 29th — part of February, not a special intercalary day. Remove any "Leap Year" annotations; the presence of the 29th is sufficient indication.
-
-Status: Completed by GPT-5.2-Codex
-
-- [x] Remove leap-year annotation text from Gregorian leap-day rendering
-- [x] Present Gregorian leap-day labeling as February 29 in calendar/date text outputs
+## Documentation Tasks (Remaining)
 
 ---
 
-### Validate recent agent-ready updates
+### Expand README moon and sky reference material (remaining items)
 
-Status: Completed by GPT-5.2-Codex
-
-- [x] Validate Syrania remote/coterminous + manifest-zone weather overlays end-to-end in GM and player weather views
-- [x] Validate Gregorian leap-day presentation around February in a leap year and non-leap year (no separate Leap Year annotation)
-
----
-
-### Refactor temperature generators to −5 to 15 scale
-
-Status: Completed by ChatGPT version number 5.4
-
-The four target data tables (`WEATHER_TEMPERATURE_BANDS_F`, `WEATHER_COLD_CLOTHING_TIERS`, `WEATHER_HEAT_ARMOR_RULES`, `WEATHER_TEMPERATURE_SYSTEM_RULES`) are already defined in the script using band indices -5 through 15.
-
-However, the actual temperature generators (`WEATHER_CLIMATE_BASE` and the formula/roll system) produce values on a **0–10 stage scale**, not the -5 to 15 band scale. The task is to refactor the generators so their output maps directly to the -5 to 15 band indices, eliminating the intermediate stage layer.
-
-**Scope:** All climate definitions in `WEATHER_CLIMATE_BASE` (polar, subarctic, temperate, subtropical, tropical, arid, etc.) and the `_composeFormula()` / `_rollTrait()` pipeline need to output on the -5 to 15 scale. The existing F° band mappings in `WEATHER_TEMPERATURE_BANDS_F` should remain unchanged — the generator output just needs to index into them directly.
-
-**Note:** Fernia/Risia manifest zone temperature modifiers now use `±3`, matching the current scale and DESIGN.md guidance.
+- [ ] Add Ring of Siberys detail for apparent color, angular size, and nearest Zarantyr clearance
+- [ ] Add a Saturn-rings reference note covering real albedo range and physical makeup
+- [ ] Add an angular-size comparison for the Ring of Siberys versus Earth's Moon and the major Eberron moons
 
 ---
 
-### Show weather influence sources
+### Refine Eberron moon inspiration notes in README
 
-Status: Completed by ChatGPT version number 5.4
-
-In the weather display (both GM and player views), indicate when a plane, manifest zone, or moon is currently modifying weather conditions. For example: "🌙 Zarantyr (lightning boost)" or "🔥 Fernia manifest zone (+3 temp)". This should appear as a small annotation line, not clutter the main display.
-
----
-
-### Ensure players can use `!cal` subsystem views
-
-Status: Completed by ChatGPT version number 5.4
-
-Players can currently use `!cal` for the basic calendar view. Verify and enable access to subsystem views (weather forecast, moon phases, planar status) with appropriate permission gating:
-- Weather: players see their revealed forecast only (already works via `!cal weather`)
-- Moons: players see their revealed moon data (already works via `!cal moon`)
-- Planes: players see their revealed planar data
-- Today: players should see a simplified Today view (currently GM-only)
-
----
-
-### Expose adjacent month navigation for players
-
-Status: Completed by ChatGPT version number 5
-
-The player quick bar now includes `◀ Prev`, `📅 Month`, and `Next ▶` month-navigation buttons alongside the player subsystem links.
-
----
-
-### Remove `Current` button from subsystem mini-calendar navigation
-
-Status: Completed by GPT-5.2-Codex
-
-- [x] Audit all mini-calendar/subsystem month-nav controls (GM and player views) and remove any center `Current` button where `Prev`/`Next` are already present
-- [x] Keep `Prev` and `Next` buttons visible beneath the mini-calendar in every subsystem view for both players and GMs
-- [x] Update any related help/UI copy that still references a `Current` button in mini-calendar navigation
-
----
-
-### Accept arbitrary GM weather forecast spans up to 20 days
-
-Status: Completed by ChatGPT version number 5
-
-`!cal weather forecast [n]` and `!cal settings weatherdays [n]` now accept any integer from `1` to `20` instead of only `10` or `20`.
-
----
-
-### Simplify weather broadcast flow
-
-Status: Completed by ChatGPT version number 5
-
-`!cal weather send` now broadcasts the forecast information players already know, while `!cal weather reveal medium|high [1-10]` handles the existing range-based reveal-and-send workflow.
-
----
-
-### Ring of Siberys presentation
-
-Status: Completed by ChatGPT version number 5
-
-README and lore output now document the Ring of Siberys under **Modeling the Skies**, including inclination `0°`, daylight visibility, albedo, nighttime illumination contribution, Saturn-ring scaling, and height-above-surface comparisons.
+- [ ] Add name-origin notes for each Eberron moon
+- [ ] Add relative-size comparisons versus Earth's Moon so the moon table is easier to visualize
+- [ ] Rewrite the per-moon inspiration blurbs to be shorter and more evocative, not just factual
+- [ ] Rewrite Eyre's Mimas note to accurately explain the forge / hammer / crater inspiration
 
 ---
 
@@ -384,8 +287,6 @@ These tasks still need design direction before coding.
 ### Reduce Today-view clutter
 
 The Today view needs a redesign to reduce information density. Specific changes to be directed — this task is a placeholder awaiting design direction.
-
----
 
 ---
 
