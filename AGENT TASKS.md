@@ -183,11 +183,47 @@ Status: Completed by ChatGPT version number 5.4
 
 ### Eclipse and crossing math overhaul
 
-- [ ] Fix potential multi-day eclipse reports (eclipses should be single-day events with time-of-day precision)
-- [ ] Add percentage coverage to eclipses, based on relative angular sizes of the bodies
-- [ ] Phrase all events as eclipses in the form: `X eclipses the nn% smaller/larger Y, covering mm% of Y!`
-- [ ] Add time-of-day labels to all eclipses and moon-crossing events:
-  - Early hours (0–6), Morning (6–12), Afternoon (12–17), Evening (17–22), Night (22–0)
+Design clarified by user on 2026-03-13. This task is now implementation-ready.
+
+- [ ] Report **true overlaps only**. Remove near-miss conjunction / crossing reports that do not have real disk overlap.
+- [ ] Reclassify event types by actual overlap and relative apparent size:
+  - `Total Eclipse`: the occluded body reaches **100% coverage** at peak.
+  - `Partial Eclipse`: peak coverage is **greater than 0% but less than 100%**, and the occluding body's apparent diameter is **more than 75%** of the occluded body's apparent diameter.
+  - `Transit`: peak coverage is **greater than 0% but less than 100%**, and the occluding body's apparent diameter is **75% or less** of the occluded body's apparent diameter.
+- [ ] Coverage must be computed from the actual apparent disk overlap at peak and reported as the **percentage of the occluded body covered**.
+- [ ] Include relative apparent size information in the output, using the two bodies' apparent diameters at peak.
+- [ ] Use the script's existing play-facing time buckets for eclipse timing:
+  - `Early Morning`
+  - `Morning`
+  - `Afternoon`
+  - `Evening`
+  - `Late Night`
+- [ ] Use the script's existing sky-position vocabulary for eclipse location in the sky:
+  - `Overhead`
+  - `High`
+  - `Visible`
+  - `On horizon`
+  - Do not surface an eclipse as visible flavor text if the event is below the horizon at the relevant report moment.
+- [ ] Replace the current day-level eclipse phrasing with event-lifecycle phrasing that can span midnight cleanly. Required behavior:
+  - First day of a cross-midnight event can say that the eclipse **begins** in one bucket and **ends tomorrow** in another bucket.
+  - Following day should say the eclipse is **ending this <bucket>** rather than inventing a second independent event.
+  - The system should identify one physical eclipse event and attach day-specific start / peak / end language to that same event.
+- [ ] Eliminate duplicate "same eclipse on consecutive days" reporting caused by day-threshold detection. A physical eclipse should be grouped into a single event window, even if that window crosses midnight.
+- [ ] Update the output copy so moon-sun and moon-moon events use a consistent eclipse/transit style, for example:
+  - `Partial eclipse of Y by X, covering 43% of Y.`
+  - `Transit of Y by X, covering 12% of Y.`
+  - Add timing and sky-position context in the same sentence or immediately after it, e.g. `Beginning in the Afternoon, peaking High, ending tomorrow in the Morning.`
+- [ ] Include enough detail in Today / moon-calendar notable text to convey:
+  - event type (`Total Eclipse`, `Partial Eclipse`, or `Transit`)
+  - occluding body and occluded body
+  - peak coverage percent
+  - relative apparent size comparison
+  - start / peak / end bucket information
+  - sky position at peak, using existing visibility labels
+- [ ] Verify both same-day and cross-midnight events render coherently in:
+  - Today view
+  - moon mini-calendar notable text
+  - any player-facing moon summaries that surface eclipse notes
 
 ---
 
