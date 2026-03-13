@@ -335,7 +335,7 @@ Runtime state tracks: active location profile, forecast records, locked history,
 2. Build baseline from climate + geography + terrain tables
 3. Roll afternoon `temp/wind/precip` via bell-like opposed dice
 4. Apply continuity nudge from prior day (`CONFIG_WEATHER_SEED_STRENGTH`)
-5. Derive morning/afternoon/evening states using deterministic arc + stochastic offset
+5. Derive early morning/morning/afternoon/evening/late night states using deterministic arc + stochastic offset
 6. Roll fog by period with persistence/wind logic
 7. Apply manifest-zone local modifiers
 8. Apply planar-weather shifts/overrides (e.g., coterminous Syrania forces calm/clear)
@@ -496,7 +496,7 @@ For each moon/day:
 
 - **Solar eclipses:** moon passes between Eberron and sun
 - **Lunar eclipses/occultations:** moon passes behind Eberron's shadow or behind another moon
-- TODO: Eclipses should carry a time-of-day label (early hours 0–6, morning 6–12, afternoon 12–17, evening 17–22, night 22–0)
+- TODO: Eclipses should carry a time-of-day label using the five weather buckets (Early Morning 0–6, Morning 6–12, Afternoon 12–17, Evening 17–21, Late Night 21–24)
 - TODO: Verify multi-day eclipse issue — some moons show eclipses on consecutive days
 
 ### 7.9 Moon Mini-Calendar Display
