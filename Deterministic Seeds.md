@@ -61,6 +61,7 @@ Planar behavior mixes deterministic cycle math with seeded anchor offsets.
 - `linkedTo` lets paired planes derive offsets from the same seed source when their cycles should stay coordinated.
 
 ### Generated anomalies
+agent task please remove the damn word anomolies from every fucking where. these aren't anomolies. theyre generated events.
 
 - Off-cycle planar events are also deterministic.
 - Trigger checks, durations, and coterminous/remote results all use `_dN(serial, salt, sides)`.
