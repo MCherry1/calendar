@@ -52,7 +52,7 @@ Ready task
 1. **Events** — Calendar events with colors, sources, recurring support
 2. **Weather** — Location-based procedural generation with seeded RNG. Rolling forecast window. Temperature, precipitation, wind, fog, extreme events.
 3. **Moons** — 12 moons of Eberron with real orbital mechanics (synodic periods, inclinations, eclipse geometry). Random walk variation on all moons.
-4. **Planes** — 13 planes with canonical cycles + generated anomalous events. Flicker profiles per plane.
+4. **Planes** — 13 planes with canonical cycles + generated off-cycle events. Flicker profiles per plane.
 5. **Nighttime Lighting** — Lux calculation from moon illumination + weather cloud cover → D&D light conditions.
 
 ### Three-Tier Knowledge System (low / medium / high)

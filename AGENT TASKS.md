@@ -74,15 +74,17 @@ Status: Completed by GPT-5 Codex on 2026-03-13
 
 ### Replace planar "anomaly" terminology with "generated event" wording
 
-- [ ] Remove user-facing uses of "anomaly", "anomalies", and "anomalous" from markdown docs and UI copy where those refer to generated planar events
-- [ ] Update deterministic-seed and design-facing documentation to describe those shifts as generated events instead of anomalies
-- [ ] Keep or defer internal identifier renames separately if a full code-symbol refactor is not worth the churn
+Status: Completed by GPT-5 Codex on 2026-03-13
+
+- [x] Remove user-facing uses of "anomaly", "anomalies", and "anomalous" from markdown docs and UI copy where those refer to generated planar events
+- [x] Update deterministic-seed and design-facing documentation to describe those shifts as generated events instead of anomalies
+- [x] Keep or defer internal identifier renames separately if a full code-symbol refactor is not worth the churn
 
 ---
 
-### Add planar anomaly appendix to README
+### Add planar generated-event appendix to README
 
-- [x] Add a per-plane table covering generated anomaly duration, trigger dice, and expected annual event count
+- [x] Add a per-plane table covering generated-event duration, trigger dice, and expected annual event count
 
 ---
 

@@ -52,7 +52,7 @@ var CONFIG_DEFAULTS = {
   weatherEnabled:  true,        // false = weather system fully disabled
   weatherMechanicsEnabled: true, // false = keep narrative weather, suppress D&D mechanics text
   planesEnabled:   true,        // false = planar system disabled
-  offCyclePlanes:  true,        // false = disable off-cycle (anomalous) planar movement
+  offCyclePlanes:  true,        // false = disable off-cycle generated planar movement
   moonDisplayMode: 'calendar',  // 'calendar' | 'list' | 'both'
   weatherDisplayMode:'calendar', // 'calendar' | 'list' | 'both'
   planesDisplayMode:'calendar',  // 'calendar' | 'list' | 'both'
@@ -4168,12 +4168,12 @@ function activeEffectsPanelHtml(){
         if (!ps) continue;
         if (ps.phase !== 'coterminous' && ps.phase !== 'remote') continue;
 
-        // Skip permanently fixed routine states (e.g., Dal Quor/Xoriat) unless anomalous.
-        var isAnomaly = !!(ps.note && /anomalous/i.test(ps.note));
-        if (planes[i].type === 'fixed' && !isAnomaly) continue;
+        // Skip permanently fixed routine states (e.g., Dal Quor/Xoriat) unless generated.
+        var isGenerated = _isGeneratedNote(ps.note);
+        if (planes[i].type === 'fixed' && !isGenerated) continue;
 
-        // Skip extremely long routine phases unless forced or anomalous.
-        if (ps.phaseDuration != null && ps.phaseDuration > ypd && !ps.overridden && !isAnomaly) continue;
+        // Skip extremely long routine phases unless forced or generated.
+        if (ps.phaseDuration != null && ps.phaseDuration > ypd && !ps.overridden && !isGenerated) continue;
 
         var emoji = PLANE_PHASE_EMOJI[ps.phase] || '⚪';
         var lbl = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
@@ -10852,7 +10852,7 @@ function getLongShadowsMoons(year){
 var GENERATED_SEALED = { 'Dal Quor':true };
 
 // ---------------------------------------------------------------------------
-// 21d) Non-canonical planar shifts ("anomalous movements")
+// 21d) Non-canonical planar shifts (generated off-cycle movements)
 // ---------------------------------------------------------------------------
 // Planes occasionally become coterminous or remote outside their canonical
 // cycle windows. These are rare, deterministically seeded events checked
@@ -10988,7 +10988,7 @@ var PLANAR_ANOMALY_PROFILE = {
     ],
     duration: { options: [3, 7], weights: [50, 50] },
     phaseBias: 'dice',
-    loreNote: 'Thelanis moves to the rhythm of stories — its anomalies arrive in narrative beats of three or seven days.'
+    loreNote: 'Thelanis moves to the rhythm of stories — its generated events arrive in narrative beats of three or seven days.'
   },
 
   // IRIAN — The Eternal Dawn
@@ -11067,7 +11067,7 @@ var PLANAR_ANOMALY_PROFILE = {
     ],
     duration: { die: 12 },
     phaseBias: 'dice',
-    loreNote: 'Kythri lurches erratically — anomalies are its nature, not exceptions. No discernable effects on the Material Plane.'
+    loreNote: 'Kythri lurches erratically — generated shifts suit it better than any fixed rhythm. No discernable effects on the Material Plane.'
   },
 
   // XORIAT — The Realm of Madness
@@ -11099,7 +11099,7 @@ var PLANAR_ANOMALY_PROFILE = {
     duration: 1,
     phaseBias: 'dice',
     weatherOverride: { coterminous: { precip: 0, wind: 0 } },
-    loreNote: 'Syrania anomalies are moments of unexpected serenity — or the sudden absence of peace. Coterminous days bring clear skies.'
+    loreNote: 'Syrania generated events are moments of unexpected serenity — or the sudden absence of peace. Coterminous days bring clear skies.'
   },
 
   // DAL QUOR — The Region of Dreams (sealed — no generation)
@@ -11448,7 +11448,7 @@ function _generatedPhase(planeName, serial){
   return (evt && evt.phase) ? evt.phase : 'coterminous';
 }
 
-// Find next anomalous event within maxDays for forecast displays.
+// Find next generated event within maxDays for forecast displays.
 function _nextGeneratedForecast(planeName, serial, maxDays){
   if (GENERATED_SEALED[planeName]) return null;
   try { if (ensureSettings().offCyclePlanes === false) return null; } catch(e){ return null; }
@@ -12100,7 +12100,7 @@ function getPlanarState(planeName, serial, opts){
     if (!ignoreGenerated && isGeneratedShift(plane.name, serial)){
       fixedIsGenerated = true;
       fixedPhase = _generatedPhase(plane.name, serial);
-      fixedNote = 'Anomalous ' + fixedPhase + ' shift';
+      fixedNote = 'Generated ' + fixedPhase + ' shift';
     }
 
     return {
@@ -12206,7 +12206,7 @@ function getPlanarState(planeName, serial, opts){
           (cyclicPhase === 'waning' || cyclicPhase === 'waxing') &&
           isGeneratedShift(plane.name, serial)){
         var genPhase = _generatedPhase(plane.name, serial);
-        cyclicNote = 'Anomalous ' + genPhase + ' shift';
+        cyclicNote = 'Generated ' + genPhase + ' shift';
         cyclicPhase = genPhase;
       }
 
@@ -12362,7 +12362,7 @@ function getPlanarState(planeName, serial, opts){
         phaseDuration: Math.floor(ph.dur),
         nextPhase: phases[nextIdx].name,
         overridden: false,
-        sourceLabel: (cyclicNote && /anomalous/i.test(cyclicNote)) ? 'generated' : 'traditional',
+        sourceLabel: _isGeneratedNote(cyclicNote) ? 'generated' : 'traditional',
         traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
       };
     }
@@ -12690,13 +12690,13 @@ function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
           if (startsHere){
             out.push({
               serial: ser,
-              name: gEmoji + '✨ ' + name + ': Anomalous ' + gLabel + ' begins',
+              name: gEmoji + '✨ ' + name + ': Generated ' + gLabel + ' begins',
               color: '#BA68C8'
             });
           } else {
             out.push({
               serial: ser,
-              name: gEmoji + '✨ ' + name + ': Anomalous ' + gLabel,
+              name: gEmoji + '✨ ' + name + ': Generated ' + gLabel,
               color: gColor
             });
           }
@@ -12704,7 +12704,7 @@ function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
           if (endsHere){
             out.push({
               serial: ser,
-              name: gEmoji + '✨ ' + name + ': Anomalous ' + gLabel + ' ends',
+              name: gEmoji + '✨ ' + name + ': Generated ' + gLabel + ' ends',
               color: '#CE93D8'
             });
           }
@@ -12743,7 +12743,7 @@ function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
   }
 
   var bits = ['Coterminous '+cot, 'Remote '+rem];
-  if (activeGen) bits.push('Anomalous shifts ' + activeGen);
+  if (activeGen) bits.push('Generated shifts ' + activeGen);
   if (next) bits.push('Next: ' + next.plane + ' ' + next.phase + ' in ' + next.days + 'd');
   return '<div style="font-size:.8em;opacity:.72;margin:2px 0 6px 0;">'+esc(bits.join(' · '))+'</div>';
 }
@@ -12830,8 +12830,8 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
         (ps.traditionalAnchorMode === 'gm-anchored' ? 'GM anchored' : 'random seed') + ']</span>';
     }
 
-    // Anomalous shift detection
-    var hasGenNow = !!(ps.note && /anomalous/i.test(ps.note));
+    // Generated shift detection
+    var hasGenNow = _isGeneratedNote(ps.note);
     var anomalyTag = '';
     if (hasGenNow){
       anomalyTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(non-canonical)</span>';
@@ -12841,7 +12841,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
       if (ff){
         var ffLabel = PLANE_PHASE_LABELS[ff.phase] || ff.phase;
         var ffText = ff.activeNow ? (ffLabel + ' shift active')
-          : ('Anomalous ' + ffLabel + ' in ' + ff.daysUntilStart + 'd');
+          : ('Generated ' + ffLabel + ' in ' + ff.daysUntilStart + 'd');
         if (ff.durationDays > 1) ffText += ' (~' + ff.durationDays + 'd)';
         anomalyTag = ' <span style="font-size:.75em;opacity:.45;font-style:italic;">'+esc(ffText)+'</span>';
       }
@@ -12857,13 +12857,13 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
           } else {
             var pffWin = _planePredictionWindowDays(ps.plane, pff.daysUntilStart, 'high');
             if (pffWin <= 0){
-              pffText = 'Anomalous ' + pffLabel + ' in ' + pff.daysUntilStart + 'd';
+              pffText = 'Generated ' + pffLabel + ' in ' + pff.daysUntilStart + 'd';
             } else {
               var pffLo = Math.max(1, pff.daysUntilStart - pffWin);
               var pffHi = pff.daysUntilStart + pffWin;
               pffText = (pffLo === pffHi)
-                ? ('Anomalous ' + pffLabel + ' in ~' + pffLo + 'd')
-                : ('Anomalous ' + pffLabel + ' ~' + pffLo + '\u2013' + pffHi + 'd');
+                ? ('Generated ' + pffLabel + ' in ~' + pffLo + 'd')
+                : ('Generated ' + pffLabel + ' ~' + pffLo + '\u2013' + pffHi + 'd');
             }
           }
           if (pff.durationDays > 1) pffText += ' (~' + pff.durationDays + 'd)';
@@ -12979,7 +12979,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
   var body = '';
   if (displayMode !== 'list'){
     body += planesMiniCal;
-    body += _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Anomalous shift']);
+    body += _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']);
   }
   if (displayMode !== 'calendar'){
     body += rows.join('');
@@ -12997,7 +12997,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
 }
 
 function _isGeneratedNote(note){
-  return /anomalous/i.test(String(note || ''));
+  return /(generated|anomalous)/i.test(String(note || ''));
 }
 
 

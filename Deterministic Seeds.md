@@ -60,11 +60,11 @@ Planar behavior mixes deterministic cycle math with seeded anchor offsets.
 - Some planes use the same seed machinery for remote sub-cycles and floating start days.
 - `linkedTo` lets paired planes derive offsets from the same seed source when their cycles should stay coordinated.
 
-### Generated anomalies
+### Generated planar events
 
 - Off-cycle planar events are also deterministic.
 - Trigger checks, durations, and coterminous/remote results all use `_dN(serial, salt, sides)`.
-- Because the salt includes plane identity and serial day, the same world seed and date produce the same generated anomaly decisions.
+- Because the salt includes plane identity and serial day, the same world seed and date produce the same generated-event decisions.
 
 ### GM overrides
 
