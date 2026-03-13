@@ -150,6 +150,8 @@ Use that table as the default "skilled forecast" pacing for Survival, Nature, na
 
 `high` is the tier for magic, instruments, or institutions that justify precise knowledge rather than informed guesswork: divination, dragonmarked observatories, long-kept almanacs, planar charts, weather stations, or privileged archival access. Use it when the fiction supports exact timing inside the granted window.
 
+For weather, `high` can also mean a **specific-date reveal**: the GM can reveal just the chosen future date or range at the current location without exposing all intervening days.
+
 If you want custom reveal horizons beyond the preset buttons, widen them in Fibonacci-style steps instead of simple doubling: `1, 2, 3, 5, 8, 13`, then round into table-friendly units. In practice that means weather and planes usually grow by days, while moons grow by months.
 
 </details>
@@ -223,61 +225,78 @@ That means axial tilt mostly shows up as broad seasonal daylight framing: longer
 - **Albedo 0.50**, chosen from a Saturn-ring-inspired analog and tuned to preserve the setting goal that the ring is visibly bright even by day
 - Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
 - Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
+- The outer edge still sits about **2,300 km / 1,430 mi inside Zarantyr's mean orbit**, so the Ring never overlaps the nearest moon's track in the model
+- Angular-size note: Earth's Moon is the script's `1.0x` apparent-diameter baseline; Zarantyr is about `9.08x`, Olarune `5.73x`, Therendor `2.91x`, Dravago `2.66x`, and Eyre `2.38x`. The Ring is not a disk at all, but a sky-spanning band that dwarfs any moon as a visual structure
+- Saturn-rings reference note: the real rings are mostly water ice with dust/rock contamination, with particles ranging from dust grains to mountain-scale chunks. Their brightness varies by ring, from darker dirty sections to bright B-ring ice; the script's `0.50` uses a bright-average analog rather than claiming every ringlet is equally reflective
 ### Moons of Eberron
 
 The Eberron implementation uses integer-multiple synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms.
 
-| Eberron Moon | Title             | Plane     | Dragonmark          | Synodic Period (days) | Approx. Diameter (mi) | Mean Distance (mi) |    Inclination (°) | Eccentricity | Albedo |
-| ------------ | ----------------- | --------- | ------------------- | --------------------: | --------------------: | -----------------: | -----------------: | -----------: | -----: |
-| Zarantyr     | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |                  1250 |             14,300 |              5.145 |       0.0549 |   0.12 |
-| Olarune      | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |                  1000 |             18,000 |               0.33 |       0.0288 |   0.22 |
-| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |                  1100 |             39,000 |               0.03 |       0.0022 |   0.99 |
-| Eyre         | The Anvil         | Fernia    | Mark of Making      |                  21.0 |                  1200 |             52,000 |               1.53 |       0.0196 |   0.96 |
-| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |                  2000 |             77,500 | 156.8 (retrograde) |     0.000016 |   0.76 |
-| Nymm         | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |                   900 |             95,000 |               0.20 |       0.0013 |   0.43 |
-| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |                  1350 |            125,000 |               0.43 |       0.1230 |   0.30 |
-| Barrakas     | The Lantern       | Irian     | Mark of Finding     |                  22.0 |                  1500 |            144,000 |               0.02 |       0.0047 |  1.375 |
-| Rhaan        | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |                   800 |            168,000 |               4.34 |       0.0013 |   0.32 |
-| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |                  1100 |            183,000 |               1.08 |       0.0151 |  0.071 |
-| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |                  1300 |            195,000 |               7.57 |       0.0283 |  0.275 |
-| Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |               0.07 |       0.0014 |   0.23 |
+| Eberron Moon | Title             | Plane     | Dragonmark          | Synodic Period (days) | Approx. Diameter (mi) | Mean Distance (mi) | Apparent Diameter vs Earth's Moon | Inclination (°) | Eccentricity | Albedo |
+| ------------ | ----------------- | --------- | ------------------- | --------------------: | --------------------: | -----------------: | --------------------------------: | --------------: | -----------: | -----: |
+| Zarantyr     | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |                  1250 |             14,300 |                             9.08x |           5.145 |       0.0549 |   0.12 |
+| Olarune      | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |                  1000 |             18,000 |                             5.73x |            0.33 |       0.0288 |   0.22 |
+| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |                  1100 |             39,000 |                             2.91x |            0.03 |       0.0022 |   0.99 |
+| Eyre         | The Anvil         | Fernia    | Mark of Making      |                  21.0 |                  1200 |             52,000 |                             2.38x |            1.53 |       0.0196 |   0.96 |
+| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |                  2000 |             77,500 |                             2.66x | 156.8 (retrograde) |     0.000016 |   0.76 |
+| Nymm         | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |                   900 |             95,000 |                             0.98x |            0.20 |       0.0013 |   0.43 |
+| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |                  1350 |            125,000 |                             1.11x |            0.43 |       0.1230 |   0.30 |
+| Barrakas     | The Lantern       | Irian     | Mark of Finding     |                  22.0 |                  1500 |            144,000 |                             1.07x |            0.02 |       0.0047 |  1.375 |
+| Rhaan        | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |                   800 |            168,000 |                             0.49x |            4.34 |       0.0013 |   0.32 |
+| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |                  1100 |            183,000 |                             0.62x |            1.08 |       0.0151 |  0.071 |
+| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |                  1300 |            195,000 |                             0.69x |            7.57 |       0.0283 |  0.275 |
+| Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |                             0.74x |            0.07 |       0.0014 |   0.23 |
 
 #### Eberron Moon Reference Inspirations
+Name notes below are interpretive flavor cues, not confirmed in-setting etymologies.
+
 ##### Zarantyr
-**Reference body:** Luna (Earth). The Storm Moon uses the real Moon's mix of tidal importance, moderate eccentricity, and broad inclination sweep so the closest moon also feels like the most forceful and weather-shaping one.
+**Reference body:** Luna (Earth). **Name note:** The hard, storm-cut sound fits Kythri's violence.
+The sky's dominant moon: huge, pale, and close enough to feel like a threat when the weather turns.
 
 ##### Olarune
-**Reference body:** Titan (Saturn). Titan's low-inclination, atmosphere-shrouded steadiness fits the Sentinel Moon: watchful, natural, and slightly hidden behind an amber haze.
+**Reference body:** Titan (Saturn). **Name note:** The rounded syllables feel older and steadier than Zarantyr's bite.
+Amber and watchful, Olarune reads as a patient guardian hanging over the wild.
 
 ##### Therendor
-**Reference body:** Dione (Saturn). Dione was chosen to keep Therendor nearly co-planar with Barrakas, which supports their frequent eclipse relationship, while its bright icy surface reinforces the Healer's Moon as a calm, luminous presence.
+**Reference body:** Dione (Saturn). **Name note:** Its gentler cadence suits a moon tied to healing and mercy.
+Small but brilliant, Therendor is the clean silver lamp of the upper sky.
 
 ##### Eyre
-**Reference body:** Mimas (Saturn). Mimas provides the scarred-anvil inspiration: a bright icy moon dominated by a single enormous crater, which suits Eyre's forge-marked identity better than a darker but more eccentric analog.
+**Reference body:** Mimas (Saturn). **Name note:** The name feels clipped and forge-hot, matching Fernia better than a softer lunar name.
+Eyre is the smith's moon: bright, battered, and marked by one overwhelming scar like a forge-struck face.
 
 ##### Dravago
-**Reference body:** Triton (Neptune). Triton's retrograde orbit is the key inspiration here: Dravago keeps its distance from the other moons by literally moving against them, with frozen stillness and high reflectivity reinforcing Risia's influence.
+**Reference body:** Triton (Neptune). **Name note:** The heavier consonants give it a hulking, winter-beast feel.
+Big in truth but distant in the sky, Dravago feels cold, remote, and stubbornly separate from the others.
 
 ##### Nymm
-**Reference body:** Ganymede (Jupiter). Ganymede's regular, near-equatorial motion and singular magnetic-field identity make it a strong fit for the Crown as an orderly, sovereign moon.
+**Reference body:** Ganymede (Jupiter). **Name note:** The short, ceremonial sound suits a moon of feasts and order.
+Nymm is the courtly moon: balanced, golden, and almost Earth-Moon-sized to the eye.
 
 ##### Lharvion
-**Reference body:** Hyperion (Saturn). Hyperion's chaotic tumble, cratered sponge-like surface, and high eccentricity make it the best inspiration for the Eye's unsettling, never-the-same-twice character.
+**Reference body:** Hyperion (Saturn). **Name note:** The stretched vowels make it sound unstable and slightly wrong.
+Lharvion is the unsettling one, swelling and shrinking more dramatically than any moon that should be trusted.
 
 ##### Barrakas
-**Reference body:** Enceladus (Saturn). Enceladus supplies the Lantern's defining trait outright: extreme brightness from highly reflective ice, plus a near-equatorial orbit that makes its light feel even and dependable.
+**Reference body:** Enceladus (Saturn). **Name note:** The name lands like a struck bell or a lantern being hooked into place.
+Barrakas is the traveler's moon: steady, near-equatorial, and implausibly bright.
 
 ##### Rhaan
-**Reference body:** Miranda (Uranus). Miranda's patchwork geology and towering cliff faces support the Book's stitched-together, story-laden feel, while its slightly unusual path keeps it from looking too orderly. Miranda's surface ridges resemble scrawled writing — fitting for the moon of Scribing.
+**Reference body:** Miranda (Uranus). **Name note:** The breathy opening makes it feel like a spoken word or half-remembered story.
+Rhaan is a little blue-white page in the sky, more literary than majestic.
 
 ##### Sypheros
-**Reference body:** Phobos (Mars). Phobos was chosen for its doomed inward spiral and dim, fear-tinged identity, making the Shadow feel like a moon already being consumed by entropy.
+**Reference body:** Phobos (Mars). **Name note:** The whispering sibilants fit secrecy and decay.
+Dim even at its best, Sypheros looks like a moon already half-lost to darkness.
 
 ##### Aryth
-**Reference body:** Iapetus (Saturn). Iapetus gives Aryth its two-tone gateway imagery and equatorial ridge, making it a literal threshold moon between light and darkness.
+**Reference body:** Iapetus (Saturn). **Name note:** The abrupt ending gives it a gate-like finality.
+Aryth is the threshold moon: half dark, half burning, with a dividing line that feels deliberate.
 
 ##### Vult
-**Reference body:** Oberon (Uranus). Oberon's cratered outer-guard profile and disciplined, near-circular orbit fit the Warding Moon as a distant, defensive sentinel.
+**Reference body:** Oberon (Uranus). **Name note:** Short and blunt, like a fortress command barked across a wall.
+Far out and slow-moving, Vult feels like the last watchfire on the edge of the world.
 
 </details>
 
@@ -315,6 +334,8 @@ Current weather readouts also add a small annotation line whenever a manifest zo
 **Player reveals** are upgrade-only. Once a tier of information is given, players retain it. See [Knowledge Tiers](#knowledge-tiers) for the shared reveal model used across subsystems.
 
 GMs can extend the forecast window ahead, reroll individual dates before revealing them, or lock a date's weather to prevent future changes.
+
+GMs can also use `!cal weather reveal <dateSpec>` for divination-style weather reveals. The generator still rolls intermediate days for continuity, but the player-facing forecast only exposes the chosen date or range, shown on the same mini-calendar strip with blank cells for unrevealed days.
 
 ### Mechanics
 
@@ -385,6 +406,8 @@ Weather is generated for a specific location profile. Set the profile with `!cal
 | **Climate**   | arctic, temperate, tropical, arid, … | Sets overall temperature baseline and seasonal variation |
 | **Geography** | coastal, plains, hills, mountain, …  | Modifies temperature and precipitation patterns          |
 | **Terrain**   | forest, city, open, swamp, …         | Fine-tunes local conditions; affects fog frequency       |
+
+The location wizard also keeps the **last three locations** as quick-switch buttons. That makes it practical to jump to "mountains in six weeks," reveal a divined forecast there, and then jump back to the current region without rebuilding the location by hand.
 
 ### Manifest Zones
 
@@ -486,7 +509,7 @@ There are three types of events in this system:
 Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 
 - **Galifar** (Khorvaire/Eberron) — 12 months × 28 days, YK era, 7-day weeks.
-- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tendays (display currently uses weekday columns; tenday layout is pending)
+- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tendays displayed as 3 rows × 10 columns, with festival-day strips for intercalary dates
 - **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
 
 </details>

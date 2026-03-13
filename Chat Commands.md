@@ -125,9 +125,11 @@ every Sul         — every matching weekday in the month
 !cal weather mechanics
 !cal weather send
 !cal weather reveal (medium|high) [1-10]
+!cal weather reveal <dateSpec>
 ```
 
 `!cal weather send` broadcasts whatever weather knowledge the players already have. It does not take extra arguments.
+`!cal weather reveal <dateSpec>` is the divination-style exact-date reveal. It uses the current weather location, generates intermediate days for continuity, and only exposes the chosen date or range to players.
 
 ### GM Weather Generation and Events
 
@@ -146,6 +148,7 @@ every Sul         — every matching weekday in the month
 !cal weather location climate <key>
 !cal weather location geography <key>
 !cal weather location terrain <key>
+!cal weather location recent <1-3>
 
 !cal weather manifest
 !cal weather manifest toggle <planeKey>
@@ -154,6 +157,15 @@ every Sul         — every matching weekday in the month
 !cal weather manifest clear
 
 !cal weather location zone <planeKey|none>   — manifest-zone alias
+```
+
+Examples:
+
+```text
+!cal weather reveal 14-17
+!cal weather reveal Rhaan 14
+!cal weather reveal Hammer 5-7 1491
+!cal weather location recent 1
 ```
 
 ## Moons
