@@ -90,7 +90,7 @@ All systems exposed through `!cal` commands and panel UIs with GM/player reveal 
 - Era label: DR (Dalereckoning)
 - Weekday names not used in date display
 
-> **Implementation note:** Harptos tenday column layout is an open task (Phase 4 in tasks.md). The calendar system definitions are correct; the display rendering may still be showing weekday columns.
+> **Implementation note:** Harptos tenday column layout is an open task (see Design Tasks.md). The calendar system definitions are correct; the display rendering may still be showing weekday columns.
 
 ### 3.3 Gregorian / Earth
 

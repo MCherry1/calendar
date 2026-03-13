@@ -1,10 +1,43 @@
-# Agent Tasks
+# Design Tasks
 
 **Repository:** `mcherry1/calendar`
 
-See [DESIGN.md](DESIGN.md) for full architectural context. README is the target-behavior guide unless a statement is ambiguous; when code does not match README, track the code change here.
+This is the single task and workflow file for all coding agents. For detailed architectural context, data tables, and mechanical design decisions, see [DESIGN.md](DESIGN.md).
 
-If there is design ambiguity in this tasks list: keep the task intact and add a comment to the **Needs Design Input** section.
+**Primary canon source**: Keith Baker's published Eberron material. Lore fidelity is a hard constraint.
+
+---
+
+## Development Workflow
+
+This project is developed entirely with coding agents. Before doing any work, orient yourself with these files:
+
+- **`DESIGN.md`** — Authoritative design document. Architectural decisions, mechanical systems, complete data tables, development history. Read the relevant section before implementing anything. Do not implement something differently from what DESIGN.md says unless the discrepancy is explicitly noted.
+- **`Design Tasks.md`** (this file) — Implementation backlog and workflow rules.
+- **`design/`** — Active design discussions. Each file is a topic where the design is NOT yet decided. Do not implement anything described only in `design/` — it is there specifically because it is not ready for coding.
+
+### Pipeline: idea → code
+
+```
+Undecided question
+  → create design/<topic>.md
+  → design-discussion agent researches and decides
+  → update DESIGN.md with decision
+  → add implementation tasks to this file
+  → delete or archive the design/ file
+
+Ready task
+  → coding agent implements from this file
+  → follows the Task Lifecycle below
+```
+
+### Rules
+
+- **Only implement from this file.** If something is only in `design/`, it is not ready.
+- **Read DESIGN.md first.** Don't guess at architectural intent — it's documented.
+- **Don't add tasks for undecided design.** If you discover something that needs a design decision, create a `design/` file for it.
+- **Upgrade-only for DESIGN.md.** Design decisions are additive. Don't remove content from DESIGN.md unless explicitly asked.
+- **README is the target-behavior guide** unless a statement is ambiguous; when code does not match README, track the code change here.
 
 ---
 
@@ -22,6 +55,7 @@ Every task follows this pipeline:
 If the reviewer finds issues, they should fix them in the same pass and then remove the task. If the issues are too large to fix inline, the reviewer moves the task back to the appropriate work section with notes on what needs to be redone.
 
 ---
+
 ## Needs Design Input
 
 None currently. Add new items here only when the desired implementation behavior is still ambiguous enough to block coding.
@@ -115,7 +149,7 @@ The Faerûnian/Harptos calendar currently uses weekday-based layout. It should u
 
 ---
 
-## Documentation Tasks (Remaining)
+## Documentation Tasks
 
 ---
 
