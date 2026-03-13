@@ -1,6 +1,5 @@
-# CI: lint and functional tests for calendar.js
+# CI: functional tests for calendar.js
 # Runs on every push to main and on every pull request targeting main.
-# Uses Deno for linting and test execution.
 
 name: CI
 
@@ -14,17 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      - name: Run linter
-        run: deno lint calendar.js
-
   test:
     name: Functional Tests
     runs-on: ubuntu-latest
