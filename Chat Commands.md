@@ -9,7 +9,7 @@ Most play should happen through the in-chat buttons. When typed syntax matters, 
 The intended direct-navigation workflow is month-oriented:
 
 ```text
-!cal                       — current month
+!cal                      — current month
 !cal Zarantyr             — next occurrence of that month
 !cal 1                    — next occurrence of month 1
 !cal Zarantyr 998         — that month in a specific year
@@ -23,6 +23,7 @@ The intended direct-navigation workflow is month-oriented:
 ```
 
 The underlying range parser also still accepts exact dates and ordinal-weekday queries when you need them:
+agent task: you gotta look at what is actually generated here. I don't know what !cal 14 would even show, and I don'tthink you might either. I think we should limit these and give guidance via whispered caht as to syntax. there is zero world whre providing a single day makes any sense. it's always a month. if there is no month 14 then that makes zero sense. if it's doing 14 months from today, that also makes zero sense. and the described days like first sul make zero sense. were showing minicals of montns.
 
 ```text
 !cal 14
