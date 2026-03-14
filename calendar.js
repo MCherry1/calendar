@@ -4853,10 +4853,26 @@ function _playerTodayHtml(playerid){
 }
 
 // ── Today — Combined detail from all subsystems ────────────────────────
+function _todayWeatherIsStable(wxRec){
+  if (!wxRec || !wxRec.periods) return true;
+  var periods = WEATHER_DAY_PERIODS;
+  var base = wxRec.periods[WEATHER_PRIMARY_PERIOD] || wxRec.final;
+  if (!base) return true;
+  for (var i = 0; i < periods.length; i++){
+    var pv = wxRec.periods[periods[i]];
+    if (!pv) continue;
+    if (Math.abs((pv.temp||0) - (base.temp||0)) >= 2) return false;
+    if (Math.abs((pv.wind||0) - (base.wind||0)) >= 2) return false;
+    if (Math.abs((pv.precip||0) - (base.precip||0)) >= 2) return false;
+  }
+  return true;
+}
+
 function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
   var cal = getCal(), c = cal.current;
+  var verbose = _subsystemIsVerbose();
   var sections = [];
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
@@ -4877,29 +4893,67 @@ function _todayAllHtml(){
     }
   } catch(e){}
 
-  // Weather — full period breakdown
+  // Weather
   if (st.weatherEnabled !== false){
     try {
       weatherEnsureForecast();
       var wxRec = _weatherRecordForDisplay(_forecastRecord(today));
       if (wxRec && wxRec.final){
-        var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b></div>';
+        var wxHtml = '<div style="margin:4px 0;"><b>☁ Weather:</b> ' +
+          button('Detail', 'weather') + '</div>';
         wxHtml += _weatherInfluenceHtml(wxRec);
-        var periods = WEATHER_DAY_PERIODS;
-        for (var pi = 0; pi < periods.length; pi++){
-          var pname = periods[pi];
-          var fogP = wxRec.fog && wxRec.fog[pname];
-          var periodVals = (wxRec.periods && wxRec.periods[pname]) || wxRec.final;
-          var cond = _deriveConditions(periodVals, wxRec.location||{}, pname,
-            wxRec.snowAccumulated, fogP);
-          var narr = _conditionsNarrative(periodVals, cond, pname);
-          var mech = _conditionsMechHtml(cond);
-          wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
-            _weatherPeriodIcon(pname) + ' <b>' + esc(_weatherPeriodLabel(pname)) + ':</b> ' + esc(narr) +
-            (mech ? '<div style="margin-left:12px;">'+mech+'</div>' : '') +
-            '</div>';
+
+        if (verbose) {
+          // Normal mode — full period breakdown
+          var periods = WEATHER_DAY_PERIODS;
+          for (var pi = 0; pi < periods.length; pi++){
+            var pname = periods[pi];
+            var fogP = wxRec.fog && wxRec.fog[pname];
+            var periodVals = (wxRec.periods && wxRec.periods[pname]) || wxRec.final;
+            var cond = _deriveConditions(periodVals, wxRec.location||{}, pname,
+              wxRec.snowAccumulated, fogP);
+            var narr = _conditionsNarrative(periodVals, cond, pname);
+            var mech = _conditionsMechHtml(cond);
+            wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
+              _weatherPeriodIcon(pname) + ' <b>' + esc(_weatherPeriodLabel(pname)) + ':</b> ' + esc(narr) +
+              (mech ? '<div style="margin-left:12px;">'+mech+'</div>' : '') +
+              '</div>';
+          }
+        } else {
+          // Minimal mode — summary
+          if (_todayWeatherIsStable(wxRec)){
+            // Stable day: single line from afternoon
+            var stableVals = _weatherPrimaryValues(wxRec) || wxRec.final;
+            var stableFog = _weatherPrimaryFog(wxRec);
+            var stableCond = _deriveConditions(stableVals, wxRec.location||{},
+              WEATHER_PRIMARY_PERIOD, wxRec.snowAccumulated, stableFog);
+            var stableNarr = _conditionsNarrative(stableVals, stableCond, WEATHER_PRIMARY_PERIOD);
+            wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
+              esc(stableNarr) + ' <span style="opacity:.5;">all day</span></div>';
+          } else {
+            // Divergent day: show periods that differ significantly from afternoon baseline
+            var mPeriods = WEATHER_DAY_PERIODS;
+            var mBase = (wxRec.periods && wxRec.periods[WEATHER_PRIMARY_PERIOD]) || wxRec.final;
+            for (var mpi = 0; mpi < mPeriods.length; mpi++){
+              var mpname = mPeriods[mpi];
+              var mpv = (wxRec.periods && wxRec.periods[mpname]) || wxRec.final;
+              var differs = Math.abs((mpv.temp||0) - (mBase.temp||0)) >= 2 ||
+                Math.abs((mpv.wind||0) - (mBase.wind||0)) >= 2 ||
+                Math.abs((mpv.precip||0) - (mBase.precip||0)) >= 2;
+              if (mpname === WEATHER_PRIMARY_PERIOD || differs){
+                var mfog = wxRec.fog && wxRec.fog[mpname];
+                var mcond = _deriveConditions(mpv, wxRec.location||{}, mpname,
+                  wxRec.snowAccumulated, mfog);
+                var mnarr = _conditionsNarrative(mpv, mcond, mpname);
+                wxHtml += '<div style="font-size:.88em;margin:1px 0 1px 8px;">' +
+                  _weatherPeriodIcon(mpname) + ' <b>' + esc(_weatherPeriodLabel(mpname)) + ':</b> ' + esc(mnarr) +
+                  '</div>';
+              }
+            }
+          }
         }
-        // Extreme events
+
+        // Extreme events — always shown
         var extremes = _evaluateExtremeEvents(wxRec);
         if (extremes.length){
           wxHtml += '<div style="margin:3px 0 0 8px;font-size:.88em;color:#B71C1C;">';
@@ -4915,14 +4969,16 @@ function _todayAllHtml(){
     } catch(e){}
   }
 
-  // Moons — phase summary for all 12
+  // Moons
   if (st.moonsEnabled !== false){
     try {
       moonEnsureSequences();
       var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
       if (sys && sys.moons){
-        var moonHtml = '<div style="margin:4px 0;"><b>🌙 Moons:</b></div>';
+        var moonHtml = '<div style="margin:4px 0;"><b>🌙 Moons:</b> ' +
+          button('Detail', 'moon') + '</div>';
         var moonLines = [];
+        var suppressedCount = 0;
         for (var mi = 0; mi < sys.moons.length; mi++){
           var moon = sys.moons[mi];
           var ph = moonPhaseAt(moon.name, today);
@@ -4931,15 +4987,38 @@ function _todayAllHtml(){
           var pLabel = _moonPhaseLabel(ph.illum, ph.waxing);
           var pct = Math.round(ph.illum * 100);
           var extra = '';
-          if (ph.illum >= 0.97) extra = ' <b style="color:#FFD700;">FULL</b>';
-          else if (ph.illum <= 0.03) extra = ' <b>' + (ph.longShadows ? 'NEW (Long Shadows)' : 'NEW') + '</b>';
+          var isNotable = false;
+          if (ph.illum >= 0.97){ extra = ' <b style="color:#FFD700;">FULL</b>'; isNotable = true; }
+          else if (ph.illum <= 0.03){ extra = ' <b>' + (ph.longShadows ? 'NEW (Long Shadows)' : 'NEW') + '</b>'; isNotable = true; }
+          // Near-peak: within 1 day of full or new (check next/prev day)
+          if (!isNotable && !verbose){
+            var phPrev = moonPhaseAt(moon.name, today - 1);
+            var phNext = moonPhaseAt(moon.name, today + 1);
+            if ((phPrev && (phPrev.illum >= 0.97 || phPrev.illum <= 0.03)) ||
+                (phNext && (phNext.illum >= 0.97 || phNext.illum <= 0.03))){
+              isNotable = true;
+            }
+          }
+          if (!verbose && !isNotable){
+            suppressedCount++;
+            continue;
+          }
           moonLines.push(emoji + ' ' + esc(moon.name) +
             ' <span style="opacity:.5;">(' + pct + '% ' + esc(pLabel) + ')</span>' + extra);
         }
-        moonHtml += '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
-          moonLines.join('<br>') + '</div>';
+        if (moonLines.length){
+          moonHtml += '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+            moonLines.join('<br>') + '</div>';
+        }
+        if (!verbose && suppressedCount > 0){
+          if (moonLines.length === 0){
+            moonHtml += '<div style="font-size:.85em;margin-left:8px;opacity:.5;">No notable lunar activity. (' + suppressedCount + ' moons unremarkable)</div>';
+          } else {
+            moonHtml += '<div style="font-size:.82em;margin-left:8px;opacity:.5;">(+' + suppressedCount + ' moons unremarkable)</div>';
+          }
+        }
 
-        // Eclipses
+        // Eclipses — always shown
         try {
           var eclNotes = _eclipseNotableToday(today);
           if (eclNotes.length){
@@ -4948,13 +5027,31 @@ function _todayAllHtml(){
           }
         } catch(e3){}
 
+        // Nighttime lighting — inline in minimal mode, separate section in normal mode
+        if (!verbose){
+          try {
+            var precipStg = 0;
+            var ltRec = _forecastRecord(today);
+            if (ltRec && ltRec.final) precipStg = ltRec.final.precip || 0;
+            var luxResult = nighttimeLux(today, precipStg);
+            var luxCond = nighttimeLightCondition(luxResult.total);
+            var cloudNote = '';
+            if (precipStg >= 3) cloudNote = ' — heavy cloud';
+            else if (precipStg === 2) cloudNote = ' — overcast';
+            else if (precipStg === 1) cloudNote = ' — partly cloudy';
+            moonHtml += '<div style="font-size:.85em;margin:3px 0 0 8px;">' +
+              luxCond.emoji + ' Tonight: <b>' + esc(luxCond.label) + '</b>' +
+              ' <span style="opacity:.5;">(' + luxResult.total + ' lux)</span>' + esc(cloudNote) + '</div>';
+          } catch(e4){}
+        }
+
         sections.push(moonHtml);
       }
     } catch(e){}
   }
 
-  // Nighttime lighting
-  if (st.moonsEnabled !== false){
+  // Nighttime lighting — separate section in normal mode
+  if (verbose && st.moonsEnabled !== false){
     try {
       var lightHtml = nighttimeLightHtml(today);
       if (lightHtml){
@@ -4968,16 +5065,57 @@ function _todayAllHtml(){
   if (st.planesEnabled !== false){
     try {
       var plNotes = _planarNotableToday(today);
-      if (plNotes.length){
-        sections.push('<div style="margin:4px 0;"><b>🌀 Planar:</b></div>' +
-          '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
-          plNotes.join('<br>') + '</div>');
-      }
-      // Planar weather shifts
       var shifts = _activePlanarWeatherShiftLines(today);
-      if (shifts.length){
-        sections.push('<div style="font-size:.82em;opacity:.7;margin-left:8px;">' +
-          shifts.map(esc).join('<br>') + '</div>');
+
+      if (verbose) {
+        // Normal mode — separate sections
+        if (plNotes.length){
+          sections.push('<div style="margin:4px 0;"><b>🌀 Planar:</b> ' +
+            button('Detail', 'planes') + '</div>' +
+            '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+            plNotes.join('<br>') + '</div>');
+        }
+        if (shifts.length){
+          sections.push('<div style="font-size:.82em;opacity:.7;margin-left:8px;">' +
+            shifts.map(esc).join('<br>') + '</div>');
+        }
+      } else {
+        // Minimal mode — merge shifts inline with phase notes, suppress if empty
+        if (plNotes.length || shifts.length){
+          var shiftMap = {};
+          for (var si = 0; si < shifts.length; si++){
+            var shiftText = shifts[si];
+            // Extract plane name from shift text (format: "PlaneName phase: effect")
+            var shiftMatch = String(shiftText).match(/^(\w+)\s/);
+            if (shiftMatch) shiftMap[shiftMatch[1].toLowerCase()] = shiftText.replace(/^[^:]+:\s*/, '');
+          }
+          var mergedLines = [];
+          var usedShiftPlanes = {};
+          for (var pni = 0; pni < plNotes.length; pni++){
+            var noteHtml = plNotes[pni];
+            // Try to find a matching shift to append
+            var planeMatch = noteHtml.match(/<b>([^<]+)<\/b>/);
+            if (planeMatch){
+              var planeLower = planeMatch[1].toLowerCase();
+              if (shiftMap[planeLower]){
+                noteHtml += ' <span style="opacity:.6;font-size:.9em;">— ' + esc(shiftMap[planeLower]) + '</span>';
+                usedShiftPlanes[planeLower] = true;
+              }
+            }
+            mergedLines.push(noteHtml);
+          }
+          // Any shifts without a corresponding phase note
+          for (var sj = 0; sj < shifts.length; sj++){
+            var sm2 = String(shifts[sj]).match(/^(\w+)\s/);
+            if (sm2 && !usedShiftPlanes[sm2[1].toLowerCase()]){
+              mergedLines.push('<span style="opacity:.7;">' + esc(shifts[sj]) + '</span>');
+            }
+          }
+          sections.push('<div style="margin:4px 0;"><b>🌀 Planar:</b> ' +
+            button('Detail', 'planes') + '</div>' +
+            '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
+            mergedLines.join('<br>') + '</div>');
+        }
       }
     } catch(e){}
   }
@@ -14006,11 +14144,24 @@ if (typeof globalThis !== 'undefined' && globalThis.__CALENDAR_TEST_MODE__) {
     nighttimeLux:        nighttimeLux,
     nighttimeLightCondition: nighttimeLightCondition,
 
+    // verbosity
+    _subsystemIsVerbose:    _subsystemIsVerbose,
+    _subsystemVerbosityValue: _subsystemVerbosityValue,
+
+    // today-view helpers
+    _todayAllHtml:          _todayAllHtml,
+    _todayWeatherIsStable:  _todayWeatherIsStable,
+    _forecastRecord:        _forecastRecord,
+    weatherEnsureForecast:  weatherEnsureForecast,
+    _weatherRecordForDisplay: _weatherRecordForDisplay,
+
     // constants
     state_name:          state_name,
     CONFIG_DEFAULTS:     CONFIG_DEFAULTS,
     SEASON_SETS:         SEASON_SETS,
     WEATHER_CLIMATES:    WEATHER_CLIMATES,
+    WEATHER_DAY_PERIODS: WEATHER_DAY_PERIODS,
+    WEATHER_PRIMARY_PERIOD: WEATHER_PRIMARY_PERIOD,
   };
 }
 
