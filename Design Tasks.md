@@ -125,21 +125,6 @@ None currently.
 
 ---
 
-### Reduce Today-view clutter
-
-Design clarified on 2026-03-13. See `design/reduce-today-view-clutter.md` for full proposal and DESIGN.md §12.5 for the authoritative summary.
-
-- [ ] Wire `_subsystemIsVerbose()` into `_todayAllHtml()`. When `minimal`, apply summary-mode logic below. When `normal`, preserve current behavior exactly (no regression).
-- [ ] **Weather summary mode:** Detect stable days (all 5 periods within ±1 temperature band, ±1 wind stage, ±1 precip stage). Stable → single representative line from afternoon values. Divergent → show only the periods that changed, with a transition arrow format. Extreme events always shown in both modes.
-- [ ] **Moons summary mode:** Show only notable moons — full (≥97% illumination), new (≤3%), or within 1 day of full/new. Suppress all others with a count suffix, e.g., "(+10 moons unremarkable)". Eclipses always shown in both modes.
-- [ ] **Lighting summary mode:** Merge into the Moons section as a single trailing line: condition label + lux + cloud note. Drop per-moon source breakdown and shadow note.
-- [ ] **Planar summary mode:** Append weather shift modifiers inline on the same line as the phase (e.g., "🔴 Fernia coterminous (3d left) — temperature +3"). Suppress section entirely when no active planar extremes.
-- [ ] **Drill-down buttons:** Add per-subsystem inline detail buttons (`☁ Detail` → `!cal weather`, `🌙 Detail` → `!cal moon`, `🌀 Detail` → `!cal planes`) next to each section header in both verbosity modes.
-- [ ] Verify `normal` mode output is identical to current behavior (no regression).
-- [ ] Verify `minimal` mode output on: quiet day (no events), active day (eclipse + planar extreme + weather shift), and edge cases (all moons notable, all periods divergent).
-
----
-
 ## Documentation Tasks
 
 None currently.
@@ -148,7 +133,13 @@ None currently.
 
 ## Design Tasks
 
-No tasks currently need design direction. Add new items here when the desired implementation behavior is still ambiguous enough to block coding.
+These tasks still need design direction before coding.
+
+---
+
+### Reduce Today-view clutter
+
+The Today view needs a redesign to reduce information density. Specific changes to be directed - this task is a placeholder awaiting design direction.
 
 ---
 
