@@ -268,6 +268,36 @@ If I were sequencing this, I would do:
 7. Test harness expansion
 8. File/module split
 
+## Implementation Status Review
+
+Reviewed against `main` at commit `9df46c4` after pulling on 2026-03-13.
+
+| # | Recommendation | Status | Evaluation |
+| --- | --- | --- | --- |
+| 1 | Ephemeral UI path with `noarchive` | Not implemented | `send()`, `whisper()`, and `warnGM()` still do not use `noarchive`, and there is no dedicated UI-only send helper yet. |
+| 2 | Macro pack / `!cal macros` | Not implemented | There is still no macro-install or macro-output command in the script or docs. |
+| 3 | Today/root clutter reduction | Partial | `!cal settings verbosity minimal` now gives a meaningfully leaner Today view with Detail buttons, condensed weather, lunar suppression, inline lighting, and merged planar notes. That is a real improvement. It does not yet satisfy the larger recommendation because `helpRootMenu()` is still dense and the default Today experience remains full-detail unless verbosity is changed. |
+| 4 | Guided prompt buttons for typed commands | Not implemented | The script still only has the existing weather exact-date prompt (`weather reveal ?{Date or range|14-17}`); the broader prompt-driven workflow was not added. |
+| 5 | Named saved weather locations | Not implemented | Weather still tracks only `recentLocations` and caps them at three entries; there is no save/load preset system. |
+| 6 | `/direct` audit for public interactive panels | Not implemented | `sendToAll()` still routes through `/direct`, and the public planar send path still uses `planesPanelHtml(...)`, so the original interaction risk remains. |
+| 7 | Typo recovery / "did you mean" guidance | Not implemented | Error handling is still mostly usage-based rather than suggestion-based. |
+| 8 | Split monolith into subsystem files | Not implemented | `calendar.js` is still the single runtime script. Support files and tests were added around it, but the runtime itself was not modularized. |
+| 9 | Repo-specific CI cleanup | Implemented | This landed well. The generic template workflows were removed and replaced with a single `ci.yml` that runs `node --test`, which is much closer to the actual repo. |
+| 10 | Behavior-oriented automated tests | Implemented | This landed well. The new `test/` harness adds a Roll20 shim, broad functional coverage, and Today-view assertions. The test-only export gate keeps the extra surface out of normal runtime. |
+| 11 | Make the local sync workflow the documented default | Not implemented | The launcher is still documented, but not promoted as the primary daily workflow and not paired with a clear local test loop in the README. |
+
+### Implementation Notes
+
+- The strongest follow-through was on execution quality, not chat UX:
+  - CI is now project-specific.
+  - Node-based functional tests were added.
+  - The earlier reviewed feature work also gained much better regression coverage.
+- The strongest usability movement is the Today-view verbosity work:
+  - good direction
+  - not a full redesign yet
+- I could run the PowerShell smoke test locally and it passed.
+- I could not execute the new Node test suite in this environment because `node` is not installed locally here, so the quality assessment of the new test harness is based on code review plus the CI configuration rather than a local run.
+
 ## Roll20 References Consulted
 
 - Roll20 Mod chat/API guidance: [Mod:Chat](https://wiki.roll20.net/Mod:Chat)
