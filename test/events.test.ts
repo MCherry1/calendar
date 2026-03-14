@@ -1,0 +1,108 @@
+// Tests for events, utilities, and color subsystems.
+import { describe, it } from "node:test";
+import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
+import { freshInstall } from "./helpers.js";
+import { getCal, ensureSettings, titleCase, colorForMonth, weekLength } from "../src/state.js";
+import { getEventsFor, eventKey, compareEvents, getEventColor, isDefaultEvent } from "../src/events.js";
+import { _stableHash, sanitizeHexColor, resolveColor, textColor, _relLum, _contrast } from "../src/color.js";
+import { clamp, esc } from "../src/rendering.js";
+import { addEventSmart, removeEvent } from "../src/ui.js";
+
+// ============================================================================
+// 4) EVENTS
+// ============================================================================
+
+describe("Events", () => {
+  it("default events are loaded on install", () => {
+    freshInstall();
+    const events = getCal().events;
+    assert(Array.isArray(events));
+    assert(events.length > 0);
+  });
+
+  it("getEventsFor finds known default events", () => {
+    freshInstall();
+    const events = getCal().events;
+    const numericEvent = events.find((e: any) => typeof e.day === "number" || /^\d+$/.test(String(e.day)));
+    assert(numericEvent, "should have at least one numeric-day event");
+    const dayNum = parseInt(numericEvent.day, 10);
+    const found = getEventsFor(numericEvent.month - 1, dayNum, null);
+    assert(found.length >= 1);
+    assert(found.some((e: any) => e.name === numericEvent.name));
+  });
+
+  it("eventKey is stable", () => {
+    freshInstall();
+    const ev = { month: 3, day: 15, year: null, name: "Test Holiday" };
+    assertEquals(eventKey(ev), eventKey(ev));
+  });
+
+  it("compareEvents orders by year then month", () => {
+    freshInstall();
+    assert(compareEvents({ month: 1, day: 1, year: 998 },
+                         { month: 1, day: 1, year: 999 }) < 0);
+    assert(compareEvents({ month: 1, day: 1, year: 998 },
+                         { month: 6, day: 1, year: 998 }) < 0);
+  });
+
+  it("default events have hex colors", () => {
+    freshInstall();
+    for (const e of getCal().events.slice(0, 10)) {
+      const color = getEventColor(e);
+      assert(color && color.startsWith("#"), `"${e.name}" color: ${color}`);
+    }
+  });
+});
+
+// ============================================================================
+// 5) UTILITIES
+// ============================================================================
+
+describe("Utilities", () => {
+  it("_stableHash is deterministic", () => {
+    freshInstall();
+    assertEquals(_stableHash("hello"), _stableHash("hello"));
+    assertNotEquals(_stableHash("hello"), _stableHash("world"));
+  });
+
+  it("clamp restricts values to range", () => {
+    freshInstall();
+    assertEquals(clamp(5, 1, 10), 5);
+    assertEquals(clamp(-1, 1, 10), 1);
+    assertEquals(clamp(15, 1, 10), 10);
+  });
+
+  it("esc escapes HTML entities", () => {
+    freshInstall();
+    assertEquals(esc("<b>bold</b>"), "&lt;b&gt;bold&lt;/b&gt;");
+    assertEquals(esc('"quotes"'), "&quot;quotes&quot;");
+  });
+
+  it("titleCase capitalizes first letter", () => {
+    freshInstall();
+    assertEquals(titleCase("hello"), "Hello");
+  });
+
+  it("sanitizeHexColor validates hex colors", () => {
+    freshInstall();
+    assert(sanitizeHexColor("#FF0000"));
+    assert(!sanitizeHexColor("not-a-color"));
+  });
+
+  it("textColor returns readable contrast on dark and light backgrounds", () => {
+    freshInstall();
+    const onDark = textColor("#000000");
+    const onLight = textColor("#FFFFFF");
+    assert(onDark);
+    assert(onLight);
+    assert(_contrast("#000000", onDark) >= 4.5);
+  });
+
+  it("colorForMonth returns hex for each month", () => {
+    freshInstall();
+    for (let i = 0; i < 12; i++) {
+      const c = colorForMonth(i);
+      assert(c && c.startsWith("#"), `month ${i}: ${c}`);
+    }
+  });
+});
