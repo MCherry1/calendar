@@ -501,6 +501,66 @@ There are three types of events in this system:
 
 ---
 
+## Development
+
+<details>
+<summary>Show project structure and build instructions</summary>
+
+The source code lives in `src/` as TypeScript modules. A build step bundles them into the single `calendar.js` file that Roll20 consumes.
+
+### Prerequisites
+
+- Node.js 22+
+- `npm ci` to install dev dependencies
+
+### Commands
+
+| Command | Description |
+| --- | --- |
+| `npm run build` | Bundle `src/` into `calendar.js` via esbuild |
+| `npm test` | Run all tests via `node --test` with tsx |
+| `npm run typecheck` | Type-check with `tsc --noEmit` |
+| `npm run check` | Typecheck + test in one step |
+
+### Project structure
+
+```
+src/
+  config.ts         — User-editable configuration constants
+  constants.ts      — Calendar systems, themes, palettes
+  date-math.ts      — Serial date math, leap years
+  color.ts          — Color utilities
+  state.ts          — Roll20 state management
+  parsing.ts        — Date parsing, fuzzy matching
+  events.ts         — Event model, occurrences, ranges
+  rendering.ts      — HTML rendering, mini-calendars
+  ui.ts             — GM menus, theme/season UI
+  commands.ts       — Command routing
+  today.ts          — Combined today view
+  weather.ts        — Weather system
+  moon.ts           — Moon phases, eclipses, lighting
+  planes.ts         — Planar cycles, effects
+  messaging.ts      — Chat messaging utilities
+  boot.ts           — Initialization, public API
+  index.ts          — Entry point for bundler
+  types/roll20.d.ts — Roll20 global type declarations
+test/
+  *.test.ts         — Tests organized by module
+```
+
+### Workflow
+
+1. Edit TypeScript source in `src/`
+2. Run `npm test` to verify
+3. Run `npm run build` to regenerate `calendar.js`
+4. Commit both source and built output
+
+CI runs typecheck, tests, and build on every PR. If the build produces a changed `calendar.js`, CI commits it automatically.
+
+</details>
+
+---
+
 ## Calendar Systems
 
 <details>
