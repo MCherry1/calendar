@@ -65,55 +65,7 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-### Eclipse and crossing math overhaul
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Reworked eclipse detection to report only true overlaps, classify by peak coverage plus relative apparent size, group cross-midnight events into one lifecycle window, and surface the new phrasing in Today / moon-calendar / player-facing moon summaries.
-
-### Specific-date weather reveals
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Added `!cal weather reveal <dateSpec>`, location-scoped reveal storage, blank-cell reveal strips, current-location player forecast output, and recent-location quick switching in the weather location wizard.
-
-### Correct Harptos calendar display
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Updated Harptos date formatting, tenday row math, festival-strip rendering, adjacent strip behavior, and parser-friendly command date specs to match the display changes.
-
-### Expand README moon and sky reference material
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Added Ring of Siberys appearance / clearance / angular-size notes, plus Saturn-rings reference material for brightness and composition.
-
-### Refine Eberron moon inspiration notes in README
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Added per-moon name notes, Earth-Moon apparent-size comparisons, shorter inspiration blurbs, and a corrected Eyre/Mimas crater-forge note.
-
-### Weather forecast command safeguards
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Blocked archived past-day rerolls, kept reroll cascades on the current location, rejected exact-date weather reveals that include past days, and bounded manual weather generation to the configured forecast horizon.
-
-### Remove the dead legacy eclipse review path
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Retired the old legacy eclipse review path from active runtime use so the broken `_estimateEclipseTiming` dependency is no longer reachable.
-
-### Sync in-script help text with implemented commands
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Updated inline settings / moon / planes help text to include the supported `wxmechanics` and `offcycle` options plus the actual day/week/month range tokens accepted by the parsers.
-
-### Move moon candidate-selection notes out of runtime
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Repointed moon-reference notes at `design/moon-reference-selection.md`, archived the old runtime ambiguity block, and added the historical note to the active design doc.
-
-### Clear outdated Dolurrh TODO text
-
-- Completed by **GPT-5 Codex** on **2026-03-13**
-- Replaced the stale Dolurrh TODO with text that describes the implemented Aryth-linked `moontied` generator.
+None currently.
 
 ---
 
