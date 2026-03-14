@@ -193,6 +193,7 @@
   },
   "active": "161788ecb967845a",
   "lastOpenFiles": [
+    "test/reviewed_features_test.js",
     "test/today_view_test.js",
     "test/roll20-shim.js",
     "test/calendar_test.js",
