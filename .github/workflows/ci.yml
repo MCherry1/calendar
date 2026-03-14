@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -36,6 +38,5 @@ jobs:
           git add calendar.js
           git diff --cached --quiet && echo "No changes to calendar.js" && exit 0
           git commit -m "build: update compiled calendar.js"
-          git fetch origin ${{ github.head_ref }}
-          git rebase origin/${{ github.head_ref }}
+          git pull --rebase origin ${{ github.head_ref }}
           git push origin HEAD:${{ github.head_ref }}
