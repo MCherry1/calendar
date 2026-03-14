@@ -4872,6 +4872,7 @@ function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
   var cal = getCal(), c = cal.current;
+  var verbose = _subsystemIsVerbose();
   var sections = [];
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
@@ -14143,11 +14144,24 @@ if (typeof globalThis !== 'undefined' && globalThis.__CALENDAR_TEST_MODE__) {
     nighttimeLux:        nighttimeLux,
     nighttimeLightCondition: nighttimeLightCondition,
 
+    // verbosity
+    _subsystemIsVerbose:    _subsystemIsVerbose,
+    _subsystemVerbosityValue: _subsystemVerbosityValue,
+
+    // today-view helpers
+    _todayAllHtml:          _todayAllHtml,
+    _todayWeatherIsStable:  _todayWeatherIsStable,
+    _forecastRecord:        _forecastRecord,
+    weatherEnsureForecast:  weatherEnsureForecast,
+    _weatherRecordForDisplay: _weatherRecordForDisplay,
+
     // constants
     state_name:          state_name,
     CONFIG_DEFAULTS:     CONFIG_DEFAULTS,
     SEASON_SETS:         SEASON_SETS,
     WEATHER_CLIMATES:    WEATHER_CLIMATES,
+    WEATHER_DAY_PERIODS: WEATHER_DAY_PERIODS,
+    WEATHER_PRIMARY_PERIOD: WEATHER_PRIMARY_PERIOD,
   };
 }
 
