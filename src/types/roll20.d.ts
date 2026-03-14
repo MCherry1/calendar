@@ -3,10 +3,11 @@
 // and by test/roll20-shim.ts during testing.
 
 declare var state: Record<string, any>;
-declare function sendChat(speakingAs: string, message: string): void;
+declare function sendChat(speakingAs: string, message: string, callback?: any, options?: any): void;
 declare function on(event: string, handler: (...args: any[]) => void): void;
 declare function log(message: any): void;
 declare function randomInteger(max: number): number;
+declare function playerIsGM(playerId: string): boolean;
 
 // Test-mode flag set by roll20-shim
 declare var __CALENDAR_TEST_MODE__: boolean | undefined;

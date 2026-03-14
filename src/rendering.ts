@@ -6,7 +6,7 @@ import { _isGregorianLeapSlotMonthObj, _isLeapMonth, daysPerYear, fromSerial, to
 import { DaySpec, Parse } from './parsing.js';
 import { _firstWeekdayOfMonth, _tokenizeRangeArgs, autoColorForEvent, buildCalendarsHtmlForSpec, dayFromOrdinalWeekday, eventDisplayName, eventKey, eventsListHTMLForRange, getEventColor, getEventsFor, mergeInNewDefaultEvents, parseUnifiedRange, sortEventsByPriority, stripRangeExtensionDynamic } from './events.js';
 import { _defaultDetailsForKey, mb } from './ui.js';
-import { send, sendToAll, whisper } from './commands.js';
+import { send, sendToAll, whisper } from './messaging.js';
 import { commands } from './today.js';
 import { CALENDAR_SYSTEMS } from './config.js';
 
@@ -53,7 +53,7 @@ export function _buttonIcon(lbl){
   return '';
 }
 
-export function button(label, cmd, opts){
+export function button(label, cmd, opts?){
   opts = opts || {};
   var lbl = String(label||'').trim();
   var icon = (opts.icon!=null) ? String(opts.icon) : (_buttonHasEmojiStart(lbl) ? '' : _buttonIcon(lbl));
@@ -73,11 +73,11 @@ export function canRunCommand(playerid, cmdStr){
   return _canRunTop(playerid, _firstTok(cmdStr));
 }
 
-export function mbP(m, label, cmd, opts){
+export function mbP(m, label, cmd, opts?){
   return canRunCommand(m.playerid, cmd) ? button(label, cmd, opts) : '';
 }
 
-export function navP(m, label, page, opts){
+export function navP(m, label, page, opts?){
   return button(label, 'help '+page, opts);
 }
 
@@ -95,7 +95,7 @@ export function weekdayHeaderLabels(useAbbr){
   return cal.weekdays.map(function(n){ return useAbbr ? weekdayAbbr(n) : n; });
 }
 
-export function openMonthTable(mi, yearLabel, abbrHeaders){
+export function openMonthTable(mi, yearLabel, abbrHeaders?){
   var cal = getCal(), cur = cal.current, mObj = cal.months[mi];
   var monthColor = colorForMonth(mi);
   var monthHeaderStyle = colorsAPI.styleMonthHeader(monthColor);
@@ -155,7 +155,7 @@ export function styleForDayCell(baseStyle, events, isToday, monthColor, isPast, 
   return style;
 }
 
-export function _calendarCellInnerHtml(content, extraStyle){
+export function _calendarCellInnerHtml(content, extraStyle?){
   return '<div style="'+STYLES.calCellInner+(extraStyle||'')+'">'+content+'</div>';
 }
 

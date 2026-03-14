@@ -260,7 +260,7 @@ export function _planeTraditionalAnchorMode(plane, ps){
 // Calculate the current phase of a cyclic plane at a given serial day.
 // opts.ignoreGenerated=true returns canonical cycle state without seeded flickers.
 // Returns { phase, daysIntoPhase, daysUntilNextPhase, phaseDuration, nextPhase }
-export function getPlanarState(planeName, serial, opts){
+export function getPlanarState(planeName, serial, opts?){
   opts = opts || {};
   var ignoreGenerated = !!opts.ignoreGenerated;
   var plane = _getPlaneData(planeName);
@@ -957,7 +957,7 @@ export function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
 // 21f) Panel HTML — GM and player views
 // ---------------------------------------------------------------------------
 
-export function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, generatedHorizonDays){
+export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizonDays?, generatedHorizonDays?){
   var st = ensureSettings();
   if (st.planesEnabled === false){
     return _menuBox('\uD83C\uDF00 Planes',
@@ -1270,7 +1270,7 @@ export function handlePlanesCommand(m, args){
     var durationDays = parseInt(args[4], 10) || 0; // 0 = indefinite
     var setToday = todaySerial();
     var ps = getPlanesState();
-    var overrideObj = { phase: setPhase, note: 'GM override', setOn: setToday };
+    var overrideObj: any = { phase: setPhase, note: 'GM override', setOn: setToday };
     if (durationDays > 0) overrideObj.durationDays = durationDays;
     ps.overrides[plane.name] = overrideObj;
 

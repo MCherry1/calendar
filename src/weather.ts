@@ -1,30 +1,97 @@
-// Section 18: Weather System
-import { CONFIG_DEFAULTS, CONFIG_WEATHER_FLAVOR, CONFIG_WEATHER_FORECAST_DAYS, CONFIG_WEATHER_HISTORY_DAYS, CONFIG_WEATHER_LABELS, CONFIG_WEATHER_MECHANICS, CONFIG_WEATHER_SEED_STRENGTH, CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS, WEATHER_HEAT_ARMOR_RULES, WEATHER_LEGACY_TEMP_TO_BAND, WEATHER_TEMPERATURE_BANDS_F, WEATHER_TEMPERATURE_BAND_INDEX, WEATHER_TEMP_BAND_MAX, WEATHER_TEMP_BAND_MIN } from './config.js';
-// Weather temperature helpers (from config section, but depend on state.titleCase)
-export function _clampWeatherTempBand(band: any){
+/* ============================================================================
+ * 18) WEATHER SYSTEM
+ * ==========================================================================*/
+
+import {
+  CONFIG_DEFAULTS,
+  CONFIG_WEATHER_FORECAST_DAYS,
+  CONFIG_WEATHER_HISTORY_DAYS,
+  CONFIG_WEATHER_SEED_STRENGTH,
+  CONFIG_WEATHER_MECHANICS,
+  CONFIG_WEATHER_LABELS,
+  CONFIG_WEATHER_FLAVOR,
+  CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS,
+  WEATHER_TEMPERATURE_BANDS_F,
+  WEATHER_TEMPERATURE_BAND_INDEX,
+  WEATHER_TEMP_BAND_MIN,
+  WEATHER_TEMP_BAND_MAX,
+  WEATHER_LEGACY_TEMP_TO_BAND,
+  WEATHER_HEAT_ARMOR_RULES,
+  WEATHER_COLD_CLOTHING_TIERS,
+  CALENDAR_SYSTEMS,
+} from './config';
+
+import {
+  state_name,
+  script_name,
+  STYLES,
+  PALETTE,
+  LABELS,
+  SEASON_SETS,
+} from './constants';
+
+import {
+  getCal,
+  ensureSettings,
+  deepClone,
+  titleCase,
+  refreshCalendarState,
+  checkInstall,
+  weekLength,
+} from './state';
+
+import { sanitizeHexColor, resolveColor, textColor } from './color';
+
+import { toSerial, fromSerial, daysPerYear, todaySerial } from './date-math';
+
+import { monthIndexByName, Parse } from './parsing';
+import { formatDateLabel, esc, button, openMonthTable, closeMonthTable, clamp } from './rendering';
+import {
+  currentDateLabel, nextForDayOnly, nextForMonthDay, _menuBox,
+  _normalizeDisplayMode, _nextDisplayMode, _displayModeLabel,
+  _subsystemIsVerbose, _legendLine, _displayMonthDayParts, _weatherViewDays
+} from './ui';
+import { send, sendToAll, whisper, warnGM, cleanWho } from './messaging';
+import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
+import { weekStartSerial } from './date-math';
+
+import { moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel } from './moon';
+import { getActivePlanarEffects } from './planes';
+import { _activePlanarWeatherShiftLines, _weatherInfluenceTexts, _weatherInfluenceHtml, _planarWeatherInfluenceText } from './ui';
+import { colorForMonth } from './state';
+
+function _seededRand(seed){
+  var s = ((seed * 2654435769) >>> 0) / 4294967296;
+  return function(){ s = ((s * 1103515245 + 12345) % 2147483648) / 2147483648; return s; };
+}
+// ---------------------------------------------------------------------------
+// Temperature band helpers (originally in config section, depend on state/constants)
+// ---------------------------------------------------------------------------
+
+export function _clampWeatherTempBand(band){
   band = parseInt(band, 10);
   if (!isFinite(band)) band = 0;
   return Math.max(WEATHER_TEMP_BAND_MIN, Math.min(WEATHER_TEMP_BAND_MAX, band));
 }
 
-export function _legacyTempStageToBand(stage: any){
+export function _legacyTempStageToBand(stage){
   stage = parseInt(stage, 10);
   if (!isFinite(stage)) return 0;
   if (WEATHER_LEGACY_TEMP_TO_BAND[stage] != null) return WEATHER_LEGACY_TEMP_TO_BAND[stage];
   return _clampWeatherTempBand(stage);
 }
 
-export function _weatherTempInfo(band: any){
+export function _weatherTempInfo(band){
   return WEATHER_TEMPERATURE_BAND_INDEX[_clampWeatherTempBand(band)] || WEATHER_TEMPERATURE_BANDS_F[0];
 }
 
-export function _weatherTempLabel(band: any){
+export function _weatherTempLabel(band){
   return titleCase(_weatherTempInfo(band).label || String(band));
 }
 
-export function _weatherTempMechanics(band: any){
+export function _weatherTempMechanics(band){
   var info = _weatherTempInfo(band);
-  var parts: string[] = [];
+  var parts = [];
   if (info.nominalDC != null){
     parts.push('DC ' + info.nominalDC + ' Con save or exhaustion.');
   }
@@ -38,29 +105,18 @@ export function _weatherTempMechanics(band: any){
   }
   return parts.length ? parts.join(' ') : null;
 }
-import { SEASON_SETS, STYLES, state_name } from './constants.js';
-import { deepClone, ensureSettings, getCal, titleCase, weekLength } from './state.js';
-import { textColor } from './color.js';
-import { fromSerial, toSerial, todaySerial, weekStartSerial } from './date-math.js';
-import { Parse, monthIndexByName } from './parsing.js';
-import { _monthsFromRangeSpec, _setCount, _setMax, _setMin } from './events.js';
-import { button, clamp, closeMonthTable, esc, formatDateLabel, openMonthTable } from './rendering.js';
-import { _activePlanarWeatherShiftLines, _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _subsystemIsVerbose, _weatherInfluenceHtml, _weatherInfluenceTexts, _weatherViewDays, nextForDayOnly, nextForMonthDay } from './ui.js';
-import { cleanWho, send, sendToAll, warnGM, whisper } from './commands.js';
-import { getTidalIndex, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml, tidalLabel } from './moon.js';
-import { getActivePlanarEffects } from './planes.js';
 
-
-/* ============================================================================
- * 18) WEATHER SYSTEM
- * ==========================================================================*/
+export function _isZarantyrFull(serial){
+  var ph = moonPhaseAt('Zarantyr', serial);
+  return !!(ph && ph.illum >= 0.97);
+}
 
 // ---------------------------------------------------------------------------
 // 18 — Tuning constants and weather tables
 // ---------------------------------------------------------------------------
 
 // Uncertainty tiers: GM display labels, keyed by days-ahead from generatedAt.
-export var WEATHER_UNCERTAINTY = {
+var WEATHER_UNCERTAINTY: any = {
   certain:   { maxDist:  1, label: 'Certain'   },
   likely:    { maxDist:  3, label: 'Likely'    },
   uncertain: { maxDist:  7, label: 'Uncertain' },
@@ -69,8 +125,8 @@ export var WEATHER_UNCERTAINTY = {
 
 export var WEATHER_DAY_PERIODS = ['early_morning', 'morning', 'afternoon', 'evening', 'late_night'];
 export var WEATHER_PRIMARY_PERIOD = 'afternoon';
-export var WEATHER_LOW_TOD_PERIODS = ['early_morning', 'afternoon', 'late_night'];
-export var WEATHER_PERIOD_META = {
+var WEATHER_LOW_TOD_PERIODS = ['early_morning', 'afternoon', 'late_night'];
+var WEATHER_PERIOD_META: any = {
   early_morning: { label:'Early Morning', shortLabel:'Early', icon:'🌅' },
   morning:       { label:'Morning',       shortLabel:'Morning', icon:'☀' },
   afternoon:     { label:'Afternoon',     shortLabel:'Afternoon', icon:'☁' },
@@ -78,44 +134,44 @@ export var WEATHER_PERIOD_META = {
   late_night:    { label:'Late Night',    shortLabel:'Night', icon:'🌙' }
 };
 
-export function _weatherPeriodLabel(period){
+export function _weatherPeriodLabel(period: any){
   var meta = WEATHER_PERIOD_META[period] || {};
   return meta.label || titleCase(String(period || '').replace(/_/g, ' '));
 }
 
-export function _weatherPeriodShortLabel(period){
+function _weatherPeriodShortLabel(period: any){
   var meta = WEATHER_PERIOD_META[period] || {};
   return meta.shortLabel || _weatherPeriodLabel(period);
 }
 
-export function _weatherPeriodIcon(period){
+export function _weatherPeriodIcon(period: any){
   var meta = WEATHER_PERIOD_META[period] || {};
   return meta.icon || '•';
 }
 
-export function _weatherPrimaryValues(rec){
+export function _weatherPrimaryValues(rec: any){
   if (!rec) return null;
   if (rec.periods && rec.periods[WEATHER_PRIMARY_PERIOD]) return rec.periods[WEATHER_PRIMARY_PERIOD];
   return rec.final || null;
 }
 
-export function _weatherPrimaryFog(rec){
+export function _weatherPrimaryFog(rec: any){
   return rec && rec.fog ? rec.fog[WEATHER_PRIMARY_PERIOD] : null;
 }
 
-export function _weatherPrevNightValues(prevRec){
+function _weatherPrevNightValues(prevRec: any){
   if (!prevRec) return null;
   if (prevRec.periods && prevRec.periods.late_night) return prevRec.periods.late_night;
   return prevRec.final || null;
 }
 
-export function _weatherPrevNightFog(prevRec){
+function _weatherPrevNightFog(prevRec: any){
   return (prevRec && prevRec.fog) ? prevRec.fog.late_night : null;
 }
 
 // Stochastic TOD bell curve. One 1d20 roll per trait per period.
 // 1→−2, 2–4→−1, 5–16→0, 17–19→+1, 20→+2. Applied after arc, clamped.
-export var WEATHER_TOD_BELL = [
+var WEATHER_TOD_BELL = [
 //  1    2   3   4    5  6  7  8  9 10 11 12 13 14 15 16   17  18  19   20
    -2,  -1, -1, -1,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  +1, +1, +1,  +2
 ];
@@ -123,7 +179,7 @@ export var WEATHER_TOD_BELL = [
 // Deterministic TOD arc — the predictable daily shape per climate.
 // Afternoon is the reference point (offset 0). Arc is scaled by geo × terrain
 // arcMult. Early morning and late night support the five-bucket day model.
-export var WEATHER_TOD_ARC = {
+var WEATHER_TOD_ARC: any = {
   polar: {
     temp:   { early_morning:-3, morning:-2, afternoon:0, evening:-2, late_night:-3 },
     wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:-1 },
@@ -169,7 +225,7 @@ export var WEATHER_TOD_ARC = {
 // time into direct WEATHER_TEMPERATURE_BANDS_F indices (-5..15).
 // Wind scale: 0=calm … 5=storm     Precip scale: 0=clear … 5=extreme
 // ---------------------------------------------------------------------------
-export var WEATHER_CLIMATE_BASE = {
+var WEATHER_CLIMATE_BASE: any = {
 
   // Frostfell, Demon Wastes — perpetually cold, windswept, low moisture
   polar: [
@@ -287,9 +343,9 @@ export var WEATHER_CLIMATE_BASE = {
   ]
 };
 
-export function _upgradeWeatherClimateBaseTemps(){
-  Object.keys(WEATHER_CLIMATE_BASE).forEach(function(climate){
-    WEATHER_CLIMATE_BASE[climate] = (WEATHER_CLIMATE_BASE[climate] || []).map(function(entry){
+function _upgradeWeatherClimateBaseTemps(){
+  Object.keys(WEATHER_CLIMATE_BASE).forEach(function(climate: any){
+    WEATHER_CLIMATE_BASE[climate] = (WEATHER_CLIMATE_BASE[climate] || []).map(function(entry: any){
       return {
         temp: {
           base: _legacyTempStageToBand(entry.temp && entry.temp.base),
@@ -312,7 +368,7 @@ _upgradeWeatherClimateBaseTemps();
 //   arc: multiplicative scale on the TOD arc for this month (combined with terrain arc)
 // A constant object (non-array) applies uniformly to all months.
 // ---------------------------------------------------------------------------
-export var WEATHER_GEO_MOD = {
+var WEATHER_GEO_MOD: any = {
 
   // Baseline — no modification
   inland: {temp:0, wind:0, precip:0, arc:1.00},
@@ -454,7 +510,7 @@ export var WEATHER_GEO_MOD = {
 // Same structure as WEATHER_GEO_MOD. Arc multipliers are seasonal where
 // the canopy changes through the year (forest, swamp); constant elsewhere.
 // ---------------------------------------------------------------------------
-export var WEATHER_TERRAIN_MOD = {
+var WEATHER_TERRAIN_MOD: any = {
 
   // Full exposure to geography — no modification
   open: {temp:0, wind:0, precip:0, arc:1.00},
@@ -526,7 +582,7 @@ export var WEATHER_TERRAIN_MOD = {
 // ---------------------------------------------------------------------------
 // Wizard description strings — used in location wizard UI only
 // ---------------------------------------------------------------------------
-export var WEATHER_CLIMATES = {
+export var WEATHER_CLIMATES: any = {
   polar:       'Perpetual cold, minimal precipitation, wide seasonal swing',
   continental: 'Harsh winters, hot summers, far from maritime influence',
   temperate:   'Moderate seasons, consistent precipitation, mild maritime character',
@@ -536,7 +592,7 @@ export var WEATHER_CLIMATES = {
   mediterranean:'Hot dry summers, mild wet winters: inverted precipitation curve'
 };
 
-export var WEATHER_GEOGRAPHIES = {
+var WEATHER_GEOGRAPHIES: any = {
   inland:      'Default continental interior — no geographic amplification',
   coastal:     'Shoreline: maritime moderation, sea breeze, dampened daily arc',
   open_sea:    'Open water: strongly moderated temps, sustained wind, flat arc',
@@ -549,7 +605,7 @@ export var WEATHER_GEOGRAPHIES = {
   arctic_plain:'Open polar tundra: extreme cold and wind amplified, minimal precipitation'
 };
 
-export var WEATHER_TERRAINS_UI = {
+var WEATHER_TERRAINS_UI: any = {
   open:         'No shelter — geography unfiltered',
   forest:       'Deciduous: full canopy summer, bare winter — strongly seasonal buffering',
   jungle:       'Tropical evergreen: constant heavy canopy, wind-dead, maximum humidity',
@@ -561,12 +617,12 @@ export var WEATHER_TERRAINS_UI = {
   coastal_bluff:'Exposed cliff near water: coastal moisture with amplified wind'
 };
 
-export var MANIFEST_ZONE_ORDER = [
+var MANIFEST_ZONE_ORDER = [
   'fernia','risia','irian','mabar','lamannia','syrania','kythri',
   'shavarath','daanvi','dolurrh','thelanis','xoriat','dalquor'
 ];
 
-export var MANIFEST_ZONE_DEFS = {
+var MANIFEST_ZONE_DEFS: any = {
   fernia: {
     key: 'fernia', name: 'Fernia', emoji: '🔥',
     summary: 'Warmth', effectLabel: '+3 temp', tempMod: 3
@@ -625,7 +681,7 @@ export var MANIFEST_ZONE_DEFS = {
 // 18a) State accessors
 // ---------------------------------------------------------------------------
 
-export function _weatherLocationLabel(loc){
+function _weatherLocationLabel(loc: any){
   if (!loc) return 'Unknown Location';
   var climate = titleCase(loc.climate || 'temperate');
   var geography = titleCase(String(loc.geography || 'inland').replace(/_/g, ' '));
@@ -633,9 +689,9 @@ export function _weatherLocationLabel(loc){
   return climate + ' / ' + geography + ' / ' + terrain;
 }
 
-export function _normalizeWeatherLocation(loc){
+function _normalizeWeatherLocation(loc: any){
   if (!loc) return null;
-  var out = {
+  var out: any = {
     climate: loc.climate || 'temperate',
     geography: loc.geography || 'inland',
     terrain: loc.terrain || 'open'
@@ -662,7 +718,7 @@ export function getWeatherState(){
     ws.playerReveal = { byLocation: {} };
     var legacySig = (ws.location && _locSig(ws.location)) || '_default';
     ws.playerReveal.byLocation[legacySig] = {};
-    Object.keys(legacyReveal || {}).forEach(function(key){
+    Object.keys(legacyReveal || {}).forEach(function(key: any){
       if (key === 'byLocation') return;
       ws.playerReveal.byLocation[legacySig][key] = legacyReveal[key];
     });
@@ -688,12 +744,12 @@ export function getWeatherState(){
 }
 
 // Location signature for resurrection matching.
-export function _locSig(loc){
+export function _locSig(loc: any){
   if (!loc) return '';
   return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'');
 }
 
-export function _weatherRevealBucket(ws, loc, createIfMissing){
+export function _weatherRevealBucket(ws: any, loc: any, createIfMissing: any){
   ws = ws || getWeatherState();
   var sig = _locSig(loc || ws.location) || '_default';
   var store = ws.playerReveal && ws.playerReveal.byLocation;
@@ -705,11 +761,11 @@ export function _weatherRevealBucket(ws, loc, createIfMissing){
   return store[sig] || {};
 }
 
-export function _rememberRecentWeatherLocation(ws, loc){
+function _rememberRecentWeatherLocation(ws: any, loc: any){
   ws = ws || getWeatherState();
   loc = _normalizeWeatherLocation(loc);
   if (!loc) return;
-  var keep = [];
+  var keep: any[] = [];
   keep.push(loc);
   for (var i = 0; i < ws.recentLocations.length; i++){
     var existing = _normalizeWeatherLocation(ws.recentLocations[i]);
@@ -720,7 +776,7 @@ export function _rememberRecentWeatherLocation(ws, loc){
   ws.recentLocations = keep;
 }
 
-export function _manifestZoneKey(nameOrKey){
+function _manifestZoneKey(nameOrKey: any){
   var raw = String(nameOrKey || '').toLowerCase().replace(/[\s'_-]+/g, '');
   if (!raw) return null;
   if (raw === 'dalquor') return 'dalquor';
@@ -737,7 +793,7 @@ export function _manifestZoneKey(nameOrKey){
 
 export function _activeManifestZoneEntries(){
   var zones = getWeatherState().manifestZones || {};
-  return Object.keys(zones).map(function(key){
+  return Object.keys(zones).map(function(key: any){
     var norm = _manifestZoneKey(key);
     if (!norm || !MANIFEST_ZONE_DEFS[norm]) return null;
     var entry = zones[key] || {};
@@ -748,33 +804,33 @@ export function _activeManifestZoneEntries(){
       arythFullActivated: !!entry.arythFullActivated,
       arythFullExitWarned: !!entry.arythFullExitWarned
     };
-  }).filter(Boolean).sort(function(a, b){
+  }).filter(Boolean).sort(function(a: any, b: any){
     return MANIFEST_ZONE_ORDER.indexOf(a.key) - MANIFEST_ZONE_ORDER.indexOf(b.key);
   });
 }
 
-export function _activeManifestZoneDefs(){
-  return _activeManifestZoneEntries().map(function(entry){ return entry.def; });
+function _activeManifestZoneDefs(){
+  return _activeManifestZoneEntries().map(function(entry: any){ return entry.def; });
 }
 
-export function _manifestZoneStatusLabel(entries){
+export function _manifestZoneStatusLabel(entries?: any){
   entries = entries || _activeManifestZoneEntries();
   if (!entries.length) return 'None';
-  return entries.map(function(entry){
+  return entries.map(function(entry: any){
     return (entry.def.emoji || '◇') + ' ' + entry.def.name;
   }).join(' · ');
 }
 
-export function _activeManifestZonesForSerial(serial){
+export function _activeManifestZonesForSerial(serial: any){
   return (serial === todaySerial()) ? _activeManifestZoneEntries() : [];
 }
 
-export function _manifestZoneInfluenceText(def){
+export function _manifestZoneInfluenceText(def: any){
   if (!def) return null;
   return (def.emoji || '◇') + ' ' + def.name + ' manifest zone (' + (def.effectLabel || 'no weather shift') + ')';
 }
 
-export function _applyManifestZonesToValues(values, entries, serial){
+function _applyManifestZonesToValues(values: any, entries: any, serial: any){
   entries = entries || [];
   if (!entries.length) return values;
 
@@ -798,7 +854,7 @@ export function _applyManifestZonesToValues(values, entries, serial){
   return values;
 }
 
-export function _weatherRecordForDisplay(rec){
+export function _weatherRecordForDisplay(rec: any){
   if (!rec || rec.serial !== todaySerial()) return rec;
   var entries = _activeManifestZonesForSerial(rec.serial);
   if (!entries.length) return rec;
@@ -814,11 +870,11 @@ export function _weatherRecordForDisplay(rec){
     out.final = _applyManifestZonesToValues(out.final, entries, rec.serial);
   }
   if (!out.location) out.location = {};
-  out.location.activeManifestZones = entries.map(function(entry){ return entry.def.name; });
+  out.location.activeManifestZones = entries.map(function(entry: any){ return entry.def.name; });
   return out;
 }
 
-export function _isArythFull(serial){
+function _isArythFull(serial: any){
   if (ensureSettings().calendarSystem !== 'eberron') return false;
   try {
     moonEnsureSequences(serial, 60);
@@ -829,7 +885,7 @@ export function _isArythFull(serial){
   }
 }
 
-export function _manifestZoneOnDateChange(prevSerial, newSerial){
+export function _manifestZoneOnDateChange(prevSerial: any, newSerial: any){
   if (!(newSerial > prevSerial)) return;
   if (ensureSettings().weatherEnabled === false) return;
   var ws = getWeatherState();
@@ -842,13 +898,13 @@ export function _manifestZoneOnDateChange(prevSerial, newSerial){
   }
 
   if (prevFull && !newFull){
-    var tracked = _activeManifestZoneEntries().filter(function(entry){
+    var tracked = _activeManifestZoneEntries().filter(function(entry: any){
       return entry.arythFullActivated && !entry.arythFullExitWarned;
     });
     if (tracked.length){
       warnGM('Aryth is no longer full. Consider deactivating: ' +
-        tracked.map(function(entry){ return entry.def.name; }).join(', ') + '.');
-      tracked.forEach(function(entry){
+        tracked.map(function(entry: any){ return entry.def.name; }).join(', ') + '.');
+      tracked.forEach(function(entry: any){
         if (!ws.manifestZones[entry.key]) return;
         ws.manifestZones[entry.key].arythFullExitWarned = true;
       });
@@ -860,7 +916,7 @@ export function _manifestZoneOnDateChange(prevSerial, newSerial){
 // 18b) Dice helpers (Roll20 has randomInteger built-in)
 // ---------------------------------------------------------------------------
 
-export function _rollDie(sides){
+function _rollDie(sides: any){
   sides = Math.max(1, sides|0);
   return (typeof randomInteger === 'function') ? randomInteger(sides) : (Math.floor(Math.random()*sides)+1);
 }
@@ -875,7 +931,7 @@ export function _rollDie(sides){
 // weather tables, which are always 12 entries long (one per non-intercalary month).
 // For standard 12-month calendars this is identity. For Harptos (17-18 slots)
 // it skips intercalary slots so e.g. Marpenoth (slot 13) → regular index 9.
-export function regularMonthIndex(mi){
+export function regularMonthIndex(mi: any){
   var months = getCal().months;
   var count = 0;
   for (var i = 0; i < months.length && i <= mi; i++){
@@ -895,7 +951,7 @@ export function regularMonthIndex(mi){
 // Returns the weather-table month index for monthIdx, with hemisphere offset applied.
 // Hemisphere-aware season sets (faerun, gregorian) offset by 6 for southern campaigns
 // so month 0 reads mid-summer stats rather than mid-winter stats.
-export function _weatherMonthIndex(mi){
+function _weatherMonthIndex(mi: any){
   var st     = ensureSettings();
   var sv     = st.seasonVariant || CONFIG_DEFAULTS.seasonVariant;
   var entry  = SEASON_SETS[sv] || SEASON_SETS.eberron;
@@ -904,22 +960,22 @@ export function _weatherMonthIndex(mi){
   return (regularMonthIndex(mi) + offset) % 12;
 }
 
-export function _getModEntry(table, monthIdx){
+function _getModEntry(table: any, monthIdx: any){
   if (Array.isArray(table)) return table[_weatherMonthIndex(monthIdx)] || table[0];
   return table;
 }
 
 // Compose the final formula for one day from all three layers.
 // Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
-export function _composeFormula(climate, geography, terrain, monthIdx){
-  var TRAIT_MIN = { temp:WEATHER_TEMP_BAND_MIN, wind:0, precip:0 };
-  var TRAIT_MAX = { temp:WEATHER_TEMP_BAND_MAX, wind:3, precip:3 };
+export function _composeFormula(climate: any, geography: any, terrain: any, monthIdx: any){
+  var TRAIT_MIN: any = { temp:WEATHER_TEMP_BAND_MIN, wind:0, precip:0 };
+  var TRAIT_MAX: any = { temp:WEATHER_TEMP_BAND_MAX, wind:3, precip:3 };
   var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
   var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
   var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
   var tMod    = _getModEntry(WEATHER_TERRAIN_MOD[terrain]   || WEATHER_TERRAIN_MOD.open,  monthIdx);
 
-  function composeTrait(b, gm, tm, traitMin, traitMax){
+  function composeTrait(b: any, gm: any, tm: any, traitMin: any, traitMax: any){
     var shift = (gm|0) + (tm|0);
     var mn = Math.max(traitMin,  (b.min|0) + shift);
     var mx = Math.min(traitMax,  (b.max|0) + shift);
@@ -939,7 +995,7 @@ export function _composeFormula(climate, geography, terrain, monthIdx){
 // 18e) Single trait roll
 // ---------------------------------------------------------------------------
 
-export function _rollTrait(formula, seedNudge){
+export function _rollTrait(formula: any, seedNudge: any){
   var raw = (formula.base|0) +
             _rollDie(formula.die) -
             _rollDie(formula.die) +
@@ -962,12 +1018,12 @@ export function _rollTrait(formula, seedNudge){
 // distinguish "arc shift" (expected) from "stochastic event" (unusual).
 // ---------------------------------------------------------------------------
 
-export function _todArc(climate, arcMult, period){
+function _todArc(climate: any, arcMult: any, period: any){
   // Returns the deterministic arc offset for each trait at this period.
   // arcMult = geoMod.arc × terrainMod.arc, both already looked up for this month.
   var arcDef = (WEATHER_TOD_ARC[climate] || WEATHER_TOD_ARC.temperate);
   var traits = ['temp', 'wind', 'precip'];
-  var result = { temp:0, wind:0, precip:0 };
+  var result: any = { temp:0, wind:0, precip:0 };
   for (var i=0; i<traits.length; i++){
     var t   = traits[i];
     var raw = (arcDef[t] && arcDef[t][period] != null) ? arcDef[t][period] : 0;
@@ -976,7 +1032,7 @@ export function _todArc(climate, arcMult, period){
   return result;
 }
 
-export function _todStochastic(){
+function _todStochastic(){
   // Returns a random shift for each trait independently using the bell curve.
   return {
     temp:   WEATHER_TOD_BELL[_rollDie(20) - 1],
@@ -991,7 +1047,7 @@ export function _todStochastic(){
 // Called once per period per day at generation time. Result stored on record.
 // ---------------------------------------------------------------------------
 
-export var _FOG_BASE = {
+var _FOG_BASE: any = {
   early_morning: 0.30,
   morning:       0.40,
   afternoon:     0.05,
@@ -999,7 +1055,7 @@ export var _FOG_BASE = {
   late_night:    0.10
 };
 
-export var _FOG_GEO_MULT = {
+var _FOG_GEO_MULT: any = {
   river_valley: 2.0,
   coastal:      1.5,
   inland_sea:   1.5,
@@ -1008,7 +1064,7 @@ export var _FOG_GEO_MULT = {
   jungle_basin: 1.2
 };
 
-export var _FOG_TERRAIN_MULT = {
+var _FOG_TERRAIN_MULT: any = {
   swamp:   2.5,
   forest:  1.5,
   desert:  0.1,
@@ -1016,7 +1072,7 @@ export var _FOG_TERRAIN_MULT = {
 };
 
 // Month index → season weight. Fog favours shoulder seasons.
-export var _FOG_SEASON_WEIGHT = [
+var _FOG_SEASON_WEIGHT = [
   0.5,  // 0  mid-win
   0.5,  // 1  late-win
   1.2,  // 2  early-sp
@@ -1031,7 +1087,7 @@ export var _FOG_SEASON_WEIGHT = [
   0.6   // 11 early-wn
 ];
 
-export function _rollFog(period, pv, geography, terrain, monthIdx, prevPeriodFog){
+function _rollFog(period: any, pv: any, geography: any, terrain: any, monthIdx: any, prevPeriodFog: any){
   // Gate: fog needs clear-to-overcast precip and above-frigid temperature
   if (pv.precip > 1 || pv.temp < 2) return 'none';
 
@@ -1066,7 +1122,7 @@ export function _rollFog(period, pv, geography, terrain, monthIdx, prevPeriodFog
 // 18g) Generate a single day's weather record
 // ---------------------------------------------------------------------------
 
-export function _blendWeatherValues(primary, secondary, primaryWeight, secondaryWeight){
+function _blendWeatherValues(primary: any, secondary: any, primaryWeight: any, secondaryWeight: any){
   primary = primary || {};
   secondary = secondary || {};
   primaryWeight = Math.max(1, primaryWeight|0);
@@ -1079,7 +1135,7 @@ export function _blendWeatherValues(primary, secondary, primaryWeight, secondary
   };
 }
 
-export function _generateDayWeather(serial, prevRec, locationOverride){
+function _generateDayWeather(serial: any, prevRec: any, locationOverride: any){
   var loc = locationOverride || getWeatherState().location;
   if (!loc) return null;
 
@@ -1097,14 +1153,14 @@ export function _generateDayWeather(serial, prevRec, locationOverride){
   // if yesterday deviated significantly. Prevents prolonged extreme streaks.
   // Small deviations (±1 from base): no nudge — normal daily variation.
   // Larger deviations (±2+): nudge back toward base.
-  function _nudge(prev, base){
+  function _nudge(prev: any, base: any){
     var dev = (prev|0) - (base|0);
     if (dev >= 2)  return -CONFIG_WEATHER_SEED_STRENGTH;  // above base → pull down
     if (dev <= -2) return  CONFIG_WEATHER_SEED_STRENGTH;  // below base → pull up
     return 0;  // within ±1: let it ride
   }
 
-  var nudge = { temp:0, wind:0, precip:0 };
+  var nudge: any = { temp:0, wind:0, precip:0 };
   var prevFinal = prevRec && prevRec.final ? prevRec.final : null;
   if (prevFinal && CONFIG_WEATHER_SEED_STRENGTH > 0){
     nudge.temp   = _nudge(prevFinal.temp,   formula.temp.base);
@@ -1120,9 +1176,9 @@ export function _generateDayWeather(serial, prevRec, locationOverride){
   };
 
   // Combine arc + stochastic and clamp to composed formula range.
-  function periodVals(arc, rng){
+  function periodVals(arc: any, rng: any){
     var traits = ['temp', 'wind', 'precip'];
-    var out = {};
+    var out: any = {};
     for (var i=0; i<traits.length; i++){
       var t = traits[i];
       var v = (base[t]|0) + (arc[t]|0) + (rng[t]|0);
@@ -1131,9 +1187,9 @@ export function _generateDayWeather(serial, prevRec, locationOverride){
     return out;
   }
 
-  var arc = {};
-  var rng = {};
-  var periods = {};
+  var arc: any = {};
+  var rng: any = {};
+  var periods: any = {};
   for (var pi = 0; pi < WEATHER_DAY_PERIODS.length; pi++){
     var pname = WEATHER_DAY_PERIODS[pi];
     arc[pname] = _todArc(climate, arcMult, pname);
@@ -1151,8 +1207,8 @@ export function _generateDayWeather(serial, prevRec, locationOverride){
   // Roll fog per period at generation time — stored so display is consistent.
   // Chained so each period can inherit persistence from the previous one,
   // beginning with the previous night's stored fog when available.
-  var fog = {};
-  var prevFog = _weatherPrevNightFog(prevRec);
+  var fog: any = {};
+  var prevFog: any = _weatherPrevNightFog(prevRec);
   for (var fi = 0; fi < WEATHER_DAY_PERIODS.length; fi++){
     var fogPeriod = WEATHER_DAY_PERIODS[fi];
     fog[fogPeriod] = _rollFog(fogPeriod, periods[fogPeriod], geography, terrain, mi, prevFog);
@@ -1161,7 +1217,7 @@ export function _generateDayWeather(serial, prevRec, locationOverride){
 
   // final = afternoon peak. Local manifest zones apply at display time for
   // the current day only; forecasts remain location-profile driven.
-  var finalVals = {
+  var finalVals: any = {
     temp:   periods[WEATHER_PRIMARY_PERIOD].temp,
     wind:   periods[WEATHER_PRIMARY_PERIOD].wind,
     precip: periods[WEATHER_PRIMARY_PERIOD].precip
@@ -1217,19 +1273,19 @@ export function _generateDayWeather(serial, prevRec, locationOverride){
 // 18h) Forecast management
 // ---------------------------------------------------------------------------
 
-export function _forecastRecord(serial){
+export function _forecastRecord(serial: any){
   var fc = getWeatherState().forecast;
   for (var i=0; i<fc.length; i++){ if (fc[i].serial === serial) return fc[i]; }
   return null;
 }
 
-export function _forecastIndex(serial){
+function _forecastIndex(serial: any){
   var fc = getWeatherState().forecast;
   for (var i=0; i<fc.length; i++){ if (fc[i].serial === serial) return i; }
   return -1;
 }
 
-export function _historyRecord(serial){
+function _historyRecord(serial: any){
   var hist = getWeatherState().history;
   for (var i = hist.length - 1; i >= 0; i--){
     if (hist[i].serial === serial) return hist[i];
@@ -1237,7 +1293,7 @@ export function _historyRecord(serial){
   return null;
 }
 
-export function _generateForecast(fromSerial_, count, forceRegen){
+function _generateForecast(fromSerial_: any, count: any, forceRegen: any){
   var ws  = getWeatherState();
   var loc = ws.location;
   if (!loc){ warnGM('Set a weather location first: !cal weather location'); return 0; }
@@ -1246,7 +1302,7 @@ export function _generateForecast(fromSerial_, count, forceRegen){
   var generated = 0;
 
   // Find the last known record for continuity seeding.
-  var prevRec = null;
+  var prevRec: any = null;
   var prevIdx = _forecastIndex(fromSerial_ - 1);
   if (prevIdx >= 0) prevRec = ws.forecast[prevIdx];
   else prevRec = _historyRecord(fromSerial_ - 1);
@@ -1269,7 +1325,7 @@ export function _generateForecast(fromSerial_, count, forceRegen){
   }
 
   // Keep forecast sorted and trimmed to window
-  ws.forecast.sort(function(a,b){ return a.serial - b.serial; });
+  ws.forecast.sort(function(a: any, b: any){ return a.serial - b.serial; });
 
   return generated;
 }
@@ -1280,7 +1336,7 @@ export function weatherEnsureForecast(){
   var today = todaySerial();
 
   // Archive and lock past days
-  ws.forecast = ws.forecast.filter(function(rec){
+  ws.forecast = ws.forecast.filter(function(rec: any){
     if (rec.serial < today){
       rec.locked = true;
       ws.history.push(rec);
@@ -1290,13 +1346,13 @@ export function weatherEnsureForecast(){
   });
 
   // Trim history and playerReveal to 60 days behind today
-  ws.history.sort(function(a,b){ return a.serial - b.serial; });
+  ws.history.sort(function(a: any, b: any){ return a.serial - b.serial; });
   if (ws.history.length > CONFIG_WEATHER_HISTORY_DAYS) ws.history = ws.history.slice(ws.history.length - CONFIG_WEATHER_HISTORY_DAYS);
 
   var pruneThreshold = today - 60;
-  Object.keys((ws.playerReveal && ws.playerReveal.byLocation) || {}).forEach(function(sig){
+  Object.keys((ws.playerReveal && ws.playerReveal.byLocation) || {}).forEach(function(sig: any){
     var bucket = ws.playerReveal.byLocation[sig] || {};
-    Object.keys(bucket).forEach(function(k){
+    Object.keys(bucket).forEach(function(k: any){
       if (parseInt(k, 10) < pruneThreshold) delete bucket[k];
     });
     if (!Object.keys(bucket).length) delete ws.playerReveal.byLocation[sig];
@@ -1310,7 +1366,7 @@ export function weatherEnsureForecast(){
 // 18i) Uncertainty tier for a forecast record
 // ---------------------------------------------------------------------------
 
-export function _uncertaintyTier(rec){
+function _uncertaintyTier(rec: any){
   if (!rec) return 'vague';
   if (rec.locked) return 'certain';
   var dist = rec.serial - rec.generatedAt;
@@ -1332,14 +1388,14 @@ export function _uncertaintyTier(rec){
 // No event ever fires automatically. GM must press a button.
 // ---------------------------------------------------------------------------
 
-export var EXTREME_EVENTS = {
+var EXTREME_EVENTS: any = {
 
   flash_flood: {
     name:     'Flash Flood',
     emoji:    '🌊',
     // Trigger: heavy rain in lowland/coastal geography
-    check: function(f, loc, sa, wa){
-      var lowGeos = { river_valley:1, coastal:1, jungle_basin:1, inland_sea:1 };
+    check: function(f: any, loc: any, sa: any, wa: any){
+      var lowGeos: any = { river_valley:1, coastal:1, jungle_basin:1, inland_sea:1 };
       if (f.temp < 5 || f.precip < 3 || !lowGeos[loc.geography]) return 0;
       var p = 0.12;
       if (wa)                      p += 0.15;  // prior day already wet
@@ -1349,30 +1405,30 @@ export var EXTREME_EVENTS = {
     duration:  '1–4 hours',
     mechanics: 'River crossings impassable. Low ground becomes difficult terrain. Swim DC 15 or be swept downstream (1d6 bludgeoning per round). Creatures in water: Str save DC 13 or knocked prone.',
     aftermath: 'Roads washed out. Fords flooded for 1d4 days. Water sources silted.',
-    playerMsg: function(loc){ return 'A flash flood sweeps through the lowlands. The river bursts its banks — all crossings are closed.'; }
+    playerMsg: function(loc: any){ return 'A flash flood sweeps through the lowlands. The river bursts its banks — all crossings are closed.'; }
   },
 
   whiteout: {
     name:     'Whiteout',
     emoji:    '❄️',
     // Trigger: active blizzard on open flat terrain
-    check: function(f, loc, sa, wa){
-      var openGeos = { open_plains:1, arctic_plain:1 };
+    check: function(f: any, loc: any, sa: any, wa: any){
+      var openGeos: any = { open_plains:1, arctic_plain:1 };
       if (f.temp > 3 || f.precip < 3 || f.wind < 3 || !openGeos[loc.geography]) return 0;
       return 0.55;
     },
     duration:  '2–8 hours',
     mechanics: 'Visibility 0 ft (total whiteout). All creatures Blinded. Navigation impossible without magic — DC 20 Survival or travel in circles. Exposed creatures: DC 15 Con save each hour or gain Exhaustion.',
     aftermath: 'Drifts 2–5 ft deep on open ground. All outdoor surfaces difficult terrain for 1d3 days.',
-    playerMsg: function(loc){ return 'A whiteout descends. The world disappears into white — sky and ground indistinguishable. Travel is impossible.'; }
+    playerMsg: function(loc: any){ return 'A whiteout descends. The world disappears into white — sky and ground indistinguishable. Travel is impossible.'; }
   },
 
   ground_blizzard: {
     name:     'Ground Blizzard',
     emoji:    '💨',
     // Trigger: accumulated snow + storm wind on open terrain — no active precip needed
-    check: function(f, loc, sa, wa){
-      var openGeos = { open_plains:1, arctic_plain:1 };
+    check: function(f: any, loc: any, sa: any, wa: any){
+      var openGeos: any = { open_plains:1, arctic_plain:1 };
       if (!sa || f.wind < 3 || !openGeos[loc.geography]) return 0;
       // Can occur even if today's precip is low — the snow is already on the ground
       if (f.precip > 1) return 0;  // if actively precipitating, whiteout covers it
@@ -1381,17 +1437,17 @@ export var EXTREME_EVENTS = {
     duration:  '1–6 hours',
     mechanics: 'Heavily Obscured beyond 30ft. Navigation DC 15 Survival. Exposed creatures: DC 12 Con save each hour or gain Exhaustion level. Flying impossible in open terrain.',
     aftermath: 'Drifting fills roads and sheltered passages. Travel speed halved outdoors for the day.',
-    playerMsg: function(loc){ return 'A ground blizzard erupts — the wind picks up the snow already on the ground and flings it horizontally. Visibility collapses.'; }
+    playerMsg: function(loc: any){ return 'A ground blizzard erupts — the wind picks up the snow already on the ground and flings it horizontally. Visibility collapses.'; }
   },
 
   haboob: {
     name:     'Dust Storm (Haboob)',
     emoji:    '🌪️',
     // Trigger: hot dry conditions with wind — desert/plains in dry climate
-    check: function(f, loc, sa, wa){
-      var dryTerrains = { desert:1, open:1 };
-      var openGeos    = { open_plains:1, arctic_plain:1 };
-      var dryClimates = { dry:1 };
+    check: function(f: any, loc: any, sa: any, wa: any){
+      var dryTerrains: any = { desert:1, open:1 };
+      var openGeos: any    = { open_plains:1, arctic_plain:1 };
+      var dryClimates: any = { dry:1 };
       // Needs dry conditions: no precipitation, hot, windy
       if (f.precip > 0 || f.temp < 9 || f.wind < 2) return 0;
       if (!dryTerrains[loc.terrain] && !openGeos[loc.geography]) return 0;
@@ -1403,14 +1459,14 @@ export var EXTREME_EVENTS = {
     duration:  '10 minutes – 3 hours',
     mechanics: 'Heavily Obscured beyond 30ft for duration. Creatures without eye/mouth protection: DC 12 Con save or become Poisoned (choking dust) until they take a short rest in shelter. Flying creatures: DC 15 Str save or be grounded.',
     aftermath: 'Fine dust coats everything. Food/water may be contaminated. Visibility remains reduced (Lightly Obscured) for 1d4 hours after.',
-    playerMsg: function(loc){ return 'A wall of dust appears on the horizon and swallows the sky. Shelter — now.'; }
+    playerMsg: function(loc: any){ return 'A wall of dust appears on the horizon and swallows the sky. Shelter — now.'; }
   },
 
   avalanche: {
     name:     'Avalanche',
     emoji:    '⛰️',
     // Trigger: highland geography, cold, heavy snow + wind — or post-storm loading
-    check: function(f, loc, sa, wa){
+    check: function(f: any, loc: any, sa: any, wa: any){
       if (loc.geography !== 'highland') return 0;
       if (f.temp > 4) return 0;
       var p = 0;
@@ -1423,14 +1479,14 @@ export var EXTREME_EVENTS = {
     duration:  'Instantaneous event; aftermath hours to days',
     mechanics: 'Any creature in the avalanche path: DC 15 Dex save or take 6d6 bludgeoning and become Restrained (buried). Restrained creatures: DC 15 Athletics each round to dig free, or suffocate after Con modifier + proficiency bonus rounds.',
     aftermath: 'Pass or valley blocked. Rescue operations may be needed. Travel through area impossible without magical aid or 1d4 days of clearing.',
-    playerMsg: function(loc){ return 'A thunderous crack echoes from above. Avalanche!'; }
+    playerMsg: function(loc: any){ return 'A thunderous crack echoes from above. Avalanche!'; }
   },
 
   lightning_storm: {
     name:     'Severe Thunderstorm',
     emoji:    '⚡',
     // Trigger: severe rain + warm temp + wind
-    check: function(f, loc, sa, wa){
+    check: function(f: any, loc: any, sa: any, wa: any){
       if (f.temp < 7 || f.precip < 3 || f.wind < 2) return 0;
       var p = 0.25;
       if (f.temp >= 9) p += 0.10;
@@ -1439,7 +1495,7 @@ export var EXTREME_EVENTS = {
     duration:  '1–3 hours',
     mechanics: 'Lightning strikes: each minute outdoors, DC 13 Dex save or be struck (4d10 lightning damage, DC 14 Con save or Stunned 1 round). Metal armour wearers: disadvantage on save. Tall isolated objects are struck first.',
     aftermath: 'Fires possible in dry terrain. Fallen trees may block roads. Flash flooding risk elevated (see Flash Flood).',
-    playerMsg: function(loc){ return 'The storm reaches a violent peak. Lightning splits the sky — this is not a safe time to be in the open.'; }
+    playerMsg: function(loc: any){ return 'The storm reaches a violent peak. Lightning splits the sky — this is not a safe time to be in the open.'; }
   },
 
   clear_sky_strike: {
@@ -1447,7 +1503,7 @@ export var EXTREME_EVENTS = {
     emoji:    '🌩️',
     // Trigger: uncommon atmospheric discharge with little/no precipitation.
     // Enhanced during Zarantyr full moon via _evaluateExtremeEvents.
-    check: function(f, loc, sa, wa){
+    check: function(f: any, loc: any, sa: any, wa: any){
       if (f.precip > 1 || f.wind > 2) return 0;
       var p = 0.02;
       if (f.temp >= 7) p += 0.02;
@@ -1457,14 +1513,14 @@ export var EXTREME_EVENTS = {
     duration:  'Instantaneous strike or short burst (minutes)',
     mechanics: 'An unexpected bolt strikes with little warning. Creatures in exposed outdoor terrain make DC 13 Dex save or take 3d10 lightning damage (half on success). Tall isolated objects are preferential targets.',
     aftermath: 'Potential localized fire or structural scorch at strike site.',
-    playerMsg: function(loc){ return 'A jagged bolt tears from a clear sky. Thunder follows seconds later.'; }
+    playerMsg: function(loc: any){ return 'A jagged bolt tears from a clear sky. Thunder follows seconds later.'; }
   },
 
   flash_freeze: {
     name:     'Flash Freeze',
     emoji:    '🧊',
     // Trigger: today is suddenly very cold after a warm wet yesterday
-    check: function(f, loc, sa, wa){
+    check: function(f: any, loc: any, sa: any, wa: any){
       // wa = prev day was warm (≥5) and wet (≥1)
       if (!wa || f.temp > 3 || f.wind < 2) return 0;
       return 0.25;
@@ -1472,15 +1528,15 @@ export var EXTREME_EVENTS = {
     duration:  '1–4 hours for freeze; persists until thaw',
     mechanics: 'All exposed water surfaces (puddles, ford crossings, wet mud) become ice. Difficult terrain on all outdoor surfaces. DC 12 Acrobatics to avoid falling prone when moving at full speed on ice.',
     aftermath: 'Icy surfaces persist until temperature rises above band 4 (45F+). Fords may be crossable on foot — or may give way.',
-    playerMsg: function(loc){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
+    playerMsg: function(loc: any){ return 'The temperature plummets. Water crystallizes where it stands. The world glazes over in an hour.'; }
   },
 
   tropical_storm: {
     name:     'Tropical Storm',
     emoji:    '🌀',
     // Trigger: warm/hot + coastal or open sea + high wind + rain
-    check: function(f, loc, sa, wa){
-      var seaGeos = { coastal:1, open_sea:1, inland_sea:1 };
+    check: function(f: any, loc: any, sa: any, wa: any){
+      var seaGeos: any = { coastal:1, open_sea:1, inland_sea:1 };
       if (f.temp < 7 || f.wind < 3 || f.precip < 3 || !seaGeos[loc.geography]) return 0;
       var p = 0.20;
       if (f.wind >= 4) p += 0.15;
@@ -1490,7 +1546,7 @@ export var EXTREME_EVENTS = {
     duration:  '6–24 hours',
     mechanics: 'Wind: sustained gale-force. Ranged weapon attacks and flying have disadvantage. Small sailing vessels: DC 15 water vehicles check each hour or capsize. Structures: DC 12 to resist minor damage to roofs and shutters. Outdoor fires extinguished.',
     aftermath: 'Coastal flooding for 1d3 days. Minor structural damage. Debris-strewn roads.',
-    playerMsg: function(loc){ return 'A tropical storm bears down on the coast. Winds howl, rain drives sideways, and the sea surges against the shore.'; }
+    playerMsg: function(loc: any){ return 'A tropical storm bears down on the coast. Winds howl, rain drives sideways, and the sea surges against the shore.'; }
   },
 
   hurricane: {
@@ -1498,8 +1554,8 @@ export var EXTREME_EVENTS = {
     emoji:    '🌊',
     // Trigger: extremely warm + open sea or coastal + extreme wind + deluge
     // Rarer and more dangerous than tropical storm
-    check: function(f, loc, sa, wa){
-      var seaGeos = { coastal:1, open_sea:1 };
+    check: function(f: any, loc: any, sa: any, wa: any){
+      var seaGeos: any = { coastal:1, open_sea:1 };
       if (f.temp < 9 || f.wind < 4 || f.precip < 4 || !seaGeos[loc.geography]) return 0;
       var p = 0.30;
       if (f.wind >= 5) p += 0.20;
@@ -1509,14 +1565,14 @@ export var EXTREME_EVENTS = {
     duration:  '12–48 hours',
     mechanics: 'Wind: hurricane force. All ranged attacks impossible. Flying impossible without magic (DC 18 Str save each round). Creatures outdoors: DC 13 Str save each round or be knocked prone and pushed 10 ft. All non-stone structures: DC 15 to resist significant damage. Ships at sea: DC 18 water vehicles each hour or capsize with 4d6 bludgeoning to all aboard. Storm surge floods coastal areas to 1d4 × 5 feet.',
     aftermath: 'Catastrophic coastal flooding for 1d6 days. Major structural damage. Trees uprooted. Roads impassable for 1d4 days. Water sources contaminated.',
-    playerMsg: function(loc){ return 'The sky turns an unearthly green. The hurricane hits with a wall of wind and water that shakes the foundations of the world.'; }
+    playerMsg: function(loc: any){ return 'The sky turns an unearthly green. The hurricane hits with a wall of wind and water that shakes the foundations of the world.'; }
   }
 };
 
 // Evaluate all extreme events for a given day record.
 // Returns array of { key, event, probability } for events that qualify.
 // Probability > 0 means conditions are met. Events with p=0 are excluded.
-export function _evaluateExtremeEvents(rec){
+export function _evaluateExtremeEvents(rec: any){
   rec = _weatherRecordForDisplay(rec);
   if (!rec) return [];
   var f   = rec.final;
@@ -1524,7 +1580,7 @@ export function _evaluateExtremeEvents(rec){
   var sa  = !!rec.snowAccumulated;
   var wa  = !!rec.wetAccumulated;
   var zarantyrFull = _isZarantyrFull(rec.serial);
-  var qualified = [];
+  var qualified: any[] = [];
   var keys = Object.keys(EXTREME_EVENTS);
   for (var i=0; i<keys.length; i++){
     var key = keys[i];
@@ -1545,7 +1601,7 @@ export function _evaluateExtremeEvents(rec){
 }
 
 // Roll the dice for a single event. Returns true if event fires.
-export function _rollExtremeEvent(key, rec){
+function _rollExtremeEvent(key: any, rec: any){
   var evt = EXTREME_EVENTS[key];
   if (!evt) return false;
   rec = _weatherRecordForDisplay(rec);
@@ -1562,14 +1618,9 @@ export function _rollExtremeEvent(key, rec){
   return (_rollDie(100) <= Math.round(p * 100));
 }
 
-export function _isZarantyrFull(serial){
-  var ph = moonPhaseAt('Zarantyr', serial);
-  return !!(ph && ph.illum >= 0.97);
-}
-
 // Render the extreme event panel for the GM Today view.
 // Shows each qualified event with its probability and two buttons.
-export function _extremeEventPanelHtml(rec){
+function _extremeEventPanelHtml(rec: any){
   var events = _evaluateExtremeEvents(rec);
   if (!events.length) return '';
   var mechanicsOn = ensureSettings().weatherMechanicsEnabled !== false;
@@ -1595,7 +1646,7 @@ export function _extremeEventPanelHtml(rec){
 }
 
 // Build a GM-facing extreme-event details block.
-export function _extremeEventDetailsHtml(key, rec){
+function _extremeEventDetailsHtml(key: any, rec: any){
   var evt = EXTREME_EVENTS[key];
   if (!evt) return '';
   var msg = evt.playerMsg(rec ? rec.location || {} : {});
@@ -1623,7 +1674,7 @@ export function _extremeEventDetailsHtml(key, rec){
 // display functions. This replaces the old precip label system.
 // ---------------------------------------------------------------------------
 
-export function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride){
+export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulated: any, fogOverride: any){
   var temp    = pv.temp   || 0;
   var wind    = pv.wind   || 0;
   var precip  = pv.precip || 0;
@@ -1656,7 +1707,7 @@ export function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride)
   // Tier A: Lightly Obscured everywhere
   // Tier B: Lightly Obscured; Heavily Obscured beyond 60ft
   // Tier C: Lightly Obscured; Heavily Obscured beyond 30ft
-  var vis = { tier: 'none', beyond: null };
+  var vis: any = { tier: 'none', beyond: null };
   if (fog === 'dense' || precipType === 'blizzard' || precipType === 'deluge'){
     vis = { tier: 'C', beyond: 30 };
   } else if (fog === 'light' || precipType === 'heavy_rain' || precipType === 'ice_storm'){
@@ -1678,7 +1729,7 @@ export function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride)
   );
 
   // -- Mechanics strings --
-  var mechLines = [];
+  var mechLines: any[] = [];
 
   // Temperature
   var tm = _weatherTempMechanics(temp);
@@ -1734,7 +1785,7 @@ export function _deriveConditions(pv, loc, period, snowAccumulated, fogOverride)
 }
 
 // Render conditions mechanics block as HTML (empty string if none).
-export function _conditionsMechHtml(cond){
+export function _conditionsMechHtml(cond: any){
   if (ensureSettings().weatherMechanicsEnabled === false) return '';
   if (!cond.mechanics.length) return '';
   return '<div style="font-size:.85em;margin-top:3px;">'+cond.mechanics.join('<br>')+'</div>';
@@ -1742,7 +1793,7 @@ export function _conditionsMechHtml(cond){
 
 // Full mechanical readout for today — whispered on demand via button.
 // Covers the full five-bucket day model + any extreme events + planar effects.
-export function weatherTodayMechanicsHtml(){
+function weatherTodayMechanicsHtml(){
   if (ensureSettings().weatherMechanicsEnabled === false){
     return _menuBox('📋 Weather Mechanics',
       '<div style="opacity:.7;">Mechanical weather effects are disabled. Narrative weather remains active.</div>'+
@@ -1758,7 +1809,7 @@ export function weatherTodayMechanicsHtml(){
   var d = fromSerial(today);
   var dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);
 
-  var sections = [];
+  var sections: any[] = [];
 
   // Period breakdown across the full day model.
   var periods = WEATHER_DAY_PERIODS;
@@ -1823,7 +1874,7 @@ export function weatherTodayMechanicsHtml(){
 
 // One-line narrative for a period's conditions.
 // period uses WEATHER_DAY_PERIODS and is primarily used for fog phrasing.
-export function _conditionsNarrative(pv, cond, period){
+export function _conditionsNarrative(pv: any, cond: any, period: any){
   var base = _flavorText(pv);
   if (cond.fog !== 'none' && pv.precip <= 1){
     if (cond.fog === 'dense'){
@@ -1844,7 +1895,7 @@ export function _conditionsNarrative(pv, cond, period){
   return base;
 }
 
-export function _tempBand(stage){
+export function _tempBand(stage: any){
   if (stage <= 3) return 'cold';
   if (stage === 4) return 'cool';
   if (stage <= 6) return 'mild';
@@ -1852,7 +1903,7 @@ export function _tempBand(stage){
   return 'hot';
 }
 
-export function _flavorText(pv){
+function _flavorText(pv: any){
   var key  = _tempBand(pv.temp) + '|' + (pv.precip|0);
   var base = CONFIG_WEATHER_FLAVOR[key] || 'Conditions are unusual.';
   // Wind clause: woven contextually rather than appended as a bare label.
@@ -1874,7 +1925,7 @@ export function _flavorText(pv){
   return base;
 }
 
-export function _roughWeatherDescriptor(pv, cond){
+function _roughWeatherDescriptor(pv: any, cond: any){
   if (!pv) return 'Weather looks steady.';
   cond = cond || { precipType:'none', fog:'none' };
 
@@ -1903,8 +1954,8 @@ export function _roughWeatherDescriptor(pv, cond){
   return 'Looks like clear skies.';
 }
 
-export function _weatherLowTodayHtml(rec, loc){
-  var lines = [];
+function _weatherLowTodayHtml(rec: any, loc: any){
+  var lines: any[] = [];
   for (var i = 0; i < WEATHER_LOW_TOD_PERIODS.length; i++){
     var period = WEATHER_LOW_TOD_PERIODS[i];
     var pv = (rec.periods && rec.periods[period]) || _weatherPrimaryValues(rec) || rec.final || {};
@@ -1919,7 +1970,7 @@ export function _weatherLowTodayHtml(rec, loc){
   return '<div style="font-size:.85em;margin-top:3px;">'+lines.join('')+'</div>';
 }
 
-export function _weatherCommonDayHeadline(rec, dayOffset){
+function _weatherCommonDayHeadline(rec: any, dayOffset: any){
   var loc = rec.location || {};
   var pv = _weatherPrimaryValues(rec) || rec.final || {};
   var cond = _deriveConditions(pv, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
@@ -1934,12 +1985,12 @@ export function _weatherCommonDayHeadline(rec, dayOffset){
 // 18k) HTML builders
 // ---------------------------------------------------------------------------
 
-export function _weatherTraitBadge(trait, stage){
+export function _weatherTraitBadge(trait: any, stage: any){
   // Color scales chosen so that each trait has semantic meaning:
   //   Temp: deep blue (cold) → white (neutral) → deep red/orange (hot)
   //   Wind: near-white (calm) → dark blue-grey (storm force)
   //   Precip: pale sky (clear) → deep slate blue (torrential)
-  var palettes = {
+  var palettes: any = {
     temp: [
       '#7AA7D9','#9CC2E8','#B6D6F2','#D0E6FA','#E4F1FF',
       '#EEF6FF','#F5F5F0','#FFF3E0','#FFE2B6','#FFC98F','#FFB074'
@@ -1948,7 +1999,7 @@ export function _weatherTraitBadge(trait, stage){
     precip:['#F0F8FF','#CFE8F5','#90CAF9','#1565C0']
   };
   var pal   = palettes[trait] || palettes.wind;
-  var idx;
+  var idx: any;
   if (trait === 'temp'){
     idx = Math.round(((_clampWeatherTempBand(stage) - WEATHER_TEMP_BAND_MIN) / (WEATHER_TEMP_BAND_MAX - WEATHER_TEMP_BAND_MIN)) * (pal.length - 1));
   } else {
@@ -1960,7 +2011,7 @@ export function _weatherTraitBadge(trait, stage){
   return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.2);background:'+esc(bg)+';color:'+esc(tc)+';font-size:.85em;">'+esc(label)+'</span>';
 }
 
-export function _weatherDayGmHtml(rec, showBreakdown){
+function _weatherDayGmHtml(rec: any, showBreakdown: any){
   rec = _weatherRecordForDisplay(rec);
   if (!rec) return '<div style="opacity:.6;">(no data)</div>';
 
@@ -1968,7 +2019,7 @@ export function _weatherDayGmHtml(rec, showBreakdown){
   var f    = rec.final;
   var tCfg = WEATHER_UNCERTAINTY[tier] || WEATHER_UNCERTAINTY.vague;
 
-  var lines = [];
+  var lines: any[] = [];
 
   if (rec.stale){
     lines.push('<div style="color:#E65100;font-size:.85em;">⚠ Stale — location changed. Reroll to update.</div>');
@@ -1984,10 +2035,6 @@ export function _weatherDayGmHtml(rec, showBreakdown){
   lines.push('<div style="font-size:.8em;opacity:.7;">T:'+f.temp+' W:'+f.wind+' P:'+f.precip+'&nbsp;&nbsp;['+esc(tCfg.label)+']</div>');
   lines.push(_weatherInfluenceHtml(rec));
 
-  // Weather influence sources annotation
-  var _infHtml = _weatherInfluenceHtml(rec.serial, rec.location);
-  if (_infHtml) lines.push(_infHtml);
-
   // Full period breakdown — shown for today's view (showBreakdown) at certain tier.
   // Each period shows narrative, badges, crit flags, and derived mechanics.
   if (showBreakdown && (tier === 'certain' || showBreakdown === 'force')){
@@ -1995,15 +2042,15 @@ export function _weatherDayGmHtml(rec, showBreakdown){
     var rng  = rec.rng      || {};
     var rloc = rec.location || {};
 
-    function critNote(delta){
-      var crits = [];
+    function critNote(delta: any){
+      var crits: any[] = [];
       if (Math.abs(delta.temp)   === 2) crits.push('T');
       if (Math.abs(delta.wind)   === 2) crits.push('W');
       if (Math.abs(delta.precip) === 2) crits.push('P');
       return crits.length ? ' <span style="color:#C62828;font-size:.85em;">★'+crits.join(',')+'</span>' : '';
     }
 
-    function periodBadges(pv){
+    function periodBadges(pv: any){
       return _weatherTraitBadge('temp',pv.temp)+'&nbsp;'+
              _weatherTraitBadge('wind',pv.wind)+'&nbsp;'+
              _weatherTraitBadge('precip',pv.precip);
@@ -2041,20 +2088,20 @@ export function _weatherDayGmHtml(rec, showBreakdown){
 
 // Detail tier by day offset from today for medium-tier forecasting.
 // Day 0 = high detail, days 1-2 = medium, days 3+ = low.
-export function _mediumDetailTier(dayOffset){
+function _mediumDetailTier(dayOffset: any){
   if (dayOffset <= 0) return 'high';
   if (dayOffset <= 2) return 'medium';
   return 'low';
 }
 
 // Upgrade-only: never downgrade a previously revealed tier.
-export var _TIER_RANK = { high:3, medium:2, low:1 };
-export function _bestTier(a, b){
+var _TIER_RANK: any = { high:3, medium:2, low:1 };
+export function _bestTier(a: any, b: any){
   return (_TIER_RANK[a]||0) >= (_TIER_RANK[b]||0) ? a : b;
 }
 
 // Source labels for player-facing weather attribution.
-export var WEATHER_SOURCE_LABELS = {
+export var WEATHER_SOURCE_LABELS: any = {
   common:   'Common Knowledge',
   low:      'Common Knowledge',
   medium:   'Skilled Forecast',
@@ -2062,7 +2109,7 @@ export var WEATHER_SOURCE_LABELS = {
   specific: 'Divination Reveal'
 };
 
-export function _grantCommonWeatherReveals(ws, today){
+export function _grantCommonWeatherReveals(ws: any, today: any){
   if (!ws) ws = getWeatherState();
   if (!isFinite(today)) today = todaySerial();
   _recordReveal(ws, today, 'low', 'common');
@@ -2072,7 +2119,7 @@ export function _grantCommonWeatherReveals(ws, today){
 
 // Record a reveal for a serial. Only upgrades, never downgrades.
 // source: 'common' | 'medium' | 'high'
-export function _recordReveal(ws, serial, tier, source, loc){
+export function _recordReveal(ws: any, serial: any, tier: any, source: any, loc?: any){
   var key = String(serial);
   var bucket = _weatherRevealBucket(ws, loc, true);
   var prev = bucket[key];
@@ -2091,7 +2138,7 @@ export function _recordReveal(ws, serial, tier, source, loc){
 }
 
 // Read a reveal entry, handling both old string format and new {tier,source} format.
-export function _readReveal(entry){
+function _readReveal(entry: any){
   if (!entry) return { tier: null, source: 'common' };
   if (typeof entry === 'string') return { tier: entry, source: 'common' };
   return {
@@ -2102,18 +2149,18 @@ export function _readReveal(entry){
   };
 }
 
-export function _weatherRevealForSerial(ws, serial, loc){
+export function _weatherRevealForSerial(ws: any, serial: any, loc?: any){
   ws = ws || getWeatherState();
   var bucket = _weatherRevealBucket(ws, loc, false);
   return _readReveal(bucket[String(serial)]);
 }
 
 // Render one player-facing day block at the given detail tier.
-export function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
+export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLabel: any){
   rec = _weatherRecordForDisplay(rec);
   if (!rec) return '';
   var d        = fromSerial(rec.serial);
-  var dateLabel;
+  var dateLabel: any;
   if (isToday && ensureSettings().calendarSystem !== 'faerunian'){
     dateLabel = esc(getCal().weekdays[getCal().current.day_of_the_week]) + ', ' + esc(_displayMonthDayParts(d.mi, d.day).label);
   } else {
@@ -2137,7 +2184,7 @@ export function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
     if (rec.periods){
       var p       = rec.periods;
       var pNames  = WEATHER_DAY_PERIODS;
-      var pLines  = [];
+      var pLines: any[]  = [];
       for (var pi=0; pi<pNames.length; pi++){
         var pname = pNames[pi];
         var pv    = p[pname] || {};
@@ -2192,7 +2239,7 @@ export function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
 
 // Build and send the player forecast to chat.
 // method: 'medium' | 'high'. days: positive integer, capped at 10.
-export function sendPlayerForecast(m, method, days){
+function sendPlayerForecast(m: any, method: any, days: any){
   var ws    = getWeatherState();
   var today = todaySerial();
 
@@ -2209,7 +2256,7 @@ export function sendPlayerForecast(m, method, days){
   var revealSource = methodNorm;
   var sourceLabel  = WEATHER_SOURCE_LABELS[revealSource] || revealSource;
 
-  var blocks  = [];
+  var blocks: any[]  = [];
   var revealed = 0;
 
   for (var i=0; i<days; i++){
@@ -2245,7 +2292,7 @@ export function sendPlayerForecast(m, method, days){
   warnGM('Sent '+revealed+'-day '+methodLabel.toLowerCase()+' to players.');
 }
 
-export function _parseWeatherRevealDayToken(tok){
+export function _parseWeatherRevealDayToken(tok: any){
   var raw = String(tok || '').trim();
   if (!raw) return null;
   var rangeMatch = raw.match(/^(.+?)\s*-\s*(.+)$/);
@@ -2263,8 +2310,8 @@ export function _parseWeatherRevealDayToken(tok){
   return { start: day|0, end: day|0 };
 }
 
-export function _parseWeatherRevealDateSpec(tokens){
-  tokens = (tokens || []).map(function(tok){ return String(tok || '').trim(); }).filter(Boolean);
+export function _parseWeatherRevealDateSpec(tokens: any){
+  tokens = (tokens || []).map(function(tok: any){ return String(tok || '').trim(); }).filter(Boolean);
   if (!tokens.length) return null;
 
   var cal = getCal();
@@ -2272,8 +2319,8 @@ export function _parseWeatherRevealDateSpec(tokens){
   var months = cal.months;
   var idx = 0;
   var mi = -1;
-  var year = null;
-  var daySpec = null;
+  var year: any = null;
+  var daySpec: any = null;
 
   var maybeMonth = monthIndexByName(tokens[idx]);
   if (maybeMonth !== -1){
@@ -2324,9 +2371,9 @@ export function _parseWeatherRevealDateSpec(tokens){
   };
 }
 
-export function _specificWeatherRevealHtml(startSerial, endSerial, sourceLabel, locationLabel){
-  var knownSerials = {};
-  var blocks = [];
+function _specificWeatherRevealHtml(startSerial: any, endSerial: any, sourceLabel: any, locationLabel: any){
+  var knownSerials: any = {};
+  var blocks: any[] = [];
   var today = todaySerial();
   for (var ser = startSerial; ser <= endSerial; ser++){
     var rec = _forecastRecord(ser);
@@ -2342,7 +2389,7 @@ export function _specificWeatherRevealHtml(startSerial, endSerial, sourceLabel, 
   return body;
 }
 
-export function sendSpecificWeatherReveal(m, tokens){
+function sendSpecificWeatherReveal(m: any, tokens: any){
   var ws = getWeatherState();
   var today = todaySerial();
   if (!ws.location){
@@ -2382,12 +2429,12 @@ export function sendSpecificWeatherReveal(m, tokens){
   warnGM('Sent revealed weather for '+(parsed.endSerial - parsed.startSerial + 1)+' day(s) at the current location.');
 }
 
-export function _playerForecastViewData(maxDays){
+function _playerForecastViewData(maxDays: any){
   var st    = ensureSettings();
   var ws    = getWeatherState();
   var today = todaySerial();
-  var blocks  = [];
-  var knownSerials = {};
+  var blocks: any[]  = [];
+  var knownSerials: any = {};
   var displayMode = _normalizeDisplayMode(st.weatherDisplayMode);
   var verbose = _subsystemIsVerbose();
   var capDays = Math.max(1, parseInt(maxDays, 10) || CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
@@ -2396,8 +2443,8 @@ export function _playerForecastViewData(maxDays){
   _grantCommonWeatherReveals(ws, today);
 
   var bucket = _weatherRevealBucket(ws, ws.location, false);
-  var maxKnown = null;
-  Object.keys(bucket).forEach(function(key){
+  var maxKnown: any = null;
+  Object.keys(bucket).forEach(function(key: any){
     var ser = parseInt(key, 10);
     if (!isFinite(ser) || ser < today) return;
     if (ser > today + capDays - 1) return;
@@ -2451,7 +2498,7 @@ export function _playerForecastViewData(maxDays){
 }
 
 // Build whispered player forecast from their stored reveal state.
-export function playerForecastWhisper(m){
+function playerForecastWhisper(m: any){
   var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
   if (!view){
     whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
@@ -2462,7 +2509,7 @@ export function playerForecastWhisper(m){
   ));
 }
 
-export function sendRevealedForecast(m){
+function sendRevealedForecast(m: any){
   var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
   if (!view){
     warnGM('No revealed weather is currently available to send.');
@@ -2474,7 +2521,7 @@ export function sendRevealedForecast(m){
   warnGM('Sent the currently revealed weather forecast to players.');
 }
 
-export function weatherTodayGmHtml(){
+function weatherTodayGmHtml(){
   var st  = ensureSettings();
   var ws  = getWeatherState();
   var ser = todaySerial();
@@ -2552,7 +2599,7 @@ export function weatherTodayGmHtml(){
   );
 }
 
-export function _weatherEmojiForRecord(rec){
+function _weatherEmojiForRecord(rec: any){
   rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return '🌥️';
   var loc = rec.location || {};
@@ -2573,7 +2620,7 @@ export function _weatherEmojiForRecord(rec){
   return '☀️';
 }
 
-export function _weatherMiniCellTitle(serial){
+function _weatherMiniCellTitle(serial: any){
   var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return null;
   var f = rec.final;
@@ -2582,7 +2629,7 @@ export function _weatherMiniCellTitle(serial){
   return _conditionsNarrative(f, cond, WEATHER_PRIMARY_PERIOD);
 }
 
-export function _renderWeatherMonthStripWantedDays(year, mi, wantedSet, startSerial, endSerial){
+function _renderWeatherMonthStripWantedDays(year: any, mi: any, wantedSet: any, startSerial: any, endSerial: any){
   var parts = openMonthTable(mi, year);
   var html  = [parts.html];
   var wdCnt = weekLength()|0;
@@ -2644,7 +2691,7 @@ export function _renderWeatherMonthStripWantedDays(year, mi, wantedSet, startSer
   return html.join('');
 }
 
-export function _weatherForecastMiniCalHtml(startSerial, days, opts){
+function _weatherForecastMiniCalHtml(startSerial: any, days: any, opts?: any){
   opts = opts || {};
   var knownSerials = opts.knownSerials || null;
   var start = startSerial|0;
@@ -2664,7 +2711,7 @@ export function _weatherForecastMiniCalHtml(startSerial, days, opts){
     var segEnd = Math.min(end, monthEnd);
     if (segEnd < segStart) continue;
 
-    var wanted = {};
+    var wanted: any = {};
     for (var ser = segStart; ser <= segEnd; ser++){
       if (knownSerials && !knownSerials[String(ser)]) continue;
       var d = fromSerial(ser);
@@ -2681,7 +2728,7 @@ export function _weatherForecastMiniCalHtml(startSerial, days, opts){
   return out.join('');
 }
 
-export function _weatherTodaySummaryHtml(serial, detailTier, includeInfluence){
+function _weatherTodaySummaryHtml(serial: any, detailTier: any, includeInfluence: any){
   var rec = _weatherRecordForDisplay(_forecastRecord(serial));
   if (!rec || !rec.final) return '';
   if (detailTier === 'low'){
@@ -2698,11 +2745,11 @@ export function _weatherTodaySummaryHtml(serial, detailTier, includeInfluence){
     (includeInfluence ? _weatherInfluenceHtml(rec) : '');
 }
 
-export function weatherForecastGmHtml(daysOverride){
+function weatherForecastGmHtml(daysOverride?: any){
   var st    = ensureSettings();
   var today = todaySerial();
   var cal   = getCal();
-  var rows  = [];
+  var rows: any[]  = [];
   var forecastDays = _weatherViewDays(daysOverride != null ? daysOverride : st.weatherForecastViewDays);
   st.weatherForecastViewDays = forecastDays;
   var weatherMiniCal = _weatherForecastMiniCalHtml(today, forecastDays);
@@ -2787,7 +2834,7 @@ export function weatherForecastGmHtml(daysOverride){
   );
 }
 
-export function weatherHistoryGmHtml(){
+function weatherHistoryGmHtml(){
   var ws  = getWeatherState();
   var cal = getCal();
 
@@ -2795,7 +2842,7 @@ export function weatherHistoryGmHtml(){
     return _menuBox('Weather History','<div style="opacity:.7;">No history yet.</div>'+'<div style="margin-top:4px;">'+button('⬅ Back','weather')+'</div>');
   }
 
-  var rows = ws.history.slice().reverse().slice(0,20).map(function(rec){
+  var rows = ws.history.slice().reverse().slice(0,20).map(function(rec: any){
     var d     = fromSerial(rec.serial);
     var label = esc(_displayMonthDayParts(d.mi, d.day).label);
     var f     = rec.final;
@@ -2823,13 +2870,13 @@ export function weatherHistoryGmHtml(){
 }
 
 // Location wizard — multi-step button flow stored as pending state
-export function _getWeatherWizard(){
+function _getWeatherWizard(){
   var ws = getWeatherState();
   if (!ws._wizard) ws._wizard = {};
   return ws._wizard;
 }
 
-export function weatherLocationWizardHtml(step, partial){
+function weatherLocationWizardHtml(step: any, partial?: any){
   partial = partial || {};
 
   // Step 1: Climate
@@ -2839,7 +2886,7 @@ export function weatherLocationWizardHtml(step, partial){
     if (wsRecent.recentLocations && wsRecent.recentLocations.length){
       recentHtml =
         '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Recent locations:</div>' +
-        wsRecent.recentLocations.map(function(loc, idx){
+        wsRecent.recentLocations.map(function(loc: any, idx: any){
           return '<div style="margin:3px 0;">'+
             button(loc.name || _weatherLocationLabel(loc), 'weather location recent ' + (idx + 1))+
             ' <span style="opacity:.7;font-size:.85em;">Quick switch</span>'+
@@ -2847,7 +2894,7 @@ export function weatherLocationWizardHtml(step, partial){
         }).join('') +
         '<div style="border-top:1px solid rgba(0,0,0,.1);margin:8px 0 6px 0;"></div>';
     }
-    var climateButtons = Object.keys(WEATHER_CLIMATES).map(function(k){
+    var climateButtons = Object.keys(WEATHER_CLIMATES).map(function(k: any){
       return '<div style="margin:3px 0;">'+
         button(titleCase(k), 'weather location climate '+k)+
         ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_CLIMATES[k])+'</span>'+
@@ -2867,7 +2914,7 @@ export function weatherLocationWizardHtml(step, partial){
 
   // Step 2: Geography
   if (step === 'geography'){
-    var geoButtons = Object.keys(WEATHER_GEOGRAPHIES).map(function(k){
+    var geoButtons = Object.keys(WEATHER_GEOGRAPHIES).map(function(k: any){
       var label = titleCase(k.replace(/_/g,' '));
       return '<div style="margin:3px 0;">'+
         button(label, 'weather location geography '+k)+
@@ -2882,7 +2929,7 @@ export function weatherLocationWizardHtml(step, partial){
 
   // Step 3: Terrain
   if (step === 'terrain'){
-    var terrainButtons = Object.keys(WEATHER_TERRAINS_UI).map(function(k){
+    var terrainButtons = Object.keys(WEATHER_TERRAINS_UI).map(function(k: any){
       var label = titleCase(k.replace(/_/g,' '));
       return '<div style="margin:3px 0;">'+
         button(label, 'weather location terrain '+k)+
@@ -2907,14 +2954,14 @@ export function weatherLocationWizardHtml(step, partial){
   return '';
 }
 
-export function _clearManifestZones(){
+function _clearManifestZones(){
   var ws = getWeatherState();
   var removed = _activeManifestZoneEntries();
   ws.manifestZones = {};
   return removed;
 }
 
-export function _setWeatherLocationFromWizard(m, partial){
+function _setWeatherLocationFromWizard(m: any, partial: any){
   var newLoc = _normalizeWeatherLocation({
     climate:   partial.climate   || 'temperate',
     geography: partial.geography || 'inland',
@@ -2934,7 +2981,7 @@ export function _setWeatherLocationFromWizard(m, partial){
 
   var today = todaySerial();
   var resurrected = 0, staled = 0;
-  ws.forecast.forEach(function(rec){
+  ws.forecast.forEach(function(rec: any){
     if (rec.locked || rec.serial < today) return;
     var recSig = rec.location ? _locSig(rec.location) : '';
     if (recSig === newLoc.sig){
@@ -2950,7 +2997,7 @@ export function _setWeatherLocationFromWizard(m, partial){
 
   if (clearedZones.length){
     msg += '<br><span style="color:#E65100;">Cleared manifest zones: ' +
-      esc(clearedZones.map(function(entry){ return entry.def.name; }).join(', ')) +
+      esc(clearedZones.map(function(entry: any){ return entry.def.name; }).join(', ')) +
       '.</span>';
   }
 
@@ -2973,7 +3020,7 @@ export function _setWeatherLocationFromWizard(m, partial){
   );
 }
 
-export function manifestZoneChooserHtml(){
+function manifestZoneChooserHtml(){
   var ws = getWeatherState();
   var loc = ws.location;
   if (!loc){
@@ -2984,12 +3031,12 @@ export function manifestZoneChooserHtml(){
   }
 
   var entries = _activeManifestZoneEntries();
-  var active = {};
+  var active: any = {};
   for (var i = 0; i < entries.length; i++) active[entries[i].key] = 1;
   var noneActive = !entries.length;
-  var rows = [];
+  var rows: any[] = [];
 
-  function nameCell(label, detail, isActive){
+  function nameCell(label: any, detail: any, isActive: any){
     var nameStyle = isActive ? 'font-weight:bold;' : 'opacity:.6;font-style:italic;';
     return '<div style="'+nameStyle+'">'+esc(label)+'</div>' +
       (detail ? '<div style="font-size:.78em;opacity:.65;margin-top:2px;">'+esc(detail)+'</div>' : '');
@@ -3035,7 +3082,7 @@ export function manifestZoneChooserHtml(){
   );
 }
 
-export function _toggleManifestZoneForGm(m, zoneKey){
+function _toggleManifestZoneForGm(m: any, zoneKey: any){
   var ws = getWeatherState();
   if (!ws.location){
     whisper(m.who, 'Set a weather location first: ' + button('Set Location', 'weather location'));
@@ -3048,7 +3095,7 @@ export function _toggleManifestZoneForGm(m, zoneKey){
       whisper(m.who, 'No manifest zones are active.');
       return;
     }
-    whisper(m.who, 'Cleared manifest zones: <b>'+esc(removed.map(function(entry){ return entry.def.name; }).join(', '))+'</b>.');
+    whisper(m.who, 'Cleared manifest zones: <b>'+esc(removed.map(function(entry: any){ return entry.def.name; }).join(', '))+'</b>.');
     return;
   }
 
@@ -3082,10 +3129,6 @@ export function _toggleManifestZoneForGm(m, zoneKey){
   );
 }
 
-// ---------------------------------------------------------------------------
-// 18l) Weather command handler
-// ---------------------------------------------------------------------------
-
 export function handleWeatherCommand(m, args){
   // args[0] = 'weather', args[1] = subcommand
   var sub = String(args[1]||'').toLowerCase();
@@ -3097,11 +3140,9 @@ export function handleWeatherCommand(m, args){
   }
 
   if (!playerIsGM(m.playerid)){
-    // Players: 'weather' shows today, 'weather forecast' shows their revealed forecast
     if (sub === 'forecast'){
       playerForecastWhisper(m);
     } else {
-      // Show today at the best tier they've been granted, or low if nothing recorded
       var ws0   = getWeatherState();
       var tSer  = todaySerial();
       weatherEnsureForecast();
@@ -3122,9 +3163,7 @@ export function handleWeatherCommand(m, args){
     return;
   }
 
-  // GM subcommands
   switch(sub){
-
     case '':
     case 'today':
       weatherEnsureForecast();
@@ -3196,8 +3235,6 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'event': {
-      // weather event trigger <key>  — GM-only advisory
-      // weather event roll <key>     — GM-only probability roll
       var evtSub = String(args[2]||'').toLowerCase();
       var evtKey = String(args[3]||'').toLowerCase();
       var evtRec = _forecastRecord(todaySerial());
@@ -3249,7 +3286,6 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'generate':
-      // Force regenerate the whole forecast window
       var n = CONFIG_WEATHER_FORECAST_DAYS;
       if (args[2]){
         var nTok = String(args[2] || '').trim();
@@ -3266,7 +3302,6 @@ export function handleWeatherCommand(m, args){
       break;
 
     case 'reroll': {
-      // Reroll a specific future day (not past/locked)
       var ws2 = getWeatherState();
       var todayNow = todaySerial();
       var targetSer = parseInt(args[2],10);
@@ -3287,7 +3322,6 @@ export function handleWeatherCommand(m, args){
         if (idx2 >= 0) ws2.forecast[idx2] = newRec;
         else ws2.forecast.push(newRec);
         ws2.forecast.sort(function(a,b){ return a.serial - b.serial; });
-        // Cascade one day forward so continuity and early-morning carryover stay coherent.
         var nextRec2 = _forecastRecord(targetSer + 1);
         if (nextRec2 && !nextRec2.locked){
           var regenNext = _generateDayWeather(targetSer + 1, newRec, ws2.location || null);
@@ -3302,35 +3336,29 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'lock': {
-      // Magical reveal: collapse uncertainty on a day (treat as generated today)
       var lockSer = parseInt(args[2],10);
       if (!isFinite(lockSer)) lockSer = todaySerial();
       var lockRec = _forecastRecord(lockSer);
       if (!lockRec){ warnGM('No weather record for that day.'); break; }
-      lockRec.generatedAt = todaySerial(); // collapse uncertainty
+      lockRec.generatedAt = todaySerial();
       warnGM('Forecast for day '+lockSer+' locked (Magical reveal — full detail).');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
     }
 
-    // --- Location wizard steps ---
-
     case 'location': {
       var locSub = String(args[2]||'').toLowerCase();
-
       if (!locSub){
         getWeatherState()._wizard = {};
         whisper(m.who, weatherLocationWizardHtml('start'));
         break;
       }
-
       if (locSub === 'climate'){
         var climate = String(args[3]||'').toLowerCase();
         if (!WEATHER_CLIMATE_BASE[climate]){
           whisper(m.who, 'Unknown climate. '+button('Back','weather location'));
           break;
         }
-        // Quiet hint: tropical climate selected but season names are still geographic.
         var _svNow = ensureSettings().seasonVariant || CONFIG_DEFAULTS.seasonVariant;
         if (climate === 'tropical' && _svNow !== 'tropical'){
           whisper(m.who,
@@ -3344,7 +3372,6 @@ export function handleWeatherCommand(m, args){
         whisper(m.who, weatherLocationWizardHtml('geography', { climate: climate }));
         break;
       }
-
       if (locSub === 'geography'){
         var geography = String(args[3]||'').toLowerCase();
         if (!WEATHER_GEO_MOD[geography]){
@@ -3356,7 +3383,6 @@ export function handleWeatherCommand(m, args){
         whisper(m.who, weatherLocationWizardHtml('terrain', wiz));
         break;
       }
-
       if (locSub === 'terrain'){
         var terrain = String(args[3]||'').toLowerCase();
         if (!WEATHER_TERRAIN_MOD[terrain]){
@@ -3368,7 +3394,6 @@ export function handleWeatherCommand(m, args){
         _setWeatherLocationFromWizard(m, wiz2);
         break;
       }
-
       if (locSub === 'recent'){
         var recentIdx = Math.max(1, parseInt(args[3], 10) || 1) - 1;
         var recentList = getWeatherState().recentLocations || [];
@@ -3379,7 +3404,6 @@ export function handleWeatherCommand(m, args){
         _setWeatherLocationFromWizard(m, recentList[recentIdx]);
         break;
       }
-
       if (locSub === 'zone'){
         var zoneArg = String(args[3] || '').toLowerCase();
         if (!zoneArg){
@@ -3389,7 +3413,6 @@ export function handleWeatherCommand(m, args){
         }
         break;
       }
-
       whisper(m.who, 'Usage: <code>!cal weather location</code> (opens wizard)');
       break;
     }
@@ -3399,6 +3422,4 @@ export function handleWeatherCommand(m, args){
       break;
   }
 }
-
-
 

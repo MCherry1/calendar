@@ -9,31 +9,12 @@ import { invokeEventSub } from './today.js';
 import { WEATHER_SOURCE_LABELS, _forecastRecord, _playerDayHtml, _weatherRevealForSerial, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _normalizePlaneRevealTier, _planarYearDays, _planesTodaySummaryHtml, getPlanarState, getPlanesState } from './planes.js';
+export { send, sendToAll, sendToGM, whisper, warnGM, cleanWho } from './messaging.js';
 
 
 /* ============================================================================
  * 17) COMMANDS & ROUTING
  * ==========================================================================*/
-
-export function send(opts, html){
-  opts = opts || {};
-  var to = cleanWho(opts.to);
-  var prefix;
-  if (opts.broadcast)   prefix = '/direct ';
-  else if (opts.gmOnly) prefix = '/w gm ';
-  else if (to)          prefix = '/w "' + to + '" ';
-  else                  prefix = '/direct ';
-  sendChat(script_name, prefix + html);
-}
-
-export function sendToAll(html){ send({ broadcast:true }, html); }
-export function sendToGM(html){  send({ gmOnly:true }, html); }
-export function whisper(to, html){ send({ to:to }, html); }
-export function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
-
-export function cleanWho(who){
-  return String(who||'').replace(/\s+\(GM\)$/,'').replace(/["\\]/g,'').trim();
-}
 
 export function _normalizePackedWords(q){
   return String(q||'')

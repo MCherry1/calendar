@@ -464,7 +464,7 @@ export function parseUnifiedRange(tokens){
 
 export function occurrencesInRange(startSerial, endSerial){
   var cal = getCal();
-  var yStart = fromSerial(startSerial).y, yEnd = fromSerial(endSerial).y;
+  var yStart = fromSerial(startSerial).year, yEnd = fromSerial(endSerial).year;
 
   var capYears = (typeof RANGE_CAP_YEARS==='number' && RANGE_CAP_YEARS>0) ? RANGE_CAP_YEARS : null;
   var capNotice = false;

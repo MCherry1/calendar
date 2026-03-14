@@ -156,7 +156,7 @@ export var COLOR_THEMES = {
 export var THEME_ORDER = ['seasons','lunar','druidic','halfling','dwarven','birthstones'];
 /* --- Named colors for events ----------------------------------------------*/
 // Use by name in event commands: !cal add March 14 Feast emerald
-export var NAMED_COLORS = {
+export var NAMED_COLORS: Record<string, string> = {
   red:    '#E53935', apple:  '#D32F2F', garnet: '#9B111E', pink:      '#EC407A',
   orange: '#F4511E', brown:  '#6D4C41', copper: '#B87333',
   yellow: '#FDD835', lemon:  '#FBC02D', gold:   '#D4AF37', topaz:     '#FFC54D',

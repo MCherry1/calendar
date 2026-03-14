@@ -285,7 +285,7 @@ export function _autoToggleCalendarSource(sourceKey, enable){
 // Apply a complete calendar system (and variant) in one call.
 // This is the single public entry point for switching calendars.
 // Season and color-theme can be overridden afterward by the user.
-export function applyCalendarSystem(sysKey, varKey){
+export function applyCalendarSystem(sysKey, varKey?){
   var sys = CALENDAR_SYSTEMS[String(sysKey||'').toLowerCase()];
   if (!sys) return false;
 

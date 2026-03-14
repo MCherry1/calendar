@@ -29,7 +29,7 @@ var Calendar = (() => {
   var index_exports = {};
   __export(index_exports, {
     _test: () => _test,
-    checkInstall: () => checkInstall2,
+    checkInstall: () => checkInstall3,
     colors: () => colors,
     events: () => events,
     register: () => register2,
@@ -983,6 +983,33 @@ var Calendar = (() => {
       if (pmi === len - 1) py--;
     }
     return { mi: (mi + len - 1) % len, y: py };
+  }
+
+  // src/messaging.ts
+  function cleanWho(who) {
+    return String(who || "").replace(/\s+\(GM\)$/, "").replace(/["\\]/g, "").trim();
+  }
+  function send(opts, html) {
+    opts = opts || {};
+    var to = cleanWho(opts.to);
+    var prefix;
+    if (opts.broadcast) prefix = "/direct ";
+    else if (opts.gmOnly) prefix = "/w gm ";
+    else if (to) prefix = '/w "' + to + '" ';
+    else prefix = "/direct ";
+    sendChat(script_name, prefix + html);
+  }
+  function sendToAll(html) {
+    send({ broadcast: true }, html);
+  }
+  function sendToGM(html) {
+    send({ gmOnly: true }, html);
+  }
+  function whisper(to, html) {
+    send({ to }, html);
+  }
+  function warnGM(msg) {
+    sendChat(script_name, "/w gm " + msg);
   }
 
   // src/planes.ts
@@ -5014,6 +5041,13 @@ var Calendar = (() => {
   }
 
   // src/weather.ts
+  function _seededRand(seed) {
+    var s = (seed * 2654435769 >>> 0) / 4294967296;
+    return function() {
+      s = (s * 1103515245 + 12345) % 2147483648 / 2147483648;
+      return s;
+    };
+  }
   function _clampWeatherTempBand(band) {
     band = parseInt(band, 10);
     if (!isFinite(band)) band = 0;
@@ -5046,6 +5080,10 @@ var Calendar = (() => {
       if (heatRule && heatRule.description) parts.push(heatRule.description);
     }
     return parts.length ? parts.join(" ") : null;
+  }
+  function _isZarantyrFull(serial) {
+    var ph = moonPhaseAt("Zarantyr", serial);
+    return !!(ph && ph.illum >= 0.97);
   }
   var WEATHER_UNCERTAINTY = {
     certain: { maxDist: 1, label: "Certain" },
@@ -6608,10 +6646,6 @@ var Calendar = (() => {
     }
     return _rollDie(100) <= Math.round(p * 100);
   }
-  function _isZarantyrFull(serial) {
-    var ph = moonPhaseAt("Zarantyr", serial);
-    return !!(ph && ph.illum >= 0.97);
-  }
   function _extremeEventPanelHtml(rec) {
     var events2 = _evaluateExtremeEvents(rec);
     if (!events2.length) return "";
@@ -6893,8 +6927,6 @@ var Calendar = (() => {
     );
     lines.push('<div style="font-size:.8em;opacity:.7;">T:' + f.temp + " W:" + f.wind + " P:" + f.precip + "&nbsp;&nbsp;[" + esc(tCfg.label) + "]</div>");
     lines.push(_weatherInfluenceHtml(rec));
-    var _infHtml = _weatherInfluenceHtml(rec.serial, rec.location);
-    if (_infHtml) lines.push(_infHtml);
     if (showBreakdown && (tier === "certain" || showBreakdown === "force")) {
       let critNote = function(delta2) {
         var crits = [];
@@ -7897,7 +7929,6 @@ var Calendar = (() => {
         whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
         break;
       }
-      // --- Location wizard steps ---
       case "location": {
         var locSub = String(args[2] || "").toLowerCase();
         if (!locSub) {
@@ -8702,31 +8733,6 @@ var Calendar = (() => {
   };
 
   // src/commands.ts
-  function send5(opts, html) {
-    opts = opts || {};
-    var to = cleanWho(opts.to);
-    var prefix;
-    if (opts.broadcast) prefix = "/direct ";
-    else if (opts.gmOnly) prefix = "/w gm ";
-    else if (to) prefix = '/w "' + to + '" ';
-    else prefix = "/direct ";
-    sendChat(script_name, prefix + html);
-  }
-  function sendToAll(html) {
-    send5({ broadcast: true }, html);
-  }
-  function sendToGM(html) {
-    send5({ gmOnly: true }, html);
-  }
-  function whisper(to, html) {
-    send5({ to }, html);
-  }
-  function warnGM(msg) {
-    sendChat(script_name, "/w gm " + msg);
-  }
-  function cleanWho(who) {
-    return String(who || "").replace(/\s+\(GM\)$/, "").replace(/["\\]/g, "").trim();
-  }
   function _normalizePackedWords(q) {
     return String(q || "").replace(/\b(nextmonth)\b/gi, "next month").replace(/\b(nextyear)\b/gi, "next year").replace(/\b(currentmonth|thismonth)\b/gi, "month").replace(/\b(thisyear)\b/gi, "year").replace(/\b(lastmonth)\b/gi, "last month").replace(/\b(lastyear)\b/gi, "last year").replace(/\b(previousmonth|prevmonth)\b/gi, "previous month").replace(/\b(previousyear|prevyear)\b/gi, "previous year").replace(/\b(next[-_]month)\b/gi, "next month").replace(/\b(next[-_]year)\b/gi, "next year").trim();
   }
@@ -9162,7 +9168,7 @@ var Calendar = (() => {
   function _parseSharpColorToken(tok) {
     if (!tok || tok[0] !== "#") return null;
     var raw = tok.slice(1).trim();
-    var hex = sanitizeHexColor("#" + raw);
+    var hex = sanitizeHexColor2("#" + raw);
     if (hex) return hex;
     var named = NAMED_COLORS[String(raw).toLowerCase()] || null;
     return named;
@@ -9434,7 +9440,7 @@ var Calendar = (() => {
         var k = defaultKeyFor(m, norm, de.name);
         if (k === key) {
           out.name = String(de.name || out.name);
-          out.color = resolveColor(de.color) || null;
+          out.color = resolveColor2(de.color) || null;
           out.source = de.source != null ? String(de.source) : null;
         }
       });
@@ -9535,7 +9541,7 @@ var Calendar = (() => {
     }
     return out;
   }
-  function _planarWeatherInfluenceText(e) {
+  function _planarWeatherInfluenceText2(e) {
     if (!e) return null;
     if (e.plane === "Fernia" && e.phase === "coterminous") return "\u{1F525} Fernia coterminous (+3 temp)";
     if (e.plane === "Fernia" && e.phase === "remote") return "\u{1F525} Fernia remote (-2 temp)";
@@ -9559,7 +9565,7 @@ var Calendar = (() => {
     try {
       var eff = getActivePlanarEffects(rec.serial);
       for (var i = 0; i < eff.length; i++) {
-        var pText = _planarWeatherInfluenceText(eff[i]);
+        var pText = _planarWeatherInfluenceText2(eff[i]);
         if (pText) out.push(pText);
       }
     } catch (e2) {
@@ -9914,7 +9920,7 @@ var Calendar = (() => {
     return String(s).replace(/&(?!#?\w+;)/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   function swatchHtml(colLike) {
-    var col = resolveColor(colLike) || "#888888";
+    var col = resolveColor2(colLike) || "#888888";
     return '<span style="display:inline-block;width:10px;height:10px;vertical-align:baseline;margin-right:4px;border:1px solid #000;background:' + esc(col) + ';" title="' + esc(col) + '"></span>';
   }
   function _buttonHasEmojiStart(s) {
@@ -10351,7 +10357,7 @@ var Calendar = (() => {
       if (!bySerial[key]) bySerial[key] = [];
       bySerial[key].push({
         name: String(se.name || fallbackTitle || "Highlight"),
-        color: resolveColor(se.color) || "#607D8B",
+        color: resolveColor2(se.color) || "#607D8B",
         source: null
       });
     }
@@ -11033,7 +11039,7 @@ var Calendar = (() => {
             month: m,
             day: normDay,
             year: null,
-            color: resolveColor(de.color) || null,
+            color: resolveColor2(de.color) || null,
             source: de.source != null ? String(de.source) : null
           });
           have[key] = 1;
@@ -11046,7 +11052,7 @@ var Calendar = (() => {
     return PALETTE[_stableHash(e && e.name) % PALETTE.length];
   }
   function getEventColor(e) {
-    return resolveColor(e && e.color) || autoColorForEvent(e) || "#FF00DD";
+    return resolveColor2(e && e.color) || autoColorForEvent(e) || "#FF00DD";
   }
   function _addConcreteEvent(monthHuman, daySpec, yearOrNull, name, color) {
     var cal = getCal();
@@ -11055,7 +11061,7 @@ var Calendar = (() => {
     var ows = Parse.ordinalWeekday.fromSpec(daySpec);
     var normDay = ows ? String(daySpec).toLowerCase().trim() : DaySpec.normalize(daySpec, maxD);
     if (!normDay) return false;
-    var col = resolveColor(color) || null;
+    var col = resolveColor2(color) || null;
     var e = { name: String(name || ""), month: m, day: normDay, year: yearOrNull == null ? null : yearOrNull | 0, color: col };
     var key = eventKey(e);
     var exists = cal.events.some(function(ev) {
@@ -11261,7 +11267,7 @@ var Calendar = (() => {
   }
   function occurrencesInRange(startSerial, endSerial) {
     var cal = getCal();
-    var yStart = fromSerial(startSerial).y, yEnd = fromSerial(endSerial).y;
+    var yStart = fromSerial(startSerial).year, yEnd = fromSerial(endSerial).year;
     var capYears = typeof RANGE_CAP_YEARS === "number" && RANGE_CAP_YEARS > 0 ? RANGE_CAP_YEARS : null;
     var capNotice = false;
     if (capYears && yEnd - yStart > capYears) {
@@ -11556,16 +11562,16 @@ var Calendar = (() => {
     _contrastCache = /* @__PURE__ */ Object.create(null);
     _headerStyleCache = /* @__PURE__ */ Object.create(null);
   }
-  function sanitizeHexColor(s) {
+  function sanitizeHexColor2(s) {
     if (!s) return null;
     var hex = String(s).trim().replace(/^#/, "");
     if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g, "$1$1");
     if (/^[0-9a-f]{6}$/i.test(hex)) return "#" + hex.toUpperCase();
     return null;
   }
-  function resolveColor(s) {
+  function resolveColor2(s) {
     if (!s) return null;
-    var hex = sanitizeHexColor(s);
+    var hex = sanitizeHexColor2(s);
     if (hex) return hex;
     var key = String(s).trim().toLowerCase();
     return NAMED_COLORS[key] || null;
@@ -11576,7 +11582,7 @@ var Calendar = (() => {
     var last = String(tokens[tokens.length - 1] || "").trim();
     var col = null;
     if (allowBareName) {
-      col = resolveColor(last) || _parseSharpColorToken(last);
+      col = resolveColor2(last) || _parseSharpColorToken(last);
     } else {
       if (last[0] === "#") col = _parseSharpColorToken(last);
     }
@@ -11826,7 +11832,7 @@ var Calendar = (() => {
     var palIdx = m && typeof m.regularIndex === "number" ? m.regularIndex : themeIdx;
     var themeCol = pal && pal[palIdx] ? pal[palIdx] : null;
     var monthCol = cal.months[mi] && cal.months[mi].color || null;
-    return resolveColor(themeCol || monthCol) || "#EEE";
+    return resolveColor2(themeCol || monthCol) || "#EEE";
   }
   function _seasonNames(setName) {
     var entry = SEASON_SETS[String(setName || "").toLowerCase()];
@@ -11988,7 +11994,7 @@ var Calendar = (() => {
     var variant = sys && sys.variants && sys.variants[st.calendarVariant];
     return variant && variant.colorTheme || "lunar";
   }
-  function checkInstall() {
+  function checkInstall2() {
     if (!state[state_name]) state[state_name] = {};
     ensureSettings();
     if (!state[state_name].calendar || !Array.isArray(state[state_name].calendar.weekdays) || !Array.isArray(state[state_name].calendar.months)) {
@@ -12021,7 +12027,7 @@ var Calendar = (() => {
             month: m3,
             day: e.day,
             year: null,
-            color: resolveColor(e.color) || null,
+            color: resolveColor2(e.color) || null,
             source: e.source != null ? String(e.source) : null
           });
         });
@@ -12037,14 +12043,14 @@ var Calendar = (() => {
           month: m2,
           day: e.day,
           year: yr,
-          color: resolveColor(e.color) || null,
+          color: resolveColor2(e.color) || null,
           source: e.source != null ? String(e.source) : null
         };
       });
       var defColorByKey = {};
       var lim2 = Math.max(1, cal.months.length);
       defaults2.events.forEach(function(de) {
-        var col = resolveColor(de.color) || null;
+        var col = resolveColor2(de.color) || null;
         if (String(de.month).toLowerCase() === "all") {
           for (var i2 = 1; i2 <= lim2; i2++) defColorByKey[i2 + "|" + String(de.day)] = col;
         } else {
@@ -12101,8 +12107,8 @@ var Calendar = (() => {
       }
     })();
   }
-  function refreshCalendarState(silent) {
-    checkInstall();
+  function refreshCalendarState2(silent) {
+    checkInstall2();
     var cal = getCal();
     cal.events = (cal.events || []).map(function(e) {
       var m = clamp(e.month, 1, cal.months.length);
@@ -12114,7 +12120,7 @@ var Calendar = (() => {
         month: m,
         day: daySpec,
         year: yr,
-        color: resolveColor(e.color) || null,
+        color: resolveColor2(e.color) || null,
         source: e.source != null ? String(e.source) : null
       };
     });
@@ -12130,13 +12136,13 @@ var Calendar = (() => {
     if (!silent) sendChat(script_name, "/w gm Calendar state refreshed (" + cal.events.length + " events).");
   }
   function refreshAndSend() {
-    refreshCalendarState(true);
+    refreshCalendarState2(true);
     sendCurrentDate(null, true);
   }
   function resetToDefaults() {
     delete state[state_name];
     state[state_name] = { calendar: deepClone(defaults2) };
-    checkInstall();
+    checkInstall2();
     sendChat(script_name, "/w gm Calendar state wiped and reset to defaults.");
     sendCurrentDate(null, true);
   }
@@ -12144,7 +12150,7 @@ var Calendar = (() => {
   // src/boot-register.ts
   function handleInput(msg) {
     if (msg.type !== "api" || !/^!cal\b/i.test(msg.content)) return;
-    checkInstall();
+    checkInstall2();
     var args = msg.content.trim().split(/\s+/);
     args = args.slice(0, 2).concat(_normalizePackedWords(args.slice(2).join(" ")).split(/\s+/).filter(Boolean));
     var sub = String(args[1] || "").toLowerCase();
@@ -12165,8 +12171,8 @@ var Calendar = (() => {
 
   // src/init.ts
   on("ready", function() {
-    checkInstall();
-    refreshCalendarState(true);
+    checkInstall2();
+    refreshCalendarState2(true);
     register();
     var currentDate = currentDateLabel();
     var stReady = ensureSettings();
@@ -12179,7 +12185,7 @@ var Calendar = (() => {
     );
   });
   var _public = {
-    checkInstall,
+    checkInstall: checkInstall2,
     register,
     render: renderAPI,
     events: eventsAPI,
@@ -12202,8 +12208,8 @@ var Calendar = (() => {
       getCal,
       ensureSettings,
       deepClone,
-      checkInstall,
-      refreshCalendarState,
+      checkInstall: checkInstall2,
+      refreshCalendarState: refreshCalendarState2,
       // calendar systems
       CALENDAR_SYSTEMS,
       applyCalendarSystem,
@@ -12227,8 +12233,8 @@ var Calendar = (() => {
       clamp,
       esc,
       titleCase,
-      sanitizeHexColor,
-      resolveColor,
+      sanitizeHexColor: sanitizeHexColor2,
+      resolveColor: resolveColor2,
       textColor,
       _relLum,
       _contrast,
@@ -12293,7 +12299,7 @@ var Calendar = (() => {
   }
 
   // src/index.ts
-  var checkInstall2 = _public.checkInstall;
+  var checkInstall3 = _public.checkInstall;
   var register2 = _public.register;
   var render = _public.render;
   var events = _public.events;

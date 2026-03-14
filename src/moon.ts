@@ -798,7 +798,7 @@ export function _smoothToTarget(seq, targetIdx, targetSerial, smoothingCycles){
 // 20g) Ensure sequences are generated / up to date
 // ---------------------------------------------------------------------------
 
-export function moonEnsureSequences(focusSerial, horizonExtraDays){
+export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return;
 
@@ -1025,7 +1025,7 @@ export function _isLongShadowsOverride(moonName, serial){
 }
 
 // Public moonPhaseAt — applies Long Shadows override when active
-export function moonPhaseAt(moonName, serial){
+export function moonPhaseAt(moonName, serial): any {
   // Long Shadows safety net: smoothing moves the new moon to Vult 27 in the
   // sequence, so interpolation should naturally give ~0.0 illumination.
   // This override ensures exactly 0.0 and sets the longShadows flag for display.
@@ -1299,7 +1299,7 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
   return result;
 }
 
-export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays){
+export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays?){
   var st = ensureSettings();
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
   var out = [];
@@ -1469,7 +1469,7 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
 // ---------------------------------------------------------------------------
 
 // GM panel -- always shows magical-detail data
-export function moonPanelHtml(serialOverride){
+export function moonPanelHtml(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
     return _menuBox('\uD83C\uDF19 Moons',
@@ -1568,7 +1568,7 @@ export function moonPanelHtml(serialOverride){
 }
 
 // Player panel -- calendar grid is the primary view, minimal list
-export function moonPlayerPanelHtml(serialOverride){
+export function moonPlayerPanelHtml(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
     return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
@@ -2002,7 +2002,7 @@ export function _moonOrbitalParams(moonName, serial){
   }
   var r = function(){ h = (h * 16807 + 0) % 2147483647; return (h & 0x7fffffff) / 2147483647; };
   r(); r(); // warm up
-  var out = {
+  var out: any = {
     inclination: 2 + r() * 6,
     ascendingNode: r() * 360,
     apparentSize: canon ? canon.angularSizeVsSun : (0.3 + r() * 0.7),

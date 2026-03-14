@@ -11,7 +11,7 @@ import { _parseSharpColorToken } from './ui.js';
 export var _contrastCache = Object.create(null);
 export var _headerStyleCache = Object.create(null);
 
-export function _cullCacheIfLarge(obj, max){
+export function _cullCacheIfLarge(obj, max?){
   var limit = max || 256;
   if (Object.keys(obj).length > limit){
     for (var k in obj){ if (Object.prototype.hasOwnProperty.call(obj,k)) delete obj[k]; }

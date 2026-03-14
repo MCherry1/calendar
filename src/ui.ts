@@ -193,7 +193,7 @@ export function _playerButtonsHtml(){
   return nav.join(' ') + '<br>' + out.join(' ');
 }
 
-export function sendCurrentDate(to, gmOnly, opts){
+export function sendCurrentDate(to, gmOnly, opts?){
   opts = opts || {};
   var st = ensureSettings();
   var density = _uiDensityValue(opts.density);
@@ -713,7 +713,7 @@ export function _orderedKeys(obj, preferred){
   return out;
 }
 
-export function themeListHtml(readOnly){
+export function themeListHtml(readOnly?){
   var cur = ensureSettings().colorTheme;
   var names = _orderedKeys(COLOR_THEMES, THEME_ORDER);
   if(!names.length) return '<div style="opacity:.7;">No themes available.</div>';
@@ -1196,7 +1196,7 @@ export function helpSeasonsMenu(m){
   );
 }
 
-export function seasonSetListHtml(readOnly){
+export function seasonSetListHtml(readOnly?){
   var st  = ensureSettings();
   var cur = st.seasonVariant || (CALENDAR_SYSTEMS[st.calendarSystem] || {}).defaultSeason || CONFIG_DEFAULTS.seasonVariant;
   var names = _orderedKeys(SEASON_SETS, ['eberron','faerun','gregorian','tropical']);
@@ -1214,7 +1214,7 @@ export function seasonSetListHtml(readOnly){
   return '<div style="margin:4px 0;"><b>Season Sets</b></div>'+rows.join('');
 }
 
-export function calendarSystemListHtml(readOnly){
+export function calendarSystemListHtml(readOnly?){
   var st   = ensureSettings();
   var keys = _orderedKeys(CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER);
   if (!keys.length) return '<div style="opacity:.7;">No calendar systems defined.</div>';
