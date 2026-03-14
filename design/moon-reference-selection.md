@@ -292,6 +292,12 @@ None. All 12 reference moons confirmed. See Proposed Final Mapping above.
 
 ---
 
+## Historical Note
+
+Earlier runtime notes tracked an interim Lharvion ambiguity against Nereid and Phoebe during analog selection. The final reference mapping is **Hyperion**, and that historical note now lives here instead of in `calendar.js`.
+
+---
+
 ## Period Scaling Reference
 
 Informational — Eberron periods are designed values.

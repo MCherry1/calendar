@@ -90,47 +90,44 @@ None currently. Add new items here only when the desired implementation behavior
 - Completed by **GPT-5 Codex** on **2026-03-13**
 - Added per-moon name notes, Earth-Moon apparent-size comparisons, shorter inspiration blurbs, and a corrected Eyre/Mimas crater-forge note.
 
+### Weather forecast command safeguards
+
+- Completed by **GPT-5 Codex** on **2026-03-13**
+- Blocked archived past-day rerolls, kept reroll cascades on the current location, rejected exact-date weather reveals that include past days, and bounded manual weather generation to the configured forecast horizon.
+
+### Remove the dead legacy eclipse review path
+
+- Completed by **GPT-5 Codex** on **2026-03-13**
+- Retired the old legacy eclipse review path from active runtime use so the broken `_estimateEclipseTiming` dependency is no longer reachable.
+
+### Sync in-script help text with implemented commands
+
+- Completed by **GPT-5 Codex** on **2026-03-13**
+- Updated inline settings / moon / planes help text to include the supported `wxmechanics` and `offcycle` options plus the actual day/week/month range tokens accepted by the parsers.
+
+### Move moon candidate-selection notes out of runtime
+
+- Completed by **GPT-5 Codex** on **2026-03-13**
+- Repointed moon-reference notes at `design/moon-reference-selection.md`, archived the old runtime ambiguity block, and added the historical note to the active design doc.
+
+### Clear outdated Dolurrh TODO text
+
+- Completed by **GPT-5 Codex** on **2026-03-13**
+- Replaced the stale Dolurrh TODO with text that describes the implemented Aryth-linked `moontied` generator.
+
 ---
 
 ## Agent Ready
 
 These are well-defined implementation tasks. The design is decided, the target behavior is clear, and the work is primarily mechanical code changes.
 
-### Prevent `weather reroll` from rewriting archived past days
-
-`weather reroll <serial>` only checks the active forecast array. Past days already archived to history can be regenerated back into `forecast`, which breaks the "past weather is locked" rule and can create duplicate history entries on the next rollover.
-
-### Keep `weather reroll` from restoring stale-location data
-
-When rerolling day `N`, the day `N+1` cascade reuses `nextRec2.location` if an existing record is present. After a location change, that can regenerate tomorrow using the old location and clear the stale marker on incorrect data.
-
-### Reject mixed past/future `weather reveal <dateSpec>` ranges
-
-`sendSpecificWeatherReveal` currently blocks only ranges whose end date is in the past. Requests like `12-16` after the 14th are accepted, but the past portion renders as blank cells and the GM confirmation overstates how many days were actually revealed.
-
-### Remove the dead legacy eclipse review path
-
-`_getEclipsesLegacy` and `_eclipseNotableTodayLegacy` are no longer used. The retained formatter still calls `_estimateEclipseTiming`, which no longer exists, so reconnecting that path would throw immediately.
-
-### Bound manual weather regeneration
-
-`weather generate [n]` accepts any positive integer and `_generateForecast` keeps those future records. A typo can create a very large persistent forecast window in Roll20 state.
+None currently.
 
 ---
 
 ## Documentation Tasks
 
-### Sync in-script help text with implemented commands
-
-`!cal settings` usage omits the supported `offcycle` toggle, and the moon / planes panel CLI hints no longer match the day/week/month tokens accepted by the parsers. Bring inline usage strings back into alignment with the actual command handlers.
-
-### Remove stale moon design references from runtime comments
-
-`EBERRON_MOON_AMBIGUITIES` is currently unused runtime data, and the nearby comment points to `moons-system-design.md`, which no longer exists. Either surface that note intentionally or move it to the active design material under `design/moon-reference-selection.md`.
-
-### Clear outdated Dolurrh TODO text
-
-The Dolurrh plane note still says Aryth-tied generated events are TODO even though the `moontied` generator is already implemented. Update or remove the note so code comments do not contradict behavior.
+None currently.
 
 ---
 
