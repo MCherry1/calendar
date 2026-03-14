@@ -153,6 +153,7 @@ var CONFIG_NEARBY_DAYS = 5;
 /* --- Weather tuning -------------------------------------------------------*/
 // How many days ahead the GM forecast pre-generates.
 var CONFIG_WEATHER_FORECAST_DAYS = 20;
+var CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS = 90;
 
 // How many days of locked weather history to keep.
 var CONFIG_WEATHER_HISTORY_DAYS = 60;
@@ -1471,11 +1472,27 @@ function toSerial(y, mi, d){
 
 function weekdayIndex(y, mi, d){
   var cal=getCal(), cur=cal.current, wdlen=cal.weekdays.length;
+  var st = ensureSettings();
+  var mobj = cal.months[mi] || {};
+  if (st.calendarSystem === 'faerunian' && !mobj.isIntercalary){
+    return (((parseInt(d, 10) || 1) - 1) % wdlen + wdlen) % wdlen;
+  }
+  if (st.calendarSystem === 'faerunian' && mobj.isIntercalary){
+    return 0;
+  }
   var delta = toSerial(y, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month);
   return (cur.day_of_the_week + ((delta % wdlen) + wdlen)) % wdlen;
 }
 
 function weekStartSerial(y, mi, d){
+  var st = ensureSettings();
+  var mobj = (getCal().months || [])[mi] || {};
+  if (st.calendarSystem === 'faerunian' && !mobj.isIntercalary){
+    return toSerial(y, mi, d) - ((((parseInt(d, 10) || 1) - 1) % weekLength()) + weekLength()) % weekLength();
+  }
+  if (st.calendarSystem === 'faerunian' && mobj.isIntercalary){
+    return toSerial(y, mi, 1);
+  }
   var wd = weekdayIndex(y, mi, d);
   return toSerial(y, mi, d) - wd;
 }
@@ -2185,9 +2202,65 @@ function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(numWrap+dots)+'</td>';
 }
 
+function _renderHarptosFestivalStrip(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, edgeMode){
+  var ser = toSerial(y, mi, 1);
+  var tSer = todaySerial();
+  var baseEvents = (includeCalendarEvents === false) ? [] : getEventsFor(mi, 1, y);
+  var extraEvents = [];
+  if (typeof extraEventsFn === 'function'){
+    var add = extraEventsFn(ser);
+    if (Array.isArray(add)) extraEvents = add;
+  }
+  var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
+  var title = events.length ? events.map(eventDisplayName).filter(Boolean).join('\n') : String(mobj.name || '');
+  var ctx = {
+    y:y, mi:mi, d:1, serial:ser,
+    isToday: ser === tSer,
+    isPast: !!dimActive && ser < tSer,
+    isFuture: !!dimActive && ser > tSer,
+    events: events,
+    title: title
+  };
+  var wdCnt = weekLength()|0;
+  var mColor = colorForMonth(mi);
+  var hdrStyle = colorsAPI.styleMonthHeader(mColor);
+  var festivalStyle = styleForDayCell(STYLES.calTd, ctx.events, ctx.isToday, mColor, ctx.isPast, ctx.isFuture);
+  festivalStyle += 'font-style:italic;';
+  var fillerStyle = STYLES.calTd + 'opacity:.28;background-color:'+mColor+';';
+  var sep = 'border-left:3px double rgba(0,0,0,.25);';
+  if (edgeMode === 'prev') sep = 'border-right:3px double rgba(0,0,0,.25);';
+  fillerStyle += sep;
+  var titleAttr = title ? ' title="'+esc(title)+'" aria-label="'+esc(title)+'"' : '';
+  var dots = _eventDotsHtml(ctx.events);
+  var festivalCell = '<td'+titleAttr+' style="'+festivalStyle+'">'+
+    _calendarCellInnerHtml('<div style="font-size:.9em;line-height:1.2;">'+esc(mobj.name)+'</div>'+dots)+
+    '</td>';
+  var fillerCell = '<td colspan="'+Math.max(1, wdCnt - 1)+'" style="'+fillerStyle+'">'+
+    _calendarCellInnerHtml('&nbsp;')+
+    '</td>';
+  var rowHtml = (edgeMode === 'prev')
+    ? ('<tr>'+fillerCell+festivalCell+'</tr>')
+    : ('<tr>'+festivalCell+fillerCell+'</tr>');
+  return [
+    '<table style="'+STYLES.table+'">',
+    '<tr><th colspan="'+wdCnt+'" style="'+STYLES.head+'">',
+    '<div style="'+STYLES.monthHeaderBase+hdrStyle+'">',
+      esc(mobj.name),
+      '<span style="float:right;">'+esc(String(y))+' '+LABELS.era+'</span>',
+      (mobj.leapEvery ? ' <span style="font-size:.75em;opacity:.75;">(every '+mobj.leapEvery+' yrs)</span>' : ''),
+    '</div>',
+    '</th></tr>',
+    rowHtml,
+    '</table>'
+  ].join('');
+}
+
 // Render a single full-width banner row for an intercalary (festival) day.
 // Used instead of a grid for 1-day months like Midwinter or Shieldmeet.
 function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents){
+  if (ensureSettings().calendarSystem === 'faerunian'){
+    return _renderHarptosFestivalStrip(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, 'full');
+  }
   var ser    = toSerial(y, mi, 1);
   var tSer   = todaySerial();
   var baseEvents = (includeCalendarEvents === false) ? [] : getEventsFor(mi, 1, y);
@@ -2350,6 +2423,19 @@ function renderMiniCal(mi, yearLabel, dimActive){
 }
 
 
+function _ordinal(n){
+  n = n|0;
+  var v = n % 100;
+  if (v >= 11 && v <= 13) return n + 'th';
+  switch (n % 10){
+    case 1: return n + 'st';
+    case 2: return n + 'nd';
+    case 3: return n + 'rd';
+    default: return n + 'th';
+  }
+}
+
+
 function yearHTMLFor(targetYear, dimActive){
   var months = getCal().months;
   var html = ['<div style="text-align:left;">'];
@@ -2368,25 +2454,13 @@ function formatDateLabel(y, mi, d, includeYear){
   var st  = ensureSettings();
   var mobj = cal.months[mi] || {};
 
-  function ordinal(n){
-    n = n|0;
-    var v = n % 100;
-    if (v >= 11 && v <= 13) return n + 'th';
-    switch (n % 10){
-      case 1: return n + 'st';
-      case 2: return n + 'nd';
-      case 3: return n + 'rd';
-      default: return n + 'th';
-    }
-  }
-
   var lbl;
   if (st.calendarSystem === 'faerunian'){
     // Harptos is commonly written as "16th of Eleasis, 1491 DR".
     // Intercalary days are written by festival name only.
     lbl = mobj.isIntercalary
       ? esc(mobj.name)
-      : (ordinal(d) + ' of ' + esc(mobj.name));
+      : (_ordinal(d) + ' of ' + esc(mobj.name));
   } else if (st.calendarSystem === 'gregorian' && mobj.isIntercalary && String(mobj.name||'') === 'Leap Day'){
     lbl = 'February 29';
   } else {
@@ -2658,13 +2732,13 @@ function parseUnifiedRange(tokens){
     var nextY = nextForMonthDay(cur, md.mi, md.day).year;
     var d2 = clamp(md.day, 1, months[md.mi].days);
     var s2 = toSerial(nextY, md.mi, d2);
-    return { title:'Next '+months[md.mi].name+' '+d2, start:s2, end:s2, months:[{y:nextY,mi:md.mi}] };
+    return { title:'Next ' + _displayMonthDayParts(md.mi, d2).label, start:s2, end:s2, months:[{y:nextY,mi:md.mi}] };
   }
   if (md.day!=null && md.mi===-1){
     var nextMY = nextForDayOnly(cur, md.day, months.length);
     var d3 = clamp(md.day, 1, months[nextMY.month].days);
     var s3 = toSerial(nextMY.year, nextMY.month, d3);
-    return { title:'Next '+months[nextMY.month].name+' '+d3, start:s3, end:s3, months:[{y:nextMY.year,mi:nextMY.month}] };
+    return { title:'Next ' + _displayMonthDayParts(nextMY.month, d3).label, start:s3, end:s3, months:[{y:nextMY.year,mi:nextMY.month}] };
   }
   if (md.mi!==-1 && md.year!=null && md.day==null){
     var mdays = months[md.mi].days|0;
@@ -2754,7 +2828,11 @@ function _setCount(setObj){ return Object.keys(setObj).length; }
 function _setMin(setObj){ var keys = Object.keys(setObj).map(function(k){return +k;}); return keys.length ? Math.min.apply(null, keys) : null; }
 function _setMax(setObj){ var keys = Object.keys(setObj).map(function(k){return +k;}); return keys.length ? Math.max.apply(null, keys) : null; }
 
-function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsFn, includeCalendarEvents){
+function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsFn, includeCalendarEvents, stripRole){
+  var mobj = getCal().months[mi] || {};
+  if (ensureSettings().calendarSystem === 'faerunian' && mobj.isIntercalary && wantedSet && wantedSet[1]){
+    return _renderHarptosFestivalStrip(year, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, stripRole || 'full');
+  }
   var parts = openMonthTable(mi, year);
   var html  = [parts.html];
   var wdCnt = getCal().weekdays.length|0;
@@ -2941,7 +3019,7 @@ function buildCalendarsHtmlForSpec(spec){
     (!!boundary.next && !present[nextKey] && stripHasToday(boundary.next));
 
   if (boundary.prev && !present[ boundary.prev.y + '|' + boundary.prev.mi ]){
-    out.push('<div style="'+STYLES.wrap+'">'+renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, dimActiveAll, extraEventsFn, includeCalendarEvents)+'</div>');
+    out.push('<div style="'+STYLES.wrap+'">'+renderMonthStripWantedDays(boundary.prev.y, boundary.prev.mi, boundary.prev.wanted, dimActiveAll, extraEventsFn, includeCalendarEvents, 'prev')+'</div>');
   }
 
   for (var k=0; k<months.length; k++){
@@ -2957,7 +3035,7 @@ function buildCalendarsHtmlForSpec(spec){
   }
 
   if (boundary.next && !present[ boundary.next.y + '|' + boundary.next.mi ]){
-    out.push('<div style="'+STYLES.wrap+'">'+renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, dimActiveAll, extraEventsFn, includeCalendarEvents)+'</div>');
+    out.push('<div style="'+STYLES.wrap+'">'+renderMonthStripWantedDays(boundary.next.y, boundary.next.mi, boundary.next.wanted, dimActiveAll, extraEventsFn, includeCalendarEvents, 'next')+'</div>');
   }
 
   out.push('</div>');
@@ -3119,6 +3197,9 @@ function eventsListHTMLForRange(title, startSerial, endSerial, forceYearLabel){
 
 function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
+  if (ensureSettings().calendarSystem === 'faerunian'){
+    return formatDateLabel(cur.year, cur.month, cur.day_of_the_month, true);
+  }
   var datePart = _displayMonthDayParts(cur.month, cur.day_of_the_month).label;
   return cal.weekdays[cur.day_of_the_week] + ", " +
          datePart + ", " +
@@ -3128,6 +3209,9 @@ function currentDateLabel(){
 function dateLabelFromSerial(serial){
   var cal = getCal();
   var d = fromSerial(serial);
+  if (ensureSettings().calendarSystem === 'faerunian'){
+    return formatDateLabel(d.year, d.mi, d.day, true);
+  }
   var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
   var datePart = _displayMonthDayParts(d.mi, d.day).label;
   return wd + ", " + datePart + ", " + d.year + " " + LABELS.era;
@@ -3231,6 +3315,16 @@ function _displayMonthDayParts(mi, day){
   var cal = getCal();
   var st = ensureSettings();
   var m = cal.months[mi] || {};
+  if (st.calendarSystem === 'faerunian'){
+    if (m.isIntercalary){
+      return { monthName: String(m.name || (mi + 1)), day: day, label: String(m.name || (mi + 1)) };
+    }
+    return {
+      monthName: String(m.name || (mi + 1)),
+      day: day,
+      label: _ordinal(day) + ' of ' + String(m.name || (mi + 1))
+    };
+  }
   if (st.calendarSystem === 'gregorian' && m.isIntercalary && String(m.name||'') === 'Leap Day'){
     return { monthName: 'February', day: 29, label: 'February 29' };
   }
@@ -3243,7 +3337,8 @@ function _displayMonthDayParts(mi, day){
 
 function _serialToDateSpec(serial){
   var d = fromSerial(serial|0);
-  return _displayMonthDayParts(d.mi, d.day).label + ' ' + d.year;
+  var parts = _displayMonthDayParts(d.mi, d.day);
+  return parts.monthName + ' ' + d.day + ' ' + d.year;
 }
 
 function _shiftSerialByMonth(serial, dir){
@@ -3289,7 +3384,6 @@ function sendCurrentDate(to, gmOnly, opts){
 
   var cal = getCal(), c = cal.current;
   var m   = cal.months[c.month];
-  var wd  = cal.weekdays[c.day_of_the_week];
   var todaySer = toSerial(c.year, c.month, c.day_of_the_month);
   var calHtml = '';
   if (!compact || dashboard){
@@ -3308,15 +3402,14 @@ function sendCurrentDate(to, gmOnly, opts){
 
   // Date headline: weekday, date, year, season
   var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
+  var currentDate = currentDateLabel();
   var dateLine = compact
     ? '<div style="font-weight:bold;margin:2px 0 3px 0;">' +
-      esc(wd) + ', ' + esc(m.name) + ' ' + c.day_of_the_month + ', ' +
-      esc(String(c.year)) + ' ' + LABELS.era +
+      esc(currentDate) +
       (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>'
     : '<div style="font-weight:bold;margin:3px 0;">' +
-      esc(wd) + ', ' + esc(m.name) + ' ' + c.day_of_the_month + ', ' +
-      esc(String(c.year)) + ' ' + LABELS.era +
+      esc(currentDate) +
       (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;font-size:.9em;">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>';
 
@@ -4665,12 +4758,10 @@ function _playerTodayHtml(playerid){
   var cal = getCal();
   var c = cal.current;
   var mObj = cal.months[c.month] || {};
-  var wd = cal.weekdays[c.day_of_the_week];
   var sections = [];
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
-    esc(wd) + ', ' + esc(mObj.name) + ' ' + c.day_of_the_month + ', ' +
-    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
+    esc(currentDateLabel()) + '</div>');
 
   try {
     var occ = occurrencesInRange(today, today);
@@ -4694,7 +4785,7 @@ function _playerTodayHtml(playerid){
       weatherEnsureForecast();
       var rec = _forecastRecord(today);
       if (rec){
-        var rev = _readReveal(getWeatherState().playerReveal && getWeatherState().playerReveal[String(today)]);
+        var rev = _weatherRevealForSerial(getWeatherState(), today, getWeatherState().location);
         var tier = rev.tier || 'low';
         var srcLabel = WEATHER_SOURCE_LABELS[rev.source] || null;
         sections.push('<div style="margin:4px 0 2px 0;"><b>☁ Weather:</b></div>' + _playerDayHtml(rec, tier, false, srcLabel));
@@ -4726,7 +4817,10 @@ function _playerTodayHtml(playerid){
         _moonTodaySummaryHtml(today, moonTier, moonHorizon) +
         '<div style="font-size:.85em;margin-left:8px;line-height:1.5;">' +
         (moonBits.length ? moonBits.join('<br>') : '<span style="opacity:.6;">No moons at full or new today.</span>') +
-        '</div>'
+        '</div>' +
+        (moonTier === 'high' && _eclipseNotableToday(today).length
+          ? '<div style="font-size:.82em;margin:3px 0 0 8px;line-height:1.5;">'+_eclipseNotableToday(today).join('<br>')+'</div>'
+          : '')
       );
     } catch(e3){}
   }
@@ -4755,7 +4849,7 @@ function _playerTodayHtml(playerid){
     button('🌀 Planes', 'planes') +
     '</div>');
 
-  return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month, sections.join(''));
+  return _menuBox('📋 Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label), sections.join(''));
 }
 
 // ── Today — Combined detail from all subsystems ────────────────────────
@@ -4778,15 +4872,10 @@ function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
   var cal = getCal(), c = cal.current;
-  var wd = cal.weekdays[c.day_of_the_week];
-  var todayParts = _displayMonthDayParts(c.month, c.day_of_the_month);
-  var verbose = _subsystemIsVerbose();
-
   var sections = [];
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
-    esc(wd) + ', ' + esc(todayParts.label) + ', ' +
-    esc(String(c.year)) + ' ' + LABELS.era + '</div>');
+    esc(currentDateLabel()) + '</div>');
 
   // Events
   try {
@@ -5034,7 +5123,7 @@ function _todayAllHtml(){
     button('⬅ Calendar', '') +
     '</div>');
 
-  return _menuBox('📋 Today — ' + esc(mObj.name) + ' ' + c.day_of_the_month,
+  return _menuBox('📋 Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label),
     sections.join(''));
 }
 
@@ -5158,7 +5247,7 @@ var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisper(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|planes|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
@@ -6066,6 +6155,26 @@ var MANIFEST_ZONE_DEFS = {
 // 18a) State accessors
 // ---------------------------------------------------------------------------
 
+function _weatherLocationLabel(loc){
+  if (!loc) return 'Unknown Location';
+  var climate = titleCase(loc.climate || 'temperate');
+  var geography = titleCase(String(loc.geography || 'inland').replace(/_/g, ' '));
+  var terrain = titleCase(String(loc.terrain || 'open').replace(/_/g, ' '));
+  return climate + ' / ' + geography + ' / ' + terrain;
+}
+
+function _normalizeWeatherLocation(loc){
+  if (!loc) return null;
+  var out = {
+    climate: loc.climate || 'temperate',
+    geography: loc.geography || 'inland',
+    terrain: loc.terrain || 'open'
+  };
+  out.sig = _locSig(out);
+  out.name = loc.name || _weatherLocationLabel(out);
+  return out;
+}
+
 function getWeatherState(){
   var root = state[state_name];
   if (!root.weather) root.weather = {
@@ -6073,10 +6182,24 @@ function getWeatherState(){
     manifestZones: {},   // key -> { key, setOn, arythFullActivated, arythFullExitWarned }
     forecast:     [],    // array of day records keyed by serial
     history:      [],    // locked past days (up to 60)
-    playerReveal: {}     // serial(str) → best detail tier revealed: 'high'|'medium'|'low'
+    playerReveal: { byLocation: {} }, // locationSig -> serial(str) -> reveal entry
+    recentLocations: []
   };
   var ws = root.weather;
-  if (!ws.playerReveal) ws.playerReveal = {};
+  if (!ws.playerReveal || typeof ws.playerReveal !== 'object') ws.playerReveal = { byLocation: {} };
+  if (!ws.playerReveal.byLocation){
+    var legacyReveal = ws.playerReveal;
+    ws.playerReveal = { byLocation: {} };
+    var legacySig = (ws.location && _locSig(ws.location)) || '_default';
+    ws.playerReveal.byLocation[legacySig] = {};
+    Object.keys(legacyReveal || {}).forEach(function(key){
+      if (key === 'byLocation') return;
+      ws.playerReveal.byLocation[legacySig][key] = legacyReveal[key];
+    });
+  }
+  if (!Array.isArray(ws.recentLocations)) ws.recentLocations = [];
+  if (ws.location) ws.location = _normalizeWeatherLocation(ws.location);
+  ws.recentLocations = ws.recentLocations.map(_normalizeWeatherLocation).filter(Boolean).slice(0, 3);
   if (!ws.manifestZones || typeof ws.manifestZones !== 'object') ws.manifestZones = {};
   if (ws.location && ws.location.manifestZone){
     var legacyKey = _manifestZoneKey(ws.location.manifestZone.name || ws.location.manifestZone.key || '');
@@ -6098,6 +6221,33 @@ function getWeatherState(){
 function _locSig(loc){
   if (!loc) return '';
   return (loc.climate||'')+'/'+(loc.geography||'inland')+'/'+(loc.terrain||'');
+}
+
+function _weatherRevealBucket(ws, loc, createIfMissing){
+  ws = ws || getWeatherState();
+  var sig = _locSig(loc || ws.location) || '_default';
+  var store = ws.playerReveal && ws.playerReveal.byLocation;
+  if (!store){
+    ws.playerReveal = { byLocation: {} };
+    store = ws.playerReveal.byLocation;
+  }
+  if (!store[sig] && createIfMissing !== false) store[sig] = {};
+  return store[sig] || {};
+}
+
+function _rememberRecentWeatherLocation(ws, loc){
+  ws = ws || getWeatherState();
+  loc = _normalizeWeatherLocation(loc);
+  if (!loc) return;
+  var keep = [];
+  keep.push(loc);
+  for (var i = 0; i < ws.recentLocations.length; i++){
+    var existing = _normalizeWeatherLocation(ws.recentLocations[i]);
+    if (!existing || existing.sig === loc.sig) continue;
+    keep.push(existing);
+    if (keep.length >= 3) break;
+  }
+  ws.recentLocations = keep;
 }
 
 function _manifestZoneKey(nameOrKey){
@@ -6577,7 +6727,7 @@ function _generateDayWeather(serial, prevRec, locationOverride){
 
   return {
     serial:          serial,
-    location:        { climate: climate, geography: geography, terrain: terrain },
+    location:        _normalizeWeatherLocation({ climate: climate, geography: geography, terrain: terrain }),
     monthIdx:        mi,
     base:            base,
     arc:             arc,
@@ -6609,6 +6759,14 @@ function _forecastIndex(serial){
   return -1;
 }
 
+function _historyRecord(serial){
+  var hist = getWeatherState().history;
+  for (var i = hist.length - 1; i >= 0; i--){
+    if (hist[i].serial === serial) return hist[i];
+  }
+  return null;
+}
+
 function _generateForecast(fromSerial_, count, forceRegen){
   var ws  = getWeatherState();
   var loc = ws.location;
@@ -6621,12 +6779,7 @@ function _generateForecast(fromSerial_, count, forceRegen){
   var prevRec = null;
   var prevIdx = _forecastIndex(fromSerial_ - 1);
   if (prevIdx >= 0) prevRec = ws.forecast[prevIdx];
-  else {
-    // Check history
-    for (var h=0; h<ws.history.length; h++){
-      if (ws.history[h].serial === fromSerial_ - 1){ prevRec = ws.history[h]; break; }
-    }
-  }
+  else prevRec = _historyRecord(fromSerial_ - 1);
 
   for (var i=0; i<count; i++){
     var ser = fromSerial_ + i;
@@ -6671,8 +6824,12 @@ function weatherEnsureForecast(){
   if (ws.history.length > CONFIG_WEATHER_HISTORY_DAYS) ws.history = ws.history.slice(ws.history.length - CONFIG_WEATHER_HISTORY_DAYS);
 
   var pruneThreshold = today - 60;
-  Object.keys(ws.playerReveal).forEach(function(k){
-    if (parseInt(k, 10) < pruneThreshold) delete ws.playerReveal[k];
+  Object.keys((ws.playerReveal && ws.playerReveal.byLocation) || {}).forEach(function(sig){
+    var bucket = ws.playerReveal.byLocation[sig] || {};
+    Object.keys(bucket).forEach(function(k){
+      if (parseInt(k, 10) < pruneThreshold) delete bucket[k];
+    });
+    if (!Object.keys(bucket).length) delete ws.playerReveal.byLocation[sig];
   });
 
   // Fill forward to today + CONFIG_WEATHER_FORECAST_DAYS
@@ -7431,7 +7588,8 @@ var WEATHER_SOURCE_LABELS = {
   common:   'Common Knowledge',
   low:      'Common Knowledge',
   medium:   'Skilled Forecast',
-  high:     'Expert Forecast'
+  high:     'Expert Forecast',
+  specific: 'Divination Reveal'
 };
 
 function _grantCommonWeatherReveals(ws, today){
@@ -7444,32 +7602,53 @@ function _grantCommonWeatherReveals(ws, today){
 
 // Record a reveal for a serial. Only upgrades, never downgrades.
 // source: 'common' | 'medium' | 'high'
-function _recordReveal(ws, serial, tier, source){
+function _recordReveal(ws, serial, tier, source, loc){
   var key = String(serial);
-  var prev = ws.playerReveal[key];
+  var bucket = _weatherRevealBucket(ws, loc, true);
+  var prev = bucket[key];
   var prevTier = (prev && typeof prev === 'object') ? prev.tier : (typeof prev === 'string' ? prev : 'low');
   var prevSource = (prev && typeof prev === 'object') ? prev.source : 'common';
   var newTier = _bestTier(prevTier, tier);
   // If tier upgraded, use new source; otherwise keep existing
   var newSource = (newTier !== prevTier) ? (source || 'common') : prevSource;
-  ws.playerReveal[key] = { tier: newTier, source: newSource };
+  var revealLoc = _normalizeWeatherLocation(loc || ws.location);
+  bucket[key] = {
+    tier: newTier,
+    source: newSource,
+    locationSig: revealLoc ? revealLoc.sig : '',
+    locationLabel: revealLoc ? revealLoc.name : ''
+  };
 }
 
 // Read a reveal entry, handling both old string format and new {tier,source} format.
 function _readReveal(entry){
   if (!entry) return { tier: null, source: 'common' };
   if (typeof entry === 'string') return { tier: entry, source: 'common' };
-  return { tier: entry.tier || null, source: entry.source || 'common' };
+  return {
+    tier: entry.tier || null,
+    source: entry.source || 'common',
+    locationSig: entry.locationSig || '',
+    locationLabel: entry.locationLabel || ''
+  };
+}
+
+function _weatherRevealForSerial(ws, serial, loc){
+  ws = ws || getWeatherState();
+  var bucket = _weatherRevealBucket(ws, loc, false);
+  return _readReveal(bucket[String(serial)]);
 }
 
 // Render one player-facing day block at the given detail tier.
 function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
   rec = _weatherRecordForDisplay(rec);
   if (!rec) return '';
-  var cal      = getCal();
   var d        = fromSerial(rec.serial);
-  var wd       = isToday ? cal.weekdays[getCal().current.day_of_the_week] : null;
-  var dateLabel= (wd ? esc(wd)+', ' : '') + esc(_displayMonthDayParts(d.mi, d.day).label);
+  var dateLabel;
+  if (isToday && ensureSettings().calendarSystem !== 'faerunian'){
+    dateLabel = esc(getCal().weekdays[getCal().current.day_of_the_week]) + ', ' + esc(_displayMonthDayParts(d.mi, d.day).label);
+  } else {
+    dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);
+  }
   var f        = rec.final;
   var loc      = rec.location || {};
   var content  = '';
@@ -7546,8 +7725,6 @@ function _playerDayHtml(rec, detailTier, isToday, sourceLabel){
 function sendPlayerForecast(m, method, days){
   var ws    = getWeatherState();
   var today = todaySerial();
-  var cal   = getCal();
-  var cur   = cal.current;
 
   if (!ws.location){
     warnGM('No weather location set.');
@@ -7574,7 +7751,7 @@ function sendPlayerForecast(m, method, days){
     var tier = (methodNorm === 'high') ? 'high' : _mediumDetailTier(i);
 
     // Record the reveal (upgrade-only)
-    _recordReveal(ws, ser, tier, revealSource);
+    _recordReveal(ws, ser, tier, revealSource, ws.location);
 
     blocks.push(_playerDayHtml(rec, tier, i === 0, sourceLabel));
     revealed++;
@@ -7587,36 +7764,181 @@ function sendPlayerForecast(m, method, days){
 
   var methodLabel = methodNorm === 'high' ? 'Expert Forecast' : 'Skilled Forecast';
   var dateObj     = fromSerial(today);
-  var mObj        = cal.months[dateObj.mi] || {};
-  var titleDate   = esc(mObj.name||'?')+' '+dateObj.day;
+  var titleDate   = esc(_displayMonthDayParts(dateObj.mi, dateObj.day).label);
+  var locLabel    = _weatherLocationLabel(ws.location);
 
   sendToAll(_menuBox(
     methodLabel+' — '+titleDate,
-    blocks.join('')
+    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Location: <b>'+esc(locLabel)+'</b></div>'+blocks.join('')
   ));
 
   warnGM('Sent '+revealed+'-day '+methodLabel.toLowerCase()+' to players.');
+}
+
+function _parseWeatherRevealDayToken(tok){
+  var raw = String(tok || '').trim();
+  if (!raw) return null;
+  var rangeMatch = raw.match(/^(.+?)\s*-\s*(.+)$/);
+  if (rangeMatch){
+    var a = Parse.ordinalDay(rangeMatch[1]);
+    if (a == null && /^\d+$/.test(rangeMatch[1])) a = parseInt(rangeMatch[1], 10);
+    var b = Parse.ordinalDay(rangeMatch[2]);
+    if (b == null && /^\d+$/.test(rangeMatch[2])) b = parseInt(rangeMatch[2], 10);
+    if (a == null || b == null) return null;
+    return { start: a|0, end: b|0 };
+  }
+  var day = Parse.ordinalDay(raw);
+  if (day == null && /^\d+$/.test(raw)) day = parseInt(raw, 10);
+  if (day == null) return null;
+  return { start: day|0, end: day|0 };
+}
+
+function _parseWeatherRevealDateSpec(tokens){
+  tokens = (tokens || []).map(function(tok){ return String(tok || '').trim(); }).filter(Boolean);
+  if (!tokens.length) return null;
+
+  var cal = getCal();
+  var cur = cal.current;
+  var months = cal.months;
+  var idx = 0;
+  var mi = -1;
+  var year = null;
+  var daySpec = null;
+
+  var maybeMonth = monthIndexByName(tokens[idx]);
+  if (maybeMonth !== -1){
+    mi = maybeMonth;
+    idx++;
+  } else if (tokens.length >= 2 && /^\d+$/.test(tokens[idx])){
+    var monthNum = parseInt(tokens[idx], 10);
+    if (monthNum >= 1 && monthNum <= months.length){
+      mi = monthNum - 1;
+      idx++;
+    }
+  }
+
+  daySpec = _parseWeatherRevealDayToken(tokens[idx]);
+  if (!daySpec) return null;
+  idx++;
+
+  if (tokens[idx] && /^\d{1,6}$/.test(tokens[idx])){
+    year = parseInt(tokens[idx], 10);
+    idx++;
+  }
+  if (idx !== tokens.length) return null;
+
+  if (mi === -1){
+    var next = nextForDayOnly(cur, daySpec.start, months.length);
+    mi = next.month;
+    if (year == null) year = next.year;
+  } else if (year == null){
+    year = nextForMonthDay(cur, mi, daySpec.start).year;
+  }
+
+  var maxDay = Math.max(1, months[mi].days|0);
+  var startDay = clamp(daySpec.start, 1, maxDay);
+  var endDay = clamp(daySpec.end, 1, maxDay);
+  if (startDay > endDay){
+    var swap = startDay;
+    startDay = endDay;
+    endDay = swap;
+  }
+
+  return {
+    year: year,
+    mi: mi,
+    startDay: startDay,
+    endDay: endDay,
+    startSerial: toSerial(year, mi, startDay),
+    endSerial: toSerial(year, mi, endDay)
+  };
+}
+
+function _specificWeatherRevealHtml(startSerial, endSerial, sourceLabel, locationLabel){
+  var knownSerials = {};
+  var blocks = [];
+  var today = todaySerial();
+  for (var ser = startSerial; ser <= endSerial; ser++){
+    var rec = _forecastRecord(ser);
+    if (!rec) continue;
+    knownSerials[String(ser)] = 1;
+    blocks.push(_playerDayHtml(rec, 'high', ser === today, sourceLabel));
+  }
+  var spanDays = Math.max(1, endSerial - startSerial + 1);
+  var body = '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Location: <b>'+esc(locationLabel)+'</b></div>';
+  body += _weatherForecastMiniCalHtml(startSerial, spanDays, { knownSerials: knownSerials });
+  body += _legendLine(['Emoji = afternoon outlook', 'Blank cells are unrevealed days']);
+  body += blocks.join('');
+  return body;
+}
+
+function sendSpecificWeatherReveal(m, tokens){
+  var ws = getWeatherState();
+  var today = todaySerial();
+  if (!ws.location){
+    warnGM('No weather location set.');
+    return;
+  }
+
+  var parsed = _parseWeatherRevealDateSpec(tokens);
+  if (!parsed){
+    warnGM('Usage: weather reveal <dateSpec> (examples: 14-17, 4 5-7, Rhaan 14, Hammer 5-7 1491)');
+    return;
+  }
+  if (parsed.startSerial < today){
+    warnGM('Specific-date weather reveals can only target today or future dates.');
+    return;
+  }
+  if ((parsed.endSerial - today + 1) > CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS){
+    warnGM('Specific-date reveals are capped at '+CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS+' days ahead.');
+    return;
+  }
+
+  _generateForecast(today, Math.max(1, parsed.endSerial - today + 1), false);
+
+  var sourceLabel = WEATHER_SOURCE_LABELS.specific;
+  for (var ser = parsed.startSerial; ser <= parsed.endSerial; ser++){
+    if (!_forecastRecord(ser)) continue;
+    _recordReveal(ws, ser, 'high', 'specific', ws.location);
+  }
+
+  var title = 'Divination Reveal \u2014 ' + formatDateLabel(parsed.year, parsed.mi, parsed.startDay, true);
+  if (parsed.endSerial > parsed.startSerial){
+    title += ' to ' + formatDateLabel(parsed.year, parsed.mi, parsed.endDay, true);
+  }
+  sendToAll(_menuBox(title,
+    _specificWeatherRevealHtml(parsed.startSerial, parsed.endSerial, sourceLabel, _weatherLocationLabel(ws.location))
+  ));
+  warnGM('Sent revealed weather for '+(parsed.endSerial - parsed.startSerial + 1)+' day(s) at the current location.');
 }
 
 function _playerForecastViewData(maxDays){
   var st    = ensureSettings();
   var ws    = getWeatherState();
   var today = todaySerial();
-  var cal   = getCal();
-  var reveals = ws.playerReveal || {};
   var blocks  = [];
   var knownSerials = {};
   var displayMode = _normalizeDisplayMode(st.weatherDisplayMode);
   var verbose = _subsystemIsVerbose();
-  maxDays = _weatherViewDays(maxDays);
+  var capDays = Math.max(1, parseInt(maxDays, 10) || CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
 
   weatherEnsureForecast();
   _grantCommonWeatherReveals(ws, today);
 
-  for (var i=0; i<maxDays; i++){
+  var bucket = _weatherRevealBucket(ws, ws.location, false);
+  var maxKnown = null;
+  Object.keys(bucket).forEach(function(key){
+    var ser = parseInt(key, 10);
+    if (!isFinite(ser) || ser < today) return;
+    if (ser > today + capDays - 1) return;
+    if (maxKnown == null || ser > maxKnown) maxKnown = ser;
+  });
+  if (maxKnown == null) return null;
+
+  var spanDays = Math.max(1, maxKnown - today + 1);
+  for (var i=0; i<spanDays; i++){
     var ser  = today + i;
-    var key  = String(ser);
-    var rev  = _readReveal(reveals[key]);
+    var rev  = _weatherRevealForSerial(ws, ser, ws.location);
     if (!rev.tier) continue;
     var rec  = _forecastRecord(ser);
     if (!rec) continue;
@@ -7628,11 +7950,11 @@ function _playerForecastViewData(maxDays){
   if (!blocks.length) return null;
 
   var dateObj  = fromSerial(today);
-  var mObj     = cal.months[dateObj.mi] || {};
-  var titleDate = esc(mObj.name||'?')+' '+dateObj.day;
-  var miniCal = _weatherForecastMiniCalHtml(today, maxDays, { knownSerials: knownSerials });
-  var tRev = _readReveal(reveals[String(today)]);
+  var titleDate = esc(_displayMonthDayParts(dateObj.mi, dateObj.day).label);
+  var miniCal = _weatherForecastMiniCalHtml(today, spanDays, { knownSerials: knownSerials });
+  var tRev = _weatherRevealForSerial(ws, today, ws.location);
   var todayTier = tRev.tier || 'low';
+  var locationLabel = _weatherLocationLabel(ws.location);
   var body = '';
   if (displayMode !== 'list'){
     body += miniCal;
@@ -7652,6 +7974,7 @@ function _playerForecastViewData(maxDays){
     today: today,
     todayTier: todayTier,
     titleDate: titleDate,
+    locationLabel: locationLabel,
     summaryHtml: _weatherTodaySummaryHtml(today, todayTier, displayMode === 'calendar'),
     body: body
   };
@@ -7659,23 +7982,25 @@ function _playerForecastViewData(maxDays){
 
 // Build whispered player forecast from their stored reveal state.
 function playerForecastWhisper(m){
-  var view = _playerForecastViewData(CONFIG_WEATHER_FORECAST_DAYS);
+  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
   if (!view){
     whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
     return;
   }
-  whisper(m.who, _menuBox('Your Weather Forecast — '+view.titleDate,
-    view.summaryHtml + view.body
+  whisper(m.who, _menuBox('Your Weather Forecast \u2014 '+view.locationLabel,
+    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>'+view.summaryHtml + view.body
   ));
 }
 
 function sendRevealedForecast(m){
-  var view = _playerForecastViewData(CONFIG_WEATHER_FORECAST_DAYS);
+  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
   if (!view){
     warnGM('No revealed weather is currently available to send.');
     return;
   }
-  sendToAll(_menuBox('Weather Forecast — '+view.titleDate, view.summaryHtml + view.body));
+  sendToAll(_menuBox('Weather Forecast \u2014 '+view.locationLabel,
+    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>'+view.summaryHtml + view.body
+  ));
   warnGM('Sent the currently revealed weather forecast to players.');
 }
 
@@ -7693,9 +8018,7 @@ function weatherTodayGmHtml(){
     );
   }
 
-  var locLine = '<div style="font-size:.85em;opacity:.75;">'+
-    esc(titleCase(loc.climate))+' / '+esc(titleCase((loc.geography||'inland').replace(/_/g,' ')))+' / '+esc(titleCase(loc.terrain))+
-    '</div>';
+  var locLine = '<div style="font-size:.85em;opacity:.75;">'+esc(_weatherLocationLabel(loc))+'</div>';
   var manifestEntries = _activeManifestZoneEntries();
   var manifestLine = manifestEntries.length
     ? '<div style="font-size:.82em;opacity:.7;margin-top:2px;">Manifest zones: <b>'+esc(_manifestZoneStatusLabel(manifestEntries))+'</b></div>'
@@ -7733,6 +8056,9 @@ function weatherTodayGmHtml(){
     button('6 days','weather reveal high 6')+' '+
     button('10 days','weather reveal high 10')+
     '</div>';
+  var specificRow =
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Reveal exact date(s):</div>'+
+    '<div>'+button('Custom Range', 'weather reveal ?{Date or range|14-17}')+'</div>';
 
   var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
 
@@ -7752,7 +8078,7 @@ function weatherTodayGmHtml(){
     extremeHtml +
     '<div style="margin-top:6px;">'+ topButtons +'</div>'+
     zoneButtons +
-    mediumRow + highRow
+    mediumRow + highRow + specificRow
   );
 }
 
@@ -8038,6 +8364,19 @@ function weatherLocationWizardHtml(step, partial){
 
   // Step 1: Climate
   if (!step || step === 'start'){
+    var wsRecent = getWeatherState();
+    var recentHtml = '';
+    if (wsRecent.recentLocations && wsRecent.recentLocations.length){
+      recentHtml =
+        '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Recent locations:</div>' +
+        wsRecent.recentLocations.map(function(loc, idx){
+          return '<div style="margin:3px 0;">'+
+            button(loc.name || _weatherLocationLabel(loc), 'weather location recent ' + (idx + 1))+
+            ' <span style="opacity:.7;font-size:.85em;">Quick switch</span>'+
+            '</div>';
+        }).join('') +
+        '<div style="border-top:1px solid rgba(0,0,0,.1);margin:8px 0 6px 0;"></div>';
+    }
     var climateButtons = Object.keys(WEATHER_CLIMATES).map(function(k){
       return '<div style="margin:3px 0;">'+
         button(titleCase(k), 'weather location climate '+k)+
@@ -8053,7 +8392,7 @@ function weatherLocationWizardHtml(step, partial){
           ? '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Southern hemisphere campaign? › !cal hemisphere south</div>'
           : '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Northern hemisphere campaign? › !cal hemisphere north</div>')
       : '';
-    return _menuBox('Set Location — Step 1: Climate', climateButtons + hemHint);
+    return _menuBox('Set Location — Step 1: Climate', recentHtml + climateButtons + hemHint);
   }
 
   // Step 2: Geography
@@ -8106,12 +8445,11 @@ function _clearManifestZones(){
 }
 
 function _setWeatherLocationFromWizard(m, partial){
-  var newLoc = {
+  var newLoc = _normalizeWeatherLocation({
     climate:   partial.climate   || 'temperate',
     geography: partial.geography || 'inland',
     terrain:   partial.terrain   || 'open'
-  };
-  newLoc.sig = _locSig(newLoc);
+  });
 
   var ws = getWeatherState();
   var oldLoc = ws.location || null;
@@ -8121,6 +8459,7 @@ function _setWeatherLocationFromWizard(m, partial){
   var hadLocation = !!oldLoc;
 
   ws.location = newLoc;
+  _rememberRecentWeatherLocation(ws, newLoc);
   delete ws._wizard;
 
   var today = todaySerial();
@@ -8137,10 +8476,7 @@ function _setWeatherLocationFromWizard(m, partial){
     }
   });
 
-  var dispClimate = esc(titleCase(newLoc.climate));
-  var dispGeo = esc(titleCase(newLoc.geography.replace(/_/g, ' ')));
-  var dispTerrain = esc(titleCase(newLoc.terrain));
-  var msg = 'Location set: <b>'+dispClimate+' / '+dispGeo+' / '+dispTerrain+'</b>.';
+  var msg = 'Location set: <b>'+esc(newLoc.name || _weatherLocationLabel(newLoc))+'</b>.';
 
   if (clearedZones.length){
     msg += '<br><span style="color:#E65100;">Cleared manifest zones: ' +
@@ -8301,7 +8637,7 @@ function handleWeatherCommand(m, args){
       weatherEnsureForecast();
       _grantCommonWeatherReveals(ws0, tSer);
       var rec0  = _forecastRecord(tSer);
-      var rev0  = _readReveal(ws0.playerReveal && ws0.playerReveal[String(tSer)]);
+      var rev0  = _weatherRevealForSerial(ws0, tSer, ws0.location);
       var tier0 = rev0.tier || 'low';
       var src0  = WEATHER_SOURCE_LABELS[rev0.source] || null;
       if (!rec0){
@@ -8375,13 +8711,16 @@ function handleWeatherCommand(m, args){
 
     case 'reveal': {
       var revealMethod = String(args[2]||'').toLowerCase();
-      var revealDays = parseInt(args[3], 10) || 1;
-      if ((revealMethod !== 'medium' && revealMethod !== 'high') ||
-          revealDays < 1 || revealDays > 10){
-        warnGM('Usage: weather reveal medium|high [1-10]');
-        break;
+      if (revealMethod === 'medium' || revealMethod === 'high'){
+        var revealDays = parseInt(args[3], 10) || 1;
+        if (revealDays < 1 || revealDays > 10){
+          warnGM('Usage: weather reveal medium|high [1-10]');
+          break;
+        }
+        sendPlayerForecast(m, revealMethod, revealDays);
+      } else {
+        sendSpecificWeatherReveal(m, args.slice(2));
       }
-      sendPlayerForecast(m, revealMethod, revealDays);
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
@@ -8441,7 +8780,16 @@ function handleWeatherCommand(m, args){
 
     case 'generate':
       // Force regenerate the whole forecast window
-      var n = parseInt(args[2],10) || CONFIG_WEATHER_FORECAST_DAYS;
+      var n = CONFIG_WEATHER_FORECAST_DAYS;
+      if (args[2]){
+        var nTok = String(args[2] || '').trim();
+        var parsedDays = parseInt(nTok, 10);
+        if (!/^\d+$/.test(nTok) || parsedDays < 1 || parsedDays > CONFIG_WEATHER_FORECAST_DAYS){
+          warnGM('Usage: weather generate [1-'+CONFIG_WEATHER_FORECAST_DAYS+']');
+          break;
+        }
+        n = parsedDays;
+      }
       var cnt = _generateForecast(todaySerial(), n, true);
       whisper(m.who, 'Generated '+cnt+' day'+(cnt===1?'':'s')+' of weather.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
@@ -8449,17 +8797,22 @@ function handleWeatherCommand(m, args){
 
     case 'reroll': {
       // Reroll a specific future day (not past/locked)
+      var ws2 = getWeatherState();
+      var todayNow = todaySerial();
       var targetSer = parseInt(args[2],10);
-      if (!isFinite(targetSer)) targetSer = todaySerial();
+      if (!isFinite(targetSer)) targetSer = todayNow;
+      if (targetSer < todayNow){
+        warnGM('That day is already in the past. Cannot reroll archived weather.');
+        break;
+      }
       var existing = _forecastRecord(targetSer);
       if (existing && existing.locked){
         warnGM('That day is locked (it\'s in the past). Cannot reroll.');
         break;
       }
-      var prevRec = _forecastRecord(targetSer - 1);
-      var newRec = _generateDayWeather(targetSer, prevRec, null);
+      var prevRec = _forecastRecord(targetSer - 1) || _historyRecord(targetSer - 1);
+      var newRec = _generateDayWeather(targetSer, prevRec, ws2.location || null);
       if (newRec){
-        var ws2 = getWeatherState();
         var idx2 = _forecastIndex(targetSer);
         if (idx2 >= 0) ws2.forecast[idx2] = newRec;
         else ws2.forecast.push(newRec);
@@ -8467,7 +8820,7 @@ function handleWeatherCommand(m, args){
         // Cascade one day forward so continuity and early-morning carryover stay coherent.
         var nextRec2 = _forecastRecord(targetSer + 1);
         if (nextRec2 && !nextRec2.locked){
-          var regenNext = _generateDayWeather(targetSer + 1, newRec, nextRec2.location || null);
+          var regenNext = _generateDayWeather(targetSer + 1, newRec, ws2.location || null);
           if (regenNext){
             var nextIdx2 = _forecastIndex(targetSer + 1);
             if (nextIdx2 >= 0) ws2.forecast[nextIdx2] = regenNext;
@@ -8546,6 +8899,17 @@ function handleWeatherCommand(m, args){
         break;
       }
 
+      if (locSub === 'recent'){
+        var recentIdx = Math.max(1, parseInt(args[3], 10) || 1) - 1;
+        var recentList = getWeatherState().recentLocations || [];
+        if (!recentList[recentIdx]){
+          whisper(m.who, 'That recent location is no longer available. '+button('Back','weather location'));
+          break;
+        }
+        _setWeatherLocationFromWizard(m, recentList[recentIdx]);
+        break;
+      }
+
       if (locSub === 'zone'){
         var zoneArg = String(args[3] || '').toLowerCase();
         if (!zoneArg){
@@ -8596,24 +8960,19 @@ function register(){ on('chat:message', handleInput); }
 // ---------------------------------------------------------------------------
 
 
-// ---------------------------------------------------------------------------
-// 20a-i) Eberron moon mapping ambiguities (needs resolution)
-// ---------------------------------------------------------------------------
-// Canon in this script: color, diameter, and mean orbital distance.
-// The remaining orbital traits (eccentricity, inclination, albedo, etc.) are
-// adapted from real-world candidate moons. Where analog intent can be read as
-// more than one possibility, track it here for future adjudication.
-var EBERRON_MOON_AMBIGUITIES = [
+// Historical candidate-selection notes are archived in
+// design/moon-reference-selection.md rather than runtime data.
+/*
   {
     moon: 'Lharvion',
     currentReferenceMoon: 'Nereid (Neptune)',
     alternateSeenInOlderLore: 'Phoebe (Saturn)',
     reason: 'Current orbital parameters (eccentricity 0.7507, inclination 7.23°) match Nereid, but older lore text referenced Phoebe.'
   }
-];
+*/
 
 // ---------------------------------------------------------------------------
-// 20a-ii) Eberron moon core data (campaign baseline)
+// 20a-i) Eberron moon core data (campaign baseline)
 // ---------------------------------------------------------------------------
 // Canonical Eberron moon values used in this script.
 // Fields centralized here for quick reference and to avoid drift:
@@ -8621,7 +8980,7 @@ var EBERRON_MOON_AMBIGUITIES = [
 //   diameter            -> moon diameter in miles
 //   avgOrbitalDistance  -> average orbital distance from Eberron in miles
 // NOTE: This section intentionally excludes candidate/reference moon mapping data;
-// keep that in moons-system-design.md under the Candidate moons table.
+// keep that in design/moon-reference-selection.md.
 var EBERRON_MOON_CORE_DATA = {
   Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
   Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
@@ -10138,7 +10497,7 @@ function moonPanelHtml(serialOverride){
     '</div>'+
     '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
     'Player tier: '+esc(tierLabel)+' · '+
-    'CLI: <code>!cal moon send (low|medium|high) [28d|1m|3m|6m|10m]</code>'+
+    'CLI: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>'+
     '</div>';
 
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
@@ -10215,6 +10574,10 @@ function moonPlayerPanelHtml(serialOverride){
       notableLines.join('<br>') + '</div>';
   } else {
     body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
+  }
+  if (tier === 'high' && _eclipseNotableToday(today).length){
+    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
+      _eclipseNotableToday(today).join('<br>') + '</div>';
   }
 
   // Lore button
@@ -10752,13 +11115,15 @@ function _clamp01(x){
 // Approximate apparent solar diameter in degrees. Used to normalize angular
 // separations into the same units as apparentSizeVsSun.
 var _SUN_ANGULAR_DIAM_DEG = 0.53;
+var _eclipseDayCache = Object.create(null);
 
 function _eclipseTimeBlock(frac){
   var h = ((frac % 1) + 1) % 1 * 24;
-  if (h < 6)  return 'nighttime';
-  if (h < 12) return 'morning';
-  if (h < 18) return 'afternoon';
-  return 'evening';
+  if (h < 4.8)  return 'early_morning';
+  if (h < 9.6)  return 'morning';
+  if (h < 14.4) return 'afternoon';
+  if (h < 19.2) return 'evening';
+  return 'late_night';
 }
 
 function _moonByName(sys, name){
@@ -10798,109 +11163,156 @@ function _diskOverlapFraction(rFront, rBack, sep){
 function _eclipseMetricsAt(sys, e, t){
   if (!e) return null;
 
-  // Solar: moon disk against sun disk.
-  if (e.type === 'total solar' || e.type === 'partial solar' || e.type === 'transit'){
+  if (e.kind === 'solar'){
     var sm = _moonByName(sys, e.moon);
     if (!sm) return null;
     var op = _moonOrbitalParams(sm.name, t);
-    var ph = moonPhaseAt(sm.name, t);
     var dLong = _degSeparation(_moonSkyLong(sm, t), _sunSkyLong(t));
     var dLat  = Math.abs(_moonEclipticLat(sm, t));
     var sepDeg = Math.sqrt(dLong*dLong + dLat*dLat);
     var sepSun = sepDeg / _SUN_ANGULAR_DIAM_DEG;
     var rMoon = (op.apparentSize || 0) / 2;
     var rSun  = 0.5;
-    var cover = _diskOverlapFraction(rMoon, rSun, sepSun);
-    // Keep a small near-new bias so non-new geometry doesn't read as an eclipse.
-    var newBias = _clamp01((0.12 - ph.illum) / 0.12);
     return {
-      cover: cover * newBias,
-      coverRaw: cover,
-      sepDeg: sepDeg
+      cover: _diskOverlapFraction(rMoon, rSun, sepSun),
+      occulting: sm.name,
+      occluded: 'Sun',
+      occludingDiameter: op.apparentSize || 0,
+      occludedDiameter: 1.0,
+      skyMoon: sm.name
     };
   }
 
-  // Moon-moon occultation: front moon disk against back moon disk.
-  if (e.type === 'lunar conjunction'){
-    var fm = _moonByName(sys, e.moon);
-    var bm = _moonByName(sys, e.occultedMoon);
-    if (!fm || !bm) return null;
-    // Keep physically in front.
-    if (_moonDistanceAt(fm, t) > _moonDistanceAt(bm, t)) return null;
+  if (e.kind === 'lunar'){
+    var moonA = _moonByName(sys, e.a);
+    var moonB = _moonByName(sys, e.b);
+    if (!moonA || !moonB) return null;
 
-    var fop = _moonOrbitalParams(fm.name, t);
-    var bop = _moonOrbitalParams(bm.name, t);
-    var dLong2 = _degSeparation(_moonSkyLong(fm, t), _moonSkyLong(bm, t));
-    var dLat2  = Math.abs(_moonEclipticLat(fm, t) - _moonEclipticLat(bm, t));
+    var distA = _moonDistanceAt(moonA, t);
+    var distB = _moonDistanceAt(moonB, t);
+    var front = (distA <= distB) ? moonA : moonB;
+    var back  = (front === moonA) ? moonB : moonA;
+    var fop = _moonOrbitalParams(front.name, t);
+    var bop = _moonOrbitalParams(back.name, t);
+    var dLong2 = _degSeparation(_moonSkyLong(front, t), _moonSkyLong(back, t));
+    var dLat2  = Math.abs(_moonEclipticLat(front, t) - _moonEclipticLat(back, t));
     var sepDeg2 = Math.sqrt(dLong2*dLong2 + dLat2*dLat2);
     var sepSun2 = sepDeg2 / _SUN_ANGULAR_DIAM_DEG;
-    var rFront = (fop.apparentSize || 0) / 2;
-    var rBack  = (bop.apparentSize || 0) / 2;
-    var backPh = moonPhaseAt(bm.name, t);
-    var illumBias = _clamp01((backPh.illum - 0.2) / 0.8);
-    var cover2 = _diskOverlapFraction(rFront, rBack, sepSun2);
     return {
-      cover: cover2 * illumBias,
-      coverRaw: cover2,
-      sepDeg: sepDeg2
+      cover: _diskOverlapFraction((fop.apparentSize || 0) / 2, (bop.apparentSize || 0) / 2, sepSun2),
+      occulting: front.name,
+      occluded: back.name,
+      occludingDiameter: fop.apparentSize || 0,
+      occludedDiameter: bop.apparentSize || 0,
+      skyMoon: front.name
     };
   }
 
   return null;
 }
 
-function _estimateEclipseTiming(serial, e, sys){
-  // 96 steps/day => 15-minute granularity.
-  var steps = 96;
-  var dt = 1 / steps;
-  var samples = [];
-  var peakI = -1;
-  var peak = -1;
+function _eclipsePeakSkyLabel(sys, moonName, t){
+  var moon = _moonByName(sys, moonName);
+  if (!moon) return null;
+  var frac = ((t % 1) + 1) % 1;
+  var alt = _moonAltitude(moon, t, frac);
+  var cat = _moonVisCategory(alt);
+  if (cat === 'below') return null;
+  return (MOON_VIS_LABELS[cat] || {}).label || null;
+}
 
-  for (var i = 0; i <= steps; i++){
-    var t = serial + i * dt;
-    var m = _eclipseMetricsAt(sys, e, t);
-    var s = m ? m.cover : 0;
-    samples.push({ t:t, score:s, coverRaw:(m ? m.coverRaw : 0) });
-    if (s > peak){ peak = s; peakI = i; }
-  }
-  if (peakI < 0 || peak <= 0.03) return null;
+function _eclipseCacheKey(serial){
+  var st = ensureSettings();
+  var ms = getMoonState();
+  return [
+    st.calendarSystem || '',
+    serial|0,
+    ms.systemSeed || '',
+    JSON.stringify(ms.gmAnchors || {}),
+    ms.generatedFrom || '',
+    ms.generatedThru || ''
+  ].join('|');
+}
 
-  // Dynamic cut around the strongest part of the event (prevents 24h windows).
-  var minCut = (e.type === 'lunar conjunction') ? 0.10 : 0.07;
-  var cut = Math.max(minCut, peak * 0.60);
+function _finalizeEclipseEvent(sys, startT, endT, peak){
+  if (!peak || !peak.metrics) return null;
+  var cover = _clamp01(peak.metrics.cover || 0);
+  if (cover <= 0) return null;
 
-  var left = peakI, right = peakI;
-  while (left > 0 && samples[left - 1].score >= cut) left--;
-  while (right < samples.length - 1 && samples[right + 1].score >= cut) right++;
+  var peakSkyLabel = _eclipsePeakSkyLabel(sys, peak.metrics.skyMoon, peak.t);
+  if (!peakSkyLabel) return null;
 
-  var startT = samples[left].t;
-  var endT   = samples[right].t;
-  var durationH = Math.max(0.25, (endT - startT) * 24);
+  var sizeRatio = (peak.metrics.occludingDiameter || 0) / Math.max(0.0001, peak.metrics.occludedDiameter || 0);
+  var typeLabel = (cover > 0.98) ? 'Total Eclipse' : (sizeRatio > 0.75 ? 'Partial Eclipse' : 'Transit');
 
-  var peakCover = samples[peakI].coverRaw;
   return {
-    startBlock: _eclipseTimeBlock(startT - serial),
-    peakBlock:  _eclipseTimeBlock(samples[peakI].t - serial),
-    endBlock:   _eclipseTimeBlock(endT - serial),
-    durationHours: durationH,
-    peakCoveragePct: Math.round(_clamp01(peakCover) * 100)
+    id: [peak.metrics.occulting, peak.metrics.occluded, Math.round(peak.t * 96)].join('|'),
+    occulting: peak.metrics.occulting,
+    occluded: peak.metrics.occluded,
+    typeLabel: typeLabel,
+    startT: startT,
+    peakT: peak.t,
+    endT: endT,
+    startDay: Math.floor(startT),
+    peakDay: Math.floor(peak.t),
+    endDay: Math.floor(endT),
+    startBucket: _eclipseTimeBlock(startT),
+    peakBucket: _eclipseTimeBlock(peak.t),
+    endBucket: _eclipseTimeBlock(endT),
+    peakCoverage: cover,
+    peakCoveragePct: Math.max(1, Math.round(cover * 100)),
+    sizeRatio: sizeRatio,
+    sizePct: Math.max(1, Math.round(sizeRatio * 100)),
+    peakSkyLabel: peakSkyLabel
   };
 }
 
-// Check for eclipses on a given day. Returns array of eclipse events.
-// Types: 'solar' (moon passes in front of sun), 'lunar' (moon A passes in front of moon B)
-function getEclipses(serial){
+function _eclipseTimingClause(kind, event, serial){
+  var bucketLabel = _weatherPeriodLabel(event[kind + 'Bucket']);
+  var day = event[kind + 'Day'];
+  if (kind === 'start'){
+    if (day < serial) return 'Began yesterday in the ' + bucketLabel;
+    if (day > serial) return 'Beginning tomorrow in the ' + bucketLabel;
+    return 'Beginning in the ' + bucketLabel;
+  }
+  if (kind === 'peak'){
+    if (day < serial) return 'Peaked yesterday in the ' + bucketLabel + ' while ' + event.peakSkyLabel;
+    if (day > serial) return 'Peaking tomorrow in the ' + bucketLabel + ' while ' + event.peakSkyLabel;
+    return 'Peaking in the ' + bucketLabel + ' while ' + event.peakSkyLabel;
+  }
+  if (day < serial) return 'Ended yesterday in the ' + bucketLabel;
+  if (day > serial) return 'Ending tomorrow in the ' + bucketLabel;
+  return (event.startDay < serial ? 'Ending this ' : 'Ending in the ') + bucketLabel;
+}
+
+function _eclipseLifecycleText(event, serial){
+  return [
+    _eclipseTimingClause('start', event, serial),
+    _eclipseTimingClause('peak', event, serial),
+    _eclipseTimingClause('end', event, serial)
+  ].join(', ') + '.';
+}
+
+function _eclipseSentenceType(typeLabel){
+  return (typeLabel === 'Transit') ? 'Transit' : typeLabel.replace(' Eclipse', ' eclipse');
+}
+
+/* Legacy eclipse review path removed; see git history if older heuristics are needed.
+// function _getEclipsesLegacy(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
   if (!sys || !sys.moons) return [];
 
-  moonEnsureSequences();
+  serial = serial|0;
+  moonEnsureSequences(serial, 3);
 
-  var eclipses = [];
+  var cacheKey = _eclipseCacheKey(serial);
+  if (_eclipseDayCache[cacheKey]) return _eclipseDayCache[cacheKey];
+
   var moons = sys.moons;
+  var eclipses = [];
 
   // Solar eclipses: moon near new phase AND ecliptic latitude near 0
   for (var i = 0; i < moons.length; i++){
@@ -10972,11 +11384,11 @@ function getEclipses(serial){
   return eclipses;
 }
 
-// Notable eclipses for the !cal default view
-function _eclipseNotableToday(serial){
+// Legacy notable-text formatter retained for reference during review.
+// function _eclipseNotableTodayLegacy(serial){
   var st = ensureSettings();
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
-  var ecl = getEclipses(serial);
+  var ecl = _getEclipsesLegacy(serial);
   var notes = [];
   for (var i = 0; i < ecl.length; i++){
     var ti = _estimateEclipseTiming(serial, ecl[i], sys);
@@ -10991,6 +11403,97 @@ function _eclipseNotableToday(serial){
       notes.push('\uD83C\uDF11 ' + ecl[i].description + tInfo);
     else if (ecl[i].type === 'lunar conjunction' && ecl[i].depth > 0.5)
       notes.push('\uD83C\uDF15 ' + ecl[i].description + tInfo);
+  }
+  return notes;
+}
+
+*/
+// Replacement eclipse engine: groups physical overlap windows across midnight
+// and reports only true disk overlaps that peak above the horizon.
+function getEclipses(serial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return [];
+
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons) return [];
+
+  serial = serial|0;
+  moonEnsureSequences(serial, 3);
+
+  var cacheKey = _eclipseCacheKey(serial);
+  if (_eclipseDayCache[cacheKey]) return _eclipseDayCache[cacheKey];
+
+  var descriptors = [];
+  var moons = sys.moons;
+  for (var i = 0; i < moons.length; i++){
+    descriptors.push({ kind: 'solar', moon: moons[i].name });
+  }
+  for (var a = 0; a < moons.length; a++){
+    for (var b = a + 1; b < moons.length; b++){
+      descriptors.push({ kind: 'lunar', a: moons[a].name, b: moons[b].name });
+    }
+  }
+
+  var eclipses = [];
+  var windowStart = serial - 1;
+  var windowEnd = serial + 2;
+  var dt = 1 / 96;
+
+  for (var di = 0; di < descriptors.length; di++){
+    var active = false;
+    var startT = 0;
+    var endT = 0;
+    var peak = null;
+
+    for (var t = windowStart; t <= windowEnd + 1e-9; t += dt){
+      var metrics = _eclipseMetricsAt(sys, descriptors[di], t);
+      var cover = metrics ? metrics.cover : 0;
+      if (cover > 0){
+        if (!active){
+          active = true;
+          startT = t;
+          peak = { t: t, metrics: metrics };
+        }
+        endT = t;
+        if (!peak || cover > (peak.metrics.cover || 0)){
+          peak = { t: t, metrics: metrics };
+        }
+      } else if (active){
+        var finished = _finalizeEclipseEvent(sys, startT, endT, peak);
+        if (finished && finished.startT < serial + 1 && finished.endT >= serial){
+          eclipses.push(finished);
+        }
+        active = false;
+        peak = null;
+      }
+    }
+
+    if (active){
+      var trailing = _finalizeEclipseEvent(sys, startT, endT, peak);
+      if (trailing && trailing.startT < serial + 1 && trailing.endT >= serial){
+        eclipses.push(trailing);
+      }
+    }
+  }
+
+  eclipses.sort(function(x, y){ return x.peakT - y.peakT; });
+  _eclipseDayCache[cacheKey] = eclipses;
+  _cullCacheIfLarge(_eclipseDayCache, 180);
+  return eclipses;
+}
+
+function _eclipseNotableToday(serial){
+  var ecl = getEclipses(serial);
+  var notes = [];
+  for (var i = 0; i < ecl.length; i++){
+    var ev = ecl[i];
+    notes.push(
+      '\uD83C\uDF18 <b>' + esc(_eclipseSentenceType(ev.typeLabel)) + '</b> of ' +
+      esc(ev.occluded) + ' by ' + esc(ev.occulting) +
+      ', covering ' + ev.peakCoveragePct + '% of ' + esc(ev.occluded) + '. ' +
+      esc(ev.occulting) + ' appears ' + ev.sizePct + '% as wide as ' + esc(ev.occluded) + '. ' +
+      esc(_eclipseLifecycleText(ev, serial))
+    );
   }
   return notes;
 }
@@ -11844,17 +12347,17 @@ function handleMoonCommand(m, args){
     );
   }
 
-  // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m]
+  // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m|Nd|Nw]
   if (sub === 'send'){
     var tierRaw = String(args[2] || '').toLowerCase();
     if (!tierRaw)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
     var tierArg = MOON_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tierArg)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
     var reqHorizon = _parseMoonRevealRange(args[3], tierArg);
     if (!reqHorizon)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
 
     moonEnsureSequences(todaySerial(), reqHorizon + 30);
     var ms0  = getMoonState();
@@ -12029,7 +12532,7 @@ function handleMoonCommand(m, args){
   whisper(m.who,
     'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
     '<code>!cal moon view &lt;name&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
@@ -12083,7 +12586,7 @@ var PLANE_DATA = {
       anchorYear: 950, anchorPhase: 'coterminous',
       seedAnchor: true,
       associatedMoon: 'Aryth',
-      note: 'Slow canonical cycle: coterminous for 1 year once per century; 50 years later, remote for 1 year. Also has shorter coterminous/remote phases tied to the moon Aryth. (TODO: Generated events should be tied to Aryth full/new moons rather than independent dice rolls.)',
+      note: 'Slow canonical cycle: coterminous for 1 year once per century; 50 years later, remote for 1 year. Shorter off-cycle shifts are tied to Aryth full/new moons through the moontied generator.',
       effects: {
         coterminous: 'Ghosts more easily slip into the Material Plane, especially near Dolurrhi manifest zones. Raise-dead effects can draw unwanted spirits (Dolurrhi mishaps).',
         remote: 'Traditional resurrection magic cannot pull spirits back from Dolurrh. Recovering the dead requires retrieving the shade in Dolurrh; deaths with intense emotion or unfinished business more often leave ghosts behind.'
@@ -13200,7 +13703,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
         '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
         button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
         '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
-          'CLI: <code>!cal planes send (low|medium|high) [28d|1m|3m|6m|10m]</code>'+
+          'CLI: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>'+
         '</div>'+
       '</div>';
   }
@@ -13378,7 +13881,7 @@ function handlePlanesCommand(m, args){
     return whisper(m.who, planesPanelHtml(true));
   }
 
-  // !cal planes send [low|medium|high] [1m|3m|6m|10m]
+  // !cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
   // Without a tier, shows GM-only snapshot.
   // With a tier, broadcasts a player-facing planar forecast and upgrades stored tier.
   if (sub === 'send'){
@@ -13411,11 +13914,11 @@ function handlePlanesCommand(m, args){
 
     var tier = PLANE_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tier){
-      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>');
     }
     var reqHorizon = _parsePlaneRevealRange(args[3], tier);
     if (!reqHorizon){
-      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>');
     }
 
     var psSend = getPlanesState();
@@ -13521,7 +14024,7 @@ function handlePlanesCommand(m, args){
 
   whisper(m.who,
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
-    '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m]</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
@@ -13555,12 +14058,99 @@ on("ready", function(){
 });
 
 
-return {
+var _public = {
   checkInstall: checkInstall,
   register: register,
   render: renderAPI,
   events: eventsAPI,
   colors: colorsAPI
 };
+
+// ── Test-only exports ─────────────────────────────────────────────────────
+// When __CALENDAR_TEST_MODE__ is set (by test/roll20-shim.js), expose
+// internal functions so tests can exercise core logic directly.
+if (typeof globalThis !== 'undefined' && globalThis.__CALENDAR_TEST_MODE__) {
+  _public._test = {
+    // date / serial math
+    toSerial:            toSerial,
+    fromSerial:          fromSerial,
+    weekdayIndex:        weekdayIndex,
+    daysPerYear:         daysPerYear,
+    _daysBeforeYear:     _daysBeforeYear,
+    _daysBeforeMonthInYear: _daysBeforeMonthInYear,
+    _isGregorianLeapYear: _isGregorianLeapYear,
+    _leapsBefore:        _leapsBefore,
+    _invalidateSerialCache: _invalidateSerialCache,
+    todaySerial:         todaySerial,
+
+    // state helpers
+    getCal:              getCal,
+    ensureSettings:      ensureSettings,
+    deepClone:           deepClone,
+    checkInstall:        checkInstall,
+    refreshCalendarState: refreshCalendarState,
+
+    // calendar systems
+    CALENDAR_SYSTEMS:    CALENDAR_SYSTEMS,
+    applyCalendarSystem: applyCalendarSystem,
+    applySeasonSet:      applySeasonSet,
+
+    // date navigation
+    stepDays:            stepDays,
+    setDate:             setDate,
+    currentDateLabel:    currentDateLabel,
+    formatDateLabel:     formatDateLabel,
+    monthIndexByName:    monthIndexByName,
+
+    // events
+    getEventsFor:        getEventsFor,
+    addEventSmart:       addEventSmart,
+    removeEvent:         removeEvent,
+    eventKey:            eventKey,
+    compareEvents:       compareEvents,
+    getEventColor:       getEventColor,
+    isDefaultEvent:      isDefaultEvent,
+
+    // utilities
+    _stableHash:         _stableHash,
+    clamp:               clamp,
+    esc:                 esc,
+    titleCase:           titleCase,
+    sanitizeHexColor:    sanitizeHexColor,
+    resolveColor:        resolveColor,
+    textColor:           textColor,
+    _relLum:             _relLum,
+    _contrast:           _contrast,
+    weekLength:          weekLength,
+    colorForMonth:       colorForMonth,
+
+    // weather
+    getWeatherState:     getWeatherState,
+    _composeFormula:     _composeFormula,
+    _rollTrait:          _rollTrait,
+    _clampWeatherTempBand: _clampWeatherTempBand,
+    _weatherTempLabel:   _weatherTempLabel,
+    _weatherTempInfo:    _weatherTempInfo,
+
+    // moons
+    getMoonState:        getMoonState,
+    _moonHashStr:        _moonHashStr,
+    _moonPrng:           _moonPrng,
+    moonPhaseAt:         moonPhaseAt,
+    moonEnsureSequences: moonEnsureSequences,
+    MOON_SYSTEMS:        MOON_SYSTEMS,
+    _eberronMoonCore:    _eberronMoonCore,
+    nighttimeLux:        nighttimeLux,
+    nighttimeLightCondition: nighttimeLightCondition,
+
+    // constants
+    state_name:          state_name,
+    CONFIG_DEFAULTS:     CONFIG_DEFAULTS,
+    SEASON_SETS:         SEASON_SETS,
+    WEATHER_CLIMATES:    WEATHER_CLIMATES,
+  };
+}
+
+return _public;
 
 })();

@@ -125,15 +125,17 @@ every Sul         — every matching weekday in the month
 !cal weather mechanics
 !cal weather send
 !cal weather reveal (medium|high) [1-10]
+!cal weather reveal <dateSpec>
 ```
 
 `!cal weather send` broadcasts whatever weather knowledge the players already have. It does not take extra arguments.
+`!cal weather reveal <dateSpec>` is the divination-style exact-date reveal. It uses the current weather location, generates intermediate days for continuity, and only exposes the chosen date or range to players. Exact-date reveals must target today or future dates.
 
 ### GM Weather Generation and Events
 
 ```text
-!cal weather generate [days]
-!cal weather reroll [serial]
+!cal weather generate [1-20]
+!cal weather reroll [serial]                 — today or future only, at the current location
 !cal weather lock [serial]
 !cal weather event trigger <key>
 !cal weather event roll <key>
@@ -146,6 +148,7 @@ every Sul         — every matching weekday in the month
 !cal weather location climate <key>
 !cal weather location geography <key>
 !cal weather location terrain <key>
+!cal weather location recent <1-3>
 
 !cal weather manifest
 !cal weather manifest toggle <planeKey>
@@ -154,6 +157,15 @@ every Sul         — every matching weekday in the month
 !cal weather manifest clear
 
 !cal weather location zone <planeKey|none>   — manifest-zone alias
+```
+
+Examples:
+
+```text
+!cal weather reveal 14-17
+!cal weather reveal Rhaan 14
+!cal weather reveal Hammer 5-7 1491
+!cal weather location recent 1
 ```
 
 ## Moons
@@ -179,8 +191,8 @@ every Sul         — every matching weekday in the month
 
 ```text
 !cal moon send low
-!cal moon send medium [1w|1m|3m|6m|10m]
-!cal moon send high [1w|1m|3m|6m|10m]
+!cal moon send medium [1w|1m|3m|6m|10m|Nd|Nw]
+!cal moon send high [1w|1m|3m|6m|10m|Nd|Nw]
 ```
 
 Examples:
@@ -223,8 +235,8 @@ Examples:
 
 ```text
 !cal planes send low
-!cal planes send medium [1d|3d|6d|10d]
-!cal planes send high [1m|3m|6m|10m]
+!cal planes send medium [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
+!cal planes send high [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
 ```
 
 Examples:

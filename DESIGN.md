@@ -89,8 +89,7 @@ All systems exposed through `!cal` commands and panel UIs with GM/player reveal 
 - Date format: `16th of Mirtul, 1492 DR`
 - Era label: DR (Dalereckoning)
 - Weekday names not used in date display
-
-> **Implementation note:** Harptos tenday column layout is an open task (see Design Tasks.md). The calendar system definitions are correct; the display rendering may still be showing weekday columns.
+- Intercalary festival days render as a dedicated strip row rather than occupying a numbered tenday slot
 
 ### 3.3 Gregorian / Earth
 
@@ -122,7 +121,7 @@ All subsystems use a unified three-tier naming convention. No legacy names (mund
 
 - Per-serial: `{ tier: 'low'|'medium'|'high', source: string }`
 - **Upgrade-only**: new info never downgrades existing knowledge
-- Location-aware: weather reveals stored with location context
+- Location-aware: weather reveals stored by location signature, with location label metadata for player-facing output
 - Past-date pruning clears old reveals for memory management
 
 ### Weather Tiers
@@ -346,17 +345,24 @@ Runtime state tracks: active location profile, forecast records, locked history,
 - Forecast generated forward and retained to configured horizon
 - Past weather locks into history up to retention cap
 - Location changes: signature-aware stale handling — matching profile records may be resurrected; mismatched records marked stale until regenerated
-- Player reveal is upgrade-only
+- Player reveal is upgrade-only and scoped to the active location profile
 - GM view remains full-fidelity
+- Recent locations: last three normalized location profiles retained for quick switching in the wizard
 
 ### 6.11 Specific-Date Reveals
 
-For "what's the weather in the mountains in 6 weeks?" (design intent, partially implemented):
+For "what's the weather in the mountains in 6 weeks?" (implemented workflow):
 1. GM changes location to mountains
 2. GM generates weather to target date (extending rolling window)
 3. GM reveals specific date(s) only — not everything in between
 4. GM tells players, changes location back
 5. No UI noise about data from other locations
+
+Implementation details:
+- Command accepts standard date syntax plus intra-month ranges, e.g. `14-17`, `4 5-7`, `Rhaan 14`, `Hammer 5-7 1491`
+- Reveal cap: 90 days ahead to prevent chat flooding
+- Player forecast view only surfaces revealed dates for the **current** location
+- Presentation reuses the forecast mini-calendar strip with blank cells for unrevealed dates
 
 ### 6.12 Zarantyr Interaction
 
@@ -369,10 +375,13 @@ For "what's the weather in the mountains in 6 weeks?" (design intent, partially 
 ```
 !cal weather
 !cal weather forecast [n]
-!cal weather generate
+!cal weather generate [1-20]
 !cal weather history
 !cal weather mechanics
-!cal weather reroll <serial>
+!cal weather send
+!cal weather reveal (medium|high) [1-10]
+!cal weather reveal <dateSpec>   // today/future only
+!cal weather reroll <serial>     // today/future only
 !cal weather lock <serial>
 !cal weather event trigger <key>
 !cal weather event roll <key>
@@ -381,13 +390,17 @@ For "what's the weather in the mountains in 6 weeks?" (design intent, partially 
 !cal weather location climate <key>
 !cal weather location geography <key>
 !cal weather location terrain <key>
+!cal weather location recent <1-3>
 !cal weather location zone <key|none>
 ```
 
 ### 6.14 Implementation Notes
 
-- Additional commands (`history`, `mechanics`, `reroll`, `lock`, `event trigger/roll`) exist in the implementation and are documented above.
+- Additional commands (`history`, `mechanics`, `reroll`, `lock`, `event trigger/roll`, `send`, specific-date `reveal`, and `location recent`) exist in the implementation and are documented above.
 - `weather send today` reuses the best already-revealed tier for the current day.
+- Manual `weather generate` is bounded to the configured forecast horizon so it cannot create arbitrarily large persistent forecast windows.
+- `weather reroll` refuses archived past days, seeds continuity from yesterday's history when needed, and keeps reroll cascades on the current location instead of stale-location data.
+- Exact-date `weather reveal <dateSpec>` requests reject any range that includes past days.
 - Legacy aliases (`survival`/`mundane` → medium; `magic`/`magical` → high) exist in implementation. Per code conventions, these should be removed.
 
 ---
@@ -495,7 +508,15 @@ For each moon/day:
 
 - **Solar eclipses:** moon passes between Eberron and sun
 - **Lunar eclipses/occultations:** moon passes behind Eberron's shadow or behind another moon
-- Eclipse timing currently uses four time blocks (nighttime 0–6, morning 6–12, afternoon 12–18, evening 18–24). The eclipse overhaul task in Design Tasks.md will align these to the five weather buckets and fix multi-day duplicate reporting.
+- Report **true disk overlaps only**; near-miss conjunction flavor is excluded from eclipse reporting
+- Classification uses peak overlap plus relative apparent diameter:
+  - `Total Eclipse`: >98% coverage of the occluded body
+  - `Partial Eclipse`: >0% coverage and occluding body >75% of occluded body's apparent diameter
+  - `Transit`: >0% coverage and occluding body <=75% of occluded body's apparent diameter
+- Coverage is computed from actual apparent-disk overlap, reported as percent of the occluded body
+- Timing uses the five shared weather buckets: Early Morning / Morning / Afternoon / Evening / Late Night
+- Sky-position text uses existing visibility labels and suppresses below-horizon events
+- Eclipse windows are grouped across midnight as one physical event, with day-specific begin / peak / end phrasing derived from the same window
 
 ### 7.9 Moon Mini-Calendar Display
 
@@ -503,6 +524,7 @@ For each moon/day:
 - Yellow dot if any moon is full on that day
 - Black dot if at least one moon is new on that day
 - No moon monikers/titles in tooltips
+- High-tier moon summaries may additionally surface same-day eclipse notes using the grouped event phrasing from 7.8
 
 ### 7.10 Aryth and Manifest Zones
 
@@ -516,7 +538,7 @@ Aryth "has a similar effect on manifest zones as Zarantyr has on tides."
 ```
 !cal moon
 !cal moon on <dateSpec>
-!cal moon send [low|medium|high] [range option]
+!cal moon send [low|medium|high] [1w|1m|3m|6m|10m|Nd|Nw]
 !cal moon sky [time]              — sky visibility at time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]         — moon lore output
 !cal moon seed <word>             — set system moon seed
@@ -725,7 +747,7 @@ Deterministic, seed-based generated events checked per plane/day.
 ```
 !cal planes
 !cal planes on <dateSpec>
-!cal planes send [low|medium|high] [range]
+!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
 !cal planes set <name> <phase> [days]
 !cal planes clear [<name>]
 !cal planes anchor <name> <phase> <dateSpec>
