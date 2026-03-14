@@ -333,9 +333,9 @@ Current weather readouts also add a small annotation line whenever a manifest zo
 
 **Player reveals** are upgrade-only. Once a tier of information is given, players retain it. See [Knowledge Tiers](#knowledge-tiers) for the shared reveal model used across subsystems.
 
-GMs can extend the forecast window ahead, reroll individual dates before revealing them, or lock a date's weather to prevent future changes.
+GMs can regenerate the active forecast window, reroll today or future dates at the current location before revealing them, or lock a date's weather to prevent future changes.
 
-GMs can also use `!cal weather reveal <dateSpec>` for divination-style weather reveals. The generator still rolls intermediate days for continuity, but the player-facing forecast only exposes the chosen date or range, shown on the same mini-calendar strip with blank cells for unrevealed days.
+GMs can also use `!cal weather reveal <dateSpec>` for divination-style weather reveals. These exact-date reveals must target today or future dates. The generator still rolls intermediate days for continuity, but the player-facing forecast only exposes the chosen date or range, shown on the same mini-calendar strip with blank cells for unrevealed days.
 
 ### Mechanics
 

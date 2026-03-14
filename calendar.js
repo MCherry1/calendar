@@ -5110,7 +5110,7 @@ var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisper(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|planes|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
@@ -6622,6 +6622,14 @@ function _forecastIndex(serial){
   return -1;
 }
 
+function _historyRecord(serial){
+  var hist = getWeatherState().history;
+  for (var i = hist.length - 1; i >= 0; i--){
+    if (hist[i].serial === serial) return hist[i];
+  }
+  return null;
+}
+
 function _generateForecast(fromSerial_, count, forceRegen){
   var ws  = getWeatherState();
   var loc = ws.location;
@@ -6634,12 +6642,7 @@ function _generateForecast(fromSerial_, count, forceRegen){
   var prevRec = null;
   var prevIdx = _forecastIndex(fromSerial_ - 1);
   if (prevIdx >= 0) prevRec = ws.forecast[prevIdx];
-  else {
-    // Check history
-    for (var h=0; h<ws.history.length; h++){
-      if (ws.history[h].serial === fromSerial_ - 1){ prevRec = ws.history[h]; break; }
-    }
-  }
+  else prevRec = _historyRecord(fromSerial_ - 1);
 
   for (var i=0; i<count; i++){
     var ser = fromSerial_ + i;
@@ -7745,7 +7748,7 @@ function sendSpecificWeatherReveal(m, tokens){
     warnGM('Usage: weather reveal <dateSpec> (examples: 14-17, 4 5-7, Rhaan 14, Hammer 5-7 1491)');
     return;
   }
-  if (parsed.endSerial < today){
+  if (parsed.startSerial < today){
     warnGM('Specific-date weather reveals can only target today or future dates.');
     return;
   }
@@ -8640,7 +8643,16 @@ function handleWeatherCommand(m, args){
 
     case 'generate':
       // Force regenerate the whole forecast window
-      var n = parseInt(args[2],10) || CONFIG_WEATHER_FORECAST_DAYS;
+      var n = CONFIG_WEATHER_FORECAST_DAYS;
+      if (args[2]){
+        var nTok = String(args[2] || '').trim();
+        var parsedDays = parseInt(nTok, 10);
+        if (!/^\d+$/.test(nTok) || parsedDays < 1 || parsedDays > CONFIG_WEATHER_FORECAST_DAYS){
+          warnGM('Usage: weather generate [1-'+CONFIG_WEATHER_FORECAST_DAYS+']');
+          break;
+        }
+        n = parsedDays;
+      }
       var cnt = _generateForecast(todaySerial(), n, true);
       whisper(m.who, 'Generated '+cnt+' day'+(cnt===1?'':'s')+' of weather.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
@@ -8648,17 +8660,22 @@ function handleWeatherCommand(m, args){
 
     case 'reroll': {
       // Reroll a specific future day (not past/locked)
+      var ws2 = getWeatherState();
+      var todayNow = todaySerial();
       var targetSer = parseInt(args[2],10);
-      if (!isFinite(targetSer)) targetSer = todaySerial();
+      if (!isFinite(targetSer)) targetSer = todayNow;
+      if (targetSer < todayNow){
+        warnGM('That day is already in the past. Cannot reroll archived weather.');
+        break;
+      }
       var existing = _forecastRecord(targetSer);
       if (existing && existing.locked){
         warnGM('That day is locked (it\'s in the past). Cannot reroll.');
         break;
       }
-      var prevRec = _forecastRecord(targetSer - 1);
-      var newRec = _generateDayWeather(targetSer, prevRec, null);
+      var prevRec = _forecastRecord(targetSer - 1) || _historyRecord(targetSer - 1);
+      var newRec = _generateDayWeather(targetSer, prevRec, ws2.location || null);
       if (newRec){
-        var ws2 = getWeatherState();
         var idx2 = _forecastIndex(targetSer);
         if (idx2 >= 0) ws2.forecast[idx2] = newRec;
         else ws2.forecast.push(newRec);
@@ -8666,7 +8683,7 @@ function handleWeatherCommand(m, args){
         // Cascade one day forward so continuity and early-morning carryover stay coherent.
         var nextRec2 = _forecastRecord(targetSer + 1);
         if (nextRec2 && !nextRec2.locked){
-          var regenNext = _generateDayWeather(targetSer + 1, newRec, nextRec2.location || null);
+          var regenNext = _generateDayWeather(targetSer + 1, newRec, ws2.location || null);
           if (regenNext){
             var nextIdx2 = _forecastIndex(targetSer + 1);
             if (nextIdx2 >= 0) ws2.forecast[nextIdx2] = regenNext;
@@ -8806,24 +8823,19 @@ function register(){ on('chat:message', handleInput); }
 // ---------------------------------------------------------------------------
 
 
-// ---------------------------------------------------------------------------
-// 20a-i) Eberron moon mapping ambiguities (needs resolution)
-// ---------------------------------------------------------------------------
-// Canon in this script: color, diameter, and mean orbital distance.
-// The remaining orbital traits (eccentricity, inclination, albedo, etc.) are
-// adapted from real-world candidate moons. Where analog intent can be read as
-// more than one possibility, track it here for future adjudication.
-var EBERRON_MOON_AMBIGUITIES = [
+// Historical candidate-selection notes are archived in
+// design/moon-reference-selection.md rather than runtime data.
+/*
   {
     moon: 'Lharvion',
     currentReferenceMoon: 'Nereid (Neptune)',
     alternateSeenInOlderLore: 'Phoebe (Saturn)',
     reason: 'Current orbital parameters (eccentricity 0.7507, inclination 7.23°) match Nereid, but older lore text referenced Phoebe.'
   }
-];
+*/
 
 // ---------------------------------------------------------------------------
-// 20a-ii) Eberron moon core data (campaign baseline)
+// 20a-i) Eberron moon core data (campaign baseline)
 // ---------------------------------------------------------------------------
 // Canonical Eberron moon values used in this script.
 // Fields centralized here for quick reference and to avoid drift:
@@ -8831,7 +8843,7 @@ var EBERRON_MOON_AMBIGUITIES = [
 //   diameter            -> moon diameter in miles
 //   avgOrbitalDistance  -> average orbital distance from Eberron in miles
 // NOTE: This section intentionally excludes candidate/reference moon mapping data;
-// keep that in moons-system-design.md under the Candidate moons table.
+// keep that in design/moon-reference-selection.md.
 var EBERRON_MOON_CORE_DATA = {
   Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
   Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
@@ -10348,7 +10360,7 @@ function moonPanelHtml(serialOverride){
     '</div>'+
     '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
     'Player tier: '+esc(tierLabel)+' · '+
-    'CLI: <code>!cal moon send (low|medium|high) [28d|1m|3m|6m|10m]</code>'+
+    'CLI: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>'+
     '</div>';
 
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
@@ -11148,8 +11160,8 @@ function _eclipseSentenceType(typeLabel){
   return (typeLabel === 'Transit') ? 'Transit' : typeLabel.replace(' Eclipse', ' eclipse');
 }
 
-// Legacy eclipse detector retained for reference during review.
-function _getEclipsesLegacy(serial){
+/* Legacy eclipse review path removed; see git history if older heuristics are needed.
+// function _getEclipsesLegacy(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
@@ -11236,7 +11248,7 @@ function _getEclipsesLegacy(serial){
 }
 
 // Legacy notable-text formatter retained for reference during review.
-function _eclipseNotableTodayLegacy(serial){
+// function _eclipseNotableTodayLegacy(serial){
   var st = ensureSettings();
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
   var ecl = _getEclipsesLegacy(serial);
@@ -11258,6 +11270,7 @@ function _eclipseNotableTodayLegacy(serial){
   return notes;
 }
 
+*/
 // Replacement eclipse engine: groups physical overlap windows across midnight
 // and reports only true disk overlaps that peak above the horizon.
 function getEclipses(serial){
@@ -12197,17 +12210,17 @@ function handleMoonCommand(m, args){
     );
   }
 
-  // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m]
+  // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m|Nd|Nw]
   if (sub === 'send'){
     var tierRaw = String(args[2] || '').toLowerCase();
     if (!tierRaw)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
     var tierArg = MOON_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tierArg)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
     var reqHorizon = _parseMoonRevealRange(args[3], tierArg);
     if (!reqHorizon)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
 
     moonEnsureSequences(todaySerial(), reqHorizon + 30);
     var ms0  = getMoonState();
@@ -12382,7 +12395,7 @@ function handleMoonCommand(m, args){
   whisper(m.who,
     'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
     '<code>!cal moon view &lt;name&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m]</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
@@ -12436,7 +12449,7 @@ var PLANE_DATA = {
       anchorYear: 950, anchorPhase: 'coterminous',
       seedAnchor: true,
       associatedMoon: 'Aryth',
-      note: 'Slow canonical cycle: coterminous for 1 year once per century; 50 years later, remote for 1 year. Also has shorter coterminous/remote phases tied to the moon Aryth. (TODO: Generated events should be tied to Aryth full/new moons rather than independent dice rolls.)',
+      note: 'Slow canonical cycle: coterminous for 1 year once per century; 50 years later, remote for 1 year. Shorter off-cycle shifts are tied to Aryth full/new moons through the moontied generator.',
       effects: {
         coterminous: 'Ghosts more easily slip into the Material Plane, especially near Dolurrhi manifest zones. Raise-dead effects can draw unwanted spirits (Dolurrhi mishaps).',
         remote: 'Traditional resurrection magic cannot pull spirits back from Dolurrh. Recovering the dead requires retrieving the shade in Dolurrh; deaths with intense emotion or unfinished business more often leave ghosts behind.'
@@ -13553,7 +13566,7 @@ function planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, ge
         '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
         button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
         '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
-          'CLI: <code>!cal planes send (low|medium|high) [28d|1m|3m|6m|10m]</code>'+
+          'CLI: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>'+
         '</div>'+
       '</div>';
   }
@@ -13731,7 +13744,7 @@ function handlePlanesCommand(m, args){
     return whisper(m.who, planesPanelHtml(true));
   }
 
-  // !cal planes send [low|medium|high] [1m|3m|6m|10m]
+  // !cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
   // Without a tier, shows GM-only snapshot.
   // With a tier, broadcasts a player-facing planar forecast and upgrades stored tier.
   if (sub === 'send'){
@@ -13764,11 +13777,11 @@ function handlePlanesCommand(m, args){
 
     var tier = PLANE_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tier){
-      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>');
     }
     var reqHorizon = _parsePlaneRevealRange(args[3], tier);
     if (!reqHorizon){
-      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>');
     }
 
     var psSend = getPlanesState();
@@ -13874,7 +13887,7 @@ function handlePlanesCommand(m, args){
 
   whisper(m.who,
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
-    '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m]</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+

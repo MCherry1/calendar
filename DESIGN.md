@@ -375,13 +375,13 @@ Implementation details:
 ```
 !cal weather
 !cal weather forecast [n]
-!cal weather generate
+!cal weather generate [1-20]
 !cal weather history
 !cal weather mechanics
 !cal weather send
 !cal weather reveal (medium|high) [1-10]
-!cal weather reveal <dateSpec>
-!cal weather reroll <serial>
+!cal weather reveal <dateSpec>   // today/future only
+!cal weather reroll <serial>     // today/future only
 !cal weather lock <serial>
 !cal weather event trigger <key>
 !cal weather event roll <key>
@@ -398,6 +398,9 @@ Implementation details:
 
 - Additional commands (`history`, `mechanics`, `reroll`, `lock`, `event trigger/roll`, `send`, specific-date `reveal`, and `location recent`) exist in the implementation and are documented above.
 - `weather send today` reuses the best already-revealed tier for the current day.
+- Manual `weather generate` is bounded to the configured forecast horizon so it cannot create arbitrarily large persistent forecast windows.
+- `weather reroll` refuses archived past days, seeds continuity from yesterday's history when needed, and keeps reroll cascades on the current location instead of stale-location data.
+- Exact-date `weather reveal <dateSpec>` requests reject any range that includes past days.
 - Legacy aliases (`survival`/`mundane` → medium; `magic`/`magical` → high) exist in implementation. Per code conventions, these should be removed.
 
 ---
@@ -535,7 +538,7 @@ Aryth "has a similar effect on manifest zones as Zarantyr has on tides."
 ```
 !cal moon
 !cal moon on <dateSpec>
-!cal moon send [low|medium|high] [range option]
+!cal moon send [low|medium|high] [1w|1m|3m|6m|10m|Nd|Nw]
 !cal moon sky [time]              — sky visibility at time of day (dawn/noon/dusk/midnight)
 !cal moon lore [moonName]         — moon lore output
 !cal moon seed <word>             — set system moon seed
@@ -744,7 +747,7 @@ Deterministic, seed-based generated events checked per plane/day.
 ```
 !cal planes
 !cal planes on <dateSpec>
-!cal planes send [low|medium|high] [range]
+!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
 !cal planes set <name> <phase> [days]
 !cal planes clear [<name>]
 !cal planes anchor <name> <phase> <dateSpec>
