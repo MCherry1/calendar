@@ -193,6 +193,8 @@
   },
   "active": "161788ecb967845a",
   "lastOpenFiles": [
+    "tests/calendar_smoke.ps1",
+    "tests",
     "tools/Launch-Roll20ApiSync.ps1",
     "tools/Launch-Roll20ApiSync.local.example.ps1",
     "tools",
