@@ -14155,6 +14155,31 @@ if (typeof globalThis !== 'undefined' && globalThis.__CALENDAR_TEST_MODE__) {
     weatherEnsureForecast:  weatherEnsureForecast,
     _weatherRecordForDisplay: _weatherRecordForDisplay,
 
+    // eclipse
+    _diskOverlapFraction:    _diskOverlapFraction,
+    _eclipseTimeBlock:       _eclipseTimeBlock,
+    _eclipseMetricsAt:       _eclipseMetricsAt,
+    _finalizeEclipseEvent:   _finalizeEclipseEvent,
+    _eclipseLifecycleText:   _eclipseLifecycleText,
+    _eclipseNotableToday:    _eclipseNotableToday,
+    getEclipses:             getEclipses,
+
+    // weather reveals
+    _bestTier:               _bestTier,
+    _locSig:                 _locSig,
+    _weatherRevealBucket:    _weatherRevealBucket,
+    _recordReveal:           _recordReveal,
+    _weatherRevealForSerial: _weatherRevealForSerial,
+    _grantCommonWeatherReveals: _grantCommonWeatherReveals,
+    _parseWeatherRevealDayToken:  _parseWeatherRevealDayToken,
+    _parseWeatherRevealDateSpec:  _parseWeatherRevealDateSpec,
+
+    // harptos
+    weekStartSerial:         weekStartSerial,
+    _ordinal:                _ordinal,
+    _displayMonthDayParts:   _displayMonthDayParts,
+    CALENDAR_STRUCTURE_SETS: CALENDAR_STRUCTURE_SETS,
+
     // constants
     state_name:          state_name,
     CONFIG_DEFAULTS:     CONFIG_DEFAULTS,
