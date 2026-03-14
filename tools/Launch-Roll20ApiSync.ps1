@@ -33,6 +33,12 @@ if (-not $SkipPull) {
   }
 }
 
+Write-Host "Building calendar.js from TypeScript source..."
+& npm run build --prefix $repoRoot
+if ($LASTEXITCODE -ne 0) {
+  throw "npm run build failed with exit code $LASTEXITCODE."
+}
+
 $currentCommit = (& git -C $repoRoot rev-parse --short HEAD).Trim()
 $modifiedFiles = (& git -C $repoRoot status --short).Trim()
 

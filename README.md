@@ -553,9 +553,9 @@ test/
 1. Edit TypeScript source in `src/`
 2. Run `npm test` to verify
 3. Run `npm run build` to regenerate `calendar.js`
-4. Commit both source and built output
+4. Commit source changes (the built `calendar.js` is gitignored)
 
-CI runs typecheck, tests, and build on every PR. If the build produces a changed `calendar.js`, CI commits it automatically.
+CI runs typecheck, tests, and build on every PR. The launcher script (`tools/Launch-Roll20ApiSync.ps1`) builds `calendar.js` automatically before syncing to Roll20.
 
 </details>
 

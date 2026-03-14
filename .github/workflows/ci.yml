@@ -9,17 +9,12 @@ on:
   pull_request:
     branches: ["main"]
 
-permissions:
-  contents: write
-
 jobs:
   test:
     name: Test & Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -30,13 +25,3 @@ jobs:
         run: npm test
       - name: Build calendar.js
         run: npm run build
-      - name: Commit built output (PR only)
-        if: github.event_name == 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add calendar.js
-          git diff --cached --quiet && echo "No changes to calendar.js" && exit 0
-          git commit -m "build: update compiled calendar.js"
-          git pull --rebase origin ${{ github.head_ref }}
-          git push origin HEAD:${{ github.head_ref }}
