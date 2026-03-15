@@ -52,7 +52,7 @@ import {
   _normalizeDisplayMode, _nextDisplayMode, _displayModeLabel,
   _subsystemIsVerbose, _legendLine, _displayMonthDayParts, _weatherViewDays
 } from './ui';
-import { send, sendToAll, whisper, warnGM, cleanWho } from './messaging';
+import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messaging';
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
 
@@ -683,7 +683,7 @@ var MANIFEST_ZONE_DEFS: any = {
 // 18a) State accessors
 // ---------------------------------------------------------------------------
 
-function _weatherLocationLabel(loc: any){
+export function _weatherLocationLabel(loc: any){
   if (!loc) return 'Unknown Location';
   var climate = titleCase(loc.climate || 'temperate');
   var geography = titleCase(String(loc.geography || 'inland').replace(/_/g, ' '));
@@ -691,7 +691,7 @@ function _weatherLocationLabel(loc: any){
   return climate + ' / ' + geography + ' / ' + terrain;
 }
 
-function _normalizeWeatherLocation(loc: any){
+export function _normalizeWeatherLocation(loc: any){
   if (!loc) return null;
   var out: any = {
     climate: loc.climate || 'temperate',
@@ -763,7 +763,7 @@ export function _weatherRevealBucket(ws: any, loc: any, createIfMissing: any){
   return store[sig] || {};
 }
 
-function _rememberRecentWeatherLocation(ws: any, loc: any){
+export function _rememberRecentWeatherLocation(ws: any, loc: any){
   ws = ws || getWeatherState();
   loc = _normalizeWeatherLocation(loc);
   if (!loc) return;
@@ -1280,7 +1280,7 @@ function _historyRecord(serial: any){
   return null;
 }
 
-function _generateForecast(fromSerial_: any, count: any, forceRegen: any){
+export function _generateForecast(fromSerial_: any, count: any, forceRegen: any){
   var ws  = getWeatherState();
   var loc = ws.location;
   if (!loc){ warnGM('Set a weather location first: !cal weather location'); return 0; }
@@ -1297,6 +1297,10 @@ function _generateForecast(fromSerial_: any, count: any, forceRegen: any){
   for (var i=0; i<count; i++){
     var ser = fromSerial_ + i;
     var existing = _forecastRecord(ser);
+    if (existing && existing.locked){
+      prevRec = existing;
+      continue;
+    }
     if (existing && !forceRegen && !existing.stale) continue;
 
     var rec = _generateDayWeather(ser, prevRec, loc);
@@ -2865,8 +2869,12 @@ function _getWeatherWizard(){
   return ws._wizard;
 }
 
-function weatherLocationWizardHtml(step: any, partial?: any){
+export function weatherLocationWizardHtml(step: any, partial?: any, opts?: any){
   partial = partial || {};
+  opts = opts || {};
+  var commandPrefix = String(opts.commandPrefix || 'weather location');
+  var titlePrefix = String(opts.titlePrefix || 'Set Location');
+  var laterCommand = String(opts.laterCommand || '');
 
   // Step 1: Climate
   if (!step || step === 'start'){
@@ -2877,7 +2885,7 @@ function weatherLocationWizardHtml(step: any, partial?: any){
         '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Recent locations:</div>' +
         wsRecent.recentLocations.map(function(loc: any, idx: any){
           return '<div style="margin:3px 0;">'+
-            button(loc.name || _weatherLocationLabel(loc), 'weather location recent ' + (idx + 1))+
+            button(loc.name || _weatherLocationLabel(loc), commandPrefix + ' recent ' + (idx + 1))+
             ' <span style="opacity:.7;font-size:.85em;">Quick switch</span>'+
             '</div>';
         }).join('') +
@@ -2885,10 +2893,13 @@ function weatherLocationWizardHtml(step: any, partial?: any){
     }
     var climateButtons = Object.keys(WEATHER_CLIMATES).map(function(k: any){
       return '<div style="margin:3px 0;">'+
-        button(titleCase(k), 'weather location climate '+k)+
+        button(titleCase(k), commandPrefix + ' climate ' + k)+
         ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_CLIMATES[k])+'</span>'+
         '</div>';
     }).join('');
+    if (laterCommand){
+      climateButtons += '<div style="margin:6px 0 4px 0;">' + button('Set later', laterCommand) + '</div>';
+    }
     var st2 = ensureSettings();
     var sv2  = st2.seasonVariant || CONFIG_DEFAULTS.seasonVariant;
     var hem2 = st2.hemisphere    || CONFIG_DEFAULTS.hemisphere;
@@ -2898,7 +2909,7 @@ function weatherLocationWizardHtml(step: any, partial?: any){
           ? '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Southern hemisphere campaign? › !cal hemisphere south</div>'
           : '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Northern hemisphere campaign? › !cal hemisphere north</div>')
       : '';
-    return _menuBox('Set Location — Step 1: Climate', recentHtml + climateButtons + hemHint);
+    return _menuBox(titlePrefix + ' - Step 1: Climate', recentHtml + climateButtons + hemHint);
   }
 
   // Step 2: Geography
@@ -2906,12 +2917,12 @@ function weatherLocationWizardHtml(step: any, partial?: any){
     var geoButtons = Object.keys(WEATHER_GEOGRAPHIES).map(function(k: any){
       var label = titleCase(k.replace(/_/g,' '));
       return '<div style="margin:3px 0;">'+
-        button(label, 'weather location geography '+k)+
+        button(label, commandPrefix + ' geography ' + k)+
         ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_GEOGRAPHIES[k])+'</span>'+
         '</div>';
     }).join('');
     return _menuBox(
-      'Set Location — Step 2: Geography (Climate: '+esc(titleCase(partial.climate||'?'))+')',
+      titlePrefix + ' - Step 2: Geography (Climate: '+esc(titleCase(partial.climate||'?'))+')',
       geoButtons
     );
   }
@@ -2921,12 +2932,12 @@ function weatherLocationWizardHtml(step: any, partial?: any){
     var terrainButtons = Object.keys(WEATHER_TERRAINS_UI).map(function(k: any){
       var label = titleCase(k.replace(/_/g,' '));
       return '<div style="margin:3px 0;">'+
-        button(label, 'weather location terrain '+k)+
+        button(label, commandPrefix + ' terrain ' + k)+
         ' <span style="opacity:.7;font-size:.85em;">'+esc(WEATHER_TERRAINS_UI[k])+'</span>'+
         '</div>';
     }).join('');
     var ctx = esc(titleCase(partial.climate||'?'))+' / '+esc(titleCase((partial.geography||'inland').replace(/_/g,' ')));
-    return _menuBox('Set Location — Step 3: Terrain ('+ctx+')',
+    return _menuBox(titlePrefix + ' - Step 3: Terrain ('+ctx+')',
       '<div style="opacity:.8;margin-bottom:6px;">Selecting a terrain finalizes the location. Manifest zones are managed separately.</div>'+
       terrainButtons
     );
@@ -3000,7 +3011,7 @@ function _setWeatherLocationFromWizard(m: any, partial: any){
     }
   }
 
-  whisper(m.who,
+  whisperUi(m.who,
     _menuBox('Location Set', msg)+
     '<div style="margin-top:4px;">'+
     button('Regenerate Forecast','weather generate')+' '+
@@ -3301,7 +3312,7 @@ export function handleWeatherCommand(m, args){
       }
       var existing = _forecastRecord(targetSer);
       if (existing && existing.locked){
-        warnGM('That day is locked (it\'s in the past). Cannot reroll.');
+        warnGM('That day is locked. Cannot reroll.');
         break;
       }
       var prevRec = _forecastRecord(targetSer - 1) || _historyRecord(targetSer - 1);
@@ -3329,8 +3340,9 @@ export function handleWeatherCommand(m, args){
       if (!isFinite(lockSer)) lockSer = todaySerial();
       var lockRec = _forecastRecord(lockSer);
       if (!lockRec){ warnGM('No weather record for that day.'); break; }
+      lockRec.locked = true;
       lockRec.generatedAt = todaySerial();
-      warnGM('Forecast for day '+lockSer+' locked (Magical reveal — full detail).');
+      warnGM('Forecast for day '+lockSer+' locked.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
     }
@@ -3339,18 +3351,18 @@ export function handleWeatherCommand(m, args){
       var locSub = String(args[2]||'').toLowerCase();
       if (!locSub){
         getWeatherState()._wizard = {};
-        whisper(m.who, weatherLocationWizardHtml('start'));
+        whisperUi(m.who, weatherLocationWizardHtml('start'));
         break;
       }
       if (locSub === 'climate'){
         var climate = String(args[3]||'').toLowerCase();
         if (!WEATHER_CLIMATE_BASE[climate]){
-          whisper(m.who, 'Unknown climate. '+button('Back','weather location'));
+          whisperUi(m.who, 'Unknown climate. '+button('Back','weather location'));
           break;
         }
         var _svNow = ensureSettings().seasonVariant || CONFIG_DEFAULTS.seasonVariant;
         if (climate === 'tropical' && _svNow !== 'tropical'){
-          whisper(m.who,
+          whisperUi(m.who,
             '<div style="font-size:.85em;opacity:.6;font-style:italic;margin-bottom:4px;">' +
             'Tropical climate — consider: ' +
             button('Tropical seasons','seasons tropical')+
@@ -3358,24 +3370,24 @@ export function handleWeatherCommand(m, args){
           );
         }
         getWeatherState()._wizard = { climate: climate };
-        whisper(m.who, weatherLocationWizardHtml('geography', { climate: climate }));
+        whisperUi(m.who, weatherLocationWizardHtml('geography', { climate: climate }));
         break;
       }
       if (locSub === 'geography'){
         var geography = String(args[3]||'').toLowerCase();
         if (!WEATHER_GEO_MOD[geography]){
-          whisper(m.who, 'Unknown geography. '+button('Back','weather location'));
+          whisperUi(m.who, 'Unknown geography. '+button('Back','weather location'));
           break;
         }
         var wiz = _getWeatherWizard();
         wiz.geography = geography;
-        whisper(m.who, weatherLocationWizardHtml('terrain', wiz));
+        whisperUi(m.who, weatherLocationWizardHtml('terrain', wiz));
         break;
       }
       if (locSub === 'terrain'){
         var terrain = String(args[3]||'').toLowerCase();
         if (!WEATHER_TERRAIN_MOD[terrain]){
-          whisper(m.who, 'Unknown terrain. '+button('Back','weather location'));
+          whisperUi(m.who, 'Unknown terrain. '+button('Back','weather location'));
           break;
         }
         var wiz2 = _getWeatherWizard();
@@ -3387,7 +3399,7 @@ export function handleWeatherCommand(m, args){
         var recentIdx = Math.max(1, parseInt(args[3], 10) || 1) - 1;
         var recentList = getWeatherState().recentLocations || [];
         if (!recentList[recentIdx]){
-          whisper(m.who, 'That recent location is no longer available. '+button('Back','weather location'));
+          whisperUi(m.who, 'That recent location is no longer available. '+button('Back','weather location'));
           break;
         }
         _setWeatherLocationFromWizard(m, recentList[recentIdx]);

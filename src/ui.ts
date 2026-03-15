@@ -7,7 +7,7 @@ import { _isLeapMonth, _nextActiveMi, _prevActiveMi, fromSerial, regularMonthInd
 import { DaySpec, Parse, monthIndexByName } from './parsing.js';
 import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, eventIndexByKey, markSuppressedIfDefault, occurrencesInRange } from './events.js';
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
-import { send, sendToAll, sendToGM, warnGM, whisper } from './commands.js';
+import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
 import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
@@ -619,7 +619,7 @@ export function stepDays(n, opts?){
     mb('\u23ed\ufe0f Forward','advance 1')+'\u00a0'+
     mb('\ud83d\udce3 Send','send')+'\u00a0'+
     nav('\u2754 Help','root');
-  sendToGM(
+  sendUiToGM(
     '<div><b>Stepped '+direction+'</b> \u2014 '+dateStr+'</div>'+
     '<div style="margin-top:4px;">'+stepButtons+'</div>'
   );
@@ -781,6 +781,21 @@ export function _menuBox(title, innerHtml){
     innerHtml,
     '</div>'
   ].join('');
+}
+
+export function taskCardHtml(title, summary, actions?, detail?){
+  var actionHtml = Array.isArray(actions) && actions.length
+    ? '<div style="margin-top:6px;">' + actions.filter(Boolean).join(' ') + '</div>'
+    : '';
+  var detailHtml = detail
+    ? '<div style="font-size:.8em;opacity:.68;margin-top:4px;">' + detail + '</div>'
+    : '';
+  return '<div style="border:1px solid rgba(0,0,0,.14);border-radius:4px;padding:6px;margin:6px 0;">' +
+    '<div style="font-weight:bold;margin-bottom:3px;">' + esc(title) + '</div>' +
+    '<div style="font-size:.86em;opacity:.9;">' + summary + '</div>' +
+    detailHtml +
+    actionHtml +
+    '</div>';
 }
 
 export function gmButtonsHtml(){
@@ -1034,6 +1049,111 @@ export function helpStatusSummaryHtml(){
 }
 
 export function helpRootMenu(m){
+  var stNew = ensureSettings();
+  var isGMNew = playerIsGM(m.playerid);
+  var rowsNew = [helpStatusSummaryHtml()];
+  var todaySpec = _serialToDateSpec(todaySerial());
+  var promptSet = button('Prompt !cal set', 'set ?{Date|' + todaySpec + '}');
+  var promptSend = button('Prompt !cal send', 'send ?{Calendar range|this month}');
+  var promptAdd = button('Prompt !cal add', 'add ?{Date|' + todaySpec + '} ?{Event name|New Event} ?{Color|#50C878}');
+  var promptMonthly = button('Prompt !cal addmonthly', 'addmonthly ?{Day spec|first Sul} ?{Event name|Monthly Event} ?{Color|#50C878}');
+  var promptYearly = button('Prompt !cal addyearly', 'addyearly ?{Month|Zarantyr} ?{Day|1} ?{Event name|Annual Event} ?{Color|#50C878}');
+  var promptMoonOn = button('Prompt !cal moon on', 'moon on ?{Date|' + todaySpec + '}');
+  var promptPlanesOn = button('Prompt !cal planes on', 'planes on ?{Date|' + todaySpec + '}');
+
+  rowsNew.push(taskCardHtml(
+    'Calendar',
+    'Open the campaign dashboard, jump to month or year views, and use prompt-driven buttons for syntax-heavy date commands.',
+    [
+      mbP(m,'Today','today'),
+      mbP(m,'Show Month','show month'),
+      mbP(m,'Show Year','show year'),
+      promptSet,
+      isGMNew ? promptSend : ''
+    ],
+    'Typed forms: <code>!cal show month</code>, <code>!cal show year</code>, <code>!cal set &lt;dateSpec&gt;</code>.'
+  ));
+
+  rowsNew.push(taskCardHtml(
+    'Weather',
+    stNew.weatherEnabled === false ? 'Weather is currently off.' : 'Open current conditions, forecast access, and location management from one place.',
+    [
+      mbP(m,'Weather','weather'),
+      mbP(m,'Forecast','forecast'),
+      isGMNew ? mbP(m,'Set Location','weather location') : '',
+      isGMNew ? mbP(m,'Mechanics','weather mechanics') : ''
+    ],
+    isGMNew
+      ? 'Typed forms: <code>!cal weather</code>, <code>!cal weather location</code>.'
+      : 'Typed forms: <code>!cal weather</code>, <code>!cal forecast</code>.'
+  ));
+
+  if (stNew.moonsEnabled !== false){
+    rowsNew.push(taskCardHtml(
+      'Moons',
+      'Check lunar status, visibility, and lore without opening the full rules surface first.',
+      [
+        mbP(m,'Moons','moon'),
+        mbP(m,'Sky','moon sky'),
+        mbP(m,'Lore','moon lore'),
+        promptMoonOn
+      ],
+      'Typed forms: <code>!cal moon</code>, <code>!cal moon on &lt;dateSpec&gt;</code>.'
+    ));
+  }
+
+  if (stNew.planesEnabled !== false){
+    rowsNew.push(taskCardHtml(
+      'Planes',
+      'Review planar movement, active extremes, and known future windows from a compact starting point.',
+      [
+        mbP(m,'Planes','planes'),
+        isGMNew ? mbP(m,'Effects','effects') : '',
+        promptPlanesOn
+      ],
+      'Typed forms: <code>!cal planes</code>, <code>!cal planes on &lt;dateSpec&gt;</code>.'
+    ));
+  }
+
+  if (isGMNew){
+    var moonModeNew = _normalizeDisplayMode(stNew.moonDisplayMode);
+    var wxModeNew = _normalizeDisplayMode(stNew.weatherDisplayMode);
+    var plModeNew = _normalizeDisplayMode(stNew.planesDisplayMode);
+    var wxDaysNew = _weatherViewDays(stNew.weatherForecastViewDays);
+    var verbNew = _subsystemVerbosityValue();
+    rowsNew.push(taskCardHtml(
+      'Events',
+      'Add one-off, monthly, and yearly events with prompts or typed commands, then manage source packs separately.',
+      [
+        mbP(m,'List','list'),
+        mbP(m,'Sources','source list'),
+        navP(m,'Colors','eventcolors'),
+        promptAdd,
+        promptMonthly,
+        promptYearly
+      ],
+      'Typed forms: <code>!cal add</code>, <code>!cal addmonthly</code>, <code>!cal addyearly</code>.'
+    ));
+    rowsNew.push(taskCardHtml(
+      'GM Admin',
+      'Reach the high-churn admin tools here and keep deeper configuration inside the existing drill-down menus.',
+      [
+        mbP(m,'Time','time'),
+        navP(m,'Calendar Systems','calendar'),
+        navP(m,'Themes','themes'),
+        navP(m,'Seasons','seasons'),
+        mbP(m,'Effects','effects')
+      ],
+      'Views: Moon ' + _displayModeLabel(moonModeNew) +
+      ' · Weather ' + _displayModeLabel(wxModeNew) +
+      ' · Planes ' + _displayModeLabel(plModeNew) +
+      ' · Forecast ' + wxDaysNew + 'd · Detail ' + (verbNew === 'minimal' ? 'minimal' : 'normal') +
+      '. Reset: <code>!cal resetcalendar</code>.'
+    ));
+  }
+
+  whisperUi(m.who, rowsNew.join(''));
+  return;
   var rows = [];
   rows.push(helpStatusSummaryHtml());
 
@@ -1187,12 +1307,12 @@ export function helpRootMenu(m){
 
 export function helpThemesMenu(m){
   var ro = !playerIsGM(m.playerid);
-  whisper(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
 }
 
 export function helpCalendarSystemMenu(m){
   var ro = !playerIsGM(m.playerid);
-  whisper(m.who,
+  whisperUi(m.who,
     _menuBox(ro ? 'Calendar Systems (view only)' : 'Calendar Systems', calendarSystemListHtml(ro))+
     '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
   );
@@ -1207,7 +1327,7 @@ export function helpEventColorsMenu(m){
     '<code>!cal add 3 14 Feast #50C878</code>.',
     '</div>'
   ].join('');
-  whisper(m.who,
+  whisperUi(m.who,
     _menuBox('Event Colors', intro + colorsNamedListHtml())+
     '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
   );
@@ -1215,7 +1335,7 @@ export function helpEventColorsMenu(m){
 
 export function helpSeasonsMenu(m){
   var ro = !playerIsGM(m.playerid);
-  whisper(m.who,
+  whisperUi(m.who,
     _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))+
     '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
   );

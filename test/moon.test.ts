@@ -8,7 +8,7 @@ import {
   moonEnsureSequences, moonPhaseAt,
   nighttimeLightCondition, nighttimeLux,
   _diskOverlapFraction, _eclipseTimeBlock, _eclipseLifecycleText,
-  _eclipseNotableToday, getEclipses
+  _eclipseNotableToday, getEclipses, getMoonState, handleMoonCommand
 } from "../src/moon.js";
 
 // ============================================================================
@@ -63,6 +63,27 @@ describe("Moon System", () => {
       const phase = moonPhaseAt(m.name, today);
       assert(phase !== undefined && phase !== null, `${m.name} phase`);
     }
+  });
+
+  it("player single-moon view respects reveal horizon", () => {
+    freshInstall();
+    const ms = getMoonState();
+    ms.revealTier = "medium";
+    ms.revealHorizonDays = 7;
+    handleMoonCommand({ who: "Alice", playerid: "P1" } as any, ["moon", "view", "Zarantyr", "Zarantyr", "20", "998"]);
+    const last = (globalThis as any)._chatLog.slice(-1)[0];
+    assert(last.msg.includes("beyond your lunar knowledge"));
+  });
+
+  it("player single-moon view avoids exact daily phase output below high tier", () => {
+    freshInstall();
+    const ms = getMoonState();
+    ms.revealTier = "medium";
+    ms.revealHorizonDays = 28;
+    handleMoonCommand({ who: "Alice", playerid: "P1" } as any, ["moon", "view", "Zarantyr"]);
+    const playerMsg = (globalThis as any)._chatLog.slice(-1)[0].msg;
+    assert(playerMsg.includes("full/new peaks"), "player single-moon view should use the non-exact renderer");
+    assert(!playerMsg.includes("%)"), "player single-moon view should not expose exact daily percentages");
   });
 });
 

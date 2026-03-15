@@ -13,7 +13,7 @@ declare function playerIsGM(playerId: string): boolean;
 declare var __CALENDAR_TEST_MODE__: boolean | undefined;
 
 // Test helpers set by roll20-shim
-declare var _chatLog: Array<{ who: string; msg: string }>;
+declare var _chatLog: Array<{ who: string; msg: string; opts?: any }>;
 declare var _eventHandlers: Record<string, Array<(...args: any[]) => void>>;
 declare var _logMessages: any[];
 declare function _resetShim(): void;

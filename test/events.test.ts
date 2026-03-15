@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
-import { getCal, ensureSettings, titleCase, colorForMonth, weekLength } from "../src/state.js";
+import { applyCalendarSystem, getCal, ensureSettings, getManualSuppressedSources, titleCase, colorForMonth, weekLength } from "../src/state.js";
 import { getEventsFor, eventKey, compareEvents, getEventColor, isDefaultEvent } from "../src/events.js";
 import { _stableHash, sanitizeHexColor, resolveColor, textColor, _relLum, _contrast } from "../src/color.js";
 import { clamp, esc } from "../src/rendering.js";
@@ -51,6 +51,28 @@ describe("Events", () => {
       const color = getEventColor(e);
       assert(color && color.startsWith("#"), `"${e.name}" color: ${color}`);
     }
+  });
+
+  it("restores auto-suppressed calendar sources when switching away and back", () => {
+    freshInstall();
+    const initial = getCal().events.filter((evt: any) => evt.source === "sharn").length;
+    assert(initial > 0, "expected Eberron-only default events at baseline");
+    applyCalendarSystem("gregorian", "standard");
+    const suppressed = getCal().events.filter((evt: any) => evt.source === "sharn").length;
+    assertEquals(suppressed, 0);
+    applyCalendarSystem("eberron", "standard");
+    const restored = getCal().events.filter((evt: any) => evt.source === "sharn").length;
+    assert(restored > 0, "switching back should restore automatically allowed default sources");
+  });
+
+  it("keeps manual source suppression across calendar switches", () => {
+    freshInstall();
+    const manual = getManualSuppressedSources();
+    manual.sharn = 1;
+    applyCalendarSystem("gregorian", "standard");
+    applyCalendarSystem("eberron", "standard");
+    const restored = getCal().events.filter((evt: any) => evt.source === "sharn").length;
+    assertEquals(restored, 0, "manually suppressed sources should stay suppressed after calendar changes");
   });
 });
 

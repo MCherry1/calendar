@@ -64,13 +64,19 @@ Your autouploader extension still does the actual sync to Roll20; this script ju
 <details open>
 <summary>Show the basic startup flow</summary>
 
-Startup message appears in chat when the script initializes:
-> Galifar Calendar Initialized
-> Current Date: Sul, 1 Zarantyr, 998 YK
+On a brand-new campaign, only the GM sees the first-run prompt:
+> Welcome to Calendar! It looks like this is the first time Calendar has been used in this game. Would you like to initialize it?
 
-In the chat window, type:
-`!cal`
-> [!info]*Tip: Add a macro for even easier use.*
+Choose `Yes` to run the onboarding wizard or `No` to dismiss it for now. The GM can always resume by typing `!cal`.
+
+After setup is complete:
+- `!cal` opens the compact Today dashboard
+- `!cal help` opens the task-focused root help menu
+- `!cal show month` and `!cal send month` open or share the full month grid
+
+Players who use `!cal` before the GM finishes setup get a waiting message instead of setup or admin controls.
+
+Setup prompts, help panels, and admin confirmations use Roll20's `noarchive` path so the chat archive stays focused on shared story-facing output.
 
 </details>
 
@@ -81,39 +87,26 @@ In the chat window, type:
 <details>
 <summary>Show navigation layout and button meanings</summary>
 
-The main `!cal` view shows a mini-calendar for the current month, along with several buttons that execute additional script commands.
+The default `!cal` and `!cal today` views now open a compact Today dashboard instead of dropping straight into the full month stack.
 
-The spacing shown below is intentional and should be preserved in Roll20 chat output for readability.
-### GM Buttons
-```
-⏮ Back  |  ⏭ Forward
+GM dashboard cards:
+- Date
+- Events Today
+- Weather
+- Moons
+- Planes
+- GM Controls
 
-📣 Send
+Player dashboard cards:
+- Date
+- Events Today
+- Weather
+- Moons
+- Planes
 
-📋 Today
+Each card starts with a one-sentence summary and keeps deeper views behind focused actions such as `Detail`, `Forecast`, `Mechanics`, `Sky`, `Lore`, `Send`, and `Admin`.
 
-🌤 Weather
-🌙 Moons
-🌀 Planes
-
-⚙ Admin
-```
-### Player Buttons
-```
-◀ Prev  |  Next ▶
-
-📋 Today
-
-🌤 Weather
-🌙 Moons
-🌀 Planes
-```
-
-- **Previous / Next** — see adjacent months
-- **Send** — sends the current calendar view to players in public chat
-- **Today** — summary for the current in-game date
-- **Weather/Moons/Planes** — For players, shows known forecast on dedicated minical. For GMs, includes subsystem management
-- **Admin** — change displays, settings, and everything else related to the script
+Use `!cal show ...` or `!cal send ...` when you want the traditional month/year calendar render. The root help menu (`!cal help`) is also task-focused and includes prompt buttons for `!cal set`, `!cal add`, `!cal addmonthly`, `!cal addyearly`, `!cal moon on`, `!cal planes on`, and `!cal send`.
 
 </details>
 ---
@@ -170,7 +163,7 @@ If you want custom reveal horizons beyond the preset buttons, widen them in Fibo
 * All published holidays are pre-included in the script. Each is assigned a color.
 * Every pre-included holiday can be individually toggled on or off.
 * Additionally, holidays are grouped by Source, allowing for entire categories to be toggled on or off.
-* Switching between calendar systems automatically toggles appropriate Sources.
+* Switching between calendar systems applies source compatibility through automatic source suppression, while GM manual source disables persist across calendar-system changes.
 ### GM Generated
 - GMs can create their own events, which are then stored in state.
 - There is no limit to the number of events created. They can be deleted as necessary.
@@ -480,6 +473,7 @@ There are three types of events in this system:
 - **Generated** events add non-traditional coterminous/remote events using plane-specific dice profiles and durations.
 - Generated events can be toggled on or off independent of the rest of the system.
 - The script prevents generated events from overriding active canonical or GM-defined planar periods.
+- When a GM uses `!cal planes send ...`, players receive an archived non-interactive summary and the GM receives the full interactive panel back as a whisper.
 
 | Plane | Expected Events / Year | Cot / Remote Split | Duration | Dice / Trigger |
 | --- | ---: | --- | --- | --- |

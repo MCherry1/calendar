@@ -1418,6 +1418,44 @@ export function _singleMoonMiniCalHtml(moonName, serial){
   return preHeader + calHtml;
 }
 
+function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
+  tier = _normalizeMoonRevealTier(tier);
+  if (tier === 'high'){
+    return _singleMoonMiniCalHtml(moonName, serial);
+  }
+
+  var st = ensureSettings();
+  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  if (!sys || !sys.moons) return '';
+  var moonDef = null;
+  for (var i = 0; i < sys.moons.length; i++){
+    if (sys.moons[i].name === moonName){ moonDef = sys.moons[i]; break; }
+  }
+  if (!moonDef) return '';
+
+  var mr = _monthRangeFromSerial(serial);
+  var knownEnd = todaySerial() + (parseInt(horizonDays, 10) || 0);
+  var events = [];
+  for (var ser = mr.start; ser <= mr.end; ser++){
+    if (ser < todaySerial() || ser > knownEnd) continue;
+    var peakType = _moonPeakPhaseDay(moonName, ser);
+    if (peakType === 'full'){
+      events.push({ serial: ser, name: '🌕 ' + moonName + ' Full', color: '#FFD700' });
+    } else if (peakType === 'new'){
+      events.push({ serial: ser, name: '🌑 ' + moonName + ' New', color: '#222222' });
+    }
+  }
+  var calHtml = _renderSyntheticMiniCal(moonDef.title || moonName, mr.start, mr.end, events);
+  var moonColor = moonDef.color || '#888';
+  var preHeader = '<div style="background:'+moonColor+';color:'+
+    (_contrast(moonColor, '#FFFFFF') > 3 ? '#FFFFFF' : '#000000')+
+    ';text-align:center;font-weight:bold;padding:3px 6px;font-size:.9em;border-radius:4px 4px 0 0;margin-bottom:-1px;">'+
+    esc(moonName)+' — '+esc(moonDef.title || '')+
+    '</div>';
+  return preHeader + calHtml +
+    '<div style="font-size:.78em;opacity:.6;margin-top:4px;">Player single-moon view marks only revealed full/new peaks.</div>';
+}
+
 export function _moonTodaySummaryHtml(today, tier, horizonDays){
   var st = ensureSettings();
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
@@ -1552,6 +1590,7 @@ export function moonPanelHtml(serialOverride?){
     '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
     '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
     '<div style="margin-bottom:4px;margin-top:4px;">Individual: '+moonViewBtns+'</div>'+
+    '<div style="margin-bottom:4px;">'+button('Prompt !cal moon on','moon on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
     button('📖 Lore','moon lore')+' '+
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>'+
@@ -1643,7 +1682,8 @@ export function moonPlayerPanelHtml(serialOverride?){
   // Lore button
   body += '<div style="margin-top:6px;">' +
     button('📖 Moon Lore', 'moon lore') + ' ' +
-    button('🌌 Sky Now', 'moon sky') +
+    button('🌌 Sky Now', 'moon sky') + ' ' +
+    button('Prompt !cal moon on', 'moon on ?{Date|'+_serialToDateSpec(today)+'}') +
     '</div>';
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
@@ -3422,6 +3462,8 @@ export function handleMoonCommand(m, args){
     if (sub === 'view' || sub === 'cal'){
       var pViewName = String(args[2] || '').trim();
       var pViewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      var pTier = _normalizeMoonRevealTier(getMoonState().revealTier || 'medium');
+      var pHorizonView = parseInt(getMoonState().revealHorizonDays, 10) || 7;
       if (!pViewName){
         var pViewBtns = pViewSys.moons.map(function(moon){
           return button(moon.name, 'moon view ' + moon.name);
@@ -3440,14 +3482,24 @@ export function handleMoonCommand(m, args){
         var pViewPref = parseDatePrefixForAdd(pViewDateToks);
         if (pViewPref) pViewSerial = toSerial(pViewPref.year, pViewPref.mHuman - 1, pViewPref.day);
       }
-      moonEnsureSequences(pViewSerial, 60);
-      var pCalBody = _singleMoonMiniCalHtml(pViewMoon, pViewSerial);
+      var pKnownStart = todaySerial();
+      var pKnownEnd = pKnownStart + pHorizonView;
+      if (pViewSerial < pKnownStart || pViewSerial > pKnownEnd){
+        return whisper(m.who, 'That date is beyond your lunar knowledge.');
+      }
+      moonEnsureSequences(pViewSerial, pHorizonView + 30);
+      var pCalBody = _singleMoonPlayerMiniCalHtml(pViewMoon, pViewSerial, pTier, pHorizonView);
       var pPrevS = _shiftSerialByMonth(pViewSerial, -1);
       var pNextS = _shiftSerialByMonth(pViewSerial, 1);
+      function _pViewNav(serial, label){
+        if (serial < pKnownStart || serial > pKnownEnd){
+          return '<span style="opacity:.35;">'+esc(label)+'</span>';
+        }
+        return button(label, 'moon view ' + pViewMoon + ' ' + _serialToDateSpec(serial));
+      }
       var pViewNav = '<div style="margin:4px 0;">'+
-        button('◀ Prev','moon view '+pViewMoon+' '+_serialToDateSpec(pPrevS))+' '+
-  
-        button('Next ▶','moon view '+pViewMoon+' '+_serialToDateSpec(pNextS))+
+        _pViewNav(pPrevS, '◀ Prev')+' '+
+        _pViewNav(pNextS, 'Next ▶')+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
         pViewNav + pCalBody +

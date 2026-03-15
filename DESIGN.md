@@ -66,7 +66,7 @@ All systems exposed through `!cal` commands and panel UIs with GM/player reveal 
 
 ### Entry Point
 
-`!cal` → current month mini-calendar with subsystem highlights (weather one-liner, notable moons, planar state). GM gets navigation buttons; players get a simpler view.
+After setup is complete, `!cal` opens a compact Today dashboard with date, events, weather, moon, and planar summary cards. Full month/year renders remain available through `!cal show ...`, `!cal send ...`, and drill-down actions.
 
 
 ---
@@ -233,7 +233,8 @@ Attaches campaign observances and custom milestones to calendar days. Supports:
 ### 5.6 Implementation Notes
 
 - **Source disable semantics:** Disabling a source removes that source's default event records from the live event list; re-enabling restores from defaults. The design intent ("without deleting underlying records") holds — source data is recoverable — but active runtime records are removed on disable.
-- **Storage keys:** Implementation uses `suppressedSources`/`suppressedDefaults` suppression maps alongside `eventSourcePriority`, rather than a simple `eventSourceEnabled` flag as docs originally described.
+- **Storage keys:** Implementation uses `manualSuppressedSources`, `autoSuppressedSources`, and `suppressedDefaults` alongside `eventSourcePriority`, rather than a simple `eventSourceEnabled` flag.
+- **Effective visibility:** Source filtering uses the union of manual and auto suppression so calendar compatibility can hide or restore source packs without overwriting GM manual disables.
 - **Additional implemented features:** Grouped recurring-series removal, restore-list workflows, and compatibility auto-suppression/restore mechanics are richer than any earlier doc summaries suggested.
 
 ---
@@ -853,24 +854,38 @@ See [Section 7.10](#710-aryth-and-manifest-zones).
 
 ### 12.1 Entry Point
 
-`!cal` → month mini-calendar + date headline + subsystem highlights.
+After setup is complete, `!cal` opens a compact Today dashboard rather than the full month stack. Full month and year renders remain available through `!cal show ...`, `!cal send ...`, and dashboard actions.
 
-### 12.2 GM Button Bar
+### 12.2 Default Today Dashboard
 
-```
-Row 1: ⏮ Back  |  ⏭ Forward  |  📣 Send
-Row 2: 📋 Today  |  🌤 Weather  |  🌙 Moons  |  🌀 Planes
-Row 3: ⚙ Admin
-```
+GM dashboard cards:
+- Date
+- Events Today
+- Weather
+- Moons
+- Planes
+- GM Controls
 
-`!cal today` → deep-dive all subsystems for today (GM-only by default)
+Player dashboard uses the same first five cards but omits GM-only controls and keeps subsystem summaries knowledge-tier limited.
 
-### 12.3 Player View
+Each card starts with a one-sentence summary and pushes detail behind focused actions such as `Detail`, `Forecast`, `Mechanics`, `Sky`, `Lore`, `Send`, and `Admin`.
 
-Players should see:
-- Basic calendar view (same layout as GM)
-- Buttons to access each subsystem view (information tier-limited per reveal)
-- "Today" view listing everything for the day at their knowledge tier
+### 12.3 Root Help and Transient UI
+
+`!cal help` opens a task-focused root menu grouped by Calendar, Weather, Moons, Planes, Events, and GM Admin actions.
+
+Syntax-heavy workflows expose prompt buttons that submit the normal typed commands for:
+- `!cal set`
+- `!cal add`
+- `!cal addmonthly`
+- `!cal addyearly`
+- `!cal moon on`
+- `!cal planes on`
+- `!cal send`
+
+High-churn menus, confirmations, setup prompts, settings panels, and weather-location wizard flows use Roll20's `noarchive` path. Archived shared output remains reserved for substantive calendar, weather, moon, and planar reports.
+
+Public broadcasts must never depend on command-button markup that `/direct` strips. If a GM shares an interactive control panel, the public version should be a non-interactive summary and the GM keeps the rich whispered control surface.
 
 ### 12.4 DC Hint Buttons
 
@@ -912,7 +927,7 @@ Startup/setup is GM-only. Public chat should never receive onboarding prompts or
 **`!cal` behavior before initialization**
 - GM `!cal` while setup is not `complete` should start or resume the onboarding wizard instead of opening the normal calendar view.
 - Player `!cal` before GM setup completion should return a polite waiting message and no admin controls.
-- After setup completes, `!cal` resumes its normal behavior unchanged.
+- After setup completes, `!cal` resumes the standard dashboard/help flow described above.
 - `!cal resetcalendar` should wipe runtime state back to the onboarding gate rather than silently reapplying defaults.
 
 **Welcome questions**
