@@ -170,6 +170,90 @@ Goal: replace the current unconditional startup/default-install behavior with a 
 - Update `README.md` after implementation so startup/use instructions describe the welcome flow and pre-init `!cal` behavior.
 - If new setup helpers or commands are introduced, document them in `Chat Commands.md` and `DESIGN.md` in the same pass.
 
+### Add an ephemeral noarchive UI path for menus, confirmations, and admin panels
+
+Goal: keep the Roll20 chat archive focused on story-facing output by routing transient menus, confirmations, and admin/status panels through dedicated noarchive helpers while leaving substantive shared information archived.
+
+#### 1. Add dedicated transient-UI messaging helpers
+
+- In `src/messaging.ts` and `src/commands.ts`, add explicit helper paths for transient UI output that use `sendChat(..., null, { noarchive: true })`.
+- Keep the current archived messaging helpers available for forecasts, moon reports, planar almanacs, date broadcasts, and other outputs players may need to reread later.
+- Do not silently change every whisper or GM warning to `noarchive`; the distinction between transient UI chrome and substantive information must stay explicit in the call sites.
+
+#### 2. Move the highest-churn UI flows onto the new path
+
+- Update the root/help/settings panel flows in `src/ui.ts`, weather location wizard flows in `src/weather.ts`, step/advance confirmations in `src/ui.ts`, and startup/onboarding prompts in `src/init.ts` to use the transient UI helpers.
+- GM-only admin/status responses whose main purpose is navigation, setup, or acknowledgement should use the UI path.
+- Keep player-facing information delivery archived when the message is the actual content being shared rather than just the control surface around it.
+
+#### 3. Add regression coverage and docs
+
+- Add tests around the messaging helpers and at least one representative menu flow to confirm `noarchive` is used for transient UI output and not used for substantive/public reports.
+- Update `README.md` and `DESIGN.md` if they describe startup/help/admin chat behavior in a way that changes.
+
+### Redesign the default Today and root help views around task-focused cards
+
+Goal: make the default `!cal` / `!cal today` and root help experience scannable in Roll20 chat by showing a compact dashboard first and pushing detail behind explicit drill-down actions.
+
+#### 1. Rework the default Today dashboard
+
+- In `src/today.ts`, change the default GM/player Today rendering so it starts with a compact campaign dashboard instead of the current maximum-detail stack.
+- Use short cards or rows for the date and season headline, events today, weather status, moon status, and planar status. Each subsystem card should summarize current state in one sentence and expose 2-4 high-value actions such as `Detail`, `Forecast`, `Mechanics`, `Sky`, or `Lore`.
+- Keep GM-only controls in a distinct final row (`Advance`, `Retreat`, `Send`, `Admin`) and preserve the existing deeper subsystem views behind their drill-down buttons.
+
+#### 2. Rework the root help menu around common tasks
+
+- In `src/ui.ts`, refactor `helpRootMenu()` so it groups controls by common tasks rather than trying to show the whole feature surface at once.
+- Surface only the highest-frequency top-level entry points at root: calendar, weather, moons, planes, events, and GM admin actions.
+- Move secondary or exhaustive options into the existing subsystem/help drill-downs instead of repeating them inline.
+
+#### 3. Verify the new compact layout
+
+- Add or update tests covering the default Today view and root help menu for both GM and player contexts so the new compact layout is locked in.
+- Update `README.md` and `DESIGN.md` if they describe the default Today/help layout or verbosity behavior in a way that changes.
+
+### Add guided prompt buttons for syntax-heavy calendar commands
+
+Goal: reduce typed-syntax friction by exposing Roll20 prompt-driven buttons for the commands that currently require the user to remember argument structure.
+
+#### 1. Add prompt entry points in the relevant menus
+
+- Add prompt buttons alongside the existing typed-command entry points for `!cal set`, `!cal add`, `!cal addmonthly`, `!cal addyearly`, `!cal moon on`, `!cal planes on`, and `!cal send`.
+- Use Roll20 prompt syntax to collect the date/range and other required fields with sensible placeholders or defaults.
+- Keep the current typed commands fully supported for macro and power-user workflows.
+
+#### 2. Route prompted submissions through the existing parsers
+
+- The prompt buttons should submit normal command strings that reuse the existing parsing and validation paths in `src/ui.ts`, `src/moon.ts`, `src/planes.ts`, and related command handlers.
+- Do not create duplicate parse-only code paths just for prompted input.
+- When a promptable action already appears in a menu, pair the button labeling with the underlying command so the UI teaches the syntax rather than hiding it.
+
+#### 3. Test and document the prompt workflow
+
+- Add tests that assert the prompt buttons appear in the relevant menus/help output and generate the expected command strings.
+- Update `README.md` and `Chat Commands.md` so the guided-entry options are documented alongside the typed forms.
+
+### Split public shared panels from interactive GM panels when `/direct` would drop buttons
+
+Goal: ensure player-facing shared panels never rely on markdown command buttons that Roll20 strips under `/direct`, while preserving a rich interactive version for the GM or sender.
+
+#### 1. Audit every public send path for interactive markup
+
+- Review all `sendToAll(...)` usage in `src/weather.ts`, `src/moon.ts`, `src/planes.ts`, `src/events.ts`, `src/ui.ts`, and `src/rendering.ts` for any panel that can include `button()` output.
+- Start with the current planar send flow, where `sendToAll(planesPanelHtml(...))` reuses the interactive panel template.
+- Treat any public renderer that includes command-button markup as a bug to fix, not a harmless display quirk.
+
+#### 2. Split public summaries from interactive control panels
+
+- Public broadcasts must use dedicated non-interactive summary renderers with no command buttons or other markdown-only controls.
+- When a GM/share action needs both a public broadcast and continued interaction, whisper the full interactive panel back to the requesting GM while sending the concise summary to players.
+- Do not switch public panels to raw HTML anchor buttons; the project standard for these cases is archived public summaries plus whispered interactive GM control panels.
+
+#### 3. Lock the behavior in tests and docs
+
+- Add regression tests that confirm public send paths do not emit command-button markup and that the GM still receives the interactive follow-up panel where appropriate.
+- Update `README.md`, `Chat Commands.md`, and `DESIGN.md` if their wording about public share behavior or sent panel contents changes.
+
 ---
 
 ## Documentation Tasks
@@ -182,11 +266,7 @@ None currently.
 
 These tasks still need design direction before coding.
 
----
-
-### Reduce Today-view clutter
-
-The Today view needs a redesign to reduce information density. Specific changes to be directed - this task is a placeholder awaiting design direction.
+None currently.
 
 ---
 

@@ -4,6 +4,10 @@ Review date: 2026-03-13
 
 This document captures recommendations after reviewing the full repo, the current `calendar.js` command/UI flow, the supporting docs, the local launcher/test tooling, and Roll20's Mod/API and chat-interface guidance.
 
+## Promoted to Design Tasks
+
+On 2026-03-14, ideas 1, 3, 4, and 6 were approved for implementation and promoted into `Design Tasks.md` under **Agent Ready**. They are intentionally removed from the active idea sections below so this file only tracks ideas that are still being held outside the implementation backlog.
+
 ## Scope Reviewed
 
 - `calendar.js`
@@ -32,30 +36,6 @@ The project is already unusually feature-rich for a Roll20 calendar script. The 
 
 ## Highest-Value Usability Ideas
 
-### 1. Add an ephemeral UI mode for menus, confirmations, and admin panels
-
-Roll20's Mod chat guidance explicitly calls out `sendChat(..., null, { noarchive: true })` as useful for API button menus and state info. That fits this script very well.
-
-Why this matters here:
-
-- The script generates many whisper-driven menus and confirmations.
-- The current `send`, `whisper`, and `warnGM` helpers do not use `noarchive`.
-- The chat archive is more valuable for story-facing outputs than for repeated admin menus.
-
-Recommended shape:
-
-- Add a dedicated `sendUi()` / `whisperUi()` path with `noarchive: true`.
-- Use it for help menus, settings panels, weather location wizard steps, step/advance confirmations, and the startup banner.
-- Keep player-facing "actual information delivery" archived when it matters: public forecasts, moon reports, planar almanacs, and date broadcasts.
-
-Best first touchpoints:
-
-- `send()` / `whisper()` / `warnGM()`
-- `helpRootMenu()`
-- `weatherLocationWizardHtml()` flows
-- `stepDays()`
-- `on("ready", ...)`
-
 ### 2. Ship a first-class macro pack instead of only suggesting "make a macro"
 
 Roll20's macro/quick-bar workflow is one of the biggest usability multipliers in the platform. Right now the repo recommends making a macro, but the script does not help the GM or players do it.
@@ -83,59 +63,6 @@ Extra win:
 - Include a "token action" variant for GM-only controls like `advance`, `retreat`, and `today`.
 - Add the same examples to `README.md`.
 
-### 3. Redesign the Today and root help views around tasks, not maximum information density
-
-The code and docs both show this is already on your radar. I agree with the existing placeholder task: clutter is now the main UX problem.
-
-What feels heavy today:
-
-- `helpRootMenu()` tries to expose nearly everything at once.
-- `_todayAllHtml()` stacks several detailed subsystem summaries into one block.
-- Several menus repeat navigation and mode controls inline, which is powerful but visually busy in Roll20 chat.
-
-Recommended design direction:
-
-- Default `!cal today` to a compact "campaign dashboard" summary.
-- Move deep detail behind explicit drill-down buttons.
-- Treat each subsystem as a short card with one sentence of status plus 2-4 actions.
-
-Suggested layout:
-
-- Date and season headline
-- Events today
-- Weather: current summary + `Forecast` + `Mechanics`
-- Moons: current highlight + `Sky` + `Lore`
-- Planes: current notable status + `Forecast`
-- GM-only row: `Advance`, `Retreat`, `Send`, `Admin`
-
-This would keep the "at a glance" value while reducing scroll fatigue in chat.
-
-### 4. Add guided prompts for the commands that currently depend on typed syntax
-
-The script has one good Roll20-style prompt already:
-
-- `weather reveal ?{Date or range|14-17}`
-
-That pattern should be used more aggressively.
-
-Best candidates:
-
-- `!cal set`
-- `!cal add`
-- `!cal addmonthly`
-- `!cal addyearly`
-- `!cal moon on`
-- `!cal planes on`
-- `!cal send [range]`
-
-Recommended approach:
-
-- Add "prompt buttons" beside the existing typed commands.
-- Keep typed commands for power users.
-- Let the chat UI do more of the input shaping for casual use.
-
-This is one of the easiest ways to make a powerful Roll20 script feel less command-heavy without removing flexibility.
-
 ### 5. Upgrade weather locations from "recent" to "named saved presets"
 
 The recent-location quick switch is a strong start, but long campaigns usually revisit a stable set of places. A saved-location system would pay off quickly.
@@ -154,24 +81,6 @@ Why this matters:
 - A named list is easier to remember than "recent 1/2/3"
 
 ## Roll20-Specific Interaction Fixes
-
-### 6. Audit public interactive panels that are sent with `/direct`
-
-The script's `button()` helper emits markdown-style command buttons, but `sendToAll()` routes messages through `/direct`. Roll20's chat docs note that `/direct` bypasses markdown parsing.
-
-That matters because some player-facing public panels are built from the same HTML that also contains button markup. The biggest candidate is the public planar panel.
-
-Recommended fix:
-
-- Audit every `sendToAll(...)` call that can include `button(...)` output
-- For public interactive panels, either:
-  - switch to raw HTML anchor buttons, or
-  - whisper the interactive version and send a short public summary instead
-
-Likely places to review first:
-
-- `sendToAll(planesPanelHtml(...))`
-- any future shared panel that reuses a player/GM panel template with nav buttons
 
 ### 7. Add typo recovery and "did you mean" hints for top-level subcommands
 
@@ -259,14 +168,11 @@ That would make the repo feel more like a deliberate toolchain instead of "scrip
 
 If I were sequencing this, I would do:
 
-1. Ephemeral UI path with `noarchive`
-2. Today/root menu redesign
-3. Macro pack output and README macro examples
-4. Saved weather locations
-5. `/direct` + public button audit
-6. Repo-specific CI cleanup
-7. Test harness expansion
-8. File/module split
+1. Macro pack output and README macro examples
+2. Saved weather locations
+3. Typo recovery and "did you mean" hints
+4. Make the local Roll20 sync path the documented default workflow
+5. File/module split
 
 ## Implementation Status Review
 
@@ -274,12 +180,12 @@ Reviewed against `main` at commit `9df46c4` after pulling on 2026-03-13.
 
 | # | Recommendation | Status | Evaluation |
 | --- | --- | --- | --- |
-| 1 | Ephemeral UI path with `noarchive` | Not implemented | `send()`, `whisper()`, and `warnGM()` still do not use `noarchive`, and there is no dedicated UI-only send helper yet. |
+| 1 | Ephemeral UI path with `noarchive` | Promoted to Design Tasks (2026-03-14) | Approved for implementation and moved into `Design Tasks.md` under **Agent Ready**. |
 | 2 | Macro pack / `!cal macros` | Not implemented | There is still no macro-install or macro-output command in the script or docs. |
-| 3 | Today/root clutter reduction | Partial | `!cal settings verbosity minimal` now gives a meaningfully leaner Today view with Detail buttons, condensed weather, lunar suppression, inline lighting, and merged planar notes. That is a real improvement. It does not yet satisfy the larger recommendation because `helpRootMenu()` is still dense and the default Today experience remains full-detail unless verbosity is changed. |
-| 4 | Guided prompt buttons for typed commands | Not implemented | The script still only has the existing weather exact-date prompt (`weather reveal ?{Date or range|14-17}`); the broader prompt-driven workflow was not added. |
+| 3 | Today/root clutter reduction | Promoted to Design Tasks (2026-03-14) | The remaining redesign work was approved for implementation and moved into `Design Tasks.md`. The existing verbosity improvements remain a useful starting point. |
+| 4 | Guided prompt buttons for typed commands | Promoted to Design Tasks (2026-03-14) | Approved for implementation and moved into `Design Tasks.md` under **Agent Ready**. |
 | 5 | Named saved weather locations | Not implemented | Weather still tracks only `recentLocations` and caps them at three entries; there is no save/load preset system. |
-| 6 | `/direct` audit for public interactive panels | Not implemented | `sendToAll()` still routes through `/direct`, and the public planar send path still uses `planesPanelHtml(...)`, so the original interaction risk remains. |
+| 6 | `/direct` audit for public interactive panels | Promoted to Design Tasks (2026-03-14) | Approved for implementation and moved into `Design Tasks.md` under **Agent Ready**. |
 | 7 | Typo recovery / "did you mean" guidance | Not implemented | Error handling is still mostly usage-based rather than suggestion-based. |
 | 8 | Split monolith into subsystem files | Not implemented | `calendar.js` is still the single runtime script. Support files and tests were added around it, but the runtime itself was not modularized. |
 | 9 | Repo-specific CI cleanup | Implemented | This landed well. The generic template workflows were removed and replaced with a single `ci.yml` that runs `node --test`, which is much closer to the actual repo. |
