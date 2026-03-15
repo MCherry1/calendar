@@ -4,7 +4,8 @@ import { ensureSettings, getCal } from './state.js';
 import { todaySerial } from './date-math.js';
 import { eventDisplayName, occurrencesInRange } from './events.js';
 import { button, esc } from './rendering.js';
-import { _displayMonthDayParts, _menuBox, currentDateLabel, sendCurrentDate } from './ui.js';
+import { _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, currentDateLabel, sendCurrentDate } from './ui.js';
+import { isTimeOfDayActive } from './time-of-day.js';
 import { invokeEventSub } from './today.js';
 import { WEATHER_SOURCE_LABELS, _forecastRecord, _playerDayHtml, _weatherRevealForSerial, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
@@ -72,6 +73,7 @@ export function _playerTodayHtml(playerid){
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
     esc(currentDateLabel()) + '</div>');
+  if (isTimeOfDayActive()) sections.push(_timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin:-2px 0 4px 0;'));
 
   try {
     var occ = occurrencesInRange(today, today);

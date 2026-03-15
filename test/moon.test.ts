@@ -161,9 +161,9 @@ describe("Eclipse: _diskOverlapFraction", () => {
 // ============================================================================
 
 describe("Eclipse: _eclipseTimeBlock", () => {
-  it("maps midnight to early_morning", () => {
+  it("maps midnight to middle_of_night", () => {
     freshInstall();
-    assertEquals(_eclipseTimeBlock(0), "early_morning");
+    assertEquals(_eclipseTimeBlock(0), "middle_of_night");
   });
 
   it("maps noon to afternoon", () => {
@@ -171,9 +171,9 @@ describe("Eclipse: _eclipseTimeBlock", () => {
     assertEquals(_eclipseTimeBlock(0.5), "afternoon");
   });
 
-  it("maps 7am to morning", () => {
+  it("maps 7am to early_morning", () => {
     freshInstall();
-    assertEquals(_eclipseTimeBlock(7 / 24), "morning");
+    assertEquals(_eclipseTimeBlock(7 / 24), "early_morning");
   });
 
   it("maps 6pm to evening", () => {
@@ -181,9 +181,9 @@ describe("Eclipse: _eclipseTimeBlock", () => {
     assertEquals(_eclipseTimeBlock(18 / 24), "evening");
   });
 
-  it("maps 10pm to late_night", () => {
+  it("maps 10pm to nighttime", () => {
     freshInstall();
-    assertEquals(_eclipseTimeBlock(22 / 24), "late_night");
+    assertEquals(_eclipseTimeBlock(22 / 24), "nighttime");
   });
 
   it("handles fractional serial days (integer + fraction)", () => {
@@ -216,7 +216,7 @@ describe("Eclipse: _eclipseLifecycleText", () => {
     freshInstall();
     const event = {
       startDay: 99, peakDay: 100, endDay: 101,
-      startBucket: "late_night", peakBucket: "early_morning", endBucket: "morning",
+      startBucket: "nighttime", peakBucket: "middle_of_night", endBucket: "morning",
       peakSkyLabel: "on horizon"
     };
     const text = _eclipseLifecycleText(event, 100);

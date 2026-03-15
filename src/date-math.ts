@@ -189,6 +189,23 @@ export function fromSerial(s){
 
 export function todaySerial(){ var c = getCal().current; return toSerial(c.year, c.month, c.day_of_the_month); }
 
+// Maps a raw calendar slot index to a 0-based regular-month index.
+// Intercalary slots inherit the nearest preceding regular month.
+export function regularMonthIndex(mi){
+  var months = getCal().months;
+  var count = 0;
+  for (var i = 0; i < months.length && i <= mi; i++){
+    if (!months[i].isIntercalary){
+      if (i === mi) return count;
+      count++;
+    }
+  }
+  for (var j = mi - 1; j >= 0; j--){
+    if (!months[j].isIntercalary) return count - 1;
+  }
+  return 0;
+}
+
 // Returns the next month index (and year) after mi that is active in that year,
 // skipping inactive leap-only slots. Wraps year boundary correctly.
 export function _nextActiveMi(mi, y){

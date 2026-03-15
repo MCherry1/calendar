@@ -6,6 +6,7 @@ import { _invalidateSerialCache } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { compareEvents, currentDefaultKeySet, defaultKeyFor, mergeInNewDefaultEvents } from './events.js';
 import { clamp } from './rendering.js';
+import { ensureTimeOfDayState } from './time-of-day.js';
 import { _defaultDetailsForKey, _getSeasonLabel, _weatherViewDays, sendCurrentDate } from './ui.js';
 
 
@@ -411,6 +412,7 @@ export function checkInstall(){
 
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
   if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
+  ensureTimeOfDayState();
 
   var cal = state[state_name].calendar;
 

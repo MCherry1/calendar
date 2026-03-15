@@ -78,6 +78,10 @@ every Sul         — every matching weekday in the month
 !cal list                      — list all calendar events
 !cal help [root|calendar|themes|seasons|eventcolors]
 !cal effects                   — GM active-effects panel
+!cal time                      — GM time-of-day menu
+!cal time start <bucket>       — GM activate a time bucket for the current date
+!cal time next                 — GM advance one time bucket
+!cal time clear                — GM clear the current time bucket
 !cal set <dateSpec>            — GM set the current date
 !cal advance [days]            — GM advance the date (default 1)
 !cal retreat [days]            — GM move the date backward (default 1)
@@ -178,7 +182,7 @@ Examples:
 !cal moon
 !cal moon lore [MoonName|siberys]
 !cal moon info [MoonName|siberys]            — alias for lore
-!cal moon sky [midnight|dawn|noon|afternoon|dusk]
+!cal moon sky [middle_of_night|early_morning|morning|afternoon|evening|nighttime]
 !cal moon visible [time]                     — alias for sky
 !cal moon up [time]                          — alias for sky
 !cal moon view <MoonName> [dateSpec]
@@ -186,6 +190,8 @@ Examples:
 !cal moon on <dateSpec>
 !cal moon date <dateSpec>                    — alias for on
 ```
+
+`!cal moon sky` also accepts legacy aliases such as `midnight`, `dawn`, `noon`, and `dusk`, but the script now resolves them into the six canonical time buckets.
 
 ### Sending Moon Info to Players
 

@@ -3,12 +3,13 @@ import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS, CONFIG_WEATHE
 import { COLOR_THEMES, CONTRAST_MIN_HEADER, LABELS, NAMED_COLORS, SEASON_SETS, STYLES, THEME_ORDER, script_name, state_name } from './constants.js';
 import { _seasonNames, _sourceAllowedForCalendar, applySeasonSet, deepClone, defaults, ensureSettings, getCal, refreshAndSend, titleCase } from './state.js';
 import { applyBg, popColorIfPresent, resolveColor, sanitizeHexColor } from './color.js';
-import { _isLeapMonth, _nextActiveMi, _prevActiveMi, fromSerial, toSerial, todaySerial, weekdayIndex } from './date-math.js';
+import { _isLeapMonth, _nextActiveMi, _prevActiveMi, fromSerial, regularMonthIndex, toSerial, todaySerial, weekdayIndex } from './date-math.js';
 import { DaySpec, Parse, monthIndexByName } from './parsing.js';
 import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, eventIndexByKey, markSuppressedIfDefault, occurrencesInRange } from './events.js';
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
 import { send, sendToAll, sendToGM, warnGM, whisper } from './commands.js';
-import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, regularMonthIndex, weatherEnsureForecast } from './weather.js';
+import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
+import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getActivePlanarEffects, getPlanarState } from './planes.js';
 
@@ -26,6 +27,17 @@ export function currentDateLabel(){
   return cal.weekdays[cur.day_of_the_week] + ", " +
          datePart + ", " +
          cur.year + " " + LABELS.era;
+}
+
+export function currentTimeOfDayLabel(){
+  var bucket = currentTimeBucket();
+  return bucket ? bucketLabel(bucket) : '';
+}
+
+export function _timeOfDayStatusHtml(style?){
+  if (!isTimeOfDayActive()) return '';
+  return '<div style="' + (style || 'font-size:.82em;opacity:.72;margin-top:2px;') + '">Current time: ' +
+    esc(currentTimeOfDayLabel()) + '</div>';
 }
 
 export function dateLabelFromSerial(serial){
@@ -225,6 +237,9 @@ export function sendCurrentDate(to, gmOnly, opts?){
   // Date headline: weekday, date, year, season
   var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
   var currentDate = currentDateLabel();
+  var timeLine = _timeOfDayStatusHtml(compact
+    ? 'font-size:.82em;opacity:.72;margin:0 0 3px 0;'
+    : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;');
   var dateLine = compact
     ? '<div style="font-weight:bold;margin:2px 0 3px 0;">' +
       esc(currentDate) +
@@ -385,13 +400,13 @@ export function sendCurrentDate(to, gmOnly, opts?){
 
   var msgCore;
   if (dashboard){
-    msgCore = calHtml + dateLine + todayEventsLine + moonLine + weatherLine + planesLine;
+    msgCore = calHtml + dateLine + timeLine + todayEventsLine + moonLine + weatherLine + planesLine;
   } else if (compact){
     msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
-      dateLine + todayEventsLine + moonLine + weatherLine + planesLine +
+      dateLine + timeLine + todayEventsLine + moonLine + weatherLine + planesLine +
       '</div>';
   } else {
-    msgCore = calHtml + dateLine + moonLine + weatherLine + planesLine + eventsBlock;
+    msgCore = calHtml + dateLine + timeLine + moonLine + weatherLine + planesLine + eventsBlock;
   }
 
   var controls = '';
@@ -582,7 +597,8 @@ export function addYearlySmart(tokens){
   else   { warnGM('No event added (duplicate or invalid).'); }
 }
 
-export function stepDays(n){
+export function stepDays(n, opts?){
+  opts = opts || {};
   n = (parseInt(n,10) || 0)|0;
   var cal = getCal(), cur = cal.current, wdlen = cal.weekdays.length|0;
   var startSerial = toSerial(cur.year, cur.month, cur.day_of_the_month);
@@ -590,9 +606,11 @@ export function stepDays(n){
   var d = fromSerial(dest);
   cur.day_of_the_week = (cur.day_of_the_week + ((n % wdlen) + wdlen)) % wdlen;
   cur.year = d.year; cur.month = d.mi; cur.day_of_the_month = d.day;
+  if (!opts.preserveTimeOfDay) clearTimeOfDay();
   // Slide the forecast window forward and lock past days
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(startSerial, dest);
+  if (opts.announce === false) return;
 
   var direction = n >= 0 ? 'Forward' : 'Back';
   var dateStr = esc(currentDateLabel());
@@ -607,7 +625,8 @@ export function stepDays(n){
   );
 }
 
-export function setDate(m, d, y){
+export function setDate(m, d, y, opts?){
+  opts = opts || {};
   var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
   var oldSerial = toSerial(oldY, oldM, oldD);
@@ -618,9 +637,11 @@ export function setDate(m, d, y){
   cur.month = mi; cur.day_of_the_month = di; cur.year = yi;
   var wdlen = cal.weekdays.length;
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
+  if (!opts.preserveTimeOfDay) clearTimeOfDay();
   // Slide the forecast window forward and lock past days, same as stepDays
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(oldSerial, toSerial(yi, mi, di));
+  if (opts.announce === false) return;
   sendCurrentDate(null, true);
 }
 
@@ -772,6 +793,7 @@ export function gmButtonsHtml(){
     '<div style="'+wrap+'">'+ mb('📣 Send','send')         +'</div>'
   ];
   // Row 2: today deep-dive + subsystems
+  row1.splice(2, 0, '<div style="'+wrap+'">'+ mb('Time','time') +'</div>');
   var row2 = [
     '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>'
   ];
@@ -982,6 +1004,7 @@ export function activeEffectsPanelHtml(){
 export function helpStatusSummaryHtml(){
   var st      = ensureSettings();
   var curDate = esc(currentDateLabel());
+  var timeLine = _timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin-top:3px;');
 
   // Build system/variant label.
   var sys     = CALENDAR_SYSTEMS[st.calendarSystem] || {};
@@ -1004,6 +1027,7 @@ export function helpStatusSummaryHtml(){
 
   return _menuBox('Status',
     '<div style="font-size:1.1em;font-weight:bold;">' + curDate + '</div>' +
+    timeLine +
     '<div style="font-size:.85em;opacity:.8;margin-top:2px;">' + calLine + '</div>' +
     (configLine ? '<div style="font-size:.75em;opacity:.6;margin-top:2px;">' + configLine + '</div>' : '')
   );
@@ -1129,6 +1153,7 @@ export function helpRootMenu(m){
 
     // ── Moon & Weather & Planes quick-access ─────────────────────────────
     var featureLinks = [];
+    featureLinks.push(mbP(m,'Time','time'));
     featureLinks.push(mbP(m,'✨ Active Effects','effects'));
     if (st.moonsEnabled   !== false) featureLinks.push(mbP(m,'🌙 Moons','moon'));
     if (st.weatherEnabled !== false) featureLinks.push(mbP(m,'🌤️ Weather','weather'));

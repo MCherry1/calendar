@@ -118,11 +118,12 @@ describe("Weather Stability Detection", () => {
     const wxRec = {
       final: { temp: 5, wind: 2, precip: 1 },
       periods: {
+        middle_of_night: { temp: 5, wind: 2, precip: 1 },
         early_morning: { temp: 5, wind: 2, precip: 1 },
         morning:       { temp: 5, wind: 2, precip: 1 },
         afternoon:     { temp: 5, wind: 2, precip: 1 },
         evening:       { temp: 5, wind: 2, precip: 1 },
-        late_night:    { temp: 5, wind: 2, precip: 1 },
+        nighttime:     { temp: 5, wind: 2, precip: 1 },
       },
     };
     assert(_todayWeatherIsStable(wxRec));
@@ -133,11 +134,12 @@ describe("Weather Stability Detection", () => {
     const wxRec = {
       final: { temp: 5, wind: 2, precip: 1 },
       periods: {
+        middle_of_night: { temp: 5, wind: 2, precip: 1 },
         early_morning: { temp: 4, wind: 2, precip: 1 },
         morning:       { temp: 5, wind: 3, precip: 1 },
         afternoon:     { temp: 5, wind: 2, precip: 1 },
         evening:       { temp: 6, wind: 2, precip: 0 },
-        late_night:    { temp: 5, wind: 1, precip: 1 },
+        nighttime:     { temp: 5, wind: 1, precip: 1 },
       },
     };
     assert(_todayWeatherIsStable(wxRec));
@@ -148,11 +150,12 @@ describe("Weather Stability Detection", () => {
     const wxRec = {
       final: { temp: 5, wind: 2, precip: 1 },
       periods: {
+        middle_of_night: { temp: 5, wind: 2, precip: 1 },
         early_morning: { temp: 0, wind: 2, precip: 1 },
         morning:       { temp: 5, wind: 2, precip: 1 },
         afternoon:     { temp: 5, wind: 2, precip: 1 },
         evening:       { temp: 5, wind: 2, precip: 1 },
-        late_night:    { temp: 5, wind: 2, precip: 1 },
+        nighttime:     { temp: 5, wind: 2, precip: 1 },
       },
     };
     assert(!_todayWeatherIsStable(wxRec));
@@ -163,11 +166,12 @@ describe("Weather Stability Detection", () => {
     const wxRec = {
       final: { temp: 5, wind: 2, precip: 1 },
       periods: {
+        middle_of_night: { temp: 5, wind: 2, precip: 1 },
         early_morning: { temp: 5, wind: 2, precip: 1 },
         morning:       { temp: 5, wind: 2, precip: 1 },
         afternoon:     { temp: 5, wind: 2, precip: 1 },
         evening:       { temp: 5, wind: 5, precip: 1 },
-        late_night:    { temp: 5, wind: 2, precip: 1 },
+        nighttime:     { temp: 5, wind: 2, precip: 1 },
       },
     };
     assert(!_todayWeatherIsStable(wxRec));
@@ -178,11 +182,12 @@ describe("Weather Stability Detection", () => {
     const wxRec = {
       final: { temp: 5, wind: 2, precip: 1 },
       periods: {
+        middle_of_night: { temp: 5, wind: 2, precip: 1 },
         early_morning: { temp: 5, wind: 2, precip: 1 },
         morning:       { temp: 5, wind: 2, precip: 1 },
         afternoon:     { temp: 5, wind: 2, precip: 1 },
         evening:       { temp: 5, wind: 2, precip: 1 },
-        late_night:    { temp: 5, wind: 2, precip: 4 },
+        nighttime:     { temp: 5, wind: 2, precip: 4 },
       },
     };
     assert(!_todayWeatherIsStable(wxRec));
@@ -240,7 +245,7 @@ describe("Today-View HTML Output", () => {
     setupWeather();
     moonEnsureSequences();
     const html = _todayAllHtml();
-    assert(html.includes("Tonight:"), "minimal mode should have inline lighting");
+    assert(html.includes("Current light:"), "minimal mode should have inline lighting");
   });
 
   it("normal mode has separate lighting section", () => {
@@ -252,7 +257,7 @@ describe("Today-View HTML Output", () => {
     setupWeather();
     moonEnsureSequences();
     const html = _todayAllHtml();
-    assert(html.includes("Tonight's Lighting"),
+    assert(html.includes("Current Lighting:"),
       "normal mode should have separate lighting section header");
   });
 
@@ -280,9 +285,9 @@ describe("Today-View HTML Output", () => {
 // ============================================================================
 
 describe("Weather Day Period Constants", () => {
-  it("WEATHER_DAY_PERIODS has 5 periods", () => {
+  it("WEATHER_DAY_PERIODS has 6 periods", () => {
     freshInstall();
-    assertEquals(WEATHER_DAY_PERIODS.length, 5);
+    assertEquals(WEATHER_DAY_PERIODS.length, 6);
   });
 
   it("WEATHER_PRIMARY_PERIOD is afternoon", () => {

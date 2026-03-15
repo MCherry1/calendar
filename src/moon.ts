@@ -4,6 +4,7 @@ import { defaults, ensureSettings, getCal, titleCase } from './state.js';
 import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button, esc } from './rendering.js';
+import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper } from './commands.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
@@ -1875,7 +1876,45 @@ export function nighttimeLightCondition(lux){
   };
 }
 
-// Build nighttime lighting HTML block for the Today panel.
+function _formatSolarHour(hour){
+  var whole = Math.floor(hour);
+  var mins = Math.round((hour - whole) * 60);
+  if (mins >= 60){ whole += 1; mins -= 60; }
+  whole = ((whole % 24) + 24) % 24;
+  var suffix = whole >= 12 ? 'PM' : 'AM';
+  var displayHour = whole % 12;
+  if (displayHour === 0) displayHour = 12;
+  var minLabel = mins ? (':' + (mins < 10 ? '0' : '') + mins) : '';
+  return displayHour + minLabel + ' ' + suffix;
+}
+
+export function currentLightSnapshot(serial, precipStage?){
+  var daylight = daylightStatusForSerial(serial);
+  if (isTimeOfDayActive() && daylight.daylit){
+    return {
+      mode: 'day',
+      emoji: '',
+      label: 'Daylight',
+      note: 'Natural daylight. No vision restrictions.',
+      bucketLabel: daylight.bucketLabel,
+      solar: daylight.solar
+    };
+  }
+
+  var result = nighttimeLux(serial, precipStage);
+  var cond = nighttimeLightCondition(result.total);
+  return {
+    mode: 'night',
+    emoji: cond.emoji,
+    label: cond.label,
+    note: cond.note,
+    shadowNote: cond.shadowNote,
+    result: result,
+    cond: cond,
+    solar: daylight.solar
+  };
+}
+// Build the current lighting HTML block for the Today panel.
 // Auto-pulls weather precip stage if available.
 export function nighttimeLightHtml(serial){
   // Get precipitation stage from weather if available
@@ -1889,8 +1928,20 @@ export function nighttimeLightHtml(serial){
     else if (precipStage === 1) weatherNote = 'Partly cloudy — moonlight slightly dimmed.';
   }
 
-  var result = nighttimeLux(serial, precipStage);
-  var cond = nighttimeLightCondition(result.total);
+  var snap = currentLightSnapshot(serial, precipStage);
+  if (snap.mode === 'day'){
+    return '<div style="margin-bottom:4px;">' +
+      '<b>' + (snap.emoji ? esc(snap.emoji) + ' ' : '') + esc(snap.label) + '</b>' +
+      '</div>' +
+      '<div style="font-size:.88em;margin:2px 0;">' + esc(snap.note) + '</div>' +
+      '<div style="font-size:.82em;opacity:.55;margin-top:3px;">' +
+      'Sunrise ~' + esc(_formatSolarHour(snap.solar.sunrise)) +
+      ' • Sunset ~' + esc(_formatSolarHour(snap.solar.sunset)) +
+      '</div>';
+  }
+
+  var result = snap.result;
+  var cond = snap.cond;
 
   var html = '<div style="margin-bottom:4px;">' +
     '<b>' + cond.emoji + ' ' + esc(cond.label) + '</b>' +
@@ -2178,11 +2229,12 @@ export var _eclipseDayCache = Object.create(null);
 
 export function _eclipseTimeBlock(frac){
   var h = ((frac % 1) + 1) % 1 * 24;
-  if (h < 4.8)  return 'early_morning';
-  if (h < 9.6)  return 'morning';
-  if (h < 14.4) return 'afternoon';
-  if (h < 19.2) return 'evening';
-  return 'late_night';
+  if (h < 4)  return 'middle_of_night';
+  if (h < 8)  return 'early_morning';
+  if (h < 12) return 'morning';
+  if (h < 16) return 'afternoon';
+  if (h < 20) return 'evening';
+  return 'nighttime';
 }
 
 export function _moonByName(sys, name){
@@ -3323,25 +3375,26 @@ export function handleMoonCommand(m, args){
   }
 
   // !cal moon sky [time] — available to everyone, shows which moons are visible
-  // time: 'midnight' (default), 'morning', 'noon', 'evening', 'dusk', 'dawn'
+  // time: active bucket when set, otherwise nighttime; explicit aliases like
+  // midnight/dawn/noon/dusk still normalize into the six canonical buckets.
   if (sub === 'sky' || sub === 'visible' || sub === 'up'){
     moonEnsureSequences();
     var today = todaySerial();
-    var timeArg = String(args[2] || '').toLowerCase().trim();
-    var timeFrac = 0;  // default midnight
-    var timeLabel = 'Midnight';
-    if (timeArg === 'morning' || timeArg === 'dawn')    { timeFrac = 0.75; timeLabel = 'Dawn'; }
-    else if (timeArg === 'noon' || timeArg === 'midday'){ timeFrac = 0.50; timeLabel = 'Noon'; }
-    else if (timeArg === 'afternoon')                   { timeFrac = 0.375; timeLabel = 'Afternoon'; }
-    else if (timeArg === 'evening' || timeArg === 'dusk'){ timeFrac = 0.25; timeLabel = 'Dusk'; }
+    var bucket = normalizeTimeBucketKey(args.slice(2).join(' ')) || effectiveTimeBucket('nighttime');
+    var timeFrac = bucketMidpointTimeFrac(bucket);
+    var timeLabel = bucketLabel(bucket);
     var dateLabel = dateLabelFromSerial(today);
     var visHtml = _moonVisibilityHtml(today, timeFrac);
     if (!visHtml) visHtml = '<div style="opacity:.6;">No visibility data available.</div>';
-    var timeButtons =
-      button('Midnight','moon sky midnight') + ' ' +
-      button('Dawn','moon sky dawn') + ' ' +
-      button('Noon','moon sky noon') + ' ' +
-      button('Dusk','moon sky dusk');
+    var timeButtons = [
+      button('Current','moon sky'),
+      button('Middle','moon sky middle_of_night'),
+      button('Early','moon sky early_morning'),
+      button('Morning','moon sky morning'),
+      button('Afternoon','moon sky afternoon'),
+      button('Evening','moon sky evening'),
+      button('Night','moon sky nighttime')
+    ].join(' ');
     return whisper(m.who, _menuBox(
       '🌙 Sky at ' + esc(timeLabel) + ' — ' + esc(dateLabel),
       visHtml +

@@ -42,10 +42,11 @@ import {
 
 import { sanitizeHexColor, resolveColor, textColor } from './color';
 
-import { toSerial, fromSerial, daysPerYear, todaySerial } from './date-math';
+import { toSerial, fromSerial, daysPerYear, regularMonthIndex, todaySerial } from './date-math';
 
 import { monthIndexByName, Parse } from './parsing';
 import { formatDateLabel, esc, button, openMonthTable, closeMonthTable, clamp } from './rendering';
+import { TIME_OF_DAY_BUCKETS } from './time-of-day';
 import {
   currentDateLabel, nextForDayOnly, nextForMonthDay, _menuBox,
   _normalizeDisplayMode, _nextDisplayMode, _displayModeLabel,
@@ -123,15 +124,16 @@ var WEATHER_UNCERTAINTY: any = {
   vague:     { maxDist: 20, label: 'Vague'     }
 };
 
-export var WEATHER_DAY_PERIODS = ['early_morning', 'morning', 'afternoon', 'evening', 'late_night'];
+export var WEATHER_DAY_PERIODS = TIME_OF_DAY_BUCKETS.map(function(bucket: any){ return bucket.key; });
 export var WEATHER_PRIMARY_PERIOD = 'afternoon';
-var WEATHER_LOW_TOD_PERIODS = ['early_morning', 'afternoon', 'late_night'];
+var WEATHER_LOW_TOD_PERIODS = ['early_morning', 'afternoon', 'nighttime'];
 var WEATHER_PERIOD_META: any = {
+  middle_of_night: { label:'Middle of the Night', shortLabel:'Middle', icon:'🌌' },
+  nighttime:       { label:'Nighttime',           shortLabel:'Night',  icon:'🌙' },
   early_morning: { label:'Early Morning', shortLabel:'Early', icon:'🌅' },
   morning:       { label:'Morning',       shortLabel:'Morning', icon:'☀' },
   afternoon:     { label:'Afternoon',     shortLabel:'Afternoon', icon:'☁' },
-  evening:       { label:'Evening',       shortLabel:'Evening', icon:'🌆' },
-  late_night:    { label:'Late Night',    shortLabel:'Night', icon:'🌙' }
+  evening:       { label:'Evening',       shortLabel:'Evening', icon:'🌆' }
 };
 
 export function _weatherPeriodLabel(period: any){
@@ -161,12 +163,12 @@ export function _weatherPrimaryFog(rec: any){
 
 function _weatherPrevNightValues(prevRec: any){
   if (!prevRec) return null;
-  if (prevRec.periods && prevRec.periods.late_night) return prevRec.periods.late_night;
+  if (prevRec.periods && prevRec.periods.nighttime) return prevRec.periods.nighttime;
   return prevRec.final || null;
 }
 
 function _weatherPrevNightFog(prevRec: any){
-  return (prevRec && prevRec.fog) ? prevRec.fog.late_night : null;
+  return (prevRec && prevRec.fog) ? prevRec.fog.nighttime : null;
 }
 
 // Stochastic TOD bell curve. One 1d20 roll per trait per period.
@@ -178,42 +180,42 @@ var WEATHER_TOD_BELL = [
 
 // Deterministic TOD arc — the predictable daily shape per climate.
 // Afternoon is the reference point (offset 0). Arc is scaled by geo × terrain
-// arcMult. Early morning and late night support the five-bucket day model.
+// arcMult. Overnight and shoulder buckets preserve continuity across six steps.
 var WEATHER_TOD_ARC: any = {
   polar: {
-    temp:   { early_morning:-3, morning:-2, afternoon:0, evening:-2, late_night:-3 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:-1 },
-    precip: { early_morning:0,  morning:0,  afternoon:0, evening:0, late_night:0 }
+    temp:   { middle_of_night:-3, early_morning:-3, morning:-2, afternoon:0, evening:-2, nighttime:-3 },
+    wind:   { middle_of_night:-1, early_morning:-1, morning:-1, afternoon:0, evening:0, nighttime:-1 },
+    precip: { middle_of_night:0,  early_morning:0,  morning:0,  afternoon:0, evening:0, nighttime:0 }
   },
   continental: {
-    temp:   { early_morning:-4, morning:-3, afternoon:0, evening:-2, late_night:-3 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
-    precip: { early_morning:0,  morning:-1, afternoon:0, evening:+1, late_night:+1 }
+    temp:   { middle_of_night:-4, early_morning:-4, morning:-3, afternoon:0, evening:-2, nighttime:-3 },
+    wind:   { middle_of_night:-1, early_morning:-1, morning:-1, afternoon:0, evening:0, nighttime:0 },
+    precip: { middle_of_night:+1, early_morning:0,  morning:-1, afternoon:0, evening:+1, nighttime:+1 }
   },
   temperate: {
-    temp:   { early_morning:-3, morning:-2, afternoon:0, evening:-2, late_night:-3 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
-    precip: { early_morning:0,  morning:-1, afternoon:0, evening:+1, late_night:+1 }
+    temp:   { middle_of_night:-3, early_morning:-3, morning:-2, afternoon:0, evening:-2, nighttime:-3 },
+    wind:   { middle_of_night:-1, early_morning:-1, morning:-1, afternoon:0, evening:0, nighttime:0 },
+    precip: { middle_of_night:+1, early_morning:0,  morning:-1, afternoon:0, evening:+1, nighttime:+1 }
   },
   dry: {
-    temp:   { early_morning:-5, morning:-4, afternoon:0, evening:-3, late_night:-4 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:-1, late_night:-2 },
-    precip: { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 }
+    temp:   { middle_of_night:-5, early_morning:-5, morning:-4, afternoon:0, evening:-3, nighttime:-4 },
+    wind:   { middle_of_night:-2, early_morning:-1, morning:-1, afternoon:0, evening:-1, nighttime:-2 },
+    precip: { middle_of_night:0,  early_morning:-1, morning:-1, afternoon:0, evening:0, nighttime:0 }
   },
   tropical: {
-    temp:   { early_morning:-2, morning:-2, afternoon:0, evening:0, late_night:-1 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
-    precip: { early_morning:0,  morning:0,  afternoon:0, evening:+1, late_night:+1 }
+    temp:   { middle_of_night:-2, early_morning:-2, morning:-2, afternoon:0, evening:0, nighttime:-1 },
+    wind:   { middle_of_night:0,  early_morning:-1, morning:-1, afternoon:0, evening:0, nighttime:0 },
+    precip: { middle_of_night:+1, early_morning:0,  morning:0,  afternoon:0, evening:+1, nighttime:+1 }
   },
   monsoon: {
-    temp:   { early_morning:-2, morning:-2, afternoon:0, evening:0, late_night:0 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:+1, late_night:+1 },
-    precip: { early_morning:0,  morning:-1, afternoon:0, evening:+2, late_night:+1 }
+    temp:   { middle_of_night:-1, early_morning:-2, morning:-2, afternoon:0, evening:0, nighttime:0 },
+    wind:   { middle_of_night:0,  early_morning:-1, morning:-1, afternoon:0, evening:+1, nighttime:+1 },
+    precip: { middle_of_night:+1, early_morning:0,  morning:-1, afternoon:0, evening:+2, nighttime:+1 }
   },
   mediterranean: {
-    temp:   { early_morning:-4, morning:-3, afternoon:0, evening:-2, late_night:-3 },
-    wind:   { early_morning:-1, morning:-1, afternoon:0, evening:0, late_night:0 },
-    precip: { early_morning:0,  morning:0,  afternoon:0, evening:+1, late_night:+1 }
+    temp:   { middle_of_night:-4, early_morning:-4, morning:-3, afternoon:0, evening:-2, nighttime:-3 },
+    wind:   { middle_of_night:-1, early_morning:-1, morning:-1, afternoon:0, evening:0, nighttime:0 },
+    precip: { middle_of_night:+1, early_morning:0,  morning:0,  afternoon:0, evening:+1, nighttime:+1 }
   }
 };
 
@@ -931,23 +933,6 @@ function _rollDie(sides: any){
 // weather tables, which are always 12 entries long (one per non-intercalary month).
 // For standard 12-month calendars this is identity. For Harptos (17-18 slots)
 // it skips intercalary slots so e.g. Marpenoth (slot 13) → regular index 9.
-export function regularMonthIndex(mi: any){
-  var months = getCal().months;
-  var count = 0;
-  for (var i = 0; i < months.length && i <= mi; i++){
-    if (!months[i].isIntercalary){
-      if (i === mi) return count;
-      count++;
-    }
-  }
-  // Intercalary slot: inherit index from nearest preceding regular month.
-  for (var j = mi - 1; j >= 0; j--){
-    if (!months[j].isIntercalary) return count - 1;
-    // count was not incremented for intercalary slots, so we need to retrace
-  }
-  return 0;
-}
-
 // Returns the weather-table month index for monthIdx, with hemisphere offset applied.
 // Hemisphere-aware season sets (faerun, gregorian) offset by 6 for southern campaigns
 // so month 0 reads mid-summer stats rather than mid-winter stats.
@@ -1007,8 +992,8 @@ export function _rollTrait(formula: any, seedNudge: any){
 // 18f) Time-of-day calculations — two layers
 //
 // Layer 1 (deterministic arc): predictable daily shape from WEATHER_TOD_ARC,
-//   scaled by terrain multiplier. Early hours inherit some of the previous
-//   night, afternoons peak, and evening / late night cool again with
+//   scaled by terrain multiplier. Overnight hours inherit some of the previous
+//   night, afternoons peak, and evening / nighttime cool again with
 //   precipitation often building in humid climates.
 //
 // Layer 2 (stochastic bell): one 1d20 roll per trait per period.
@@ -1048,11 +1033,12 @@ function _todStochastic(){
 // ---------------------------------------------------------------------------
 
 var _FOG_BASE: any = {
+  middle_of_night: 0.18,
   early_morning: 0.30,
   morning:       0.40,
   afternoon:     0.05,
   evening:       0.20,
-  late_night:    0.10
+  nighttime:     0.10
 };
 
 var _FOG_GEO_MULT: any = {
@@ -1197,11 +1183,12 @@ function _generateDayWeather(serial: any, prevRec: any, locationOverride: any){
     periods[pname] = periodVals(arc[pname], rng[pname]);
   }
 
-  // Early morning should feel like the previous night's weather breaking
-  // into the new day, not a hard reset.
+  // The overnight handoff should feel continuous across midnight rather than
+  // like a hard reset at the calendar boundary.
   var prevNight = _weatherPrevNightValues(prevRec);
   if (prevNight){
-    periods.early_morning = _blendWeatherValues(prevNight, periods.early_morning, 2, 1);
+    periods.middle_of_night = _blendWeatherValues(prevNight, periods.middle_of_night, 2, 1);
+    periods.early_morning = _blendWeatherValues(periods.middle_of_night, periods.early_morning, 1, 2);
   }
 
   // Roll fog per period at generation time — stored so display is consistent.
@@ -1792,7 +1779,7 @@ export function _conditionsMechHtml(cond: any){
 }
 
 // Full mechanical readout for today — whispered on demand via button.
-// Covers the full five-bucket day model + any extreme events + planar effects.
+// Covers the full six-bucket day model + any extreme events + planar effects.
 function weatherTodayMechanicsHtml(){
   if (ensureSettings().weatherMechanicsEnabled === false){
     return _menuBox('📋 Weather Mechanics',
@@ -1854,13 +1841,13 @@ function weatherTodayMechanicsHtml(){
     );
   }
 
-  // Nighttime lighting — always shown so GM knows what darkness looks like tonight
+  // Current lighting -- always shown so the GM can read the active light level
   moonEnsureSequences();
   var lightHtml = nighttimeLightHtml(today);
   if (lightHtml){
     sections.push(
       '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px;">'+
-      '<b>🌙 Tonight\'s Lighting:</b><br>' +
+      '<b>Current Lighting:</b><br>' +
       lightHtml +
       '</div>'
     );
@@ -1878,14 +1865,16 @@ export function _conditionsNarrative(pv: any, cond: any, period: any){
   var base = _flavorText(pv);
   if (cond.fog !== 'none' && pv.precip <= 1){
     if (cond.fog === 'dense'){
-      if (period === 'early_morning')  base = pv.precip === 0 ? 'Dense predawn fog.' : 'Dense fog before dawn.';
+      if (period === 'middle_of_night') base = pv.precip === 0 ? 'Dense fog after midnight.' : 'Low cloud and heavy fog after midnight.';
+      else if (period === 'early_morning')  base = pv.precip === 0 ? 'Dense predawn fog.' : 'Dense fog before dawn.';
       else if (period === 'morning')   base = pv.precip === 0 ? 'Dense fog.' : 'Dense fog and overcast.';
       else if (period === 'afternoon') base = pv.precip === 0 ? 'Dense fog persisting into the day.' : 'Overcast with thick fog.';
       else if (period === 'evening')   base = pv.precip === 0 ? 'Dense fog settling in.' : 'Foggy and overcast.';
       else                             base = pv.precip === 0 ? 'Dense night fog.' : 'Low cloud and heavy fog.';
     } else {
       // light fog
-      if (period === 'early_morning')  base = pv.precip === 0 ? 'Patchy predawn fog.' : base;
+      if (period === 'middle_of_night') base = pv.precip === 0 ? 'Patchy fog after midnight.' : base;
+      else if (period === 'early_morning')  base = pv.precip === 0 ? 'Patchy predawn fog.' : base;
       else if (period === 'morning')   base = pv.precip === 0 ? 'Patchy morning fog.' : base;
       else if (period === 'afternoon') base = pv.precip === 0 ? 'Patchy fog.' : base;
       else if (period === 'evening')   base = pv.precip === 0 ? 'Light evening fog.' : base;
@@ -2202,13 +2191,13 @@ export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLa
     }
     var dayCond = _deriveConditions(f, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
 
-    // Nighttime lighting — show on today only
+    // Current lighting — show on today only
     var nightHtml = '';
     if (isToday){
       moonEnsureSequences();
       var nl = nighttimeLightHtml(rec.serial);
       if (nl) nightHtml = '<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,.08);">' +
-        '<b style="font-size:.85em;">🌙 Tonight:</b>' + nl + '</div>';
+        '<b style="font-size:.85em;">Current light:</b>' + nl + '</div>';
     }
 
     content =

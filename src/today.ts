@@ -7,10 +7,11 @@ import { _invalidateSerialCache, _isLeapMonth, todaySerial } from './date-math.j
 import { DaySpec, Parse } from './parsing.js';
 import { _deliverTopLevelCalendarRange, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, listAllEventsTableHtml, removeListHtml, removeMatchesListHtml, restoreDefaultEvents, suppressedDefaultsListHtml } from './rendering.js';
-import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _subsystemIsVerbose, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, themeListHtml } from './ui.js';
+import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
+import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _subsystemIsVerbose, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper } from './commands.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
-import { MOON_SYSTEMS, _eclipseNotableToday, _moonPhaseEmoji, _moonPhaseLabel, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightCondition, nighttimeLightHtml, nighttimeLux } from './moon.js';
+import { MOON_SYSTEMS, _eclipseNotableToday, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, handlePlanesCommand } from './planes.js';
 
 
@@ -30,6 +31,38 @@ export function _todayWeatherIsStable(wxRec){
   return true;
 }
 
+function _timeOfDayMenuHtml(){
+  var bucket = currentTimeBucket();
+  if (!bucket){
+    var startButtons = [];
+    for (var i = 0; i < TIME_OF_DAY_BUCKETS.length; i++){
+      startButtons.push(button(TIME_OF_DAY_BUCKETS[i].shortLabel, 'time start ' + TIME_OF_DAY_BUCKETS[i].key));
+    }
+    return _menuBox('Time of Day',
+      '<div style="opacity:.8;margin-bottom:5px;">Time of day is inactive for this date.</div>' +
+      '<div style="margin-bottom:4px;"><b>' + esc(currentDateLabel()) + '</b></div>' +
+      '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Choose a starting bucket:</div>' +
+      startButtons.join(' ')
+    );
+  }
+
+  return _menuBox('Time of Day',
+    '<div style="font-weight:bold;">Current time: ' + esc(bucketLabel(bucket)) + '</div>' +
+    '<div style="opacity:.75;margin-top:2px;">' + esc(currentDateLabel()) + '</div>' +
+    '<div style="margin-top:6px;">' +
+      button('Advance Time', 'time next') + ' ' +
+      button('Clear Time', 'time clear') +
+    '</div>'
+  );
+}
+
+function _sendTimeOfDayStatus(who){
+  whisper(who,
+    '<div><b>Current time: ' + esc(currentTimeOfDayLabel()) + '</b><br>' +
+    esc(currentDateLabel()) + '</div>'
+  );
+}
+
 export function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
@@ -39,6 +72,7 @@ export function _todayAllHtml(){
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
     esc(currentDateLabel()) + '</div>');
+  if (isTimeOfDayActive()) sections.push(_timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin:-2px 0 4px 0;'));
 
   // Events
   try {
@@ -189,21 +223,28 @@ export function _todayAllHtml(){
           }
         } catch(e3){}
 
-        // Nighttime lighting — inline in minimal mode, separate section in normal mode
+        // Current lighting -- inline in minimal mode, separate section in normal mode
         if (!verbose){
           try {
             var precipStg = 0;
             var ltRec = _forecastRecord(today);
             if (ltRec && ltRec.final) precipStg = ltRec.final.precip || 0;
-            var luxResult = nighttimeLux(today, precipStg);
-            var luxCond = nighttimeLightCondition(luxResult.total);
+            var lightSnap = currentLightSnapshot(today, precipStg);
             var cloudNote = '';
+            var lightLead = '';
             if (precipStg >= 3) cloudNote = ' — heavy cloud';
             else if (precipStg === 2) cloudNote = ' — overcast';
             else if (precipStg === 1) cloudNote = ' — partly cloudy';
-            moonHtml += '<div style="font-size:.85em;margin:3px 0 0 8px;">' +
-              luxCond.emoji + ' Tonight: <b>' + esc(luxCond.label) + '</b>' +
-              ' <span style="opacity:.5;">(' + luxResult.total + ' lux)</span>' + esc(cloudNote) + '</div>';
+            if (lightSnap.mode === 'day'){
+              lightLead = lightSnap.emoji ? esc(lightSnap.emoji) + ' ' : '';
+              moonHtml += '<div style="font-size:.85em;margin:3px 0 0 8px;">' +
+                lightLead + 'Current light: <b>' + esc(lightSnap.label) + '</b></div>';
+            } else {
+              lightLead = lightSnap.cond.emoji ? lightSnap.cond.emoji + ' ' : '';
+              moonHtml += '<div style="font-size:.85em;margin:3px 0 0 8px;">' +
+                lightLead + 'Current light: <b>' + esc(lightSnap.label) + '</b>' +
+                ' <span style="opacity:.5;">(' + lightSnap.result.total + ' lux)</span>' + esc(cloudNote) + '</div>';
+            }
           } catch(e4){}
         }
 
@@ -212,12 +253,12 @@ export function _todayAllHtml(){
     } catch(e){}
   }
 
-  // Nighttime lighting — separate section in normal mode
+  // Current lighting -- separate section in normal mode
   if (verbose && st.moonsEnabled !== false){
     try {
       var lightHtml = nighttimeLightHtml(today);
       if (lightHtml){
-        sections.push('<div style="margin:4px 0;"><b>🌙 Tonight\'s Lighting:</b></div>' +
+        sections.push('<div style="margin:4px 0;"><b>Current Lighting:</b></div>' +
           '<div style="margin-left:8px;">' + lightHtml + '</div>');
       }
     } catch(e){}
@@ -388,6 +429,42 @@ export var commands = {
 
   effects: { gm:true, run:function(m){
     whisper(m.who, activeEffectsPanelHtml());
+  }},
+
+  time: { gm:true, run:function(m, a){
+    var sub = String(a[2] || '').toLowerCase();
+    var bucketArg = normalizeTimeBucketKey(sub);
+    if (!sub){
+      return whisper(m.who, _timeOfDayMenuHtml());
+    }
+    if (sub === 'clear' || sub === 'off' || sub === 'stop' || sub === 'disable'){
+      clearTimeOfDay();
+      return whisper(m.who, 'Time of day cleared for this date.');
+    }
+    if (sub === 'next' || sub === 'advance' || sub === 'step'){
+      var current = currentTimeBucket();
+      if (!current){
+        return whisper(m.who, _timeOfDayMenuHtml());
+      }
+      if (current === 'nighttime'){
+        stepDays(1, { preserveTimeOfDay:true, announce:false });
+        activateTimeOfDay('middle_of_night');
+      } else {
+        activateTimeOfDay(nextTimeBucket(current));
+      }
+      return _sendTimeOfDayStatus(m.who);
+    }
+    if (sub === 'start' || sub === 'set'){
+      var picked = normalizeTimeBucketKey(a.slice(3).join(' '));
+      if (!picked) return whisper(m.who, _timeOfDayMenuHtml());
+      activateTimeOfDay(picked);
+      return _sendTimeOfDayStatus(m.who);
+    }
+    if (bucketArg){
+      activateTimeOfDay(bucketArg);
+      return _sendTimeOfDayStatus(m.who);
+    }
+    whisper(m.who, _timeOfDayMenuHtml());
   }},
 
   help: function(m, a){
