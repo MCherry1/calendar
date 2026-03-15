@@ -193,6 +193,8 @@
   },
   "active": "161788ecb967845a",
   "lastOpenFiles": [
+    "test/time-of-day.test.ts",
+    "src/time-of-day.ts",
     "tsconfig.json",
     "test/weather.test.ts",
     "test/roll20-shim.ts",
@@ -202,8 +204,6 @@
     "test/date-math.test.ts",
     "src/types/roll20.d.ts",
     "src/weather.ts",
-    "src/ui.ts",
-    "src/types",
     "Design Ideas.md",
     "Design Tasks.md",
     "AGENT TASKS.md",
