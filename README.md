@@ -57,6 +57,45 @@ That helper will:
 
 Your autouploader extension still does the actual sync to Roll20; this script just makes sure your local copy is up to date before the page opens.
 
+### GitHub-built paste artifact
+
+GitHub Actions already typechecks, tests, and builds the script on every push to `main`, every pull request to `main`, and on manual `workflow_dispatch` runs.
+
+Each successful run uploads a `calendar-js` artifact containing the built `calendar.js`. That means agents can keep working only in `src/` and related docs/tests while the generated Roll20 upload file stays out of git.
+
+To get a paste-ready build from GitHub:
+
+1. Open the repo's **Actions** tab
+2. Open the latest successful `CI` run for the branch or commit you want
+3. Download the `calendar-js` artifact
+4. Unzip it and paste `calendar.js` into the Roll20 API Scripts editor
+
+Artifact note: GitHub Action artifacts are temporary build outputs, not permanent release files. The workflow currently keeps them for 30 days.
+
+### GitHub Releases for stable versions
+
+This repo also has a separate release workflow for permanent downloads.
+
+- CI artifacts are for normal day-to-day builds
+- GitHub Releases are for stable versioned builds you may want to keep and come back to later
+
+When you push a version tag like `v3.0.1`, GitHub Actions will:
+
+1. Typecheck, test, and build the project again
+2. Create a GitHub Release for that tag if one does not exist yet
+3. Attach the built `calendar.js` file to that release as a downloadable asset
+
+That means you do not need to commit `calendar.js` to git just to have a durable Roll20 upload file.
+
+Typical release flow:
+
+```bash
+git tag v3.0.1
+git push origin v3.0.1
+```
+
+Then open the repo's **Releases** page, download the attached `calendar.js`, and paste it into Roll20.
+
 ---
 
 ## How to Use
@@ -549,7 +588,7 @@ test/
 3. Run `npm run build` to regenerate `calendar.js`
 4. Commit source changes (the built `calendar.js` is gitignored)
 
-CI runs typecheck, tests, and build on every PR. The launcher script (`tools/Launch-Roll20ApiSync.ps1`) builds `calendar.js` automatically before syncing to Roll20.
+CI runs typecheck, tests, and build on every PR and uploads the built `calendar.js` as a downloadable GitHub Actions artifact. Tagged releases also attach `calendar.js` as a permanent release asset. The launcher script (`tools/Launch-Roll20ApiSync.ps1`) still builds `calendar.js` locally when you want to drive the Roll20 page from your own machine.
 
 </details>
 
