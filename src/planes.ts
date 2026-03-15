@@ -270,31 +270,36 @@ export function getPlanarState(planeName, serial, opts?){
   var ps = getPlanesState();
   var override = ps.overrides[plane.name];
   if (override){
-    // Check if timed override has expired
     if (override.durationDays && override.setOn != null){
       var today = todaySerial();
       if (today >= override.setOn + override.durationDays){
-        delete ps.overrides[plane.name]; // expired — fall through to normal calc
+        delete ps.overrides[plane.name];
         override = null;
       }
     }
   }
   if (override){
-    return {
-      plane: plane,
-      phase: override.phase || 'waning',
-      daysIntoPhase: null,
-      daysUntilNextPhase: override.durationDays
-        ? Math.max(0, (override.setOn + override.durationDays) - todaySerial())
-        : null,
-      phaseDuration: override.durationDays || null,
-      nextPhase: null,
-      overridden: true,
-      sourceLabel: 'gm-defined',
-      traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
-    };
+    var overrideStart = (override.setOn != null) ? parseInt(override.setOn, 10) : todaySerial();
+    var overrideEnd = (override.durationDays && override.setOn != null)
+      ? (overrideStart + parseInt(override.durationDays, 10))
+      : null;
+    var overrideActive = serial >= overrideStart && (overrideEnd == null || serial < overrideEnd);
+    if (overrideActive){
+      return {
+        plane: plane,
+        phase: override.phase || 'waning',
+        daysIntoPhase: null,
+        daysUntilNextPhase: overrideEnd != null
+          ? Math.max(0, overrideEnd - serial)
+          : null,
+        phaseDuration: override.durationDays || null,
+        nextPhase: null,
+        overridden: true,
+        sourceLabel: 'gm-defined',
+        traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
+      };
+    }
   }
-
   // Fixed planes (Dal Quor, Xoriat, Kythri)
   if (plane.type === 'fixed'){
     var fixedPhase = plane.fixedPhase || 'remote';
@@ -825,7 +830,7 @@ export function _canonicalPhaseKnowledgeSummary(planeName, serial, horizonDays){
   return 'Cycle: C ' + cTxt + ' \u00B7 R ' + rTxt;
 }
 
-export function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
+export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSerial?){
   var out = [];
   var planes = _getAllPlaneData();
   if (!planes || !planes.length) return out;
@@ -839,7 +844,7 @@ export function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
   for (var i = 0; i < planes.length; i++){
     var pname = planes[i].name;
     prevCanon[pname] = getPlanarState(pname, start - 1, { ignoreGenerated: true });
-    if (includeGenerated){
+    if (generatedCutoffSerial != null && (start - 1) <= generatedCutoffSerial){
       var prevActual = getPlanarState(pname, start - 1);
       prevGen[pname] = prevActual ? { phase: prevActual.phase, gen: !!_isGeneratedNote(prevActual.note) } : null;
     }
@@ -873,7 +878,7 @@ export function _planesMiniCalEvents(startSerial, endSerial, includeGenerated){
       prevCanon[name] = curCanon;
 
       // Generated (off-cycle) event spans
-      if (includeGenerated){
+      if (generatedCutoffSerial != null && ser <= generatedCutoffSerial){
         var curActual = getPlanarState(name, ser);
         var curIsGen = !!(curActual && _isGeneratedNote(curActual.note));
         var prevEntry = prevGen[name] || { phase: null, gen: false };
@@ -986,7 +991,10 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   var verbose = _subsystemIsVerbose();
   var rows   = [];
   var pr = _monthRangeFromSerial(today);
-  var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, isGM || genHorizon > 0);
+  var generatedCutoff = null;
+  if (isGM) generatedCutoff = pr.end;
+  else if (genHorizon > 0) generatedCutoff = Math.min(pr.end, todaySerial() + genHorizon);
+  var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
   var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
@@ -1168,6 +1176,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
         '<div style="font-size:.82em;margin-bottom:2px;">Send Medium: '+pSendBtns+'</div>'+
         '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
+        '<div style="font-size:.82em;margin-bottom:2px;">'+button('Prompt !cal planes on','planes on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
         button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
         '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
           'CLI: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>'+
@@ -1198,6 +1207,30 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) +
     body + longShadowsHtml + srcLine + horizonLine + gmControls +
     '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','help root') +'</div>'
+  );
+}
+
+function _planesBroadcastSummaryHtml(viewTier, revealHorizonDays, generatedHorizonDays, serialOverride?){
+  var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
+  var planes = _getAllPlaneData();
+  var genHorizon = parseInt(generatedHorizonDays, 10) || 0;
+  var rows = [];
+  for (var i = 0; i < planes.length; i++){
+    var ignoreGenerated = (viewTier === 'low' || genHorizon <= 0);
+    var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated: true } : null);
+    if (!ps) continue;
+    var label = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
+    var generatedTag = _isGeneratedNote(ps.note) ? ' (generated)' : '';
+    rows.push(
+      '<div style="margin:2px 0;">' +
+        (PLANE_PHASE_EMOJI[ps.phase] || '\u26AA') + ' <b>' + esc(ps.plane.name) + '</b> — ' + esc(label + generatedTag) +
+      '</div>'
+    );
+  }
+  return _menuBox('\uD83C\uDF00 Planar Almanac \u2014 ' + esc(dateLabelFromSerial(today)),
+    _planesTodaySummaryHtml(today, false, viewTier, revealHorizonDays) +
+    rows.join('') +
+    '<div style="font-size:.75em;opacity:.45;margin-top:4px;">Forecast horizon: ' + esc(_planeRangeLabel(revealHorizonDays)) + '</div>'
   );
 }
 
@@ -1417,7 +1450,7 @@ export function handlePlanesCommand(m, args){
     var effectiveCanonHorizon = parseInt(psSend.revealHorizonDays,10) || canonHorizon;
     var effectiveGenHorizon = parseInt(psSend.generatedHorizonDays,10) || genHorizon;
 
-    sendToAll(planesPanelHtml(false, effectiveTier, null, effectiveCanonHorizon, effectiveGenHorizon));
+    sendToAll(_planesBroadcastSummaryHtml(effectiveTier, effectiveCanonHorizon, effectiveGenHorizon));
     var rangeNote = (effectiveTier === 'medium')
       ? 'canon ' + _planeRangeLabel(effectiveCanonHorizon) + ', generated ' + effectiveGenHorizon + 'd'
       : _planeRangeLabel(effectiveCanonHorizon);

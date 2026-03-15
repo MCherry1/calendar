@@ -58,6 +58,103 @@ export var defaults = {
 
 export function deepClone(obj){ return JSON.parse(JSON.stringify(obj)); }
 
+function _setupRoot(){
+  if (!state[state_name]) state[state_name] = {};
+  return state[state_name];
+}
+
+function _hasMeaningfulSetupData(root){
+  if (!root || typeof root !== 'object') return false;
+  if (root.calendar && (
+    root.calendar.current ||
+    (Array.isArray(root.calendar.months) && root.calendar.months.length) ||
+    (Array.isArray(root.calendar.weekdays) && root.calendar.weekdays.length) ||
+    (Array.isArray(root.calendar.events) && root.calendar.events.length)
+  )) return true;
+  if (root.settings && Object.keys(root.settings).length) return true;
+  if (root.weather || root.moons || root.planes) return true;
+  if (root.suppressedDefaults && Object.keys(root.suppressedDefaults).length) return true;
+  if (root.suppressedSources && Object.keys(root.suppressedSources).length) return true;
+  if (root.manualSuppressedSources && Object.keys(root.manualSuppressedSources).length) return true;
+  if (root.autoSuppressedSources && Object.keys(root.autoSuppressedSources).length) return true;
+  return false;
+}
+
+export function ensureSetupState(){
+  var root = _setupRoot();
+  if (!root.setup || typeof root.setup !== 'object'){
+    root.setup = {
+      status: _hasMeaningfulSetupData(root) ? 'complete' : 'uninitialized',
+      draft: {}
+    };
+  }
+  var setup = root.setup;
+  setup.status = String(setup.status || '').toLowerCase();
+  if (!/^(uninitialized|dismissed|in_progress|complete)$/.test(setup.status)){
+    setup.status = _hasMeaningfulSetupData(root) ? 'complete' : 'uninitialized';
+  }
+  if (!setup.draft || typeof setup.draft !== 'object') setup.draft = {};
+  return setup;
+}
+
+export function getSetupState(){
+  return ensureSetupState();
+}
+
+export function setupIsComplete(){
+  return ensureSetupState().status === 'complete';
+}
+
+export function setupIsInProgress(){
+  return ensureSetupState().status === 'in_progress';
+}
+
+export function setupRequiresOnboarding(){
+  return ensureSetupState().status !== 'complete';
+}
+
+export function getManualSuppressedSources(){
+  var root = _setupRoot();
+  if (!root.manualSuppressedSources || typeof root.manualSuppressedSources !== 'object'){
+    root.manualSuppressedSources = {};
+  }
+  if (root.suppressedSources && typeof root.suppressedSources === 'object'){
+    Object.keys(root.suppressedSources).forEach(function(key){
+      if (root.suppressedSources[key]) root.manualSuppressedSources[key] = 1;
+    });
+    delete root.suppressedSources;
+  }
+  return root.manualSuppressedSources;
+}
+
+export function getAutoSuppressedSources(){
+  var root = _setupRoot();
+  if (!root.autoSuppressedSources || typeof root.autoSuppressedSources !== 'object'){
+    root.autoSuppressedSources = {};
+  }
+  return root.autoSuppressedSources;
+}
+
+export function effectiveSuppressedSources(){
+  var out = {};
+  var manual = getManualSuppressedSources();
+  var auto = getAutoSuppressedSources();
+  Object.keys(auto).forEach(function(key){ if (auto[key]) out[key] = 1; });
+  Object.keys(manual).forEach(function(key){ if (manual[key]) out[key] = 1; });
+  return out;
+}
+
+export function sourceSuppressionState(sourceKey){
+  var key = String(sourceKey || '').toLowerCase();
+  var manual = !!getManualSuppressedSources()[key];
+  var auto = !!getAutoSuppressedSources()[key];
+  return {
+    manual: manual,
+    auto: auto,
+    effective: manual || auto
+  };
+}
+
 export function ensureSettings(){
   var root = state[state_name];
   if (!root.settings){
@@ -256,20 +353,13 @@ export function applyStructureSet(setName){
 // !cal source command. Used by applyCalendarSystem for calendar-paired sources.
 export function _autoToggleCalendarSource(sourceKey, enable){
   var root = state[state_name];
-  if (!root.suppressedSources) root.suppressedSources = {};
-  var suppressedSources = root.suppressedSources;
-  var sup = root.suppressedDefaults || (root.suppressedDefaults = {});
+  var autoSuppressedSources = getAutoSuppressedSources();
 
   if (enable){
-    delete suppressedSources[sourceKey];
-    // Lift per-event suppression keys belonging to this source.
-    Object.keys(sup).forEach(function(k){
-      var info = _defaultDetailsForKey(k);
-      if (info && String(info.source||'').toLowerCase() === sourceKey) delete sup[k];
-    });
+    delete autoSuppressedSources[sourceKey];
     mergeInNewDefaultEvents(getCal());
   } else {
-    suppressedSources[sourceKey] = 1;
+    autoSuppressedSources[sourceKey] = 1;
     var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
     cal.events = cal.events.filter(function(e){
       var src = (e.source != null) ? String(e.source).toLowerCase() : null;
@@ -369,21 +459,11 @@ export function applyCalendarSystem(sysKey, varKey?){
     st._moonsAutoToggle = true;
   }
 
-  // Enforce source calendar scopes so calendar-specific defaults only appear
-  // on their matching calendar systems.
+  // Enforce source calendar scopes without overwriting GM manual suppressions.
   Object.keys(DEFAULT_EVENT_SOURCE_CALENDARS).forEach(function(srcKey){
-    if (!_sourceAllowedForCalendar(srcKey, sysKey)){
-      _autoToggleCalendarSource(srcKey, false);
-    }
+    if (_sourceAllowedForCalendar(srcKey, sysKey)) _autoToggleCalendarSource(srcKey, true);
+    else _autoToggleCalendarSource(srcKey, false);
   });
-
-  // Auto-suppress/restore calendar-paired event sources.
-  // gregorian_seasons belongs to the Gregorian calendar; suppress it for other systems.
-  var _paired  = { gregorian: 'gregorian_seasons' };
-  // Restore sources for the calendar we're entering.
-  if (_paired[sysKey] && sysKey !== _prevSys){
-    _autoToggleCalendarSource(_paired[sysKey], true);
-  }
 
   _invalidateSerialCache();
   return true;
@@ -402,6 +482,7 @@ export function effectiveColorTheme(){
 
 export function checkInstall(){
   if(!state[state_name]) state[state_name] = {};
+  ensureSetupState();
   ensureSettings();
 
   if(!state[state_name].calendar ||
@@ -411,7 +492,8 @@ export function checkInstall(){
   }
 
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
-  if (!state[state_name].suppressedSources)  state[state_name].suppressedSources  = {};
+  getManualSuppressedSources();
+  getAutoSuppressedSources();
   ensureTimeOfDayState();
 
   var cal = state[state_name].calendar;
@@ -573,10 +655,13 @@ export function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(nu
 
 export function resetToDefaults(){
   delete state[state_name];
-  state[state_name] = { calendar: deepClone(defaults) };
-  checkInstall();
-  sendChat(script_name, '/w gm Calendar state wiped and reset to defaults.');
-  sendCurrentDate(null, true);
+  state[state_name] = {
+    setup: {
+      status: 'uninitialized',
+      draft: {}
+    }
+  };
+  sendChat(script_name, '/w gm Calendar state wiped. Use <code>!cal</code> to begin setup.', null, { noarchive: true });
 }
 
 

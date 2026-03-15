@@ -2,6 +2,7 @@
 import { LABELS } from './constants.js';
 import { checkInstall } from './state.js';
 import { _normalizePackedWords, cleanWho, whisper } from './commands.js';
+import { maybeHandleSetupGate } from './setup.js';
 import { commands } from './today.js';
 
 
@@ -14,6 +15,7 @@ export function handleInput(msg){
   checkInstall();
   var args = msg.content.trim().split(/\s+/);
   args = args.slice(0,2).concat(_normalizePackedWords(args.slice(2).join(' ')).split(/\s+/).filter(Boolean));
+  if (maybeHandleSetupGate(msg, args)) return;
   var sub = String(args[1]||'').toLowerCase();
   var cmd = commands[sub] || commands[''];
   if (typeof cmd === 'function'){ cmd(msg, args); return; }

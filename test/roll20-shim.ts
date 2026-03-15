@@ -7,8 +7,10 @@
 // Chat log — captures all messages sent during tests.
 (globalThis as any)._chatLog = [];
 
-(globalThis as any).sendChat = function (who: string, msg: string) {
-  (globalThis as any)._chatLog.push({ who, msg });
+(globalThis as any)._gmIds = new Set<string>(["GM"]);
+
+(globalThis as any).sendChat = function (who: string, msg: string, _cb?: any, opts?: any) {
+  (globalThis as any)._chatLog.push({ who, msg, opts: opts || null });
 };
 
 // Event registry — captures on() registrations so tests can trigger them.
@@ -25,6 +27,10 @@
   (globalThis as any)._logMessages.push(msg);
 };
 
+(globalThis as any).playerIsGM = function (playerid: string) {
+  return (globalThis as any)._gmIds.has(String(playerid || ""));
+};
+
 // Roll20's randomInteger(max) returns 1..max inclusive.
 (globalThis as any).randomInteger = function (max: number) {
   return Math.floor(Math.random() * max) + 1;
@@ -39,4 +45,5 @@
   (globalThis as any)._chatLog = [];
   (globalThis as any)._eventHandlers = {};
   (globalThis as any)._logMessages = [];
+  (globalThis as any)._gmIds = new Set<string>(["GM"]);
 };

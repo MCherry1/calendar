@@ -1,7 +1,7 @@
 // Sections 7+9+10+12: Events Model + Range Engine + Occurrences + Event Lists
 import { CONFIG_DEFAULTS, CONFIG_NEARBY_DAYS } from './config.js';
 import { LABELS, PALETTE, RANGE_CAP_YEARS, STYLES, script_name, state_name } from './constants.js';
-import { _sourceAllowedForCalendar, deepClone, defaults, ensureSettings, getCal, titleCase, weekLength } from './state.js';
+import { _sourceAllowedForCalendar, deepClone, defaults, effectiveSuppressedSources, ensureSettings, getCal, titleCase, weekLength } from './state.js';
 import { _stableHash, resolveColor } from './color.js';
 import { _daysBeforeYear, _isLeapMonth, _nextActiveMi, _prevActiveMi, _serialCache, daysPerYear, fromSerial, toSerial, todaySerial, weekStartSerial, weekdayIndex } from './date-math.js';
 import { DaySpec, Parse, isTodayVisibleInRange } from './parsing.js';
@@ -119,12 +119,19 @@ export function mergeInNewDefaultEvents(cal){
   var sysKey = ensureSettings().calendarSystem || CONFIG_DEFAULTS.calendarSystem;
   var lim = Math.max(1, cal.months.length);
   var suppressed = state[state_name].suppressedDefaults || {};
-  var suppressedSources = state[state_name].suppressedSources || {};
+  var suppressedSources = effectiveSuppressedSources();
+  var defaultsSet = currentDefaultKeySet(cal);
 
   // Remove out-of-scope default-source events for the active calendar.
   cal.events = (cal.events || []).filter(function(e){
     var src = (e && e.source != null) ? String(e.source).toLowerCase() : null;
-    return !src || _sourceAllowedForCalendar(src, sysKey);
+    if (!src) return true;
+    if (_sourceAllowedForCalendar(src, sysKey) && !suppressedSources[src]) return true;
+    var mObj = cal.months[(e.month|0) - 1];
+    var maxD = mObj ? (mObj.days|0) : 28;
+    var norm = DaySpec.canonicalForKey(e.day, maxD);
+    var key = defaultKeyFor(e.month, norm, e.name);
+    return !defaultsSet[key];
   });
 
   var have = {};

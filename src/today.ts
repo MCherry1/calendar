@@ -1,15 +1,15 @@
 // Today — Combined detail from all subsystems
 import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS } from './config.js';
 import { COLOR_THEMES, SEASON_SETS, STYLES, script_name, state_name } from './constants.js';
-import { applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getCal, refreshAndSend, resetToDefaults, titleCase } from './state.js';
+import { applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, getManualSuppressedSources, refreshAndSend, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
 import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { _deliverTopLevelCalendarRange, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, listAllEventsTableHtml, removeListHtml, removeMatchesListHtml, restoreDefaultEvents, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _subsystemIsVerbose, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, themeListHtml } from './ui.js';
-import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper } from './commands.js';
+import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _subsystemIsVerbose, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, handlePlanesCommand } from './planes.js';
@@ -57,7 +57,7 @@ function _timeOfDayMenuHtml(){
 }
 
 function _sendTimeOfDayStatus(who){
-  whisper(who,
+  whisperUi(who,
     '<div><b>Current time: ' + esc(currentTimeOfDayLabel()) + '</b><br>' +
     esc(currentDateLabel()) + '</div>'
   );
@@ -69,6 +69,142 @@ export function _todayAllHtml(){
   var cal = getCal(), c = cal.current;
   var verbose = _subsystemIsVerbose();
   var sections = [];
+  var promptDate = String(cal.months[c.month].name || '') + ' ' + c.day_of_the_month + ' ' + c.year;
+  var occNow = [];
+  try { occNow = occurrencesInRange(today, today); } catch(e0){}
+  var eventNames = [];
+  var eventSeen = {};
+  for (var oi0 = 0; oi0 < occNow.length; oi0++){
+    var nm0 = eventDisplayName(occNow[oi0].e);
+    var key0 = String(nm0 || '').toLowerCase();
+    if (!eventSeen[key0]){
+      eventSeen[key0] = 1;
+      eventNames.push(nm0);
+    }
+  }
+
+  var dateSummary = '<b>' + esc(currentDateLabel()) + '</b>';
+  if (isTimeOfDayActive()) dateSummary += '<div style="margin-top:3px;">' + _timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin:0;') + '</div>';
+  sections.push(taskCardHtml(
+    'Date',
+    dateSummary,
+    [
+      button('Calendar','show month'),
+      button('Show Year','show year'),
+      button('Prompt !cal set','set ?{Date|' + promptDate + '}')
+    ],
+    'Use <code>!cal show</code> for the month grid or <code>!cal set &lt;dateSpec&gt;</code> to move the campaign clock.'
+  ));
+
+  sections.push(taskCardHtml(
+    'Events Today',
+    eventNames.length
+      ? 'Today includes <b>' + eventNames.slice(0, 3).map(esc).join(', ') + '</b>' + (eventNames.length > 3 ? ' <span style="opacity:.7;">+' + (eventNames.length - 3) + ' more</span>' : '') + '.'
+      : 'No calendar events are scheduled for today.',
+    [
+      button('List','list'),
+      button('Prompt !cal add','add ?{Date|' + promptDate + '} ?{Event name|New Event} ?{Color|#50C878}'),
+      button('Prompt !cal addmonthly','addmonthly ?{Day spec|first Sul} ?{Event name|Monthly Event} ?{Color|#50C878}'),
+      button('Prompt !cal addyearly','addyearly ?{Month|Zarantyr} ?{Day|1} ?{Event name|Annual Event} ?{Color|#50C878}'),
+      button('Sources','source list')
+    ],
+    'Typed forms: <code>!cal add</code>, <code>!cal addmonthly</code>, <code>!cal addyearly</code>.'
+  ));
+
+  var weatherSummary = 'Weather is currently off.';
+  if (st.weatherEnabled !== false){
+    try {
+      weatherEnsureForecast();
+      var wxCard = _weatherRecordForDisplay(_forecastRecord(today));
+      if (!wxCard || !wxCard.final){
+        weatherSummary = 'No weather has been generated for today yet.';
+      } else {
+        var wxVals = _weatherPrimaryValues(wxCard) || wxCard.final;
+        var wxCond = _deriveConditions(wxVals, wxCard.location || {}, WEATHER_PRIMARY_PERIOD, wxCard.snowAccumulated, _weatherPrimaryFog(wxCard));
+        weatherSummary = esc(_conditionsNarrative(wxVals, wxCond, WEATHER_PRIMARY_PERIOD)) + '.';
+      }
+    } catch(e1){
+      weatherSummary = 'Weather data is currently unavailable.';
+    }
+  }
+  sections.push(taskCardHtml(
+    'Weather',
+    weatherSummary,
+    [
+      button('Detail','weather'),
+      button('Forecast','weather forecast'),
+      button('Mechanics','weather mechanics'),
+      button('Set Location','weather location')
+    ],
+    st.weatherEnabled === false ? 'Enable weather from settings when you want narrative or mechanical forecasts.' : ''
+  ));
+
+  var moonSummary = 'Lunar tracking is currently off.';
+  if (st.moonsEnabled !== false){
+    try {
+      moonEnsureSequences();
+      var moonNow = [];
+      var moonSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      (moonSys.moons || []).forEach(function(moon){
+        var peak = moonPhaseAt(moon.name, today);
+        if (!peak) return;
+        var label = _moonPhaseLabel(peak.illum, peak.waxing);
+        if (peak.illum >= 0.97) moonNow.push(moon.name + ' full');
+        else if (peak.illum <= 0.03) moonNow.push(moon.name + ' new');
+        else if (moonNow.length < 1) moonNow.push(moon.name + ' ' + label.toLowerCase());
+      });
+      moonSummary = moonNow.length ? esc(moonNow.slice(0, 2).join(' · ')) + '.' : 'No notable lunar peaks today.';
+    } catch(e2){
+      moonSummary = 'Moon data is currently unavailable.';
+    }
+  }
+  sections.push(taskCardHtml(
+    'Moons',
+    moonSummary,
+    [
+      button('Detail','moon'),
+      button('Sky','moon sky'),
+      button('Lore','moon lore'),
+      button('Prompt !cal moon on','moon on ?{Date|' + promptDate + '}')
+    ],
+    'Players can keep using <code>!cal moon</code> and <code>!cal moon on &lt;dateSpec&gt;</code>.'
+  ));
+
+  var planeSummary = 'Planar tracking is currently off.';
+  if (st.planesEnabled !== false){
+    try {
+      var planeNotes = _planarNotableToday(today);
+      planeSummary = planeNotes.length
+        ? 'There are <b>' + planeNotes.length + '</b> notable planar effects today.'
+        : 'No active planar extremes today.';
+    } catch(e3){
+      planeSummary = 'Planar data is currently unavailable.';
+    }
+  }
+  sections.push(taskCardHtml(
+    'Planes',
+    planeSummary,
+    [
+      button('Detail','planes'),
+      button('Effects','effects'),
+      button('Prompt !cal planes on','planes on ?{Date|' + promptDate + '}')
+    ],
+    'Use <code>!cal planes</code> for the detailed almanac and <code>!cal effects</code> for the current mechanical snapshot.'
+  ));
+
+  sections.push(taskCardHtml(
+    'GM Controls',
+    'Advance or retreat the day, broadcast the current calendar, or open the task-focused admin menu.',
+    [
+      button('Advance','advance 1'),
+      button('Retreat','retreat 1'),
+      button('Send','send'),
+      button('Prompt !cal send','send ?{Calendar range|this month}'),
+      button('Admin','help root')
+    ]
+  ));
+
+  return _menuBox('Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label), sections.join(''));
 
   sections.push('<div style="font-weight:bold;margin-bottom:4px;">' +
     esc(currentDateLabel()) + '</div>');
@@ -428,23 +564,23 @@ export var commands = {
   },
 
   effects: { gm:true, run:function(m){
-    whisper(m.who, activeEffectsPanelHtml());
+    whisperUi(m.who, activeEffectsPanelHtml());
   }},
 
   time: { gm:true, run:function(m, a){
     var sub = String(a[2] || '').toLowerCase();
     var bucketArg = normalizeTimeBucketKey(sub);
     if (!sub){
-      return whisper(m.who, _timeOfDayMenuHtml());
+      return whisperUi(m.who, _timeOfDayMenuHtml());
     }
     if (sub === 'clear' || sub === 'off' || sub === 'stop' || sub === 'disable'){
       clearTimeOfDay();
-      return whisper(m.who, 'Time of day cleared for this date.');
+      return whisperUi(m.who, 'Time of day cleared for this date.');
     }
     if (sub === 'next' || sub === 'advance' || sub === 'step'){
       var current = currentTimeBucket();
       if (!current){
-        return whisper(m.who, _timeOfDayMenuHtml());
+        return whisperUi(m.who, _timeOfDayMenuHtml());
       }
       if (current === 'nighttime'){
         stepDays(1, { preserveTimeOfDay:true, announce:false });
@@ -456,7 +592,7 @@ export var commands = {
     }
     if (sub === 'start' || sub === 'set'){
       var picked = normalizeTimeBucketKey(a.slice(3).join(' '));
-      if (!picked) return whisper(m.who, _timeOfDayMenuHtml());
+      if (!picked) return whisperUi(m.who, _timeOfDayMenuHtml());
       activateTimeOfDay(picked);
       return _sendTimeOfDayStatus(m.who);
     }
@@ -464,7 +600,7 @@ export var commands = {
       activateTimeOfDay(bucketArg);
       return _sendTimeOfDayStatus(m.who);
     }
-    whisper(m.who, _timeOfDayMenuHtml());
+    whisperUi(m.who, _timeOfDayMenuHtml());
   }},
 
   help: function(m, a){
@@ -486,7 +622,7 @@ export var commands = {
     var val = String(a[3]||'').toLowerCase();
     var st = ensureSettings();
     function _settingsUsage(){
-      return whisper(m.who,
+      return whisperUi(m.who,
         'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
@@ -499,40 +635,40 @@ export var commands = {
     }
     if (key === 'density'){
       if (!/^(compact|normal)$/.test(val)){
-        return whisper(m.who,'Usage: <code>!cal settings density (compact|normal)</code>');
+        return whisperUi(m.who,'Usage: <code>!cal settings density (compact|normal)</code>');
       }
       st.uiDensity = val;
       refreshAndSend();
-      return whisper(m.who,'UI density set to <b>'+esc(val)+'</b>.');
+      return whisperUi(m.who,'UI density set to <b>'+esc(val)+'</b>.');
     }
     if (key === 'verbosity'){
       if (!/^(normal|minimal)$/.test(val)){
-        return whisper(m.who,'Usage: <code>!cal settings verbosity (normal|minimal)</code>');
+        return whisperUi(m.who,'Usage: <code>!cal settings verbosity (normal|minimal)</code>');
       }
       st.subsystemVerbosity = val;
       refreshAndSend();
-      return whisper(m.who,'Subsystem detail set to <b>'+esc(titleCase(val))+'</b>.');
+      return whisperUi(m.who,'Subsystem detail set to <b>'+esc(titleCase(val))+'</b>.');
     }
     if (key === 'weatherdays' || key === 'wxdays'){
       var weatherDays = parseInt(val, 10);
       if (!/^\d+$/.test(val) || weatherDays < 1 || weatherDays > CONFIG_WEATHER_FORECAST_DAYS){
-        return whisper(m.who,'Usage: <code>!cal settings weatherdays (1-'+CONFIG_WEATHER_FORECAST_DAYS+')</code>');
+        return whisperUi(m.who,'Usage: <code>!cal settings weatherdays (1-'+CONFIG_WEATHER_FORECAST_DAYS+')</code>');
       }
       st.weatherForecastViewDays = _weatherViewDays(weatherDays);
       refreshAndSend();
-      return whisper(m.who,'Weather forecast span set to <b>'+st.weatherForecastViewDays+' days</b>.');
+      return whisperUi(m.who,'Weather forecast span set to <b>'+st.weatherForecastViewDays+' days</b>.');
     }
     if (key === 'mode'){
       var sysTok = String(a[3] || '').toLowerCase();
       var modeTok = String(a[4] || '').toLowerCase();
       if (!/^(moon|lunar|weather|planes|plane|planar)$/.test(sysTok) || !/^(calendar|list|both)$/.test(modeTok)){
-        return whisper(m.who,'Usage: <code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code>');
+        return whisperUi(m.who,'Usage: <code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code>');
       }
       if (sysTok === 'moon' || sysTok === 'lunar') st.moonDisplayMode = modeTok;
       if (sysTok === 'weather') st.weatherDisplayMode = modeTok;
       if (sysTok === 'planes' || sysTok === 'plane' || sysTok === 'planar') st.planesDisplayMode = modeTok;
       refreshAndSend();
-      return whisper(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
+      return whisperUi(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
     if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
@@ -547,7 +683,7 @@ export var commands = {
     if (key==='offcycle') st.offCyclePlanes      = (val==='on');
     if (key==='buttons')  st.autoButtons         = (val==='on');
     refreshAndSend();
-    whisper(m.who,'Setting updated.');
+    whisperUi(m.who,'Setting updated.');
   }},
 
   events: { gm:true, run:function(m, a){
@@ -672,7 +808,8 @@ export var commands = {
   source: { gm:true, run: function(m, a){
     var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
     var sub = (args[0]||'').toLowerCase();
-    var suppressedSources = state[state_name].suppressedSources || (state[state_name].suppressedSources = {});
+    var manualSuppressedSources = getManualSuppressedSources();
+    var autoSuppressedSources = getAutoSuppressedSources();
 
     // Collect all known source keys → canonical display names.
     function allSources(){
@@ -710,20 +847,35 @@ export var commands = {
         var rankCell = rank >= 0
           ? String(rank + 1)
           : '<span style="opacity:.5;">—</span>';
-        var disabled = !!suppressedSources[k];
+        var suppression = sourceSuppressionState(k);
         var upBtn    = i > 0
           ? button('↑', 'source up '   + label, {icon:''})
           : '<span style="opacity:.25;">↑</span>';
         var downBtn  = i < keys.length - 1
           ? button('↓', 'source down ' + label, {icon:''})
           : '<span style="opacity:.25;">↓</span>';
-        var togBtn   = disabled
-          ? button('Enable',  'source enable '  + label)
-          : button('Disable', 'source disable ' + label);
+        var statusLabel = suppression.manual && suppression.auto
+          ? 'Off (manual + calendar)'
+          : suppression.manual
+            ? 'Off (manual)'
+            : suppression.auto
+              ? 'Off (calendar)'
+              : 'On';
+        var togBtn = '';
+        if (suppression.manual && suppression.auto){
+          togBtn = button('Enable Manual', 'source enable ' + label) +
+            '<div style="font-size:.72em;opacity:.55;margin-top:2px;">Calendar still hides it.</div>';
+        } else if (suppression.manual){
+          togBtn = button('Enable', 'source enable ' + label);
+        } else if (suppression.auto){
+          togBtn = '<span style="opacity:.5;">Calendar-managed</span>';
+        } else {
+          togBtn = button('Disable', 'source disable ' + label);
+        }
         return '<tr>'+
           '<td style="'+STYLES.td+';text-align:center;">'+rankCell+'</td>'+
           '<td style="'+STYLES.td+'">'+esc(label)+'</td>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+(disabled?'Off':'On')+'</td>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+esc(statusLabel)+'</td>'+
           '<td style="'+STYLES.td+';text-align:center;">'+upBtn+' '+downBtn+'</td>'+
           '<td style="'+STYLES.td+';text-align:center;">'+togBtn+'</td>'+
           '</tr>';
@@ -766,7 +918,7 @@ export var commands = {
     function disableSource(name){
       var key = String(name||'').toLowerCase();
       if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
-      suppressedSources[key] = 1;
+      manualSuppressedSources[key] = 1;
       var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
       cal.events = cal.events.filter(function(e){
         var src = (e.source != null) ? String(e.source).toLowerCase() : null;
@@ -783,7 +935,7 @@ export var commands = {
     function enableSource(name){
       var key = String(name||'').toLowerCase();
       if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
-      delete suppressedSources[key];
+      delete manualSuppressedSources[key];
       var sup = state[state_name].suppressedDefaults || {};
       Object.keys(sup).forEach(function(k){
         var info = _defaultDetailsForKey(k);
@@ -792,7 +944,11 @@ export var commands = {
       });
       mergeInNewDefaultEvents(getCal());
       refreshAndSend();
-      sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+      if (autoSuppressedSources[key]){
+        sendChat(script_name, '/w gm Manual suppression cleared for "'+esc(name)+'", but the current calendar still auto-suppresses that source.');
+      } else {
+        sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+      }
     }
 
     if (!sub || sub==='list') return listSources();

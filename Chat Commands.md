@@ -6,10 +6,12 @@ Most play should happen through the in-chat buttons. When typed syntax matters, 
 
 ### Month Navigation for `!cal`, `!cal show`, and `!cal send`
 
-Top-level `!cal`, `!cal show`, and `!cal send` jumps are month-oriented. They render a whole month or year, not a single-day card.
+Bare `!cal` opens the task-focused Today dashboard after setup completes. Once you add a range token, top-level `!cal` behaves like `!cal show` and `!cal send`: it renders a whole month or year, not a single-day card.
 
 ```text
-!cal                      — current month
+!cal                      — current Today dashboard
+!cal show month           — current month
+!cal send month           — GM broadcast of the current month
 !cal Zarantyr             — next occurrence of that month
 !cal 1                    — next occurrence of month 1
 !cal Zarantyr 998         — that month in a specific year
@@ -38,7 +40,7 @@ Bare day-only inputs such as `!cal 14` or `!cal 1st` are rejected here; include 
 
 ### Single-Date Specs
 
-These are used by commands such as `!cal set`, `!cal moon on`, `!cal moon full`, `!cal planes on`, `!cal planes anchor`, and one-time event creation.
+These are used by commands such as `!cal set`, `!cal setup date use`, `!cal moon on`, `!cal moon full`, `!cal planes on`, `!cal planes anchor`, and one-time event creation.
 
 ```text
 14                — next occurrence of day 14
@@ -69,11 +71,11 @@ every Sul         — every matching weekday in the month
 ## Core Calendar
 
 ```text
-!cal                           — current month calendar
+!cal                           — compact Today dashboard after setup; GM onboarding entry point before setup
 !cal show [range...]           — whisper a parsed calendar range
 !cal send [range...]           — GM broadcast of a parsed calendar range
 !cal now                       — compact current-date summary
-!cal today                     — Today view (GM deep dive, player limited view)
+!cal today                     — compact Today dashboard (GM controls, player knowledge-limited)
 !cal forecast                  — player shortcut for !cal weather forecast
 !cal list                      — list all calendar events
 !cal help [root|calendar|themes|seasons|eventcolors]
@@ -85,6 +87,39 @@ every Sul         — every matching weekday in the month
 !cal set <dateSpec>            — GM set the current date
 !cal advance [days]            — GM advance the date (default 1)
 !cal retreat [days]            — GM move the date backward (default 1)
+```
+
+The Today dashboard and root help menu also expose `Prompt !cal ...` buttons for `set`, `send`, `add`, `addmonthly`, `addyearly`, `moon on`, and `planes on`. Those buttons submit the same typed commands listed here.
+
+## Setup and Onboarding
+
+Before setup is complete, GM `!cal` starts or resumes onboarding and players get a waiting message. Most setup should happen through the buttons, but these are the underlying typed commands:
+
+```text
+!cal setup
+!cal setup start
+!cal setup resume
+!cal setup restart
+!cal setup dismiss
+
+!cal setup calendar <system>
+!cal setup variant <variant>
+!cal setup date default
+!cal setup date use <dateSpec>
+!cal setup season <variant>
+!cal setup hemisphere (north|south)
+!cal setup theme (default|<theme>)
+!cal setup defaults (on|off)
+!cal setup moons (on|off)
+!cal setup weather (off|narrative|mechanics)
+!cal setup weather climate <key>
+!cal setup weather geography <key>
+!cal setup weather terrain <key>
+!cal setup weather recent <1-3>
+!cal setup weather later
+!cal setup planes (on|off)
+!cal setup review
+!cal setup apply
 ```
 
 ## Settings and System Controls
@@ -251,6 +286,8 @@ Examples:
 !cal planes send medium 6d
 !cal planes send high 3m
 ```
+
+`!cal planes send ...` gives players an archived non-interactive summary and whispers the interactive control panel back to the GM.
 
 ### GM Plane Controls
 

@@ -9,6 +9,7 @@ import { compareEvents, eventKey, eventsAPI, getEventColor, getEventsFor, isDefa
 import { _ordinal, clamp, esc, formatDateLabel } from './rendering.js';
 import { _displayMonthDayParts, _subsystemIsVerbose, _subsystemVerbosityValue, addEventSmart, currentDateLabel, removeEvent, setDate, stepDays } from './ui.js';
 import { _todayAllHtml, _todayWeatherIsStable } from './today.js';
+import { notifySetupStatusOnReady } from './setup.js';
 import { WEATHER_CLIMATES, WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _bestTier, _clampWeatherTempBand, _composeFormula, _forecastRecord, _grantCommonWeatherReveals, _locSig, _parseWeatherRevealDateSpec, _parseWeatherRevealDayToken, _recordReveal, _rollTrait, _weatherRecordForDisplay, _weatherRevealBucket, _weatherRevealForSerial, _weatherTempInfo, _weatherTempLabel, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { register } from './boot-register.js';
 import { MOON_SYSTEMS, _diskOverlapFraction, _eberronMoonCore, _eclipseLifecycleText, _eclipseMetricsAt, _eclipseNotableToday, _eclipseTimeBlock, _finalizeEclipseEvent, _moonHashStr, _moonPrng, getEclipses, getMoonState, moonEnsureSequences, moonPhaseAt, nighttimeLightCondition, nighttimeLux } from './moon.js';
@@ -27,13 +28,7 @@ on("ready", function(){
   var sysReady = CALENDAR_SYSTEMS[stReady.calendarSystem] || {};
   var sysLabelReady = String(sysReady.label || 'Calendar');
   log(sysLabelReady + ' Running, current date: ' + currentDate);
-  sendChat(script_name,
-    '/direct '+
-    '<div>'+esc(sysLabelReady)+' Calendar Initialized</div>'+
-    '<div>Current date: '+esc(currentDate)+'</div>'+
-    '<div>Use <code>!cal</code> to view the calendar.</div>'+
-    '<div>Use <code>!cal help</code> for help.</div>'
-  );
+  notifySetupStatusOnReady();
 });
 
 
