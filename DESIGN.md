@@ -2,7 +2,7 @@
 
 This document is the canonical reference for the Eberron Calendar Roll20 API script. It captures architecture, mechanical design decisions, complete data tables, and pending work. All subsystem design documents have been consolidated here.
 
-**Source of truth for implementation:** `calendar.js`
+**Source of truth for implementation:** `src/` TypeScript modules, bundled into `calendar.js` for Roll20
 **Source of truth for intent and design:** this file
 
 ---
@@ -402,7 +402,7 @@ Implementation details:
 - Manual `weather generate` is bounded to the configured forecast horizon so it cannot create arbitrarily large persistent forecast windows.
 - `weather reroll` refuses archived past days, seeds continuity from yesterday's history when needed, and keeps reroll cascades on the current location instead of stale-location data.
 - Exact-date `weather reveal <dateSpec>` requests reject any range that includes past days.
-- Legacy aliases (`survival`/`mundane` → medium; `magic`/`magical` → high) exist in implementation. Per code conventions, these should be removed.
+- Legacy tier aliases were removed during the modularization cleanup. The supported reveal tiers are `low`, `medium`, and `high`.
 
 ---
 
@@ -456,7 +456,7 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 ### 7.4 Reference Moon Mapping (Eberron)
 
-Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity, and albedo are taken from the reference as-is. All 12 reference moons confirmed — see `design/moon-reference-selection.md` for full analysis and rationale.
+Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity, and albedo are taken from the reference as-is. All 12 reference moons are confirmed; the public-facing rationale now lives in `README.md` under the Eberron moon modeling section.
 
 **All references confirmed:**
 
@@ -469,7 +469,7 @@ Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity,
 | Dravago | **Triton** | Neptune | **156.8†** | **0.000016** | **0.76** | Retrograde; always moving opposite to every other moon |
 | Nymm | Ganymede | Jupiter | 0.20 | 0.0013 | 0.43 | |
 | Lharvion | **Hyperion** | Saturn | **0.43** | **0.1230** | **0.30** | Changed from Nereid; ecc ceiling 0.1466. God of Observation. |
-| Barrakas | Enceladus ×1 | Saturn | 0.02 | 0.0047 | **1.375** | No multiplier; ×7 option (9.625, 11.73 lux) documented in design/moon-reference-selection.md |
+| Barrakas | Enceladus ×1 | Saturn | 0.02 | 0.0047 | **1.375** | No multiplier; README documents the brighter rejected lantern variants for public lore context |
 | Rhaan | Miranda | Uranus | 4.34 | 0.0013 | 0.32 | |
 | Sypheros | **Phobos** | Mars | **1.08** | **0.0151** | **0.071** | Doomed inward spiral (inside Roche limit); entropy/Mabar |
 | Aryth | Iapetus | Saturn | 7.57 | 0.0283 | **0.275** | Albedo = averaged (not tidally locked) |
@@ -988,7 +988,7 @@ Smart date parsing applied uniformly:
 
 ### File Structure
 
-Single file: `calendar.js` (~13,400 lines). All state stored in Roll20's `state` object.
+Runtime source lives in modular TypeScript files under `src/` and is bundled into a single Roll20 upload artifact, `calendar.js`. All persistent runtime data still lives in Roll20's `state` object.
 
 ---
 

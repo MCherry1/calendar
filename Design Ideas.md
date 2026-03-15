@@ -12,17 +12,15 @@ On 2026-03-14, ideas 1, 3, 4, and 6 were approved for implementation and promote
 
 - `calendar.js`
 - `README.md`
-- `Chat Commands.md`
 - `DESIGN.md`
 - `Design Tasks.md`
-- `tests/calendar_smoke.ps1`
-- `tools/Launch-Roll20ApiSync.ps1`
+- `test/calendar_smoke.ps1`
 - `.github/workflows/*`
 
 ## Checks Run
 
 - `git fetch origin main` -> local `main` was already up to date with `origin/main`
-- `powershell -ExecutionPolicy Bypass -File .\tests\calendar_smoke.ps1` -> passed
+- `powershell -ExecutionPolicy Bypass -File .\test\calendar_smoke.ps1` -> passed
 - A local syntax-only `node --check calendar.js` pass was not possible because `node` is not installed in this environment
 
 ## Overall Read
@@ -150,19 +148,15 @@ Most valuable additions:
 
 The simplest path is to stub Roll20 globals and test pure command/output functions outside the live sandbox.
 
-### 11. Make the local Roll20 sync path the documented default workflow
+### 11. Keep the upload workflow explicit and manual-paste friendly
 
-The launcher script is good. It should be treated as the official dev loop.
+The old browser-extension launcher turned out to be a dead end. The repo should instead document and automate the parts that actually work:
 
-Recommended improvements:
+- GitHub Actions artifacts for day-to-day pasteable builds
+- GitHub Releases for durable tagged `calendar.js` assets
+- a local `build -> smoke check -> paste` path that does not depend on browser extensions
 
-- Put the launcher workflow earlier in `README.md`
-- Add a short "recommended daily workflow" section
-- If desired, add a validation step before opening Roll20:
-  - run smoke test
-  - refuse browser launch if smoke test fails
-
-That would make the repo feel more like a deliberate toolchain instead of "script plus some helpful extras."
+That keeps the workflow reliable without pretending local autoupload exists when it does not.
 
 ## Suggested Priority Order
 
@@ -171,8 +165,9 @@ If I were sequencing this, I would do:
 1. Macro pack output and README macro examples
 2. Saved weather locations
 3. Typo recovery and "did you mean" hints
-4. Make the local Roll20 sync path the documented default workflow
-5. File/module split
+4. Keep the upload workflow explicit and manual-paste friendly
+
+The structural items that used to sit in this list - file/module split, repo-specific CI, and behavior-oriented tests - have already landed and no longer belong in the active priority order.
 
 ## Implementation Status Review
 
@@ -187,10 +182,10 @@ Reviewed against `main` at commit `9df46c4` after pulling on 2026-03-13.
 | 5 | Named saved weather locations | Not implemented | Weather still tracks only `recentLocations` and caps them at three entries; there is no save/load preset system. |
 | 6 | `/direct` audit for public interactive panels | Promoted to Design Tasks (2026-03-14) | Approved for implementation and moved into `Design Tasks.md` under **Agent Ready**. |
 | 7 | Typo recovery / "did you mean" guidance | Not implemented | Error handling is still mostly usage-based rather than suggestion-based. |
-| 8 | Split monolith into subsystem files | Not implemented | `calendar.js` is still the single runtime script. Support files and tests were added around it, but the runtime itself was not modularized. |
+| 8 | Split monolith into subsystem files | Implemented | Runtime source now lives in `src/` modules and is bundled into `calendar.js` for Roll20. |
 | 9 | Repo-specific CI cleanup | Implemented | This landed well. The generic template workflows were removed and replaced with a single `ci.yml` that runs `node --test`, which is much closer to the actual repo. |
 | 10 | Behavior-oriented automated tests | Implemented | This landed well. The new `test/` harness adds a Roll20 shim, broad functional coverage, and Today-view assertions. The test-only export gate keeps the extra surface out of normal runtime. |
-| 11 | Make the local sync workflow the documented default | Not implemented | The launcher is still documented, but not promoted as the primary daily workflow and not paired with a clear local test loop in the README. |
+| 11 | Keep the upload workflow explicit and manual-paste friendly | Implemented | The broken launcher path was removed. README now points contributors to GitHub artifacts/releases or a local build-plus-smoke-check flow. |
 
 ### Implementation Notes
 

@@ -20,8 +20,8 @@ import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState,
 // ---------------------------------------------------------------------------
 
 
-// Historical candidate-selection notes are archived in
-// design/moon-reference-selection.md rather than runtime data.
+// Historical candidate-selection notes are archived in README.md and
+// DESIGN.md rather than runtime data.
 /*
   {
     moon: 'Lharvion',
@@ -39,8 +39,8 @@ import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState,
 //   color               -> display color for moon UI badges/chips
 //   diameter            -> moon diameter in miles
 //   avgOrbitalDistance  -> average orbital distance from Eberron in miles
-// NOTE: This section intentionally excludes candidate/reference moon mapping data;
-// keep that in design/moon-reference-selection.md.
+// NOTE: This section intentionally excludes the longer moon-selection rationale;
+// keep that in README.md / DESIGN.md instead of runtime data.
 export var EBERRON_MOON_CORE_DATA = {
   Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
   Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
@@ -1507,7 +1507,7 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
 // 20j) Moon panel HTML -- tiered
 // ---------------------------------------------------------------------------
 
-// GM panel -- always shows magical-detail data
+// GM panel -- always shows high-detail data
 export function moonPanelHtml(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){

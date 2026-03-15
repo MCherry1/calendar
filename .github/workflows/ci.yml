@@ -29,6 +29,8 @@ jobs:
         run: npm test
       - name: Build calendar.js
         run: npm run build
+      - name: Smoke-check built bundle
+        run: pwsh -NoProfile -File ./test/calendar_smoke.ps1
       - name: Upload calendar.js artifact
         if: success()
         uses: actions/upload-artifact@v4

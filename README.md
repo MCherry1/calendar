@@ -10,15 +10,15 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 **Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
 
 ---
+<a id="table-of-contents"></a>
 ## Table of Contents
 
 - [Installation](#installation)
 - [How to Use](#how-to-use)
 - [Calendar Navigation](#calendar-navigation)
-- [Events](#events)
 - [Knowledge Tiers](#knowledge-tiers)
+- [Events](#events)
 - [Moons](#moons)
-- [Modeling the Skies](#modeling-the-skies)
 - [Weather](#weather)
   - [Temperature](#temperature)
   - [Wind](#wind)
@@ -26,8 +26,9 @@ A Roll20 API script for managing a fantasy campaign calendar with:
   - [Location](#location)
   - [Forecasting](#forecasting)
 - [Planes](#planes)
+- [Command Reference](#command-reference)
+- [Development](#development)
 - [Calendar Systems](#calendar-systems)
-- [Chat Commands](Chat%20Commands.md)
 
 ---
 
@@ -41,21 +42,6 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 3. Save. It initializes automatically on first load.
 
 </details>
-
-### Local launcher for Roll20 autoupload
-
-If you use a browser autouploader extension, you can launch Roll20 through the helper script in this repo:
-
-1. Copy `tools/Launch-Roll20ApiSync.local.example.ps1` to `tools/Launch-Roll20ApiSync.local.ps1`
-2. Paste your campaign's **API Scripts** page URL into `$Roll20ApiUrl`
-3. Run `powershell -ExecutionPolicy Bypass -File .\tools\Launch-Roll20ApiSync.ps1`
-
-That helper will:
-- run `git pull --ff-only`
-- confirm `calendar.js` exists locally
-- open your Roll20 API page in Edge (or your default browser if Edge is unavailable)
-
-Your autouploader extension still does the actual sync to Roll20; this script just makes sure your local copy is up to date before the page opens.
 
 ### GitHub-built paste artifact
 
@@ -71,6 +57,19 @@ To get a paste-ready build from GitHub:
 4. Unzip it and paste `calendar.js` into the Roll20 API Scripts editor
 
 Artifact note: GitHub Action artifacts are temporary build outputs, not permanent release files. The workflow currently keeps them for 30 days.
+
+### Local manual build
+
+If you want to build locally instead of downloading from GitHub:
+
+1. Install Node.js 22+
+2. Run `npm ci`
+3. Run `npm run check`
+4. Run `npm run build`
+5. Optional PowerShell smoke check: `powershell -ExecutionPolicy Bypass -File .\test\calendar_smoke.ps1`
+6. Paste the generated `calendar.js` into Roll20
+
+The old browser-extension launcher was removed because it depended on a workflow that no longer works reliably. The supported local path is now "build, optionally smoke-check, then paste."
 
 ### GitHub Releases for stable versions
 
@@ -96,6 +95,8 @@ git push origin v3.0.1
 
 Then open the repo's **Releases** page, download the attached `calendar.js`, and paste it into Roll20.
 
+[Return to Table of Contents](#table-of-contents)
+
 ---
 
 ## How to Use
@@ -118,6 +119,8 @@ Players who use `!cal` before the GM finishes setup get a waiting message instea
 Setup prompts, help panels, and admin confirmations use Roll20's `noarchive` path so the chat archive stays focused on shared story-facing output.
 
 </details>
+
+[Return to Table of Contents](#table-of-contents)
 
 ---
 
@@ -148,7 +151,11 @@ Each card starts with a one-sentence summary and keeps deeper views behind focus
 Use `!cal show ...` or `!cal send ...` when you want the traditional month/year calendar render. The root help menu (`!cal help`) is also task-focused and includes prompt buttons for `!cal set`, `!cal add`, `!cal addmonthly`, `!cal addyearly`, `!cal moon on`, `!cal planes on`, and `!cal send`.
 
 </details>
+
+[Return to Table of Contents](#table-of-contents)
+
 ---
+<a id="knowledge-tiers"></a>
 ## Knowledge Tiers: What do players know?
 
 <details>
@@ -188,6 +195,8 @@ If you want custom reveal horizons beyond the preset buttons, widen them in Fibo
 
 </details>
 
+[Return to Table of Contents](#table-of-contents)
+
 ---
 ## Events
 
@@ -210,7 +219,10 @@ If you want custom reveal horizons beyond the preset buttons, widen them in Fibo
 
 </details>
 
+[Return to Table of Contents](#table-of-contents)
+
 ---
+<a id="moons"></a>
 ## Moons: Modeling the Skies
 
 <details>
@@ -279,6 +291,18 @@ The Eberron implementation uses integer-multiple synodic periods on a 336-day ye
 | Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |                  1300 |            195,000 |                             0.69x |            7.57 |       0.0283 |  0.275 |
 | Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |                             0.74x |            0.07 |       0.0014 |   0.23 |
 
+#### Why these reference moons
+
+The resolved selection goal was not "pick moons with matching names." It was "pick real reference bodies whose orbital behavior supports the in-setting story."
+
+- Therendor and Barrakas were chosen as a near-coplanar pair: Dione and Enceladus sit at `0.03` and `0.02` inclination, which supports frequent crossings and the lore that those two moons closely track one another.
+- Eyre ended on Mimas because the mythic and visual fit beat the earlier high-inclination candidates: bright, scarred, forge-flavored, and still mechanically distinct without needing to stay the wildest orbit in the sky.
+- Dravago ended on retrograde Triton because "keeps its distance from other moons" reads best as behavioral separation. It moves opposite every other moon, which sells the Herder's outsider character more strongly than a prograde shepherd moon would.
+- Sypheros ended on Phobos because the doomed inward spiral fits Mabar's entropy better than a purely retrograde option. It feels like a moon already being consumed.
+- Barrakas keeps Enceladus's base albedo at `1.375` rather than the old amplified-lantern variants. That leaves it unmistakably bright without making it dominate the whole sky over Zarantyr.
+
+The result is a moon set that keeps the orbital math grounded while still privileging Eberron flavor when a pure "best-fit spreadsheet" answer would miss the point.
+
 #### Eberron Moon Reference Inspirations
 Name notes below are interpretive flavor cues, not confirmed in-setting etymologies.
 
@@ -331,6 +355,8 @@ Aryth is the threshold moon: half dark, half burning, with a dividing line that 
 Far out and slow-moving, Vult feels like the last watchfire on the edge of the world.
 
 </details>
+
+[Return to Table of Contents](#table-of-contents)
 
 ---
 ## Weather
@@ -485,6 +511,8 @@ Syrania remains the strongest direct weather override in the model. Its **coterm
 
 </details>
 
+[Return to Table of Contents](#table-of-contents)
+
 ---
 ## Planes
 
@@ -532,6 +560,371 @@ There are three types of events in this system:
 
 </details>
 
+[Return to Table of Contents](#table-of-contents)
+
+---
+
+## Command Reference
+
+<details>
+<summary>Show the complete typed command reference</summary>
+
+Most play should happen through the in-chat buttons. When typed syntax matters, the script whispers the relevant usage in Roll20. This section is the complete typed command reference for the current script.
+
+### Date Input Rules
+
+#### Month navigation for `!cal`, `!cal show`, and `!cal send`
+
+Bare `!cal` opens the task-focused Today dashboard after setup completes. Once you add a range token, top-level `!cal` behaves like `!cal show` and `!cal send`: it renders a whole month or year, not a single-day card.
+
+```text
+!cal
+!cal show month
+!cal send month
+!cal Zarantyr
+!cal 1
+!cal Zarantyr 998
+!cal 1 998
+!cal Rhaan 14
+!cal Rhaan 14 998
+!cal this month
+!cal next month
+!cal last month
+!cal this year
+!cal next year
+!cal last year
+```
+
+Exact-date month jumps still work when you include a month:
+
+```text
+!cal Rhaan 14
+!cal 9 14
+!cal Rhaan 14 998
+!cal 9 14 998
+!cal first Sul of Aryth 998
+```
+
+Bare day-only inputs such as `!cal 14` or `!cal 1st` are rejected here; include a month.
+
+#### Single-date specs
+
+These are used by commands such as `!cal set`, `!cal setup date use`, `!cal moon on`, `!cal moon full`, `!cal planes on`, `!cal planes anchor`, and one-time event creation.
+
+```text
+14
+Rhaan 14
+9 14
+Rhaan 14 998
+9 14 998
+1st
+fourteenth
+```
+
+#### Recurring event day specs
+
+```text
+6
+18-19
+first Sul
+last Zor
+every Sul
+```
+
+#### Source priority
+
+- Priority `1` is the primary default-source event for a date and supplies the calendar cell color when multiple source-pack events land on the same day.
+- Unranked sources (`-` in the UI) are tied for last.
+- User-added events always outrank source-pack defaults.
+
+### Core Calendar
+
+```text
+!cal
+!cal show [range...]
+!cal send [range...]
+!cal now
+!cal today
+!cal forecast
+!cal list
+!cal help [root|calendar|themes|seasons|eventcolors]
+!cal effects
+!cal time
+!cal time start <bucket>
+!cal time next
+!cal time clear
+!cal set <dateSpec>
+!cal advance [days]
+!cal retreat [days]
+```
+
+The Today dashboard and root help menu also expose `Prompt !cal ...` buttons for `set`, `send`, `add`, `addmonthly`, `addyearly`, `moon on`, and `planes on`. Those buttons submit the same typed commands listed here.
+
+### Setup and Onboarding
+
+Before setup is complete, GM `!cal` starts or resumes onboarding and players get a waiting message. Most setup should happen through the buttons, but these are the underlying typed commands:
+
+```text
+!cal setup
+!cal setup start
+!cal setup resume
+!cal setup restart
+!cal setup dismiss
+
+!cal setup calendar <system>
+!cal setup variant <variant>
+!cal setup date default
+!cal setup date use <dateSpec>
+!cal setup season <variant>
+!cal setup hemisphere (north|south)
+!cal setup theme (default|<theme>)
+!cal setup defaults (on|off)
+!cal setup moons (on|off)
+!cal setup weather (off|narrative|mechanics)
+!cal setup weather climate <key>
+!cal setup weather geography <key>
+!cal setup weather terrain <key>
+!cal setup weather recent <1-3>
+!cal setup weather later
+!cal setup planes (on|off)
+!cal setup review
+!cal setup apply
+```
+
+### Settings and System Controls
+
+```text
+!cal settings
+!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons) (on|off)
+!cal settings density (compact|normal)
+!cal settings mode (moon|lunar|weather|planes|plane|planar) (calendar|list|both)
+!cal settings verbosity (normal|minimal)
+!cal settings weatherdays (1-20)
+
+!cal theme list
+!cal theme <name>
+!cal theme reset
+
+!cal calendar
+!cal calendar <system> [variant]
+!cal seasons
+!cal seasons <variant>
+!cal hemisphere
+!cal hemisphere (north|south)
+!cal resetcalendar
+```
+
+### Weather Commands
+
+#### Player weather
+
+```text
+!cal weather
+!cal weather forecast
+```
+
+#### GM weather views and forecast control
+
+```text
+!cal weather
+!cal weather today
+!cal weather forecast [1-20]
+!cal weather history
+!cal weather mechanics
+!cal weather send
+!cal weather reveal (medium|high) [1-10]
+!cal weather reveal <dateSpec>
+```
+
+`!cal weather send` broadcasts whatever weather knowledge the players already have. It does not take extra arguments.
+
+`!cal weather reveal <dateSpec>` is the divination-style exact-date reveal. It uses the current weather location, generates intermediate days for continuity, and only exposes the chosen date or range to players. Exact-date reveals must target today or future dates.
+
+#### GM weather generation and events
+
+```text
+!cal weather generate [1-20]
+!cal weather reroll [serial]
+!cal weather lock [serial]
+!cal weather event trigger <key>
+!cal weather event roll <key>
+```
+
+#### Weather location and manifest zones
+
+```text
+!cal weather location
+!cal weather location climate <key>
+!cal weather location geography <key>
+!cal weather location terrain <key>
+!cal weather location recent <1-3>
+
+!cal weather manifest
+!cal weather manifest toggle <planeKey>
+!cal weather manifest <planeKey>
+!cal weather manifest none
+!cal weather manifest clear
+
+!cal weather location zone <planeKey|none>
+```
+
+Examples:
+
+```text
+!cal weather reveal 14-17
+!cal weather reveal Rhaan 14
+!cal weather reveal Hammer 5-7 1491
+!cal weather location recent 1
+```
+
+### Moon Commands
+
+`!cal lunar` is an alias for `!cal moon`.
+
+#### Moon views
+
+```text
+!cal moon
+!cal moon lore [MoonName|siberys]
+!cal moon info [MoonName|siberys]
+!cal moon sky [middle_of_night|early_morning|morning|afternoon|evening|nighttime]
+!cal moon visible [time]
+!cal moon up [time]
+!cal moon view <MoonName> [dateSpec]
+!cal moon cal <MoonName> [dateSpec]
+!cal moon on <dateSpec>
+!cal moon date <dateSpec>
+```
+
+`!cal moon sky` also accepts the old convenience aliases `midnight`, `dawn`, `noon`, and `dusk`, but the script resolves them into the six canonical time buckets.
+
+#### Sending moon info to players
+
+```text
+!cal moon send low
+!cal moon send medium [1w|1m|3m|6m|10m|Nd|Nw]
+!cal moon send high [1w|1m|3m|6m|10m|Nd|Nw]
+```
+
+Examples:
+
+```text
+!cal moon send medium 3m
+!cal moon send high 10m
+```
+
+#### GM moon controls
+
+```text
+!cal moon seed <word>
+!cal moon full <MoonName> <dateSpec>
+!cal moon new <MoonName> <dateSpec>
+!cal moon reset [MoonName]
+```
+
+Examples:
+
+```text
+!cal moon full Aryth 14
+!cal moon new Zarantyr Rhaan 14
+!cal moon full Therendor Rhaan 14 998
+```
+
+### Plane Commands
+
+`!cal planar` is an alias for `!cal planes`.
+
+#### Plane views
+
+```text
+!cal planes
+!cal planes on <dateSpec>
+!cal planes date <dateSpec>
+```
+
+#### Sending plane info to players
+
+```text
+!cal planes send low
+!cal planes send medium [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
+!cal planes send high [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
+```
+
+Examples:
+
+```text
+!cal planes send medium 6d
+!cal planes send high 3m
+```
+
+`!cal planes send ...` gives players an archived non-interactive summary and whispers the interactive control panel back to the GM.
+
+#### GM plane controls
+
+```text
+!cal planes set <PlaneName> <phase> [days]
+!cal planes clear [PlaneName]
+!cal planes anchor <PlaneName> <phase> <dateSpec>
+!cal planes seed <PlaneName> <year|clear>
+!cal planes suppress <PlaneName> [dateSpec]
+```
+
+Examples:
+
+```text
+!cal planes anchor Fernia coterminous Lharvion 1 996
+!cal planes suppress Syrania
+!cal planes suppress Dolurrh Aryth 12 998
+```
+
+### Event and Source Commands
+
+#### Event commands
+
+`!cal events` is the grouped interface. The direct shortcuts below call the same logic.
+
+```text
+!cal events list
+!cal events add <dateSpec> <name> [#COLOR|color]
+!cal events remove [list|key <KEY>|series <KEY>|<name fragment>]
+!cal events restore [all] [exact] <name...>
+!cal events restore key <KEY>
+
+!cal add <dateSpec> <name> [#COLOR|color]
+!cal remove [list|key <KEY>|series <KEY>|<name fragment>]
+!cal restore [all] [exact] <name...>
+!cal restore key <KEY>
+!cal addmonthly <daySpec> <name> [#COLOR|color]
+!cal addyearly <Month> <DD|DD-DD|ordinal-day> <name> [#COLOR|color]
+!cal addyearly <first|second|third|fourth|fifth|last> <weekday> [of] <Month> <name> [#COLOR|color]
+!cal addannual ...
+```
+
+Examples:
+
+```text
+!cal add 14 Market Day
+!cal add Rhaan 14 Boldrei's Feast gold
+!cal add Rhaan 14 998 Mourning Bell #6D4C41
+!cal addmonthly first Sul Guild Meeting
+!cal addyearly Aryth 13 Wildnight
+!cal addyearly last Sul of Vult Harvest Supper
+```
+
+#### Event source commands
+
+```text
+!cal source list
+!cal source enable <name>
+!cal source disable <name>
+!cal source up <name>
+!cal source down <name>
+```
+
+</details>
+
+[Return to Table of Contents](#table-of-contents)
+
 ---
 
 ## Development
@@ -578,19 +971,23 @@ src/
   index.ts          — Entry point for bundler
   types/roll20.d.ts — Roll20 global type declarations
 test/
+  calendar_smoke.ps1 — PowerShell smoke checks against the built bundle
   *.test.ts         — Tests organized by module
 ```
 
 ### Workflow
 
 1. Edit TypeScript source in `src/`
-2. Run `npm test` to verify
+2. Run `npm run check`
 3. Run `npm run build` to regenerate `calendar.js`
-4. Commit source changes (the built `calendar.js` is gitignored)
+4. Optional bundle smoke check: `powershell -ExecutionPolicy Bypass -File .\test\calendar_smoke.ps1`
+5. Commit source changes (the built `calendar.js` remains gitignored)
 
-CI runs typecheck, tests, and build on every PR and uploads the built `calendar.js` as a downloadable GitHub Actions artifact. Tagged releases also attach `calendar.js` as a permanent release asset. The launcher script (`tools/Launch-Roll20ApiSync.ps1`) still builds `calendar.js` locally when you want to drive the Roll20 page from your own machine.
+CI runs typecheck, tests, build, and the PowerShell smoke check on every PR and uploads the built `calendar.js` as a downloadable GitHub Actions artifact. Tagged releases rebuild the script and attach `calendar.js` as a permanent release asset. The repo no longer ships a browser-sync launcher; the supported paths are GitHub artifact/release download or manual local build plus paste.
 
 </details>
+
+[Return to Table of Contents](#table-of-contents)
 
 ---
 
@@ -606,5 +1003,7 @@ Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
 - **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
 
 </details>
+
+[Return to Table of Contents](#table-of-contents)
 
 ---
