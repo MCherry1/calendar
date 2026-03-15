@@ -892,6 +892,64 @@ Buttons issue CLI commands, but GMs can type custom values directly:
 
 Valid range suffixes: `Nd`, `Nw`, `Nm` or plain number (days). Date specs valid for targeted reveals.
 
+### 12.6 First-Run Initialization Wizard
+
+Startup/setup is GM-only. Public chat should never receive onboarding prompts or setup controls.
+
+**Fresh install detection**
+- Treat the script as a true first run only when `state[state_name]` has no meaningful calendar/setup data yet.
+- Add persistent setup state with four statuses: `uninitialized`, `dismissed`, `in_progress`, `complete`.
+- Legacy campaigns that already have populated calendar/settings data but no setup marker must be auto-migrated to `complete` with no onboarding interruption.
+
+**Ready-time welcome prompt**
+- On sandbox `ready`, a brand-new campaign should whisper the GM:
+  `"Welcome to Calendar! It looks like this is the first time Calendar has been used in this game. Would you like to initialize it?"`
+- Provide `Yes` and `No` buttons.
+- `No` stores `dismissed` state and whispers:
+  `"No problem! Just call !cal at any time to begin the process."`
+- If setup was already started but not finished, the GM should get a resume prompt rather than the first-time message.
+
+**`!cal` behavior before initialization**
+- GM `!cal` while setup is not `complete` should start or resume the onboarding wizard instead of opening the normal calendar view.
+- Player `!cal` before GM setup completion should return a polite waiting message and no admin controls.
+- After setup completes, `!cal` resumes its normal behavior unchanged.
+- `!cal resetcalendar` should wipe runtime state back to the onboarding gate rather than silently reapplying defaults.
+
+**Welcome questions**
+- Ask only choices that materially shape campaign behavior on day one.
+- Do not ask for the era label during onboarding. Era text is derived from the selected calendar or left to later/manual customization.
+
+Recommended question set:
+1. **Calendar system** - Galifar, Harptos, or Gregorian.
+2. **Calendar variant / month names** - only when the chosen system has multiple variants. For Galifar this includes Standard, Druidic, Halfling, and Dwarven month-name sets.
+3. **Current in-game date** - allow "use default start date" or a prompted custom date using the same parser accepted by `!cal set`.
+4. **Season model** - expose only onboarding-safe options rather than every raw season-set combination:
+   - Galifar: `eberron` (recommended), `faerun`, `tropical`
+   - Harptos: `faerun` (recommended), `tropical`
+   - Gregorian: `gregorian` (recommended), `faerun`, `tropical`
+5. **Hemisphere** - ask only when the selected season model is hemisphere-aware.
+6. **Color theme** - `use calendar default` plus the existing theme list.
+7. **Built-in default events** - yes/no. "No" should keep the event subsystem available while suppressing default source packs.
+8. **Optional subsystems**
+   - Lunar tracking: on/off
+   - Weather: `off`, `narrative only`, `narrative + mechanics`
+   - Planar tracking: on/off, but only ask this for Eberron/Galifar campaigns
+9. **Weather location** - if weather is enabled, reuse the existing climate -> geography -> terrain location wizard, but add a `Set later` exit so onboarding does not dead-end.
+
+**Review/apply step**
+- End with a review summary and an explicit confirmation action before mutating live state.
+- Applying setup should write calendar/system settings, date, subsystem toggles, default-event suppression, and optional weather location in one pass, then open the normal `!cal` view.
+- In-progress setup choices should persist across sandbox restarts so the GM can resume without re-entering prior answers.
+
+**Explicitly not part of onboarding**
+- Era/BCE labeling
+- Source priority ordering
+- Reveal horizons/knowledge tuning
+- UI density, verbosity, and auto-button preferences
+- Off-cycle planar tuning
+- Manifest zones
+- One-off campaign fixes or custom corrections
+
 ---
 
 ## 13. Code Conventions
