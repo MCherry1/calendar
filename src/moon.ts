@@ -3524,7 +3524,7 @@ export function _nextGeneratedForecast(planeName, serial, maxDays){
   maxDays = Math.max(0, maxDays|0);
   if (maxDays <= 0) return null;
 
-  var current = _generatedEventAt(planeName, serial);
+  var current = isGeneratedShift(planeName, serial) ? _generatedEventAt(planeName, serial) : null;
   if (current){
     return {
       phase: current.phase, daysUntilStart: 0,
@@ -3535,7 +3535,10 @@ export function _nextGeneratedForecast(planeName, serial, maxDays){
   }
 
   for (var d = 1; d <= maxDays; d++){
-    var evt = _generatedEventStartsOnDay(planeName, serial + d);
+    var day = serial + d;
+    if (!isGeneratedShift(planeName, day)) continue;
+    var evt = _generatedEventAt(planeName, day);
+    if (evt && evt.startSerial !== day) continue;
     if (evt){
       return {
         phase: evt.phase, daysUntilStart: d,

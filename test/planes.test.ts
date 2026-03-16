@@ -58,10 +58,12 @@ describe("Planes regressions", () => {
     handlePlanesCommand(gmArgs([]), ["planes", "send", "medium", "3d"]);
     const log = (globalThis as any)._chatLog;
     const publicMsg = log.find((entry: any) => String(entry.msg).startsWith("/direct "));
-    const gmWhisper = log.reverse().find((entry: any) => String(entry.msg).includes("Planar Movement"));
+    const gmWhisper = [...log].reverse().find((entry: any) =>
+      String(entry.msg).startsWith('/w "GM" ') && String(entry.msg).includes("](!cal ")
+    );
     assert(publicMsg, "expected a public broadcast");
     assert(!publicMsg.msg.includes("](!cal "), "public broadcast should not contain command-button markup");
-    assert(gmWhisper && gmWhisper.msg.includes("](!cal "), "GM follow-up should keep the interactive panel");
+    assert(gmWhisper, "GM follow-up should keep the interactive panel");
   });
 
   it("Mabar is no longer canonically coterminous on Zarantyr 1", () => {

@@ -572,6 +572,7 @@ export function getPlanarState(planeName, serial, opts?){
         phaseDuration: Math.floor(ph.dur),
         nextPhase: phases[nextIdx].name,
         overridden: false,
+        note: cyclicNote || '',
         sourceLabel: _isGeneratedNote(cyclicNote) ? 'generated' : 'traditional',
         traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
       };
@@ -588,6 +589,7 @@ export function getPlanarState(planeName, serial, opts?){
     phaseDuration: 0,
     nextPhase: 'remote',
     overridden: false,
+    note: '',
     sourceLabel: 'traditional',
     traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
   };
@@ -1533,6 +1535,5 @@ export function handlePlanesCommand(m, args){
     '<code>!cal planes clear [&lt;name&gt;]</code>'
   );
 }
-
 
 
