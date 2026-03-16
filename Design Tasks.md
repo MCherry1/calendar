@@ -71,6 +71,31 @@ None currently.
 
 ## Agent Ready
 
+user-defined fixes
+* planes forecast says days in the readme. it should be months - behaving the same as moons. make sure the code reflects this.
+* change labeling of the different calendars to Setting (Eberron, Forgotten Realms, etc.), rather than world. The heirarchy would be Setting, World, Continent, Calendar. If there is only one choice, don't bother giving a chance to select. Just select and provide the info. Like, {Forgotten Realms} > ~~Toril~~, ~~Faerun~~, ~~Harptos Calendar~~, (all skipped), then it just outputs a message like:
+
+
+>Harptos Calendar selected. The Haptos Calendar is the default calendar of Faerun, on the planet Toril, set in the Forgotten Realms. It consists of blah blah blah.
+>!cal initialize to choose a different calendar (or whatever our command is)
+then it lists our initialization message that happens when the API loads.
+>Harptos Calendar Initialized
+>blah blah current date etc.
+
+* The README needs some refactoring as well. The Moons: Modeling the Sky section can remain, but all the setting specific info should be stuck into the setting specific sections. links hsould be provided however. same for planes
+* Minical cells are weirdly rectangular. Too tall. Why? especially the highlighted current day cell's row. Shorten it, and center the number vertically within the cell.
+* Moons lore tab should just not list the analog info but should show the moon's color, period, qualitative albedo (bright, dim, average brightness, etc.) as well as how big it is in the sky compared to Luna's average associated planes and dragonmark. % for less than size, integer x for more than, including 0.5 steps for less than 5x.
+* !cal and !cal show should show the current minical, with buttons below. buttons are simple
+	* row 1 is retreat and advance side by side
+	* row 2 is send to players
+	* row 3 is weather
+	* row 4 is moons
+	* row 5 is planes
+	* row 6 is admin
+* rows are not shown if the system is not enabled. admin can enable systems.
+* when you click the button for 3-5 it shows the minical for the current month.
+* ALSO MAJOR BUG ON MOONS AND PLANES DETAIL VIEW. cell builder is all broken.
+* 
 ### Many-Worlds Platform Refactor — Phase 1: World Definition Types
 
 Create the world-definition type layer and migrate existing worlds (Eberron, Faerun, Gregorian) into it. See `Additional Calendars for Implementation.md` for full architecture. Key deliverables:
