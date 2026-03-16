@@ -2,13 +2,19 @@
 import { describe, it } from "node:test";
 import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
-import { todaySerial } from "../src/date-math.js";
+import { toSerial, todaySerial } from "../src/date-math.js";
+import { solarProfileForSerial } from "../src/time-of-day.js";
 import {
   MOON_SYSTEMS, _moonHashStr, _moonPrng, _eberronMoonCore,
   moonEnsureSequences, moonPhaseAt, _applyAntiPhaseCoupling,
   nighttimeLightCondition, nighttimeLux,
   _diskOverlapFraction, _eclipseTimeBlock, _eclipseLifecycleText,
-  _eclipseNotableToday, getEclipses, getMoonState, handleMoonCommand
+  _eclipseNotableToday, getEclipses, getMoonState, handleMoonCommand,
+  FESTIVAL_SOFT_ANCHORS, MOON_TARGET_FULL_DAYS_PER_28,
+  _applyAssociatedPlanePhaseShifts, _applyFestivalNudges,
+  _collectPlanarPhaseWindows, _dN, _edgeDayMidpointSerial,
+  _isLongShadowsOverride, _longShadowsWindow, _moonPeakPhaseDay,
+  getLongShadowsMoons
 } from "../src/moon.js";
 
 // ============================================================================
@@ -108,6 +114,111 @@ describe("Moon System", () => {
     const playerMsg = (globalThis as any)._chatLog.slice(-1)[0].msg;
     assert(playerMsg.includes("full/new peaks"), "player single-moon view should use the non-exact renderer");
     assert(!playerMsg.includes("%)"), "player single-moon view should not expose exact daily percentages");
+  });
+
+  it("festival nudges land on noon instead of the day edge", () => {
+    freshInstall();
+    let picked: any = null;
+    for (const fest of FESTIVAL_SOFT_ANCHORS) {
+      for (let year = 998; year < 1100; year++) {
+        const festSerial = toSerial(year, fest.month - 1, fest.day);
+        if (_dN(festSerial, `${fest.salt}_nudge`, 6) === 6) {
+          picked = { fest, festSerial };
+          break;
+        }
+      }
+      if (picked) break;
+    }
+
+    assert(picked, "expected at least one deterministic festival nudge case");
+    const ms: any = {
+      sequences: {
+        Testmoon: [{ serial: picked.festSerial - 0.4, type: picked.fest.type, retro: false }]
+      }
+    };
+
+    _applyFestivalNudges([{ name: "Testmoon" }] as any, ms, picked.festSerial - 2, picked.festSerial + 2);
+
+    assert(Math.abs(ms.sequences.Testmoon[0].serial - (picked.festSerial + 0.5)) < 0.000001);
+  });
+
+  it("associated plane pulls land on the nearest edge-day noon", () => {
+    freshInstall();
+    const genFrom = toSerial(998, 5, 1);
+    const genThru = toSerial(998, 6, 28);
+    const windows = _collectPlanarPhaseWindows("Lamannia", "coterminous", genFrom, genThru);
+    assert(windows.length > 0, "expected Lamannia coterminous window in range");
+    const window = windows[0];
+    const original = toSerial(998, 6, 10) + 0.5;
+    const expected = _edgeDayMidpointSerial(window.startSerial, window.endSerial, original);
+    const ms: any = {
+      sequences: {
+        Olarune: [{ serial: original, type: "full", retro: false }]
+      }
+    };
+
+    _applyAssociatedPlanePhaseShifts([{ name: "Olarune", plane: "Lamannia" }] as any, ms, genFrom, genThru);
+
+    assert(Math.abs(ms.sequences.Olarune[0].serial - expected) < 0.000001);
+  });
+
+  it("Long Shadows runs from sunset on Vult 26 to sunrise on Vult 28 and centers gobbled moons on noon of Vult 27", () => {
+    freshInstall();
+    const year = 998;
+    const focus = toSerial(year, 11, 27);
+    moonEnsureSequences(focus, 400);
+
+    const claimed = getLongShadowsMoons(year).map((moon: any) => moon.name);
+    assert(claimed.length > 0, "expected at least one claimed moon");
+
+    const window = _longShadowsWindow(year);
+    const sampleMoon = claimed[0];
+    const seq = getMoonState().sequences[sampleMoon];
+    const nearestNew = seq
+      .filter((evt: any) => evt.type === "new")
+      .reduce((best: any, evt: any) => {
+        if (!best) return evt;
+        return Math.abs(evt.serial - window.midpointSerial) < Math.abs(best.serial - window.midpointSerial) ? evt : best;
+      }, null);
+
+    assert(nearestNew, "expected a new-moon event for the claimed moon");
+    assert(Math.abs(nearestNew.serial - window.midpointSerial) < 0.000001, "claimed moon should peak at the exact midpoint");
+
+    const sunset = solarProfileForSerial(window.startDaySerial).sunset / 24;
+    const sunrise = solarProfileForSerial(window.endDaySerial).sunrise / 24;
+    const justBeforeStart = window.startDaySerial + sunset - 0.01;
+    const justAfterStart = window.startDaySerial + sunset + 0.01;
+    const justBeforeEnd = window.endDaySerial + sunrise - 0.01;
+    const justAfterEnd = window.endDaySerial + sunrise + 0.01;
+
+    assert(!_isLongShadowsOverride(sampleMoon, justBeforeStart), "Long Shadows should not start before sunset");
+    assert(_isLongShadowsOverride(sampleMoon, justAfterStart), "Long Shadows should start immediately after sunset");
+    assert(_isLongShadowsOverride(sampleMoon, justBeforeEnd), "Long Shadows should persist until sunrise on Vult 28");
+    assert(!_isLongShadowsOverride(sampleMoon, justAfterEnd), "Long Shadows should end immediately after sunrise on Vult 28");
+  });
+
+  it("Eberron averages 19 full-moon days per 28-day month", () => {
+    freshInstall();
+    const startYear = 1000;
+    const years = 40;
+    const focus = toSerial(startYear, 0, 1);
+    moonEnsureSequences(focus, years * 336);
+
+    let monthCount = 0;
+    let fullDays = 0;
+    for (let year = startYear; year < startYear + years; year++) {
+      for (let month = 0; month < 12; month++) {
+        monthCount++;
+        for (let day = 1; day <= 28; day++) {
+          const serial = toSerial(year, month, day);
+          const anyFull = MOON_SYSTEMS.eberron.moons.some((moon: any) => _moonPeakPhaseDay(moon.name, serial) === "full");
+          if (anyFull) fullDays++;
+        }
+      }
+    }
+
+    const average = fullDays / monthCount;
+    assert(Math.abs(average - MOON_TARGET_FULL_DAYS_PER_28) < 0.1, `expected ~${MOON_TARGET_FULL_DAYS_PER_28}, got ${average}`);
   });
 });
 

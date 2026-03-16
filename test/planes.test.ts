@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import { strictEqual as assertEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
-import { todaySerial } from "../src/date-math.js";
+import { toSerial, todaySerial } from "../src/date-math.js";
 import { _nextGeneratedForecast } from "../src/moon.js";
 import { _getAllPlaneData, _planesMiniCalEvents, getPlanarState, getPlanesState, handlePlanesCommand } from "../src/planes.js";
 
@@ -62,5 +62,14 @@ describe("Planes regressions", () => {
     assert(publicMsg, "expected a public broadcast");
     assert(!publicMsg.msg.includes("](!cal "), "public broadcast should not contain command-button markup");
     assert(gmWhisper && gmWhisper.msg.includes("](!cal "), "GM follow-up should keep the interactive panel");
+  });
+
+  it("Mabar is no longer canonically coterminous on Zarantyr 1", () => {
+    freshInstall();
+    const vult28 = getPlanarState("Mabar", toSerial(998, 11, 28));
+    const zarantyr1 = getPlanarState("Mabar", toSerial(999, 0, 1));
+
+    assert(vult28 && vult28.phase === "coterminous", "Vult 28 should still be within Long Shadows at day granularity");
+    assert(zarantyr1 && zarantyr1.phase !== "coterminous", "Zarantyr 1 should no longer be marked coterminous");
   });
 });
