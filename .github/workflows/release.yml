@@ -25,7 +25,7 @@ jobs:
       - name: Build calendar.js
         run: npm run build
       - name: Smoke-check built bundle
-        run: pwsh -NoProfile -File ./test/calendar_smoke.ps1
+        run: node ./test/calendar_smoke.mjs
       - name: Create or update GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
