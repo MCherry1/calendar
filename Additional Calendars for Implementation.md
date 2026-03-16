@@ -567,6 +567,7 @@ Recommended order:
 4. Mystara
 5. Birthright
 6. Dark Sun if still desired
+	1. Author note: not at this time.
 
 ## Acceptance Criteria For The Refactor
 
@@ -590,96 +591,123 @@ Each question includes a recommended answer so decision-making is faster.
 
 1. Is the platform still limited to one active world per campaign?
    Recommendation: Yes.
+	1. Author note yes.
 
-2. Are homebrew/custom worlds part of this refactor, or only built-in worlds?
+3. Are homebrew/custom worlds part of this refactor, or only built-in worlds?
    Recommendation: Build the schema so homebrew is possible later, but do not build a custom-world authoring UI in this refactor.
+	1. Author note no, only built in worlds. No consideration should be taken for homebrew. Interested parties may pull the code and edit it for themselves.
 
-3. Which worlds are officially in scope for the first post-refactor wave?
+5. Which worlds are officially in scope for the first post-refactor wave?
    Recommendation: Greyhawk, Dragonlance, Exandria, Mystara, Birthright. Dark Sun as optional second-wave.
+	1. Author note yes.
 
-4. Must command names remain backward compatible for existing users?
+7. Must command names remain backward compatible for existing users?
    Recommendation: Yes.
+	1. Author note NO. There are no existing users.
 
 ### Data Model
 
 5. Do we want to distinguish between structural calendar variants and naming overlays?
    Recommendation: Yes. Dragonlance and Mystara both benefit from this.
+	1. Author note yes.
 
-6. Should world definitions live in TypeScript modules or external JSON-like data files?
+7. Should world definitions live in TypeScript modules or external JSON-like data files?
    Recommendation: TypeScript modules first, with strong typing and no dynamic loader.
+	1. Author note yes, TS.
 
-7. Should static world data remain out of persistent state?
+9. Should static world data remain out of persistent state?
    Recommendation: Yes. Persist keys and answers, not copied definitions.
+	1. Author note yes.
 
-8. Should the existing keys `eberron`, `faerunian`, and `gregorian` remain valid aliases forever?
+11. Should the existing keys `eberron`, `faerunian`, and `gregorian` remain valid aliases forever?
    Recommendation: Yes, at least through migration and for command compatibility.
+	   Author note no. Not required. There are no existing users.
 
 ### Setup and Seeds
 
 9. Should setup become a generic step engine with world-defined extra steps?
    Recommendation: Yes.
+	1. Author note yes.
 
-10. For Dragonlance, should setup ask for the exact in-world date of `Night of the Eye`, or only offer randomization?
+11. For Dragonlance, should setup ask for the exact in-world date of `Night of the Eye`, or only offer randomization?
    Recommendation: Offer both exact date and deterministic randomization.
+	   Author note yes, offer both. use a query function to ask for user input, prompting required syntax.
 
-11. For Exandria, should setup ask any moon anchor questions up front?
+12. For Exandria, should setup ask any moon anchor questions up front?
    Recommendation: Default to seed-driven drift, with optional manual moon anchor tools available later.
+	   Author note yes to recommendation.
 
-12. Should "Randomize" always mean deterministic from the campaign/world seed?
+13. Should "Randomize" always mean deterministic from the campaign/world seed?
    Recommendation: Yes.
+		   Author note yes.
 
 ### Moon System
 
 13. Do we need a first-class hidden-moon behavior for player-facing output?
    Recommendation: Yes.
+	   Author note yes.
 
 14. Do we need a first-class "always full when visible" moon behavior?
    Recommendation: Yes.
+	   Author note yes, ruidus behaves like this.
 
 15. Should drift formulas be stored declaratively when simple?
    Recommendation: Yes. Use a simple expression format for formulas like `29 + 1d11` and `164 + 1d20 - 1d20`, with code hooks only when needed.
+	   Author note yes.
 
 16. Should per-moon `set full` and `set new` remain available in every world?
    Recommendation: Yes, but some worlds should still prefer a world anchor in setup.
+	   Author note yes, kind of. I think only dragonlance would have a problem with this. Dragonlance should allow setting of a single moon, but ALL the moons would be appropriately shifted to preserve the eye behavior. and the script should specifically call out that this is happening. and it should have the ability to set the date of the eye anchor at any point after initialization.
 
 17. Do we need audience-level visibility control right away, such as GM-visible versus player-hidden moons?
    Recommendation: Yes, but audience-level is enough. Do not build per-player moon visibility in this refactor.
+	   Author note per player moon visibility will never be required. Player vs gm distinction is the only mechanic.
 
 ### Calendar Engine
 
 18. Should intercalary week rendering become a first-class layout mode?
    Recommendation: Yes.
+	   Author note yes.
 
 19. Should date-format behavior be a declared world/calendar strategy?
    Recommendation: Yes.
+	   Author note yes.
 
 20. Should world-specific parse aliases be supported so typed commands accept local month and weekday names?
    Recommendation: Yes.
+	   Author note yes.
 
 ### Subsystems
 
 21. Should planes become a capability/plugin instead of an implied Eberron-only special case?
    Recommendation: Yes.
+	   Author note no, I don't think so. No other world uses planes in anything close to the same way, and those usages can be captured by the more generic event system where appropriate.
 
 22. Do we want a general world-hook system for future setting-specific weather, sky, or rules interactions?
    Recommendation: Yes.
+	   Author note I think so yes.
 
 23. Should default event packs move under world packages during this refactor?
    Recommendation: Yes.
+	   Author note yes. Also, please populate the default events from appropriate canon sources.
 
 ### Migration and Delivery
 
 24. Must existing campaign states auto-migrate without forcing setup again?
    Recommendation: Yes.
+	   Author note there are no existing campagin states.
 
 25. How much regression coverage is required before Phase 1 starts?
    Recommendation: Enough to protect month rendering, date math, setup, and current moon output for the existing worlds.
+	   Author note there are no existing campaigns.
 
 26. Should the work land as a sequence of smaller mergeable phases or one large branch?
    Recommendation: Smaller phases.
+	   Author note smaller phases.
 
 27. Should the first implementation phase include any new worlds at all?
    Recommendation: No. First migrate current worlds into the new architecture, then add new worlds.
+	   Author note yes to recommendation.
 
 ## Recommended Next Step
 
@@ -694,3 +722,6 @@ If those answers are settled, the implementation plan should become:
 5. extract moon strategies
 6. refactor setup
 7. add Greyhawk, Dragonlance, Exandria, Mystara, and Birthright
+
+Author note: please include README refactor as a part of this refactor. There should be a Supported Settings section with subsections for each setting. These subsections should include the all the relevant world information, moons, default holiday/event list, etc.
+
