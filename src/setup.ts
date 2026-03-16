@@ -8,6 +8,7 @@ import { button, esc } from './rendering.js';
 import { applyCalendarSystem, applySeasonSet, checkInstall, deepClone, defaults, ensureSettings, getCal, getManualSuppressedSources, getSetupState, setupIsComplete } from './state.js';
 import { _displayMonthDayParts, _menuBox, nextForDayOnly, nextForMonthDay, sendCurrentDate, setDate } from './ui.js';
 import { _normalizeWeatherLocation, _rememberRecentWeatherLocation, _weatherLocationLabel, getWeatherState, weatherEnsureForecast, weatherLocationWizardHtml } from './weather.js';
+import { getWorld } from './worlds/index.js';
 
 function _setupDraft(){
   return getSetupState().draft;
@@ -32,10 +33,13 @@ function _setupNeedsVariant(sysKey){
 }
 
 function _seasonOptionsForSystem(sysKey){
-  var key = String(sysKey || '').toLowerCase();
-  if (key === 'gregorian') return ['gregorian', 'faerun', 'tropical'];
-  if (key === 'faerunian') return ['faerun', 'tropical'];
-  return ['eberron', 'faerun', 'tropical'];
+  var world = getWorld(String(sysKey || '').toLowerCase());
+  var defaultKey = world ? world.defaultSeasonKey : 'eberron';
+  // World's own season set first, then generic options (faerun = generic geographic, tropical)
+  var opts = [defaultKey];
+  if (opts.indexOf('faerun') < 0) opts.push('faerun');
+  opts.push('tropical');
+  return opts;
 }
 
 function _setupWeatherModeLabel(mode){
@@ -54,22 +58,20 @@ function _clearObjectKeys(obj){
 }
 
 function _withSetupCalendar(sysKey, variantKey, fn){
-  var snapshot = deepClone(state[state_name] || {});
-  var setupSnapshot = deepClone(snapshot.setup || {});
+  var origState = state[state_name];
+  var origSetup = origState ? origState.setup : undefined;
   try {
-    state[state_name] = deepClone(snapshot || {});
+    state[state_name] = deepClone(origState || {});
     if (!state[state_name]) state[state_name] = {};
-    if (!state[state_name].setup) state[state_name].setup = setupSnapshot || { status: 'in_progress', draft: {} };
+    if (!state[state_name].setup) state[state_name].setup = deepClone(origSetup || { status: 'in_progress', draft: {} });
     ensureSettings();
     state[state_name].calendar = deepClone(defaults);
     applyCalendarSystem(sysKey, variantKey);
     getCal().current = deepClone(defaults.current);
     return fn();
   } finally {
-    state[state_name] = snapshot || {};
-    if (setupSnapshot && Object.keys(setupSnapshot).length){
-      state[state_name].setup = setupSnapshot;
-    }
+    state[state_name] = origState || {};
+    if (origSetup) state[state_name].setup = origSetup;
     _invalidateSerialCache();
   }
 }
@@ -137,7 +139,8 @@ function _setupCurrentStep(draft){
   if (draft.defaultEventsEnabled === undefined) return 'defaults';
   if (draft.moonsEnabled === undefined) return 'moons';
   if (!draft.weatherMode) return 'weather';
-  if (sysKey === 'eberron' && draft.planesEnabled === undefined) return 'planes';
+  var _stepCaps = (getWorld(sysKey) || {}).capabilities;
+  if (_stepCaps && _stepCaps.planes && draft.planesEnabled === undefined) return 'planes';
   if (draft.weatherMode !== 'off' && !draft.weatherLocation && !draft.weatherLocationLater) return 'weather-location';
   return 'review';
 }
@@ -160,7 +163,8 @@ function _setupSummaryHtml(draft){
   bits.push('<div><b>Built-in default events:</b> ' + esc(draft.defaultEventsEnabled === false ? 'Disabled' : 'Enabled') + '</div>');
   bits.push('<div><b>Lunar tracking:</b> ' + esc(draft.moonsEnabled === false ? 'Off' : 'On') + '</div>');
   bits.push('<div><b>Weather:</b> ' + esc(_setupWeatherModeLabel(draft.weatherMode)) + '</div>');
-  if (sysKey === 'eberron'){
+  var _sumCaps = (getWorld(sysKey) || {}).capabilities;
+  if (_sumCaps && _sumCaps.planes){
     bits.push('<div><b>Planar tracking:</b> ' + esc(draft.planesEnabled === false ? 'Off' : 'On') + '</div>');
   }
   if (draft.weatherMode !== 'off'){
@@ -320,7 +324,7 @@ function _renderSetupWizard(draft, notice){
   return _menuBox('Calendar Setup', '<div style="margin-bottom:6px;">' + notice + '</div>') + body;
 }
 
-function _showSetupWizard(m, notice){
+function _showSetupWizard(m, notice?){
   whisperUi(cleanWho(m.who), _renderSetupWizard(_setupDraft(), notice));
 }
 
@@ -391,7 +395,8 @@ function _applySetupDraft(m){
   st._moonsAutoToggle = false;
   st.weatherEnabled = draft.weatherMode !== 'off';
   st.weatherMechanicsEnabled = draft.weatherMode === 'mechanics';
-  st.planesEnabled = (sysKey === 'eberron') ? (draft.planesEnabled !== false) : false;
+  var _applyCaps = (getWorld(sysKey) || {}).capabilities;
+  st.planesEnabled = (_applyCaps && _applyCaps.planes) ? (draft.planesEnabled !== false) : false;
   st._planesAutoToggle = false;
 
   applySeasonSet(st.seasonVariant);

@@ -65,41 +65,49 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-### Rework moon retiming around Long Shadows, planar phase pulls, and calibrated full/new thresholds
-
-Completed by GPT-5 Codex on 2026-03-16.
-
-### Fix review-discovered refactor regressions and add regression coverage
-
-Completed by GPT-5 Codex on 2026-03-14.
-
-### Add GM-only first-run initialization and onboarding wizard
-
-Completed by GPT-5 Codex on 2026-03-14.
-
-### Add an ephemeral noarchive UI path for menus, confirmations, and admin panels
-
-Completed by GPT-5 Codex on 2026-03-14.
-
-### Redesign the default Today and root help views around task-focused cards
-
-Completed by GPT-5 Codex on 2026-03-14.
-
-### Add guided prompt buttons for syntax-heavy calendar commands
-
-Completed by GPT-5 Codex on 2026-03-14.
-
-### Split public shared panels from interactive GM panels when `/direct` would drop buttons
-
-Completed by GPT-5 Codex on 2026-03-14.
-
-Verification note: the workspace did not expose a usable `node` binary, so full `npm run typecheck` and `npm test` execution still needs a reviewer in a Node-enabled environment. The local esbuild bundle was rerun and the new regression tests are in place for review.
+None currently.
 
 ---
 
 ## Agent Ready
 
-None currently.
+### Many-Worlds Platform Refactor — Phase 1: World Definition Types
+
+Create the world-definition type layer and migrate existing worlds (Eberron, Faerun, Gregorian) into it. See `Additional Calendars for Implementation.md` for full architecture. Key deliverables:
+
+- `src/worlds/types.ts` with all type definitions (WorldDefinition, CalendarDefinition, MoonSystemDefinition, etc.)
+- `src/worlds/eberron.ts`, `src/worlds/faerun.ts`, `src/worlds/gregorian.ts` world packages
+- `src/worlds/index.ts` registry replacing parallel lookups in `CALENDAR_SYSTEMS`, `SEASON_SETS`, `MOON_SYSTEMS`
+- Wire existing code to read from world packages
+- All existing behavior must remain identical — tests must continue to pass
+
+### Many-Worlds Platform Refactor — Phase 2: Extract Calendar Strategies
+
+Remove hard-coded Faerunian and Gregorian checks from `src/date-math.ts`, `src/rendering.ts`, and `src/ui.ts`. Introduce strategy dispatch driven by `CalendarDefinition` properties: `weekdayProgressionMode`, `intercalaryRenderMode`, `dateFormatStyle`. See `Additional Calendars for Implementation.md`.
+
+### Many-Worlds Platform Refactor — Phase 3: Extract Moon Strategies
+
+Split `src/moon.ts` into generic cycle engine, world moon data, and behavior modes. Introduce anchor strategies and visibility modes. Support standard, hidden, and visibility-window moons. See `Additional Calendars for Implementation.md`.
+
+### Many-Worlds Platform Refactor — Phase 4: Refactor Setup
+
+Replace fixed wizard in `src/setup.ts` with a generic step engine. Allow world-defined setup questions. Use Roll20 query syntax for user-entered text. See `Additional Calendars for Implementation.md`.
+
+### Many-Worlds Platform Refactor — Phase 5: Move Eberron Behind Capabilities
+
+Planes become Eberron-only behind `capabilities.planes`. Eberron-specific moon/weather hooks move into named world hooks. Eliminate all `calendarSystem === 'eberron'` checks from generic engine modules. See `Additional Calendars for Implementation.md`.
+
+### Many-Worlds Platform Refactor — Phase 6: Add First-Wave Worlds
+
+Add Greyhawk, Dragonlance, Exandria, Mystara, and Birthright. Each includes: world package, event pack with canon sources, tests, and README documentation. See `Additional Calendars for Implementation.md` for world data.
+
+### Many-Worlds Platform Refactor — Phase 7: README Refactor
+
+Add "Supported Settings" section to README with per-world subsections covering calendar structure, moons, default events, and world-specific mechanics.
+
+### Named Saved Weather Location Presets
+
+Add a "Save Current Location As..." button to the weather location wizard. Opens a Roll20 query for a user-entered preset name. Saved presets appear before recent entries in the wizard. No predefined presets.
 
 ---
 

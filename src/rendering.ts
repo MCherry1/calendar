@@ -8,6 +8,7 @@ import { _firstWeekdayOfMonth, _tokenizeRangeArgs, autoColorForEvent, buildCalen
 import { _defaultDetailsForKey, mb } from './ui.js';
 import { send, sendToAll, whisper } from './messaging.js';
 import { commands } from './today.js';
+import { intercalaryRenderFor, dateFormatFor } from './worlds/index.js';
 import { CALENDAR_SYSTEMS } from './config.js';
 
 
@@ -223,7 +224,7 @@ export function _renderHarptosFestivalStrip(y, mi, mobj, dimActive, extraEventsF
 // Render a single full-width banner row for an intercalary (festival) day.
 // Used instead of a grid for 1-day months like Midwinter or Shieldmeet.
 export function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents){
-  if (ensureSettings().calendarSystem === 'faerunian'){
+  if (intercalaryRenderFor(ensureSettings().calendarSystem) === 'festival_strip'){
     return _renderHarptosFestivalStrip(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, 'full');
   }
   var ser    = toSerial(y, mi, 1);
@@ -248,14 +249,14 @@ export function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, i
   var titleAttr = title ? ' title="'+esc(title)+'" aria-label="'+esc(title)+'"' : '';
   var dots = _eventDotsHtml(ctx.events);
   var wdCnt = weekLength()|0;
-  var isGregorianLeapDay = (ensureSettings().calendarSystem === 'gregorian' && String(mobj.name||'') === 'Leap Day');
-  var headerName = isGregorianLeapDay ? 'February 29' : mobj.name;
+  var isBannerLeapDay = (intercalaryRenderFor(ensureSettings().calendarSystem) === 'banner_day' && String(mobj.name||'') === 'Leap Day');
+  var headerName = isBannerLeapDay ? 'February 29' : mobj.name;
   return [
     '<table style="'+STYLES.table+'">',
     '<tr><th colspan="'+wdCnt+'" style="'+STYLES.head+'">',
     '<div style="'+STYLES.monthHeaderBase+hdrStyle+'">',
       esc(headerName),
-      (mobj.leapEvery && !isGregorianLeapDay ? ' <span style="font-size:.75em;opacity:.75;">(every '+mobj.leapEvery+' yrs)</span>' : ''),
+      (mobj.leapEvery && !isBannerLeapDay ? ' <span style="font-size:.75em;opacity:.75;">(every '+mobj.leapEvery+' yrs)</span>' : ''),
     '</div>',
     '</th></tr>',
     '<tr'+titleAttr+'><td colspan="'+wdCnt+'" style="'+cellStyle+'">',
@@ -276,7 +277,9 @@ export function renderMonthTable(opts){
 
   var mobj  = cal.months[mi];
 
-  // Gregorian leap-day slot is rendered within February and not as a standalone month.
+  var renderMode = intercalaryRenderFor(ensureSettings().calendarSystem);
+
+  // banner_day leap-day slot is rendered within its parent month, not standalone.
   if (_isGregorianLeapSlotMonthObj(mobj)) return '';
 
   // Leap month not active this year: render nothing.
@@ -287,13 +290,16 @@ export function renderMonthTable(opts){
 
   var mdays = mobj.days|0;
   var febLeapSlot = null;
-  var showGregorianFeb29 = false;
-  if (ensureSettings().calendarSystem === 'gregorian' && !mobj.isIntercalary && String(mobj.name||'') === 'February'){
+  var showBannerLeapDay = false;
+  if (renderMode === 'banner_day' && !mobj.isIntercalary){
+    // Find a leap-day slot that follows this month (banner_day inlines it).
     for (var gmi=0; gmi<cal.months.length; gmi++){
       if (_isGregorianLeapSlotMonthObj(cal.months[gmi])){ febLeapSlot = gmi; break; }
     }
-    if (febLeapSlot != null && _isLeapMonth(cal.months[febLeapSlot], y)){
-      showGregorianFeb29 = true;
+    // Only show the inlined day if this is the month immediately before the leap slot,
+    // AND it's a leap year.
+    if (febLeapSlot != null && febLeapSlot === mi + 1 && _isLeapMonth(cal.months[febLeapSlot], y)){
+      showBannerLeapDay = true;
       mdays = mdays + 1;
     }
   }
@@ -312,7 +318,7 @@ export function renderMonthTable(opts){
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimActive, extraEventsFn, includeCalendarEvents);
           html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
-        } else if (showGregorianFeb29 && d.year === y && d.mi === febLeapSlot && d.day === 1){
+        } else if (showBannerLeapDay && d.year === y && d.mi === febLeapSlot && d.day === 1){
           var leapSer = s;
           var leapBaseEvents = (includeCalendarEvents === false) ? [] : getEventsFor(febLeapSlot, 1, y);
           var leapExtraEvents = [];
@@ -353,7 +359,7 @@ export function renderMonthTable(opts){
   for (var i=0; i<wdCnt; i++){
     var s2 = startSer + i;
     var d2 = fromSerial(s2);
-    if (showGregorianFeb29 && d2.year === y && d2.mi === febLeapSlot && d2.day === 1){
+    if (showBannerLeapDay && d2.year === y && d2.mi === febLeapSlot && d2.day === 1){
       var leapSer2 = s2;
       var leapBaseEvents2 = (includeCalendarEvents === false) ? [] : getEventsFor(febLeapSlot, 1, y);
       var leapExtraEvents2 = [];
@@ -420,14 +426,19 @@ export function formatDateLabel(y, mi, d, includeYear){
   var mobj = cal.months[mi] || {};
 
   var lbl;
-  if (st.calendarSystem === 'faerunian'){
-    // Harptos is commonly written as "16th of Eleasis, 1491 DR".
-    // Intercalary days are written by festival name only.
+  var fmt = dateFormatFor(st.calendarSystem);
+  if (fmt === 'ordinal_of_month'){
+    // "16th of Eleasis" / "Midwinter" (festival name only for intercalary)
     lbl = mobj.isIntercalary
       ? esc(mobj.name)
       : (_ordinal(d) + ' of ' + esc(mobj.name));
-  } else if (st.calendarSystem === 'gregorian' && mobj.isIntercalary && String(mobj.name||'') === 'Leap Day'){
-    lbl = 'February 29';
+  } else if (fmt === 'month_day_year'){
+    // "January 14" / "February 29" for banner leap day
+    if (mobj.isIntercalary && String(mobj.name||'') === 'Leap Day'){
+      lbl = 'February 29';
+    } else {
+      lbl = esc(mobj.name)+' '+d;
+    }
   } else {
     lbl = esc(mobj.name)+' '+d;
   }

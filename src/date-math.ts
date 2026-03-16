@@ -1,6 +1,7 @@
 // Section 5: Date / Serial Math
 import { ensureSettings, getCal, weekLength } from './state.js';
 import { clamp } from './rendering.js';
+import { weekdayProgressionFor, intercalaryRenderFor } from './worlds/index.js';
 
 
 /* ============================================================================
@@ -32,7 +33,7 @@ export function _isGregorianLeapYear(y){
 }
 
 export function _isGregorianLeapSlotMonthObj(m){
-  return !!(ensureSettings().calendarSystem === 'gregorian' && m && m.isIntercalary && String(m.name||'') === 'Leap Day');
+  return !!(intercalaryRenderFor(ensureSettings().calendarSystem) === 'banner_day' && m && m.isIntercalary && String(m.name||'') === 'Leap Day');
 }
 
 export function _isGregorianLeapSlotIndex(mi){
@@ -136,10 +137,11 @@ export function weekdayIndex(y, mi, d){
   var cal=getCal(), cur=cal.current, wdlen=cal.weekdays.length;
   var st = ensureSettings();
   var mobj = cal.months[mi] || {};
-  if (st.calendarSystem === 'faerunian' && !mobj.isIntercalary){
+  var progression = weekdayProgressionFor(st.calendarSystem);
+  if (progression === 'month_reset' && !mobj.isIntercalary){
     return (((parseInt(d, 10) || 1) - 1) % wdlen + wdlen) % wdlen;
   }
-  if (st.calendarSystem === 'faerunian' && mobj.isIntercalary){
+  if ((progression === 'month_reset' || progression === 'festival_fixed') && mobj.isIntercalary){
     return 0;
   }
   var delta = toSerial(y, mi, d) - toSerial(cur.year, cur.month, cur.day_of_the_month);
@@ -149,10 +151,11 @@ export function weekdayIndex(y, mi, d){
 export function weekStartSerial(y, mi, d){
   var st = ensureSettings();
   var mobj = (getCal().months || [])[mi] || {};
-  if (st.calendarSystem === 'faerunian' && !mobj.isIntercalary){
+  var progression = weekdayProgressionFor(st.calendarSystem);
+  if (progression === 'month_reset' && !mobj.isIntercalary){
     return toSerial(y, mi, d) - ((((parseInt(d, 10) || 1) - 1) % weekLength()) + weekLength()) % weekLength();
   }
-  if (st.calendarSystem === 'faerunian' && mobj.isIntercalary){
+  if ((progression === 'month_reset' || progression === 'festival_fixed') && mobj.isIntercalary){
     return toSerial(y, mi, 1);
   }
   var wd = weekdayIndex(y, mi, d);

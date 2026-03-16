@@ -1,6 +1,7 @@
 // Sections 2-3: Default State Factory + State & Settings
 import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS, CONFIG_MONTH_LENGTHS, CONFIG_START_DATE } from './config.js';
 import { CALENDAR_STRUCTURE_SETS, COLOR_THEMES, DEFAULT_EVENTS, DEFAULT_EVENT_SOURCE_CALENDARS, SEASON_SETS, script_name, state_name } from './constants.js';
+import { getWorld } from './worlds/index.js';
 import { colorsAPI, resolveColor } from './color.js';
 import { _invalidateSerialCache } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
@@ -195,11 +196,11 @@ export function ensureSettings(){
   // Migrate renamed season variants.
   var _svMig = s.seasonVariant;
   if (_svMig === 'northern'){
-    s.seasonVariant = (s.calendarSystem === 'gregorian') ? 'gregorian'
-                    : (s.calendarSystem === 'faerunian') ? 'faerun'
-                    : 'eberron';
+    var _w = getWorld(s.calendarSystem);
+    s.seasonVariant = _w ? _w.defaultSeasonKey : 'eberron';
   } else if (_svMig === 'southern'){
-    s.seasonVariant = (s.calendarSystem === 'gregorian') ? 'gregorian' : 'faerun';
+    var _w2 = getWorld(s.calendarSystem);
+    s.seasonVariant = _w2 ? _w2.defaultSeasonKey : 'faerun';
     s.hemisphere = 'south';
   } else if (_svMig === 'tropic' || _svMig === 'tropical_monsoon'){
     s.seasonVariant = 'tropical';
@@ -219,20 +220,21 @@ export function ensureSettings(){
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
   if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
 
-  // Auto-toggle: Eberron-specific subsystems default to on for Galifar,
-  // off for non-Eberron calendars. The GM can always override manually.
+  // Auto-toggle subsystems based on world capabilities.
+  // The GM can always override manually.
   // Only apply auto-toggle when the setting has never been explicitly touched.
+  var _worldCaps = (getWorld(s.calendarSystem) || {}).capabilities;
   if (s._planesAutoToggle !== false){
-    var isEberronCal = (s.calendarSystem === 'eberron');
+    var _worldHasPlanes = !!(_worldCaps && _worldCaps.planes);
     if (s.planesEnabled === undefined || s._planesAutoToggle === undefined){
-      s.planesEnabled = isEberronCal;
+      s.planesEnabled = _worldHasPlanes;
       s._planesAutoToggle = true; // mark as auto-set so manual overrides stick
     }
   }
   if (s._moonsAutoToggle !== false){
-    var isEberronCal2 = (s.calendarSystem === 'eberron');
+    var _worldHasMoons = !!(_worldCaps && _worldCaps.moons);
     if (s.moonsEnabled === undefined || s._moonsAutoToggle === undefined){
-      s.moonsEnabled = isEberronCal2;
+      s.moonsEnabled = _worldHasMoons;
       s._moonsAutoToggle = true;
     }
   }
@@ -360,7 +362,24 @@ export function _autoToggleCalendarSource(sourceKey, enable){
     mergeInNewDefaultEvents(getCal());
   } else {
     autoSuppressedSources[sourceKey] = 1;
-    var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
+    var cal = getCal();
+    // Build a key set of all default events from the target source,
+    // ignoring calendar-system filtering (we're removing the source precisely
+    // because it doesn't belong to the current calendar).
+    var lim = Math.max(1, cal.months.length);
+    var sourceDefaults = {};
+    deepClone(defaults.events).forEach(function(de){
+      var src = (de.source != null) ? String(de.source).toLowerCase() : null;
+      if (src !== sourceKey) return;
+      var months = (String(de.month).toLowerCase()==='all')
+        ? (function(){ var a=[]; for (var i=1;i<=lim;i++) a.push(i); return a; })()
+        : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
+      months.forEach(function(m){
+        var maxD = cal.months[m-1] ? (cal.months[m-1].days|0) : 28;
+        var norm = DaySpec.canonicalForKey(de.day, maxD);
+        sourceDefaults[ defaultKeyFor(m, norm, de.name) ] = 1;
+      });
+    });
     cal.events = cal.events.filter(function(e){
       var src = (e.source != null) ? String(e.source).toLowerCase() : null;
       if (src !== sourceKey) return true;
@@ -368,7 +387,7 @@ export function _autoToggleCalendarSource(sourceKey, enable){
       var maxD = mobj ? (mobj.days|0) : 28;
       var norm = DaySpec.canonicalForKey(e.day, maxD);
       var k    = defaultKeyFor(e.month, norm, e.name);
-      return !defaultsSet[k];
+      return !sourceDefaults[k];
     });
   }
 }
@@ -447,15 +466,15 @@ export function applyCalendarSystem(sysKey, varKey?){
   st.calendarSystem  = sysKey;
   st.calendarVariant = vk;
 
-  // Auto-toggle Eberron-specific subsystems when switching calendar systems.
+  // Auto-toggle subsystems based on world capabilities when switching.
   // Only auto-toggle if the previous toggle was also automatic (not manual).
-  var isEberron = (sysKey === 'eberron');
+  var _switchCaps = (getWorld(sysKey) || {}).capabilities;
   if (st._planesAutoToggle !== false){
-    st.planesEnabled = isEberron;
+    st.planesEnabled = !!(_switchCaps && _switchCaps.planes);
     st._planesAutoToggle = true;
   }
   if (st._moonsAutoToggle !== false){
-    st.moonsEnabled = isEberron;
+    st.moonsEnabled = !!(_switchCaps && _switchCaps.moons);
     st._moonsAutoToggle = true;
   }
 

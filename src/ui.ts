@@ -12,6 +12,7 @@ import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } fro
 import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getActivePlanarEffects, getPlanarState } from './planes.js';
+import { dateFormatFor } from './worlds/index.js';
 
 
 /* ============================================================================
@@ -20,7 +21,8 @@ import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNo
 
 export function currentDateLabel(){
   var cal = getCal(), cur = cal.current;
-  if (ensureSettings().calendarSystem === 'faerunian'){
+  var fmt = dateFormatFor(ensureSettings().calendarSystem);
+  if (fmt === 'ordinal_of_month'){
     return formatDateLabel(cur.year, cur.month, cur.day_of_the_month, true);
   }
   var datePart = _displayMonthDayParts(cur.month, cur.day_of_the_month).label;
@@ -43,7 +45,8 @@ export function _timeOfDayStatusHtml(style?){
 export function dateLabelFromSerial(serial){
   var cal = getCal();
   var d = fromSerial(serial);
-  if (ensureSettings().calendarSystem === 'faerunian'){
+  var fmt = dateFormatFor(ensureSettings().calendarSystem);
+  if (fmt === 'ordinal_of_month'){
     return formatDateLabel(d.year, d.mi, d.day, true);
   }
   var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
@@ -149,7 +152,8 @@ export function _displayMonthDayParts(mi, day){
   var cal = getCal();
   var st = ensureSettings();
   var m = cal.months[mi] || {};
-  if (st.calendarSystem === 'faerunian'){
+  var fmt = dateFormatFor(st.calendarSystem);
+  if (fmt === 'ordinal_of_month'){
     if (m.isIntercalary){
       return { monthName: String(m.name || (mi + 1)), day: day, label: String(m.name || (mi + 1)) };
     }
@@ -159,7 +163,7 @@ export function _displayMonthDayParts(mi, day){
       label: _ordinal(day) + ' of ' + String(m.name || (mi + 1))
     };
   }
-  if (st.calendarSystem === 'gregorian' && m.isIntercalary && String(m.name||'') === 'Leap Day'){
+  if (fmt === 'month_day_year' && m.isIntercalary && String(m.name||'') === 'Leap Day'){
     return { monthName: 'February', day: 29, label: 'February 29' };
   }
   return {
