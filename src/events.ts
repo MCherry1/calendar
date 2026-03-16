@@ -8,6 +8,7 @@ import { DaySpec, Parse, isTodayVisibleInRange } from './parsing.js';
 import { _calendarCellInnerHtml, _renderHarptosFestivalStrip, clamp, closeMonthTable, esc, eventLineHtml, formatDateLabel, makeDayCtx, openMonthTable, renderMiniCal, renderMonthTable, tdHtmlForDay, yearHTMLFor } from './rendering.js';
 import { _displayMonthDayParts, _menuBox, currentDateLabel, nextForDayOnly, nextForMonthDay } from './ui.js';
 import { send, sendToAll, whisper } from './commands.js';
+import { intercalaryRenderFor } from './worlds/index.js';
 
 
 /* ============================================================================
@@ -529,7 +530,7 @@ export function _setMax(setObj){ var keys = Object.keys(setObj).map(function(k){
 
 export function renderMonthStripWantedDays(year, mi, wantedSet, dimActive, extraEventsFn, includeCalendarEvents, stripRole){
   var mobj = getCal().months[mi] || {};
-  if (ensureSettings().calendarSystem === 'faerunian' && mobj.isIntercalary && wantedSet && wantedSet[1]){
+  if (intercalaryRenderFor(ensureSettings().calendarSystem) === 'festival_strip' && mobj.isIntercalary && wantedSet && wantedSet[1]){
     return _renderHarptosFestivalStrip(year, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, stripRole || 'full');
   }
   var parts = openMonthTable(mi, year);

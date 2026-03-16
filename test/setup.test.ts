@@ -103,7 +103,7 @@ describe("Setup onboarding", () => {
     handleInput(gmMsg("!cal setup weather terrain open"));
     handleInput(gmMsg("!cal setup apply"));
     assertEquals(getSetupState().status, "complete");
-    assertEquals(getWeatherState().location.sig, "temperate-inland-open");
+    assertEquals(getWeatherState().location.sig, "temperate/inland/open");
   });
 
   it("resetcalendar returns the campaign to the onboarding gate", () => {

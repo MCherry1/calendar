@@ -1,142 +1,40 @@
-# Many-Worlds Platform Refactor Design
+# Many-Worlds Platform Refactor Plan
 
 ## Purpose
 
-This document replaces the earlier research-first memo.
+Turn this script into a many-worlds platform that supports a growing library of fantasy settings without accumulating world-specific conditionals in shared engine code.
 
-The scope has changed. The goal is no longer "add a few more calendars with local patches." The goal is to design a refactor that turns this script into a many-worlds platform that can support a growing library of fantasy settings without the codebase becoming a pile of world-specific conditionals.
+This is a medium-to-large structural refactor, not a rewrite from scratch.
 
-This document does not implement the refactor. It defines:
+## Scope Decisions
 
-- why the refactor is justified
-- what the target architecture should look like
-- which world assumptions are currently chosen for the first wave
-- what concrete product and engineering questions need explicit answers before implementation starts
+- One active world per campaign.
+- Only built-in worlds. No homebrew world authoring consideration.
+- No backward compatibility required — there are no existing users or campaigns to migrate.
+- All terms, keys, and structures may be rewritten as if from scratch.
+- Command names may change freely.
+- Smaller mergeable phases, not one large branch.
 
-## Strategic Conclusion
+## First-Wave Worlds
 
-Yes, a meaningful refactor is justified.
+| World | Special Behavior |
+| --- | --- |
+| Eberron | Planes plugin, rich moon hooks, 12 moons |
+| Toril / Harptos | Festival-strip intercalary rendering, tenday weeks |
+| Gregorian | Leap-day strategy, standard Earth moon |
+| Greyhawk | Intercalary week-block rendering, 2 moons |
+| Dragonlance | Conjunction anchor, hidden Nuitari, 336-day year |
+| Exandria | Visible-window Ruidus, seeded drift formulas |
+| Mystara | Hidden Patera, 336-day year |
+| Birthright | 8-day week, 12×32 months + 4 festival days |
 
-The current codebase is already partly data-driven, but not yet platform-driven. It can absorb a few more conservative worlds, but a true many-worlds roadmap wants a cleaner separation between:
-
-- generic engine behavior
-- world definitions
-- world-specific subsystem hooks
-- setup questions
-- runtime state
-
-The right move is a medium-to-large structural refactor, not a rewrite from scratch.
-
-## Working Assumptions Already Chosen
-
-These are the current planning assumptions unless explicitly changed later:
-
-- Dragonlance uses the 336-day interpretation.
-- Dragonlance setup anchors the moon system from `Night of the Eye`.
-- Dragonlance setup should let the GM set that anchor directly or randomize it.
-	- If possible, use the query syntax that prompts user-entered text, rather than ask for an api command.
-- Exandria should use seeded drift rather than pretending to have one exact canonical lunar model.
-- Exandria `Catha` drift should use `29 + 1d11`.
-- Exandria `Ruidus` drift should use `164 + 1d20 - 1d20`.
-- `Ruidus` should be treated as effectively full when visible.
-- Greyhawk is in scope and looks clean.
-- The initial target set should focus on worlds with fixed numbers or easy, defensible interpretations.
-
-## Current Codebase Summary
-
-### What is already strong
-
-The current code already has the beginnings of a platform:
-
-- `src/config.ts` contains `CALENDAR_SYSTEMS`
-- `src/constants.ts` contains `SEASON_SETS` and `CALENDAR_STRUCTURE_SETS`
-- `src/moon.ts` contains `MOON_SYSTEMS`
-- `src/state.ts` has a central `applyCalendarSystem()` path
-- `src/date-math.ts` already supports leap/intercalary slots
-- non-7-day weeks already work
-
-That means the core idea is good. The problem is not that the repo lacks abstractions. The problem is that the abstractions stop halfway and world-specific logic leaks into shared modules.
-
-### What is currently hard-coded
-
-The pressure points are mostly here:
-
-- `src/state.ts`
-  - world capabilities are inferred from `calendarSystem`
-  - setup defaults are tied to specific worlds
-- `src/setup.ts`
-  - wizard flow is fixed and only lightly world-aware
-  - only Eberron gets extra subsystem questions
-- `src/date-math.ts`
-  - Faerunian weekday behavior is hard-coded
-  - Gregorian leap-day behavior is hard-coded
-- `src/rendering.ts`
-  - Harptos-specific festival rendering is hard-coded
-  - Gregorian leap-day presentation is hard-coded
-- `src/ui.ts`
-  - date formatting contains world checks
-  - dashboard behavior assumes current world set is tiny
-- `src/moon.ts`
-  - generic moon math, world data, Eberron lore, Eberron sky extras, tide logic, and planar generation logic all live together
-- `src/weather.ts`
-  - includes direct Eberron moon and planar hooks
-- `src/planes.ts`
-  - is Eberron-specific but still tied into shared command/UI paths
-
-### Current architectural risk
-
-If more worlds are added under the current pattern, the repo will likely accumulate:
-
-- more `calendarSystem === ...` branches
-- more moon exceptions inside `src/moon.ts`
-- more setup exceptions
-- more render/parse/date special cases spread across modules
-
-That is exactly what this refactor should prevent.
-
-## Refactor Goals
-
-The refactor should achieve these outcomes:
-
-1. World support becomes mostly declarative.
-2. The engine stops inferring capabilities from world keys.
-3. Calendar behavior, date formatting, parsing, and intercalary rendering become strategy-driven.
-4. Moon behavior supports more than one kind of moon.
-5. Setup becomes generic and world-extensible.
-6. Eberron-specific systems remain supported without polluting the generic path.
-7. Existing campaigns migrate cleanly.
-	1. (Author note: no existing campaigns exist. There is no migration required, nor preservation of legacy terms or definitions. All should be re-written as if from scratch, with suitable decisions made.)
-8. Adding a new world later should usually mean adding a world package, not editing six unrelated files.
-
-## Non-Goals
-
-This design is not trying to do all of the following now:
-
-- implement every world immediately
-- create a full homebrew-world authoring UI
-- support simultaneous multiple active worlds in one campaign unless explicitly chosen later
-- simulate perfectly realistic astronomy
-- rewrite every subsystem at once
-
-## Recommended Product Scope
-
-The recommended product model for the first version of the refactor is:
-
-- one active world per campaign
-- many built-in world packages available to choose from
-- optional naming overlays and variants inside a world
-- world-specific setup steps
-- optional world-specific subsystems attached through explicit capabilities and hooks
-
-That gives the benefits of a platform without turning the state model and UI into a multiverse editor on day one.
+Dark Sun is out of scope for this wave.
 
 ## Target Architecture
 
 ### 1. World Package Layer
 
-Create a first-class world-definition layer. Existing data in `CALENDAR_SYSTEMS`, `SEASON_SETS`, `MOON_SYSTEMS`, and event-source allowlists should be reorganized under this layer.
-
-Suggested top-level shape:
+A single `WorldDefinition` type becomes the source of truth for each world. Data currently split across `CALENDAR_SYSTEMS`, `SEASON_SETS`, `MOON_SYSTEMS`, and event-source allowlists consolidates under this layer.
 
 ```ts
 type WorldDefinition = {
@@ -148,6 +46,7 @@ type WorldDefinition = {
   calendar: CalendarDefinition;
   seasons: SeasonDefinition;
   moons?: MoonSystemDefinition;
+  planes?: PlaneSystemDefinition; // Eberron only
   eventPacks?: EventPackDefinition[];
   capabilities: WorldCapabilities;
   setup: SetupDefinition;
@@ -155,15 +54,9 @@ type WorldDefinition = {
 };
 ```
 
-### Why this matters
-
-Right now the repo stores calendar data, season data, and moon data in parallel registries. That is workable for three worlds, but it makes platform-scale setup and capability decisions awkward. The world package should become the single source of truth.
-
 ### 2. Calendar Definition Layer
 
-The calendar engine should stop relying on ad hoc checks for Faerunian and Gregorian behavior. Instead, calendar definitions should explicitly declare the behavior they need.
-
-Suggested shape:
+Calendar definitions declare their behavior explicitly instead of relying on ad hoc world checks.
 
 ```ts
 type CalendarDefinition = {
@@ -174,129 +67,67 @@ type CalendarDefinition = {
   monthStructure: MonthStructureDefinition;
   namingOverlays: NamingOverlayDefinition[];
   defaultOverlayKey: string;
-  weekdayProgressionMode: WeekdayProgressionMode;
-  intercalaryRenderMode: IntercalaryRenderMode;
-  dateFormatStyle: DateFormatStyle;
+  weekdayProgressionMode: 'continuous_serial' | 'month_reset' | 'festival_fixed';
+  intercalaryRenderMode: 'banner_day' | 'festival_strip' | 'week_block' | 'regular_grid';
+  dateFormatStyle: 'ordinal_of_month' | 'month_day_year' | 'festival_name_only' | 'custom';
   parseAliases?: ParseAliasDefinition;
 };
 ```
 
-### Suggested behavior enums
-
-- `weekdayProgressionMode`
-  - `continuous_serial`
-  - `month_reset`
-  - `festival_fixed`
-- `intercalaryRenderMode`
-  - `banner_day`
-  - `festival_strip`
-  - `week_block`
-  - `regular_grid`
-- `dateFormatStyle`
-  - `ordinal_of_month`
-  - `month_day_year`
-  - `festival_name_only`
-  - `custom`
-
-### Why this matters
-
-This is what lets the code say:
-
-- Harptos uses `festival_strip`
-- Greyhawk uses `week_block`
-- Gregorian uses `banner_day`
-- Birthright uses an 8-day week with its own label style
-
-without more file-scattered world checks.
+This lets the engine say "Harptos uses `festival_strip`" and "Greyhawk uses `week_block`" without scattered world checks.
 
 ### 3. Moon System Layer
 
-The moon engine should be split into:
-
-- generic cycle engine
-- world moon data
-- moon behavior modes
-- world sky extras and cross-subsystem hooks
-
-Suggested shape:
+The moon engine splits into: generic cycle engine, world moon data, moon behavior modes, and world sky extras.
 
 ```ts
 type MoonSystemDefinition = {
   label: string;
-  anchorStrategy: MoonAnchorStrategy;
+  anchorStrategy: 'per_moon_anchor' | 'conjunction_anchor' | 'visibility_anchor' | 'seed_only';
   bodies: MoonBodyDefinition[];
   behaviors?: MoonSystemBehavior[];
 };
-```
 
-```ts
 type MoonBodyDefinition = {
   key: string;
   name: string;
   title?: string;
   color?: string;
   associatedMonth?: number | null;
-  phaseMode: MoonPhaseMode;
-  cycleMode: MoonCycleMode;
+  phaseMode: 'standard_phase' | 'always_full_when_visible' | 'hidden_phase' | 'derived_only';
+  cycleMode: 'fixed' | 'seeded_drift_uniform' | 'seeded_drift_triangular' | 'custom';
   baseCycleDays?: number;
   cycleFormula?: string;
-  visibilityMode?: MoonVisibilityMode;
+  visibilityMode?: 'normal' | 'hidden_by_default' | 'visible_window' | 'gm_only';
   anchorRole?: MoonAnchorRole;
   data?: Record<string, unknown>;
 };
 ```
 
-### Suggested moon behavior enums
+World-specific behaviors:
+- **Dragonlance**: `conjunction_anchor` with hidden Nuitari (`hidden_by_default` visibility)
+- **Exandria**: Ruidus uses `visible_window` + `always_full_when_visible`
+- **Mystara**: Patera uses `hidden_by_default`
+- **Greyhawk**: Luna (28d) and Celene (91d), both standard
+- **Birthright**: One 32-day moon, standard
 
-- `MoonAnchorStrategy`
-  - `per_moon_anchor`
-  - `conjunction_anchor`
-  - `visibility_anchor`
-  - `seed_only`
-- `MoonPhaseMode`
-  - `standard_phase`
-  - `always_full_when_visible`
-  - `hidden_phase`
-  - `derived_only`
-- `MoonCycleMode`
-  - `fixed`
-  - `seeded_drift_uniform`
-  - `seeded_drift_triangular`
-  - `custom`
-- `MoonVisibilityMode`
-  - `normal`
-  - `hidden_by_default`
-  - `visible_window`
-  - `gm_only`
+**Dragonlance moon anchor rules**: Setting any single moon's phase shifts ALL moons to preserve Night of the Eye alignment. The script must call this out explicitly when it happens. The Eye anchor date can be set at any point after initialization, not just during setup.
 
-### Why this matters
-
-This is the piece that makes these worlds possible without brittle hacks:
-
-- Dragonlance: `conjunction_anchor` plus hidden `Nuitari`
-- Exandria: `visible_window` plus `always_full_when_visible` for `Ruidus`
-- Mystara: hidden `Patera`
-- Greyhawk: two standard moons with simple cycles
-- Birthright: one moon, fixed anchor rhythm
+**Player vs GM visibility**: The only distinction is player vs GM. Per-player moon visibility is not required and will never be.
 
 ### 4. Capability and Hook Layer
 
-World-specific subsystems should be enabled by capabilities, not by checking world names.
-
-Suggested shape:
+World-specific subsystems are enabled by capabilities, not world-name checks.
 
 ```ts
 type WorldCapabilities = {
   moons: boolean;
   weather: boolean;
-  planes: boolean;
+  planes: boolean; // Eberron only — other worlds use events for planar effects
   defaultEvents: boolean;
-  customAnchors: boolean;
   worldHooks: boolean;
 };
-```
 
-```ts
 type WorldHooks = {
   setup?: WorldSetupHooks;
   calendar?: CalendarHooks;
@@ -306,58 +137,23 @@ type WorldHooks = {
 };
 ```
 
-### Why this matters
-
-Examples:
-
-- Eberron can declare `planes: true`
-- Greyhawk can declare `planes: false`
-- Exandria can declare `customAnchors: true`
-- Dragonlance can declare a setup moon anchor question without needing bespoke wizard logic
+Planes remain Eberron-specific rather than becoming a generic capability. Other worlds capture planar effects through the event system where appropriate.
 
 ### 5. Setup Engine Layer
 
-`src/setup.ts` should become a generic step runner with a small set of built-in step types and optional world-defined steps.
+`src/setup.ts` becomes a generic step runner. Built-in step types plus optional world-defined steps.
 
-Suggested step types:
+Step types: world picker, structural variant picker, naming overlay picker, date picker, season model picker, hemisphere picker, theme picker, default event pack toggle, moon system toggle, world-specific moon anchor step, optional subsystem toggles, weather mode, weather location, review/apply.
 
-- world picker
-- structural variant picker
-- naming overlay picker
-- date picker
-- season model picker
-- hemisphere picker
-- theme picker
-- default event pack toggle
-- moon system toggle
-- world-specific moon anchor step
-- optional subsystem toggles
-- weather mode
-- weather location
-- review/apply
-
-### Example world-specific setup behavior
-
-- Dragonlance
-  - ask for `Night of the Eye`
-  - offer `Set Date` or `Randomize`
-- Exandria
-  - default to seeded random lunar drift
-  - optionally allow a moon anchor prompt later
-- Greyhawk
-  - no special moon anchor step required
-- Eberron
-  - still exposes planar setup when planes are enabled
-
-### Why this matters
-
-The setup engine becomes a platform feature instead of a list of exceptions.
+World-specific setup behavior:
+- **Dragonlance**: Ask for Night of the Eye anchor. Offer "Set Date" (Roll20 query for user-entered text with prompted syntax) or "Randomize" (deterministic from campaign seed).
+- **Exandria**: Default to seed-driven drift. Optional manual moon anchor tools available later.
+- **Greyhawk**: No special moon anchor step.
+- **Eberron**: Planar setup when planes capability is enabled.
 
 ### 6. Runtime State Layer
 
-The state object should persist runtime choices and derived state, not duplicate static world definitions.
-
-Suggested direction:
+State persists keys and answers, not copied definitions. Static world data stays out of persistent state.
 
 ```ts
 state.CALENDAR = {
@@ -369,359 +165,132 @@ state.CALENDAR = {
     seed: "...",
     setupAnswers: { ... }
   },
-  calendar: {
-    current: { ... },
-    resolvedMonths: [ ... ],
-    resolvedWeekdays: [ ... ]
-  },
-  events: {
-    custom: [ ... ],
-    packState: { ... }
-  },
-  moons: {
-    anchors: { ... },
-    overrides: { ... },
-    revealState: { ... },
-    cachedCycles: { ... }
-  },
-  subsystems: {
-    weather: { ... },
-    planes: { ... },
-    worldExtras: { ... }
-  }
+  calendar: { current: { ... } },
+  events: { custom: [ ... ], packState: { ... } },
+  moons: { anchors: { ... }, overrides: { ... }, revealState: { ... } },
+  subsystems: { weather: { ... }, planes: { ... } }
 }
 ```
 
-### Rules for state design
-
-- persist keys and answers, not copied source definitions
-- derive resolved month and weekday arrays when applying the active world package
-- keep migration code explicit and versioned
-
 ### 7. Module Layout
 
-The current file layout can evolve instead of being replaced wholesale.
+Suggested target (evolve from current layout):
 
-Suggested target layout:
-
-- `src/worlds/types.ts`
-- `src/worlds/index.ts`
-- `src/worlds/eberron.ts`
-- `src/worlds/faerun.ts`
-- `src/worlds/gregorian.ts`
-- `src/worlds/greyhawk.ts`
-- `src/worlds/dragonlance.ts`
-- `src/worlds/exandria.ts`
-- `src/worlds/mystara.ts`
-- `src/worlds/birthright.ts`
-- `src/worlds/darksun.ts`
-- `src/engine/calendar-core.ts`
-- `src/engine/calendar-format.ts`
-- `src/engine/calendar-parse.ts`
-- `src/engine/moon-core.ts`
-- `src/engine/moon-behaviors.ts`
-- `src/engine/setup-engine.ts`
-- `src/engine/world-hooks.ts`
-- `src/subsystems/weather.ts`
-- `src/subsystems/planes/eberron.ts`
-
-This is a design target, not a required exact path map, but the split matters.
+```
+src/worlds/types.ts
+src/worlds/index.ts
+src/worlds/eberron.ts
+src/worlds/faerun.ts
+src/worlds/gregorian.ts
+src/worlds/greyhawk.ts
+src/worlds/dragonlance.ts
+src/worlds/exandria.ts
+src/worlds/mystara.ts
+src/worlds/birthright.ts
+src/engine/calendar-core.ts
+src/engine/calendar-format.ts
+src/engine/calendar-parse.ts
+src/engine/moon-core.ts
+src/engine/moon-behaviors.ts
+src/engine/setup-engine.ts
+src/engine/world-hooks.ts
+src/subsystems/weather.ts
+src/subsystems/planes/eberron.ts
+```
 
 ### 8. Event Pack Model
 
-Default events should move from "calendar-system scoped lists" toward "world package event packs."
+Default events move under world packages. Packs can declare compatibility rules and be individually disabled. Source priorities remain a separate user setting. Event packs should be populated from appropriate canon sources for each world.
 
-Suggested direction:
+### 9. Weather and Subsystems
 
-- event packs belong to worlds
-- packs can still declare compatibility rules
-- packs can still be individually disabled
-- source priorities remain a separate user setting
+Weather remains a generic subsystem. Worlds may attach optional weather hooks. Eberron-specific effects (e.g., Zarantyr full moon weather) move behind named hooks. Planes stay as an Eberron-specific subsystem.
 
-This matters because a many-worlds platform should not keep piling all default events into one global constants file.
+### 10. README Refactor
 
-### 9. Weather and Optional Subsystems
+The README gets a "Supported Settings" section with subsections for each world. Each subsection includes: calendar structure, moons, default holidays/events, and any world-specific mechanics.
 
-The refactor does not need to rebuild weather first, but it should create a clean extension point.
-
-Recommended direction:
-
-- weather remains a generic subsystem
-- worlds may attach optional weather hooks
-- planes become an Eberron plugin behind capabilities
-- world-specific effects like `Zarantyr full` should move behind named hooks, not stay in generic weather logic
-
-## First-Wave Worlds Under This Platform
-
-These are the worlds that look like good first-wave targets after the refactor baseline exists.
-
-| World | In scope | Special behavior needed | Notes |
-| --- | --- | --- | --- |
-| Eberron | Yes | Planes plugin, rich moon hooks | Existing deepest implementation |
-| Toril / Harptos | Yes | Festival-strip rendering | Existing implementation to migrate |
-| Gregorian | Yes | Leap-day strategy | Existing implementation to migrate |
-| Greyhawk | Yes | Intercalary week-block rendering | Very clean first addition |
-| Dragonlance | Yes | Conjunction anchor, hidden moon | Use 336-day model |
-| Exandria | Yes | Visible-window moon, drift formulas | `Ruidus` is special but manageable |
-| Mystara | Yes | Hidden moon behavior | Calendar side is very clean |
-| Birthright | Yes | 8-day week, festival days | Excellent engine-fit world |
-| Dark Sun | Maybe | Merchant's Calendar interpretation | More interpretive |
-| Ravenloft | No for first wave | Highly interpretive | Better left for later |
-| Nentir Vale | No for first wave | Source confidence weak | Needs separate pass |
-
-## World Assumptions To Carry Into Implementation
+## World Data Summary
 
 ### Greyhawk
-
 - 7-day week
-- 12 x 28 regular months
-- 4 festival weeks
-- `Luna` 28-day cycle
-- `Celene` 91-day cycle
-- needs `week_block` intercalary rendering
+- 12 × 28 regular months + 4 festival weeks (intercalary)
+- Luna: 28-day cycle
+- Celene: 91-day cycle
+- Needs `week_block` intercalary rendering
 
-### Dragonlance
+### Dragonlance (336-day model)
+- 12 × 28 regular months
+- Solinari: 36-day cycle
+- Lunitari: 28-day cycle
+- Nuitari: 8-day cycle (hidden from players by default)
+- Night of the Eye repeats every 504 days
+- Setup anchors from Night of the Eye (user-entered date or deterministic random from seed)
 
-- use the 336-day model
-- treat it as this repo's standard Dragonlance implementation
-- setup anchors from `Night of the Eye`
-- moons:
-  - `Solinari` 36 days
-  - `Lunitari` 28 days
-  - `Nuitari` 8 days
-- `Night of the Eye` repeats every 504 days under this interpretation
-- `Nuitari` needs hidden-moon behavior
+### Exandria (328-day year)
+- Catha: seeded drift `29 + 1d11`
+- Ruidus: seeded drift `164 + 1d20 - 1d20`, effectively full when visible, needs visibility-window behavior
 
-### Exandria
-
-- 328-day year
-- `Catha` uses `29 + 1d11`
-- `Ruidus` uses `164 + 1d20 - 1d20`
-- `Ruidus` is effectively full when visible
-- `Ruidus` needs visibility-window behavior
-
-### Mystara
-
-- 336-day year
+### Mystara (336-day year)
 - 7-day week
-- primary visible moon: `Matera`
-- hidden or special moon behavior needed for `Patera`
+- Matera: primary visible moon
+- Patera: hidden moon (GM-only by default)
 
 ### Birthright
-
 - 8-day week
-- 12 x 32 months plus 4 festival days
-- one 32-day moon rhythm should be supported cleanly
-
-### Dark Sun
-
-- only proceed if the Merchant's Calendar interpretation is accepted as the project standard
+- 12 × 32 months + 4 festival days
+- One 32-day moon
 
 ## Refactor Phases
 
-The refactor should land in phases, not as one blind rewrite.
+### Phase 1: World Definition Types and Migration of Existing Worlds
 
-### Phase 0: Lock Baseline Behavior
-
-Before structural work:
-
-- add regression coverage for current supported worlds
-- capture date math behavior
-- capture render behavior
-- capture setup behavior
-- capture baseline moon behavior
-
-### Phase 1: Introduce World Definitions
-
-- create the world-definition layer
-- move Eberron, Faerun, and Gregorian into it first
-- keep old command behavior intact through adapters
+- Create `src/worlds/types.ts` with all type definitions
+- Create world packages for Eberron, Faerun, Gregorian
+- Create `src/worlds/index.ts` registry
+- Wire existing code to read from world packages instead of parallel registries
+- Keep all existing behavior identical
 
 ### Phase 2: Extract Calendar Strategies
 
-- remove hard-coded world checks from date math, formatting, and rendering
-- introduce explicit progression, formatting, and intercalary strategies
+- Remove hard-coded Faerunian and Gregorian checks from date-math, formatting, and rendering
+- Introduce explicit progression, formatting, and intercalary strategy dispatch
+- Calendar behavior driven by `CalendarDefinition` properties
 
 ### Phase 3: Extract Moon Strategies
 
-- split generic moon logic from world data and world hooks
-- introduce anchor strategies and visibility modes
+- Split generic moon logic from Eberron-specific data and hooks
+- Introduce anchor strategies and visibility modes
+- Support standard, hidden, and visibility-window moons
 
 ### Phase 4: Refactor Setup
 
-- replace fixed wizard flow with a step engine
-- allow world-defined setup questions
+- Replace fixed wizard flow with a generic step engine
+- Allow world-defined setup questions (e.g., Dragonlance Night of the Eye anchor)
+- Use Roll20 query syntax for user-entered text where possible
 
 ### Phase 5: Move Eberron Features Behind Capabilities
 
-- planes become capability/plugin-driven
+- Planes become Eberron-only behind `capabilities.planes`
 - Eberron-specific moon/weather hooks move into named world hooks
+- No generic engine module checks `calendarSystem === 'eberron'`
 
 ### Phase 6: Add First-Wave Worlds
 
-Recommended order:
+Order: Greyhawk, Dragonlance, Exandria, Mystara, Birthright.
 
-1. Greyhawk
-2. Dragonlance
-3. Exandria
-4. Mystara
-5. Birthright
-6. Dark Sun if still desired
-	1. Author note: not at this time.
+Each new world addition includes: world package definition, event pack with canon sources, tests, and README documentation.
 
-## Acceptance Criteria For The Refactor
+### Phase 7: README Refactor
 
-The design should be considered successful when all of the following are true:
+Add "Supported Settings" section with per-world subsections covering calendar, moons, events, and mechanics.
 
-- adding a new standard world mostly means adding one world package
-- no generic engine module needs direct `calendarSystem === ...` checks for normal world behavior
-- the current three supported worlds are preserved through migration
-- setup can inject world-defined questions
-- the moon engine can support standard moons, hidden moons, and visibility-window moons
-- Eberron planes are capability-driven rather than implied by the world key
-- tests protect existing behavior before first-wave worlds are added
+## Acceptance Criteria
 
-## Questions Requiring Explicit Answers Before Implementation
-
-These are the questions I need concrete answers to before I would be comfortable executing the refactor.
-
-Each question includes a recommended answer so decision-making is faster.
-
-### Product Scope
-
-1. Is the platform still limited to one active world per campaign?
-   Recommendation: Yes.
-	1. Author note yes.
-
-3. Are homebrew/custom worlds part of this refactor, or only built-in worlds?
-   Recommendation: Build the schema so homebrew is possible later, but do not build a custom-world authoring UI in this refactor.
-	1. Author note no, only built in worlds. No consideration should be taken for homebrew. Interested parties may pull the code and edit it for themselves.
-
-5. Which worlds are officially in scope for the first post-refactor wave?
-   Recommendation: Greyhawk, Dragonlance, Exandria, Mystara, Birthright. Dark Sun as optional second-wave.
-	1. Author note yes.
-
-7. Must command names remain backward compatible for existing users?
-   Recommendation: Yes.
-	1. Author note NO. There are no existing users.
-
-### Data Model
-
-5. Do we want to distinguish between structural calendar variants and naming overlays?
-   Recommendation: Yes. Dragonlance and Mystara both benefit from this.
-	1. Author note yes.
-
-7. Should world definitions live in TypeScript modules or external JSON-like data files?
-   Recommendation: TypeScript modules first, with strong typing and no dynamic loader.
-	1. Author note yes, TS.
-
-9. Should static world data remain out of persistent state?
-   Recommendation: Yes. Persist keys and answers, not copied definitions.
-	1. Author note yes.
-
-11. Should the existing keys `eberron`, `faerunian`, and `gregorian` remain valid aliases forever?
-   Recommendation: Yes, at least through migration and for command compatibility.
-	   Author note no. Not required. There are no existing users.
-
-### Setup and Seeds
-
-9. Should setup become a generic step engine with world-defined extra steps?
-   Recommendation: Yes.
-	1. Author note yes.
-
-11. For Dragonlance, should setup ask for the exact in-world date of `Night of the Eye`, or only offer randomization?
-   Recommendation: Offer both exact date and deterministic randomization.
-	   Author note yes, offer both. use a query function to ask for user input, prompting required syntax.
-
-12. For Exandria, should setup ask any moon anchor questions up front?
-   Recommendation: Default to seed-driven drift, with optional manual moon anchor tools available later.
-	   Author note yes to recommendation.
-
-13. Should "Randomize" always mean deterministic from the campaign/world seed?
-   Recommendation: Yes.
-		   Author note yes.
-
-### Moon System
-
-13. Do we need a first-class hidden-moon behavior for player-facing output?
-   Recommendation: Yes.
-	   Author note yes.
-
-14. Do we need a first-class "always full when visible" moon behavior?
-   Recommendation: Yes.
-	   Author note yes, ruidus behaves like this.
-
-15. Should drift formulas be stored declaratively when simple?
-   Recommendation: Yes. Use a simple expression format for formulas like `29 + 1d11` and `164 + 1d20 - 1d20`, with code hooks only when needed.
-	   Author note yes.
-
-16. Should per-moon `set full` and `set new` remain available in every world?
-   Recommendation: Yes, but some worlds should still prefer a world anchor in setup.
-	   Author note yes, kind of. I think only dragonlance would have a problem with this. Dragonlance should allow setting of a single moon, but ALL the moons would be appropriately shifted to preserve the eye behavior. and the script should specifically call out that this is happening. and it should have the ability to set the date of the eye anchor at any point after initialization.
-
-17. Do we need audience-level visibility control right away, such as GM-visible versus player-hidden moons?
-   Recommendation: Yes, but audience-level is enough. Do not build per-player moon visibility in this refactor.
-	   Author note per player moon visibility will never be required. Player vs gm distinction is the only mechanic.
-
-### Calendar Engine
-
-18. Should intercalary week rendering become a first-class layout mode?
-   Recommendation: Yes.
-	   Author note yes.
-
-19. Should date-format behavior be a declared world/calendar strategy?
-   Recommendation: Yes.
-	   Author note yes.
-
-20. Should world-specific parse aliases be supported so typed commands accept local month and weekday names?
-   Recommendation: Yes.
-	   Author note yes.
-
-### Subsystems
-
-21. Should planes become a capability/plugin instead of an implied Eberron-only special case?
-   Recommendation: Yes.
-	   Author note no, I don't think so. No other world uses planes in anything close to the same way, and those usages can be captured by the more generic event system where appropriate.
-
-22. Do we want a general world-hook system for future setting-specific weather, sky, or rules interactions?
-   Recommendation: Yes.
-	   Author note I think so yes.
-
-23. Should default event packs move under world packages during this refactor?
-   Recommendation: Yes.
-	   Author note yes. Also, please populate the default events from appropriate canon sources.
-
-### Migration and Delivery
-
-24. Must existing campaign states auto-migrate without forcing setup again?
-   Recommendation: Yes.
-	   Author note there are no existing campagin states.
-
-25. How much regression coverage is required before Phase 1 starts?
-   Recommendation: Enough to protect month rendering, date math, setup, and current moon output for the existing worlds.
-	   Author note there are no existing campaigns.
-
-26. Should the work land as a sequence of smaller mergeable phases or one large branch?
-   Recommendation: Smaller phases.
-	   Author note smaller phases.
-
-27. Should the first implementation phase include any new worlds at all?
-   Recommendation: No. First migrate current worlds into the new architecture, then add new worlds.
-	   Author note yes to recommendation.
-
-## Recommended Next Step
-
-Before writing any refactor code, the next best step is a decision pass over the questions above.
-
-If those answers are settled, the implementation plan should become:
-
-1. lock regression tests
-2. define world package types
-3. migrate Eberron, Faerun, and Gregorian into the new model
-4. extract calendar strategies
-5. extract moon strategies
-6. refactor setup
-7. add Greyhawk, Dragonlance, Exandria, Mystara, and Birthright
-
-Author note: please include README refactor as a part of this refactor. There should be a Supported Settings section with subsections for each setting. These subsections should include the all the relevant world information, moons, default holiday/event list, etc.
-
+- Adding a new standard world mostly means adding one world package file
+- No generic engine module uses direct `calendarSystem === ...` checks for normal world behavior
+- Existing three worlds work identically through the new architecture
+- Setup can inject world-defined questions
+- Moon engine supports standard, hidden, and visibility-window moons
+- Eberron planes are capability-driven
+- Tests protect all world behaviors

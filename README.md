@@ -10,6 +10,30 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 **Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
 
 ---
+
+<details>
+<summary><strong>Recommended In-Game Macros</strong></summary>
+
+Create these as Roll20 macros for quick-bar access:
+
+| Macro Name | Command | Notes |
+| --- | --- | --- |
+| Calendar | `!cal` | Opens the Today dashboard |
+| Show Month | `!cal show month` | Current month view |
+| Weather | `!cal weather` | Weather detail |
+| Forecast | `!cal forecast` | Multi-day forecast |
+| Moons | `!cal moon` | Moon detail |
+| Planes | `!cal planes` | Planar status |
+| Advance 1 | `!cal advance 1` | GM only — advance one day |
+| Retreat 1 | `!cal retreat 1` | GM only — retreat one day |
+| Send Month | `!cal send month` | GM only — broadcast month to all |
+| Help | `!cal help` | Command reference |
+
+**Tip:** Mark GM-only macros as token actions so they appear in your GM toolbar but not for players.
+
+</details>
+
+---
 <a id="table-of-contents"></a>
 ## Table of Contents
 
