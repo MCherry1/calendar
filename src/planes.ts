@@ -112,14 +112,14 @@ export var PLANE_DATA = {
     },
     { name:'Mabar',     title:'The Endless Night',
       type:'cyclic',
-      orbitYears: 1,     coterminousDays: 4, remoteDays: 0,
+      orbitYears: 1,     coterminousDays: 3, remoteDays: 0,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 12, anchorDay: 26,
       seedAnchor: true,
       seasonHint: 'winter solstice',
       associatedMoon: 'Sypheros',
       remoteOrbitYears: 5, remoteDaysSpecial: 5, remoteSeasonHint: 'summer solstice',
-      note: 'Long Shadows: coterminous for 3 nights each year — begins at sundown on Vult 26, ends at sunrise on Zarantyr 1 (4 calendar days, 3 nights centered on winter solstice). Remote for 5 days around the summer solstice (begins sunrise Nymm 25, ends sunset Lharvion 1), once every 5 years.',
+      note: 'Long Shadows: coterminous from sundown on Vult 26 until sunrise on Vult 28, centered on noon of Vult 27. Remote for 5 days around the summer solstice (begins sunrise Nymm 25, ends sunset Lharvion 1), once every 5 years.',
       effects: {
         coterminous: 'Necrotic Power encompasses the world and all light source radii are halved. In regions steeped in despair or misery, deep darkness can open gateways to Mabar, releasing shadows and other horrors. This manifests only at night and ends at dawn.',
         remote: 'All creatures gain resistance to necrotic damage. Undead have disadvantage on saves vs being turned or frightened.'
@@ -1533,7 +1533,6 @@ export function handlePlanesCommand(m, args){
     '<code>!cal planes clear [&lt;name&gt;]</code>'
   );
 }
-
 
 
 

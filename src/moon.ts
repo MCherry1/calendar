@@ -4,7 +4,7 @@ import { defaults, ensureSettings, getCal, titleCase } from './state.js';
 import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button, esc } from './rendering.js';
-import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey } from './time-of-day.js';
+import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper } from './commands.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
@@ -72,7 +72,7 @@ export var MOON_SYSTEMS = {
       { name:'Zarantyr', referenceMoon:_eberronMoonCore('Zarantyr').referenceMoon,  title:'The Storm Moon',    color:_eberronMoonCore('Zarantyr').color, associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
         synodicPeriod:27.32, diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,
         inclination:5.145, eccentricity:0.0549, albedo:0.12,
-        variation:{ shape:'random', amplitude:1.4 },
+        variation:null,
         epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} } },
 
       // ── OLARUNE ── The Sentinel Moon ───────────────────────────────
@@ -83,7 +83,7 @@ export var MOON_SYSTEMS = {
       { name:'Olarune', referenceMoon:_eberronMoonCore('Olarune').referenceMoon,   title:'The Sentinel Moon', color:_eberronMoonCore('Olarune').color, associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
         synodicPeriod:30.8052, diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,
         inclination:0.33, eccentricity:0.0288, albedo:0.22,
-        variation:{ shape:'random', amplitude:1.7 },
+        variation:null,
         epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── THERENDOR ── The Healer's Moon ─────────────────────────────
@@ -96,7 +96,7 @@ export var MOON_SYSTEMS = {
       { name:'Therendor', referenceMoon:_eberronMoonCore('Therendor').referenceMoon, title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
         synodicPeriod:34.7350, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
         inclination:0.03, eccentricity:0.0022, albedo:0.99,
-        variation:{ shape:'random', amplitude:1.2 },
+        variation:null,
         epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
 
       // ── EYRE ── The Anvil ──────────────────────────────────────────
@@ -108,7 +108,7 @@ export var MOON_SYSTEMS = {
       { name:'Eyre', referenceMoon:_eberronMoonCore('Eyre').referenceMoon,      title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
         synodicPeriod:39.1661, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
         inclination:1.53, eccentricity:0.0196, albedo:0.96,
-        variation:{ shape:'random', amplitude:1.0 },
+        variation:null,
         epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── DRAVAGO ── The Herder's Moon ───────────────────────────────
@@ -122,7 +122,7 @@ export var MOON_SYSTEMS = {
       { name:'Dravago', referenceMoon:_eberronMoonCore('Dravago').referenceMoon,   title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
         synodicPeriod:44.1625, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
         inclination:156.8, eccentricity:0.000016, albedo:0.76,
-        variation:{ shape:'random', amplitude:2.1 },
+        variation:null,
         epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── NYMM ── The Crown ──────────────────────────────────────────
@@ -136,7 +136,7 @@ export var MOON_SYSTEMS = {
       { name:'Nymm', referenceMoon:_eberronMoonCore('Nymm').referenceMoon,      title:'The Crown',         color:_eberronMoonCore('Nymm').color, associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
         synodicPeriod:49.7962, diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance,
         inclination:0.20, eccentricity:0.0013, albedo:0.43,
-        variation:{ shape:'random', amplitude:1.4 },
+        variation:null,
         epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
         nodePrecession:{ period:336, navigable:true } },
 
@@ -151,7 +151,7 @@ export var MOON_SYSTEMS = {
       { name:'Lharvion', referenceMoon:_eberronMoonCore('Lharvion').referenceMoon,  title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
         synodicPeriod:56.1487, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
         inclination:0.43, eccentricity:0.1230, albedo:0.30,
-        variation:{ shape:'random', amplitude:1.5 },
+        variation:null,
         epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
 
       // ── BARRAKAS ── The Lantern ────────────────────────────────────
@@ -165,7 +165,7 @@ export var MOON_SYSTEMS = {
       { name:'Barrakas', referenceMoon:_eberronMoonCore('Barrakas').referenceMoon,  title:'The Lantern',       color:_eberronMoonCore('Barrakas').color, associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
         synodicPeriod:63.3115, diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance,
         inclination:0.02, eccentricity:0.0047, albedo:1.375,
-        variation:{ shape:'random', amplitude:1.1 },
+        variation:null,
         epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} } },
 
       // ── RHAAN ── The Book ──────────────────────────────────────────
@@ -184,7 +184,7 @@ export var MOON_SYSTEMS = {
       { name:'Rhaan', referenceMoon:_eberronMoonCore('Rhaan').referenceMoon,     title:'The Book',          color:_eberronMoonCore('Rhaan').color, associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
         synodicPeriod:71.3881, diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance,
         inclination:4.34, eccentricity:0.0013, albedo:0.32,
-        variation:{ shape:'random', amplitude:1.9 },
+        variation:null,
         epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} } },
 
       // ── SYPHEROS ── The Shadow ─────────────────────────────────────
@@ -197,7 +197,7 @@ export var MOON_SYSTEMS = {
       { name:'Sypheros', referenceMoon:_eberronMoonCore('Sypheros').referenceMoon,  title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
         synodicPeriod:80.4950, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
         inclination:1.08, eccentricity:0.0151, albedo:0.071,
-        variation:{ shape:'random', amplitude:3.4 } },
+        variation:null },
 
       // ── ARYTH ── The Gateway ───────────────────────────────────────
       // Analog: Iapetus (Saturn). THE two-tone moon — leading hemisphere
@@ -212,7 +212,7 @@ export var MOON_SYSTEMS = {
       { name:'Aryth', referenceMoon:_eberronMoonCore('Aryth').referenceMoon,     title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
         synodicPeriod:90.7637, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
         inclination:7.57, eccentricity:0.0283, albedo:0.275,
-        variation:{ shape:'random', amplitude:2.4 },
+        variation:null,
         epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
 
       // ── VULT ── The Warding Moon ───────────────────────────────────
@@ -227,7 +227,7 @@ export var MOON_SYSTEMS = {
       { name:'Vult', referenceMoon:_eberronMoonCore('Vult').referenceMoon,      title:'The Warding Moon',  color:_eberronMoonCore('Vult').color, associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
         synodicPeriod:102.3424, diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance,
         inclination:0.07, eccentricity:0.0014, albedo:0.23,
-        variation:{ shape:'random', amplitude:2.8 },
+        variation:null,
         epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} } }
     ]
   },
@@ -249,7 +249,7 @@ export var MOON_SYSTEMS = {
       { name:'Selûne', title:'The Moonmaiden', color:'#C8D8F0', associatedMonth:null,
         synodicPeriod:30.4375, diameter:2000, distance:183000,
         inclination:5.1, eccentricity:0.054, albedo:0.25,
-        variation:{ shape:'random', amplitude:1.5 },
+        variation:null,
         epochSeed:{ defaultSeed:'selune', referenceDate:{year:1372,month:1,day:1} },
         loreNote:'Full at midnight Hammer 1, 1372 DR. Trailed by the Tears of Selûne. Associated with lycanthropy, divination, navigation, and tides.',
         deity:'Selûne' }
@@ -271,7 +271,7 @@ export var MOON_SYSTEMS = {
       { name:'Luna', title:'The Moon', color:'#DCDCDC', associatedMonth:null,
         synodicPeriod:29.53059, diameter:2159, distance:238855,
         inclination:5.14, eccentricity:0.0549, albedo:0.12,
-        variation:{ shape:'random', amplitude:0.5 },
+        variation:null,
         epochSeed:{ defaultSeed:'luna', referenceDate:{year:2021,month:1,day:28} },
         loreNote:'Earth\'s natural satellite. Synodic period 29.53 days. Governs tides and has inspired mythology across all human cultures.' }
     ]
@@ -464,7 +464,7 @@ export function _dN(serial, salt, sides){
 // ---------------------------------------------------------------------------
 // Each festival has a target date and phase. If any moon naturally has a
 // matching event within 1 day of that date, a d6 is rolled — on 6, the
-// event shifts to land exactly on the festival date. If nothing is within
+// event shifts to land exactly on the festival day's noon. If nothing is within
 // 1 day, nothing happens. No moon is favored over another.
 
 export var FESTIVAL_SOFT_ANCHORS = [
@@ -569,10 +569,8 @@ export function _moonYearDays(){
 
 export function _moonVariationStep(variation, cycleIndex, rng){
   // Returns signed day offset to add to synodicPeriod for this cycle.
-  // All standard moons use 'random': uniform roll in [-amp, +amp].
-  // This is a true random walk — can streak in one direction across
-  // multiple cycles, creating genuine drift that gives the smoothing
-  // engine cover and makes player predictions meaningfully uncertain.
+  // The shipped moon sets now use fixed periods; this remains available
+  // for future calendar systems that deliberately want intrinsic wobble.
   if (!variation) return 0;  // Allows a system to define a truly fixed moon if needed.
 
   var amp = variation.amplitude || 0;
@@ -585,12 +583,45 @@ export function _moonVariationStep(variation, cycleIndex, rng){
   return 0;
 }
 
+export function _serialDayMidpoint(serial){
+  return Math.floor(serial) + 0.5;
+}
+
+export function _solarTransitionSerial(serial, transition){
+  var solar = solarProfileForSerial(serial);
+  if (!solar) return Math.floor(serial);
+  var hour = (transition === 'sunset') ? solar.sunset : solar.sunrise;
+  return Math.floor(serial) + (hour / 24);
+}
+
+export function _edgeDayMidpointSerial(startSerial, endSerial, referenceSerial){
+  var startMid = _serialDayMidpoint(startSerial);
+  var endMid   = _serialDayMidpoint(endSerial);
+  return (Math.abs(referenceSerial - startMid) <= Math.abs(referenceSerial - endMid))
+    ? startMid
+    : endMid;
+}
+
+export function _phaseWindowDistance(serial, windowStart, windowEndExclusive){
+  if (serial < windowStart) return windowStart - serial;
+  if (serial >= windowEndExclusive) return serial - windowEndExclusive;
+  return 0;
+}
+
+export function _isFullMoonIllum(illum){
+  return illum >= MOON_FULL_THRESHOLD;
+}
+
+export function _isNewMoonIllum(illum){
+  return illum <= MOON_NEW_THRESHOLD;
+}
+
 // ---------------------------------------------------------------------------
 // 20d-ii) Festival soft nudge application
 // ---------------------------------------------------------------------------
 // For each festival, checks if ANY moon naturally has its target event within
-// 1 day of the festival date. If so, rolls d6 — only on 6, shifts that moon's
-// event to land exactly on the festival date. Simple, clean, no overreach.
+// 1 day of the festival's noon target. If so, rolls d6 — only on 6, shifts
+// that moon's event to land exactly at midday. Simple, clean, no overreach.
 
 export function _applyFestivalNudges(moons, ms, genFrom, genThru){
   var calStart = fromSerial(genFrom);
@@ -599,6 +630,7 @@ export function _applyFestivalNudges(moons, ms, genFrom, genThru){
     for (var fi = 0; fi < FESTIVAL_SOFT_ANCHORS.length; fi++){
       var fest = FESTIVAL_SOFT_ANCHORS[fi];
       var festSerial = toSerial(yr, (fest.month|0) - 1, fest.day|0);
+      var festTarget = _serialDayMidpoint(festSerial);
       if (festSerial < genFrom || festSerial > genThru) continue;
 
       // Roll d6: nudge only on 6 (16.7%)
@@ -612,7 +644,7 @@ export function _applyFestivalNudges(moons, ms, genFrom, genThru){
         for (var si = 0; si < seq.length; si++){
           if (seq[si].type !== fest.type) continue;
           if (seq[si].gmForced) continue;
-          var dist = Math.abs(seq[si].serial - festSerial);
+          var dist = Math.abs(seq[si].serial - festTarget);
           if (dist <= 1 && dist < bestDist){
             bestDist = dist;
             bestMoon = moons[mi].name;
@@ -621,10 +653,10 @@ export function _applyFestivalNudges(moons, ms, genFrom, genThru){
         }
       }
 
-      // Smooth to exact festival date over prior cycles
+      // Smooth to exact festival noon over prior cycles
       if (bestMoon && bestIdx >= 0){
         var bestSeq = ms.sequences[bestMoon];
-        _smoothToTarget(bestSeq, bestIdx, festSerial, 7);
+        _smoothToTarget(bestSeq, bestIdx, festTarget, 7);
         bestSeq[bestIdx].festivalNudge = fest.event;
         bestSeq.sort(function(a, b){ return a.serial - b.serial; });
       }
@@ -699,6 +731,86 @@ export function _applyAntiPhaseCoupling(ms, moonAName, moonBName, genFrom, genTh
   }
 
   seqB.sort(function(a, b){ return a.serial - b.serial; });
+}
+
+export function _collectPlanarPhaseWindows(planeName, phaseName, genFrom, genThru){
+  var windows = [];
+  var runStart = null;
+  var scanFrom = Math.floor(genFrom);
+  var scanThru = Math.ceil(genThru) + 1;
+
+  for (var serial = scanFrom; serial <= scanThru; serial++){
+    var state = getPlanarState(planeName, serial, { ignoreGenerated: true });
+    var active = !!(state && state.phase === phaseName);
+    if (active && runStart === null){
+      runStart = serial;
+    } else if (!active && runStart !== null){
+      windows.push({ startSerial: runStart, endSerial: serial - 1 });
+      runStart = null;
+    }
+  }
+
+  if (runStart !== null){
+    windows.push({ startSerial: runStart, endSerial: scanThru - 1 });
+  }
+  return windows;
+}
+
+function _windowHasExactPhase(seq, type, windowStart, windowEndExclusive){
+  for (var i = 0; i < seq.length; i++){
+    if (seq[i].type !== type) continue;
+    if (seq[i].serial >= windowStart && seq[i].serial < windowEndExclusive) return true;
+  }
+  return false;
+}
+
+function _nearestMutablePhaseForWindow(seq, type, windowStart, windowEndExclusive){
+  var bestIdx = null;
+  var bestDist = Infinity;
+  for (var i = 0; i < seq.length; i++){
+    if (seq[i].type !== type) continue;
+    if (seq[i].gmForced) continue;
+    var dist = _phaseWindowDistance(seq[i].serial, windowStart, windowEndExclusive);
+    if (dist < bestDist){
+      bestIdx = i;
+      bestDist = dist;
+    }
+  }
+  return bestIdx;
+}
+
+export function _applyAssociatedPlanePhaseShifts(moons, ms, genFrom, genThru){
+  var pulls = [
+    { type:'full', phase:'coterminous' },
+    { type:'new',  phase:'remote' }
+  ];
+
+  for (var mi = 0; mi < moons.length; mi++){
+    var moon = moons[mi];
+    if (!moon || !moon.plane) continue;
+    var seq = ms.sequences[moon.name];
+    if (!seq || !seq.length) continue;
+
+    for (var pi = 0; pi < pulls.length; pi++){
+      var pull = pulls[pi];
+      var windows = _collectPlanarPhaseWindows(moon.plane, pull.phase, genFrom, genThru);
+      for (var wi = 0; wi < windows.length; wi++){
+        var window = windows[wi];
+        var windowStart = window.startSerial;
+        var windowEndExclusive = window.endSerial + 1;
+        if (_windowHasExactPhase(seq, pull.type, windowStart, windowEndExclusive)) continue;
+
+        var nearestIdx = _nearestMutablePhaseForWindow(seq, pull.type, windowStart, windowEndExclusive);
+        if (nearestIdx === null) continue;
+
+        var targetSerial = _edgeDayMidpointSerial(window.startSerial, window.endSerial, seq[nearestIdx].serial);
+        _smoothToTarget(seq, nearestIdx, targetSerial, 7);
+        seq[nearestIdx].planarPhaseShift = moon.plane + ':' + pull.phase;
+      }
+    }
+
+    seq.sort(function(a, b){ return a.serial - b.serial; });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -896,13 +1008,19 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
 
   // --- Festival soft nudges (applied across all moons post-generation) ---
   // Festival soft nudges: if any moon has a full/new within 1 day of a
-  // published festival date, d6=6 shifts it to land exactly on the holiday.
+  // published festival noon, d6=6 shifts it to that midday anchor.
   _applyFestivalNudges(sys.moons, ms, genFrom, needThru);
 
   // --- Therendor–Barrakas weak anti-phase coupling ---
   // Weak restoring pull toward the lore-significant angle:
   // Therendor full more often coincides with Barrakas new.
   _applyAntiPhaseCoupling(ms, 'Therendor', 'Barrakas', genFrom, needThru);
+
+  // --- Associated plane phase pulls ---
+  // If a moon's associated plane has a canonical coterminous/remote window
+  // with no exact full/new peak inside it, pull the nearest exact peak onto
+  // the closest edge-day noon of that window.
+  _applyAssociatedPlanePhaseShifts(sys.moons, ms, genFrom, needThru);
 
   // Clear Long Shadows cache since moon data has changed
   _longShadowsCache = {};
@@ -941,6 +1059,21 @@ export function _moonPhaseAtRaw(moonName, serial){
 // Cache for Long Shadows claimed moons (one entry per year)
 export var _longShadowsCache = {};
 
+export function _longShadowsWindow(year){
+  var startDay = toSerial(year, 11, 26);
+  var endDay   = toSerial(year, 11, 28);
+  var start    = _solarTransitionSerial(startDay, 'sunset');
+  var end      = _solarTransitionSerial(endDay, 'sunrise');
+  return {
+    startSerial: start,
+    endSerial: end,
+    midpointSerial: (start + end) / 2,
+    midpointDaySerial: _serialDayMidpoint(toSerial(year, 11, 27)),
+    startDaySerial: startDay,
+    endDaySerial: endDay
+  };
+}
+
 // Compute which moons Long Shadows claims for a given year.
 //
 // Long Shadows is canonically both "the new moon closest to the winter
@@ -950,9 +1083,9 @@ export var _longShadowsCache = {};
 // sequence — not a display override.
 //
 // Tapered gobble zone for secondary moons:
-//   1. Find the nearest new moon to Vult 27 across all moons.
-//   2. That closest moon is always claimed and smoothed to Vult 27.
-//   3. Based on the closest moon's natural distance from Vult 27:
+//   1. Find the nearest new moon to the exact midpoint of Long Shadows.
+//   2. That closest moon is always claimed and smoothed to that midpoint.
+//   3. Based on the closest moon's natural distance from that midpoint:
 //      - Distance 0: gobble radius = ±3 days
 //      - Distance 1: gobble radius = ±2 days
 //      - Distance ≥2: gobble radius = ±1 day
@@ -967,9 +1100,10 @@ export function _longShadowsClaimedMoons(year){
   if (!sys || !sys.moons){ _longShadowsCache[year] = []; return []; }
   moonEnsureSequences();
 
-  var vult27 = toSerial(year, 11, 27); // month 11 = Vult (0-indexed), day 27
+  var window = _longShadowsWindow(year);
+  var midpoint = window.midpointSerial;
 
-  // For each moon, find its nearest new-type event to Vult 27.
+  // For each moon, find its nearest new-type event to the exact midpoint.
   var candidates = [];
   for (var i = 0; i < sys.moons.length; i++){
     var moon = sys.moons[i];
@@ -978,7 +1112,7 @@ export function _longShadowsClaimedMoons(year){
 
     for (var j = 0; j < seq.length; j++){
       if (seq[j].type !== 'new') continue;
-      var dist = seq[j].serial - vult27;
+      var dist = seq[j].serial - midpoint;
       if (Math.abs(dist) <= 20){
         candidates.push({ name: moon.name, seqIdx: j, newSerial: seq[j].serial, signedDist: dist, absDist: Math.abs(dist) });
       }
@@ -987,17 +1121,17 @@ export function _longShadowsClaimedMoons(year){
 
   if (!candidates.length){ _longShadowsCache[year] = []; return []; }
 
-  // Sort by absolute distance to Vult 27
+  // Sort by absolute distance to the exact midpoint of Long Shadows.
   candidates.sort(function(a, b){ return a.absDist - b.absDist; });
 
-  // The closest moon is always claimed — smooth its new moon to Vult 27
+  // The closest moon is always claimed — smooth its new moon to the midpoint.
   var primary = candidates[0];
-  var claimed = [{ name: primary.name, seqIdx: primary.seqIdx }];
+  var claimed = [primary.name];
 
-  // Smooth the primary moon's new event to Vult 27
+  // Smooth the primary moon's new event to the midpoint of Long Shadows.
   var primarySeq = getMoonState().sequences[primary.name];
   if (primarySeq && primary.seqIdx < primarySeq.length){
-    _smoothToTarget(primarySeq, primary.seqIdx, vult27, 7);
+    _smoothToTarget(primarySeq, primary.seqIdx, midpoint, 7);
     primarySeq[primary.seqIdx].longShadowsClaimed = true;
     primarySeq.sort(function(a, b){ return a.serial - b.serial; });
   }
@@ -1010,42 +1144,43 @@ export function _longShadowsClaimedMoons(year){
   else if (closestAbsDist <= 1) gobbleRadius = 2;
   else gobbleRadius = 1;
 
-  // Secondary moons within gobble radius are also claimed AND smoothed
+  // Secondary moons within gobble radius are also claimed AND smoothed.
   for (var k = 1; k < candidates.length; k++){
     var c = candidates[k];
     var alreadyClaimed = false;
     for (var ac = 0; ac < claimed.length; ac++){
-      if (claimed[ac].name === c.name){ alreadyClaimed = true; break; }
+      if (claimed[ac] === c.name){ alreadyClaimed = true; break; }
     }
     if (alreadyClaimed) continue;
     if (c.absDist <= gobbleRadius){
-      claimed.push({ name: c.name, seqIdx: c.seqIdx });
-      // Smooth this secondary moon's new event to Vult 27 too
+      claimed.push(c.name);
+      // Smooth this secondary moon's new event to the midpoint too.
       var secSeq = getMoonState().sequences[c.name];
       if (secSeq && c.seqIdx < secSeq.length){
-        _smoothToTarget(secSeq, c.seqIdx, vult27, 5);
+        _smoothToTarget(secSeq, c.seqIdx, midpoint, 5);
         secSeq[c.seqIdx].longShadowsClaimed = true;
         secSeq.sort(function(a, b){ return a.serial - b.serial; });
       }
     }
   }
 
-  var claimedNames = [];
-  for (var cn = 0; cn < claimed.length; cn++) claimedNames.push(claimed[cn].name);
-  _longShadowsCache[year] = claimedNames;
+  _longShadowsCache[year] = claimed;
   return claimed;
 }
 
 // Check if a moon is in the Long Shadows window and claimed by Mabar
 export function _isLongShadowsOverride(moonName, serial){
-  // Long Shadows = Vult 26-28 (month index 11, days 26-28 in 1-indexed)
-  var cal = fromSerial(serial);
+  var wholeDay = Math.floor(serial);
+  var cal = fromSerial(wholeDay);
   if (cal.mi !== 11) return false; // not Vult
   if (cal.day < 26 || cal.day > 28) return false;
 
+  var window = _longShadowsWindow(cal.year);
+  if (serial < window.startSerial || serial >= window.endSerial) return false;
+
   // Check that Mabar is actually coterminous (respects GM overrides and anchors)
   try {
-    var mabarState = getPlanarState('Mabar', serial);
+    var mabarState = getPlanarState('Mabar', wholeDay);
     if (!mabarState || mabarState.phase !== 'coterminous') return false;
   } catch(e){ return false; }
 
@@ -1058,8 +1193,9 @@ export function _isLongShadowsOverride(moonName, serial){
 
 // Public moonPhaseAt — applies Long Shadows override when active
 export function moonPhaseAt(moonName, serial): any {
-  // Long Shadows safety net: smoothing moves the new moon to Vult 27 in the
-  // sequence, so interpolation should naturally give ~0.0 illumination.
+  // Long Shadows safety net: smoothing moves the new moon to the exact
+  // midpoint of the event window, so interpolation should naturally give
+  // ~0.0 illumination.
   // This override ensures exactly 0.0 and sets the longShadows flag for display.
   if (_isLongShadowsOverride(moonName, serial)){
     return { illum: 0.0, waxing: false, longShadows: true };
@@ -1072,32 +1208,40 @@ export function moonPhaseAt(moonName, serial): any {
 // rounding fractional serials to the nearest integer day. This ensures
 // exactly one "full" and one "new" report per synodic cycle.
 // Returns 'full', 'new', or null for a given moon on a given day.
-// Uses illumination thresholds (>=98% = full, <=2% = new) so moons with
+// Uses illumination thresholds so moons with
 // longer synodic periods can be full or new for multiple consecutive days.
 export function _moonPeakPhaseDay(moonName, serial){
   var ph = _moonPhaseAtRaw(moonName, serial);
   if (!ph) return null;
-  if (ph.illum >= MOON_FULL_THRESHOLD) return 'full';
-  if (ph.illum <= MOON_NEW_THRESHOLD)  return 'new';
+  if (_isFullMoonIllum(ph.illum)) return 'full';
+  if (_isNewMoonIllum(ph.illum))  return 'new';
   return null;
 }
 
-export var MOON_FULL_THRESHOLD = 0.98;
-export var MOON_NEW_THRESHOLD = 0.02;
+export var MOON_TARGET_FULL_DAYS_PER_28 = 19;
+
+export function _phaseThresholdForCoverage(targetDays, monthDays, moonCount){
+  var desiredCoverage = targetDays / monthDays;
+  var perMoonCoverage = 1 - Math.pow(1 - desiredCoverage, 1 / moonCount);
+  return 0.5 * (1 + Math.cos(perMoonCoverage * Math.PI));
+}
+
+export var MOON_FULL_THRESHOLD = _phaseThresholdForCoverage(MOON_TARGET_FULL_DAYS_PER_28, 28, 12);
+export var MOON_NEW_THRESHOLD = 1 - MOON_FULL_THRESHOLD;
 
 export function _moonPhaseLabel(illum, waxing){
-  if (illum >= MOON_FULL_THRESHOLD) return 'Full';
+  if (_isFullMoonIllum(illum)) return 'Full';
   if (illum >= 0.55) return (waxing ? 'Waxing' : 'Waning') + ' Gibbous';
   if (illum >= 0.45) return (waxing ? 'First' : 'Last')    + ' Quarter';
-  if (illum >= MOON_NEW_THRESHOLD) return (waxing ? 'Waxing' : 'Waning') + ' Crescent';
+  if (!_isNewMoonIllum(illum)) return (waxing ? 'Waxing' : 'Waning') + ' Crescent';
   return 'New';
 }
 
 export function _moonPhaseEmoji(illum, waxing){
-  if (illum >= MOON_FULL_THRESHOLD) return '\uD83C\uDF15';   // 🌕 Full
+  if (_isFullMoonIllum(illum)) return '\uD83C\uDF15';   // 🌕 Full
   if (illum >= 0.55) return waxing ? '\uD83C\uDF14' : '\uD83C\uDF16';  // 🌔 🌖 Gibbous
   if (illum >= 0.45) return waxing ? '\uD83C\uDF13' : '\uD83C\uDF17';  // 🌓 🌗 Quarter
-  if (illum >= MOON_NEW_THRESHOLD) return waxing ? '\uD83C\uDF12' : '\uD83C\uDF18';  // 🌒 🌘 Crescent
+  if (!_isNewMoonIllum(illum)) return waxing ? '\uD83C\uDF12' : '\uD83C\uDF18';  // 🌒 🌘 Crescent
   return '\uD83C\uDF11';  // 🌑 New
 }
 
@@ -1164,6 +1308,9 @@ export var MOON_SOURCE_LABELS = {
 // `d` = actual days until event, `period` = synodic period,
 // `amplitude` = variation amplitude in days, `seed` = deterministic seed.
 export function _moonPredictionWindow(d, period, amplitude, seed){
+  if (!(amplitude > 0)){
+    return { lo: d, hi: d };
+  }
   // How many full cycles of drift remain between now and the event?
   var remainingCycles = Math.max(0.1, d / period);
   // Random walk: potential drift ≈ amplitude × √(remaining_cycles)
@@ -1399,10 +1546,10 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
 
 // Phase-to-color mapping for single-moon cells.
 export function _moonPhaseCellColor(illum){
-  if (illum >= MOON_FULL_THRESHOLD) return '#FFD700';  // gold for full
+  if (_isFullMoonIllum(illum)) return '#FFD700';  // gold for full
   if (illum >= 0.55)  return '#B0A060';  // warm grey-gold for gibbous
   if (illum >= 0.45)  return '#808080';  // grey for quarter
-  if (illum >= MOON_NEW_THRESHOLD) return '#505050';  // dark grey for crescent
+  if (!_isNewMoonIllum(illum)) return '#505050';  // dark grey for crescent
   return '#222222';                                     // near-black for new
 }
 
@@ -2737,9 +2884,9 @@ export function tidalLabel(index){
 // ---------------------------------------------------------------------------
 // 20m) Long Shadows — Mabar pulls the nearest moon(s) into darkness
 // ---------------------------------------------------------------------------
-// During Vult 26-28, Mabar's coterminous period forces the nearest moon(s)
+// During Long Shadows, Mabar's coterminous period forces the nearest moon(s)
 // to new phase. Uses a tapered gobble zone: the closer the nearest new moon
-// is to Vult 27, the wider the search for additional moons to claim.
+// is to the window midpoint, the wider the search for additional moons to claim.
 // See _longShadowsClaimedMoons() for the full algorithm.
 //
 // Core logic lives above moonPhaseAt since it reads sequences directly
@@ -3141,9 +3288,8 @@ export function _generatedEventStartsOnDay(planeName, serial){
       var moonPh = moonPhaseAt(profile.moonName, serial);
       if (!moonPh) return null;
 
-      // Full: illum >= 0.97. New: illum < 0.03.
-      var isFull = (moonPh.illum >= 0.97);
-      var isNew  = (moonPh.illum < 0.03);
+      var isFull = _isFullMoonIllum(moonPh.illum);
+      var isNew  = _isNewMoonIllum(moonPh.illum);
       if (!isFull && !isNew) return null;
 
       // Roll the moon die (d20 death saving throw)
@@ -3170,8 +3316,8 @@ export function _generatedEventStartsOnDay(planeName, serial){
     try {
       var hmMoonPh = moonPhaseAt(profile.moonName, serial);
       if (hmMoonPh){
-        var hmIsFull = (hmMoonPh.illum >= 0.97);
-        var hmIsNew  = (hmMoonPh.illum < 0.03);
+        var hmIsFull = _isFullMoonIllum(hmMoonPh.illum);
+        var hmIsNew  = _isNewMoonIllum(hmMoonPh.illum);
         if (hmIsFull || hmIsNew){
           // Moon-qualified day: roll the moon die
           var hmMoonRoll = _dN(serial, salt + '_hmoon', profile.moonDie);
@@ -3734,7 +3880,3 @@ export function handleMoonCommand(m, args){
     '<code>!cal moon reset [&lt;name&gt;]</code>'
   );
 }
-
-
-
-
