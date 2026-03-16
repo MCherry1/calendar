@@ -1,5 +1,7 @@
 # WotC Calendar Tool Reference
 
+> Reference-only note for coding agents: this document is preserved as historical/source-comparison material only. Do not treat it as an implementation guide, authoritative behavior spec, or migration target for this repository unless a human explicitly asks for that comparison work.
+
 This document is a structured reference for the provided Wizards of the Coast Eberron Cosmology / Calendar Tool HTML + JavaScript source.
 
 It focuses on the script's parameters in four practical groups:
@@ -360,4 +362,3 @@ If you only need the operational parameters at a glance, these are the key ones:
 - Planar lookup record: orbit length, coterminous/remote length, current point, starting point, condition, status
 - Lunar lookup record: moon index, orbit length, offset, phase percentage bands
 - Display selector arguments: plane index, moon index, control state, DOM target id
-
