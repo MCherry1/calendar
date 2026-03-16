@@ -95,6 +95,28 @@ then it lists our initialization message that happens when the API loads.
 * rows are not shown if the system is not enabled. admin can enable systems.
 * when you click the button for 3-5 it shows the minical for the current month.
 * ALSO MAJOR BUG ON MOONS AND PLANES DETAIL VIEW. cell builder is all broken.
+* Weather view should show forecast by default.
+	* buttons underneath should be row 1) Send | Reveal Forecast, row 2) mechanics, row 3) management
+	* Management should be
+		* Reroll Today | Reroll All
+		* History
+			* History Should use the same forecast display, not a list.
+		* Set Location
+		* Set Manifest Zone
+	* Reveal Forecast should be 2 rows, one for Medium, One for High, with 1 3 6 10 day buttons
+	* Send sends currently known forecast obvs
+	* Mechanics needs a cleaner presentation. also.. is the rolling totally broken? please audit. I'm seeing snow in the swamp
+		* Above table, general forecast. Cold and snowy, etc.
+		* Presentation is table, 7 rows (one is header), 4 columns (Time is clickable buttons)
+		* Time, Temp, Prec., Wind
+		* Use number scale.
+		* "Hover Time to Show"
+		* Hovering time of day field lists bullet point mechanics active during that bucket.
+		* Hovering over nighttiume bucket includes the lighting active.
+			* Lighting is okay, but the in shadow part should be as prominent as the "Bright Moonlight" part.
+			* Love the sourcing. Does the percentages refer to the % of light coming from each source? They should. Just top 3 needed.
+				* Primary Sources: Zarantyr (45%), Olarune (35%), Therendor (10%)
+				* Reduced by Clouds (x15%)
 * 
 ### Many-Worlds Platform Refactor — Phase 1: World Definition Types
 
