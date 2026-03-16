@@ -5,7 +5,7 @@ import { freshInstall } from "./helpers.js";
 import { todaySerial } from "../src/date-math.js";
 import {
   MOON_SYSTEMS, _moonHashStr, _moonPrng, _eberronMoonCore,
-  moonEnsureSequences, moonPhaseAt,
+  moonEnsureSequences, moonPhaseAt, _applyAntiPhaseCoupling,
   nighttimeLightCondition, nighttimeLux,
   _diskOverlapFraction, _eclipseTimeBlock, _eclipseLifecycleText,
   _eclipseNotableToday, getEclipses, getMoonState, handleMoonCommand
@@ -63,6 +63,30 @@ describe("Moon System", () => {
       const phase = moonPhaseAt(m.name, today);
       assert(phase !== undefined && phase !== null, `${m.name} phase`);
     }
+  });
+
+  it("weak anti-phase coupling nudges Barrakas toward Therendor's opposite phase", () => {
+    freshInstall();
+    const ms: any = {
+      sequences: {
+        Therendor: [
+          { serial: 8, type: "new", retro: false },
+          { serial: 42, type: "full", retro: false },
+          { serial: 59, type: "new", retro: false }
+        ],
+        Barrakas: [
+          { serial: 29, type: "full", retro: false },
+          { serial: 45, type: "new", retro: false }
+        ]
+      }
+    };
+
+    _applyAntiPhaseCoupling(ms, "Therendor", "Barrakas", 0, 80);
+
+    assert(Math.abs(ms.sequences.Barrakas[0].serial - 28.4) < 0.0001);
+    assert(Math.abs(ms.sequences.Barrakas[1].serial - 44.4) < 0.0001);
+    assert(ms.sequences.Barrakas[0].antiPhaseCoupled, "full should be marked as coupled");
+    assert(ms.sequences.Barrakas[1].antiPhaseCoupled, "new should be marked as coupled");
   });
 
   it("player single-moon view respects reveal horizon", () => {

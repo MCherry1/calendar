@@ -81,7 +81,7 @@ export var MOON_SYSTEMS = {
       // view: the sentinel who watches unseen. Low inclination, steady.
       // Real Titan: ecc 0.0288, inc 0.33°, albedo 0.22.
       { name:'Olarune', referenceMoon:_eberronMoonCore('Olarune').referenceMoon,   title:'The Sentinel Moon', color:_eberronMoonCore('Olarune').color, associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
-        synodicPeriod:34.0, diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,
+        synodicPeriod:30.8052, diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,
         inclination:0.33, eccentricity:0.0288, albedo:0.22,
         variation:{ shape:'random', amplitude:1.7 },
         epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} } },
@@ -94,7 +94,7 @@ export var MOON_SYSTEMS = {
       // to order. Bright reflective ice = gentle healing light.
       // Real Dione: ecc 0.0022, inc 0.03°, albedo 0.99.
       { name:'Therendor', referenceMoon:_eberronMoonCore('Therendor').referenceMoon, title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
-        synodicPeriod:24.0, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
+        synodicPeriod:34.7350, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
         inclination:0.03, eccentricity:0.0022, albedo:0.99,
         variation:{ shape:'random', amplitude:1.2 },
         epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
@@ -106,7 +106,7 @@ export var MOON_SYSTEMS = {
       // Titan/Olarune → nature feeds the forge.
       // Real Mimas: ecc 0.0196, inc 1.53°, albedo 0.96.
       { name:'Eyre', referenceMoon:_eberronMoonCore('Eyre').referenceMoon,      title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
-        synodicPeriod:21.0, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
+        synodicPeriod:39.1661, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
         inclination:1.53, eccentricity:0.0196, albedo:0.96,
         variation:{ shape:'random', amplitude:1.0 },
         epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
@@ -120,7 +120,7 @@ export var MOON_SYSTEMS = {
       // Largest moon by diameter. Lavender = planar tint over ice.
       // Real Triton: ecc 0.000016, inc 156.8°, albedo 0.76.
       { name:'Dravago', referenceMoon:_eberronMoonCore('Dravago').referenceMoon,   title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
-        synodicPeriod:42.0, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
+        synodicPeriod:44.1625, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
         inclination:156.8, eccentricity:0.000016, albedo:0.76,
         variation:{ shape:'random', amplitude:2.1 },
         epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
@@ -134,7 +134,7 @@ export var MOON_SYSTEMS = {
       // Gold = Daanvi's planar influence, not geology.
       // Real Ganymede: ecc 0.0013, inc 0.20°, albedo 0.43.
       { name:'Nymm', referenceMoon:_eberronMoonCore('Nymm').referenceMoon,      title:'The Crown',         color:_eberronMoonCore('Nymm').color, associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
-        synodicPeriod:28.0, diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance,
+        synodicPeriod:49.7962, diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance,
         inclination:0.20, eccentricity:0.0013, albedo:0.43,
         variation:{ shape:'random', amplitude:1.4 },
         epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
@@ -149,7 +149,7 @@ export var MOON_SYSTEMS = {
       // Dull white with 750-mile black chasm → the Eye.
       // Real Hyperion: ecc 0.1230, inc 0.43°, albedo 0.30.
       { name:'Lharvion', referenceMoon:_eberronMoonCore('Lharvion').referenceMoon,  title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
-        synodicPeriod:30.0, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
+        synodicPeriod:56.1487, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
         inclination:0.43, eccentricity:0.1230, albedo:0.30,
         variation:{ shape:'random', amplitude:1.5 },
         epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
@@ -163,7 +163,7 @@ export var MOON_SYSTEMS = {
       // gives it supernatural brightness. Slight ecc for gentle pulsing.
       // Real Enceladus: ecc 0.0047, inc 0.02°, albedo 1.375.
       { name:'Barrakas', referenceMoon:_eberronMoonCore('Barrakas').referenceMoon,  title:'The Lantern',       color:_eberronMoonCore('Barrakas').color, associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
-        synodicPeriod:22.0, diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance,
+        synodicPeriod:63.3115, diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance,
         inclination:0.02, eccentricity:0.0047, albedo:1.375,
         variation:{ shape:'random', amplitude:1.1 },
         epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} } },
@@ -182,21 +182,20 @@ export var MOON_SYSTEMS = {
       // ancient stone. The Book carries every story on its skin.
       // Real Miranda: ecc 0.0013, inc 4.34°, albedo 0.32.
       { name:'Rhaan', referenceMoon:_eberronMoonCore('Rhaan').referenceMoon,     title:'The Book',          color:_eberronMoonCore('Rhaan').color, associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
-        synodicPeriod:37.0, diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance,
+        synodicPeriod:71.3881, diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance,
         inclination:4.34, eccentricity:0.0013, albedo:0.32,
         variation:{ shape:'random', amplitude:1.9 },
         epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} } },
 
       // ── SYPHEROS ── The Shadow ─────────────────────────────────────
-      // Analog: Phoebe (Saturn). Dark captured body in RETROGRADE orbit
-      // (175.3° inclination = effectively 4.7° backward). Albedo 0.06:
-      // coal-dark, nearly invisible. Phobos (Mars) — the closest,
-      // fastest moon. Named after the god of fear. Tidally decaying
-      // orbit = inevitably drawn into destruction. Shadow consumes.
-      // Low inclination, near-circular, dark albedo. Mabar = Endless Night.
+      // Analog: Phobos (Mars). The closest and fastest martian moon —
+      // dark, small, and named for fear itself. Its tidally decaying
+      // orbit suggests a body already being consumed, which fits Mabar's
+      // entropy. Low-inclination prograde orbit, modest eccentricity,
+      // and very dark albedo keep it ominous without making it backward.
       // Real Phobos: ecc 0.0151, inc 1.08°, albedo 0.071.
       { name:'Sypheros', referenceMoon:_eberronMoonCore('Sypheros').referenceMoon,  title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
-        synodicPeriod:67.0, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
+        synodicPeriod:80.4950, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
         inclination:1.08, eccentricity:0.0151, albedo:0.071,
         variation:{ shape:'random', amplitude:3.4 } },
 
@@ -208,10 +207,10 @@ export var MOON_SYSTEMS = {
       // inclination of any regular Saturnian moon (7.57°) → sees both
       // extremes of the sky. Walnut-shaped. Dark reddish-brown leading
       // side matches #FF4500 burnt orange-red. Coated in dark material
-      // shed by Phoebe/Sypheros: the Shadow marks the Gateway.
+      // shed by Sypheros: the Shadow marks the Gateway.
       // Real Iapetus: ecc 0.0283, inc 7.57°, albedo 0.275 (averaged; not tidally locked, both faces visible).
       { name:'Aryth', referenceMoon:_eberronMoonCore('Aryth').referenceMoon,     title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
-        synodicPeriod:48.0, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
+        synodicPeriod:90.7637, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
         inclination:7.57, eccentricity:0.0283, albedo:0.275,
         variation:{ shape:'random', amplitude:2.4 },
         epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
@@ -226,7 +225,7 @@ export var MOON_SYSTEMS = {
       // = disciplined, unwavering patrol. Gray with reddish tint.
       // Real Oberon: ecc 0.0014, inc 0.07°, albedo 0.23.
       { name:'Vult', referenceMoon:_eberronMoonCore('Vult').referenceMoon,      title:'The Warding Moon',  color:_eberronMoonCore('Vult').color, associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
-        synodicPeriod:56.0, diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance,
+        synodicPeriod:102.3424, diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance,
         inclination:0.07, eccentricity:0.0014, albedo:0.23,
         variation:{ shape:'random', amplitude:2.8 },
         epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} } }
@@ -292,47 +291,47 @@ export var MOON_LORE = {
   },
   Olarune: {
     blurb: "The Sentinel Moon glows with a warm amber light. Druids and rangers watch Olarune closely, as its phases are tied to the rhythms of the natural world. Associated with Lamannia, the Twilight Forest, and the Mark of Sentinel borne by House Deneith.",
-    orbit: "Second closest. ~34-day cycle. Analog: Titan. Low inclination, steady orbit — the sentinel watches from behind an orange haze."
+    orbit: "Second closest. ~31-day cycle. Analog: Titan. Low inclination, steady orbit — the sentinel watches from behind an orange haze."
   },
   Therendor: {
     blurb: "The Healer's Moon shines with a soft silver light. Healers and midwives track its phases, and some hospitals time treatments to its cycle. Associated with Syrania, the Azure Sky, and the Mark of Healing borne by House Jorasco.",
-    orbit: "Third orbit. ~24-day cycle. Analog: Europa. Gentle, bright, and reliable — the healer's calm exterior hides depth beneath."
+    orbit: "Third orbit. ~35-day cycle. Analog: Europa. Gentle, bright, and reliable — the healer's calm exterior hides depth beneath."
   },
   Eyre: {
     blurb: "The Anvil gleams like heated steel. Artificers and smiths consider it auspicious to begin major works when Eyre is full. Its brightness visibly pulses as it speeds and slows in its eccentric orbit — like a forge breathing through bellows. Associated with Fernia, the Sea of Fire, and the Mark of Making borne by House Cannith.",
-    orbit: "Fourth orbit. ~21-day cycle — the fastest moon. Analog: Hyperion. Highest eccentricity of the regular moons — brightness swings ~56% from near to far. Chaotic tumbler: never shows the same face twice."
+    orbit: "Fourth orbit. ~39-day cycle. Analog: Hyperion. Highest eccentricity of the regular moons — brightness swings ~56% from near to far. Chaotic tumbler: never shows the same face twice."
   },
   Dravago: {
     blurb: "The Herder's Moon is the largest moon by diameter, though its great distance makes it appear modest. Farmers and herders watch it for seasonal guidance. Its orbit is the most perfectly circular of all twelve moons — an unchanging, frozen path. Associated with Risia, the Plain of Ice, and the Mark of Handling borne by House Vadalis.",
-    orbit: "Fifth orbit. ~42-day cycle. Analog: Tethys. The most circular orbit of any moon — near-zero eccentricity. Pure ice, extremely bright. Frozen stillness."
+    orbit: "Fifth orbit. ~44-day cycle. Analog: Tethys. The most circular orbit of any moon — near-zero eccentricity. Pure ice, extremely bright. Frozen stillness."
   },
   Nymm: {
     blurb: "The Crown shines with a golden light. It is considered the most auspicious moon for celebrations, feasts, and acts of hospitality. It is the only moon with its own sovereign authority — an invisible shield that answers to no other. Associated with Daanvi, the Perfect Order, and the Mark of Hospitality borne by House Ghallanda.",
-    orbit: "Sixth orbit. Precise 28-day cycle — the most regular of all moons. Analog: Ganymede. Near-perfect circle, near-equatorial. In mathematical resonance with Therendor and Eyre."
+    orbit: "Sixth orbit. Roughly 50-day cycle — steadier than most, but not perfectly fixed. Analog: Ganymede. Near-perfect circle, near-equatorial. In mathematical resonance with Therendor and Eyre."
   },
   Lharvion: {
     blurb: "The Eye is the most unsettling moon. It sometimes appears to move backward, and its phases do not follow any predictable pattern. Its orbit is the most extreme of any moon — swinging from terrifyingly close and bright to nearly vanishing at the edge of sight. Seers and inquisitives study it, but few claim to understand it. Associated with Xoriat, the Realm of Madness, and the Mark of Detection borne by House Medani.",
-    orbit: "Seventh orbit. Nominally ~30-day cycle, but truly erratic. Analog: Nereid. Most eccentric orbit of any known moon — 7x distance swing. Backward motion, sudden jumps, and doubled phases have all been recorded."
+    orbit: "Seventh orbit. Nominally ~56-day cycle, but truly erratic. Analog: Nereid. Most eccentric orbit of any known moon — 7x distance swing. Backward motion, sudden jumps, and doubled phases have all been recorded."
   },
   Barrakas: {
     blurb: "The Lantern glows with a steady pale light brighter than any other moon — brighter, in fact, than physics should allow, reflecting more light than falls upon it. Travelers and explorers consider it a guide, and it is said that those who search by the light of Barrakas will find what they seek. Associated with Irian, the Eternal Dawn, and the Mark of Finding borne by House Tharashk.",
-    orbit: "Eighth orbit. ~22-day cycle. Analog: Enceladus. Brightest body in the sky — geometric albedo exceeds 1.0. Near-equatorial orbit lights all latitudes equally."
+    orbit: "Eighth orbit. ~63-day cycle. Analog: Enceladus. Brightest body in the sky — geometric albedo exceeds 1.0. Near-equatorial orbit lights all latitudes equally."
   },
   Rhaan: {
     blurb: "The Book shines with a blue-white light. Scholars and scribes hold it sacred, and the greatest works of literature are said to have been composed under its light. Its surface is a patchwork of mismatched terrain — as if pages from different books were stitched together. A great cliff, the tallest in all the heavens, marks where one story ends and another begins. Associated with Thelanis, the Faerie Court, and the Mark of Scribing borne by House Sivis.",
-    orbit: "Ninth orbit. ~37-day cycle. Analog: Miranda. Nearly circular now, but once tumbled chaotically — every story of that violent past is written on its scarred face. Named for a character in a play."
+    orbit: "Ninth orbit. ~71-day cycle. Analog: Miranda. Nearly circular now, but once tumbled chaotically — every story of that violent past is written on its scarred face. Named for a character in a play."
   },
   Sypheros: {
-    blurb: "The Shadow is a dark, dim moon that is difficult to see even when full. It is associated with secrets, espionage, and hidden knowledge. It orbits BACKWARD — against the motion of all other moons — a captured wanderer that spreads darkness wherever it goes. The dark material that stains the Gateway's face is shed by the Shadow. Associated with Mabar, the Endless Night, and the Mark of Shadow borne by House Phiarlan and House Thuranni.",
-    orbit: "Tenth orbit. ~67-day cycle — the slowest moon. Analog: Phoebe. Retrograde orbit, coal-dark (albedo 0.06), notable eccentricity. Source of darkness coating Aryth."
+    blurb: "The Shadow is a dark, dim moon that is difficult to see even when full. It is associated with secrets, espionage, and hidden knowledge. It circles low and close, like a moon already being pulled toward ruin, and the dark material that stains the Gateway's face is shed by the Shadow. Associated with Mabar, the Endless Night, and the Mark of Shadow borne by House Phiarlan and House Thuranni.",
+    orbit: "Tenth orbit. ~80-day cycle. Analog: Phobos. Low-inclination prograde orbit, modest eccentricity, coal-dark albedo. Source of darkness coating Aryth."
   },
   Aryth: {
     blurb: "The Gateway burns with a deep orange-red light. It is associated with death, transition, and passage between worlds. One face is coal-black, the other bright — a literal threshold between light and darkness. A great ridge circles its equator like a doorframe between realms. The Aereni elves track Aryth closely, and funeral rites are often timed to its phases. Associated with Dolurrh, the Realm of the Dead, and the Mark of Passage borne by House Orien.",
-    orbit: "Eleventh orbit. ~48-day cycle. Analog: Iapetus. Two-tone surface (dark leading, bright trailing). Highest inclination of regular moons (7.57°) — sees both extremes."
+    orbit: "Eleventh orbit. ~91-day cycle. Analog: Iapetus. Two-tone surface (dark leading, bright trailing). Highest inclination of regular moons (7.57°) — sees both extremes."
   },
   Vult: {
     blurb: "The Warding Moon is the farthest and slowest of the twelve moons. It is associated with protection and defense, and its full moons are considered times of safety. Its surface bears the scars of endless bombardment — every crater a battle fought and survived. A great mountain rises from its surface like a fortress on the frontier. During Long Shadows, when Mabar is coterminous, even Vult's protective light may be swallowed by darkness. Associated with Shavarath, the Battleground, and the Mark of Warding borne by House Kundarak.",
-    orbit: "Outermost orbit. ~56-day cycle. Analog: Oberon. Near-perfect circle, near-equatorial — disciplined, unwavering patrol. Named for a warrior-king. Its light is a ward against darkness."
+    orbit: "Outermost orbit. ~102-day cycle. Analog: Oberon. Near-perfect circle, near-equatorial — disciplined, unwavering patrol. Named for a warrior-king. Its light is a ward against darkness."
   }
 };
 
@@ -574,7 +573,7 @@ export function _moonVariationStep(variation, cycleIndex, rng){
   // This is a true random walk — can streak in one direction across
   // multiple cycles, creating genuine drift that gives the smoothing
   // engine cover and makes player predictions meaningfully uncertain.
-  if (!variation) return 0;  // Nymm: exact 28-day cycles
+  if (!variation) return 0;  // Allows a system to define a truly fixed moon if needed.
 
   var amp = variation.amplitude || 0;
 
@@ -636,10 +635,28 @@ export function _applyFestivalNudges(moons, ms, genFrom, genThru){
 // ---------------------------------------------------------------------------
 // 20d-iii) Weak anti-phase coupling
 // ---------------------------------------------------------------------------
-// Soft statistical nudge between two moons: when moonA has a full event near
-// moonB's full event (within 3 days), shift moonB's event +1 day away.
-// Same for new events. This creates a weak tendency for the moons to be
-// out of phase without hard-locking them.
+// Soft statistical nudge between two moons: move moonB slightly toward a
+// preferred opposite-phase angle with moonA. For the Therendor/Barrakas
+// pairing, the lore-significant angle is "Therendor full while Barrakas is
+// new". We model that as a weak restoring pull on Barrakas's cycle toward the
+// nearest Therendor full, capped so it stays a tendency rather than a lock.
+
+export var MOON_ANTI_PHASE_COUPLING_GAIN = 0.2;
+export var MOON_ANTI_PHASE_COUPLING_MAX_SHIFT_DAYS = 1.0;
+
+function _nearestPhaseEvent(seq, type, targetSerial){
+  var best = null;
+  var bestDist = Infinity;
+  for (var i = 0; i < seq.length; i++){
+    if (seq[i].type !== type) continue;
+    var dist = Math.abs(seq[i].serial - targetSerial);
+    if (dist < bestDist){
+      best = seq[i];
+      bestDist = dist;
+    }
+  }
+  return best;
+}
 
 export function _applyAntiPhaseCoupling(ms, moonAName, moonBName, genFrom, genThru){
   var seqA = ms.sequences[moonAName];
@@ -647,22 +664,37 @@ export function _applyAntiPhaseCoupling(ms, moonAName, moonBName, genFrom, genTh
   if (!seqA || !seqB) return;
 
   for (var bi = 0; bi < seqB.length; bi++){
-    var evB = seqB[bi];
-    if (evB.gmForced || evB.festivalNudge) continue;
-    if (evB.serial < genFrom || evB.serial > genThru) continue;
+    var fullB = seqB[bi];
+    if (fullB.type !== 'full') continue;
 
-    // Check if moonA has a same-type event within 3 days
-    for (var ai = 0; ai < seqA.length; ai++){
-      var evA = seqA[ai];
-      if (evA.type !== evB.type) continue;
-      var dist = Math.abs(evA.serial - evB.serial);
-      if (dist <= 3){
-        // Push moonB's event 1 day away from moonA's event
-        var direction = (evB.serial >= evA.serial) ? 1 : -1;
-        evB.serial += direction;
-        evB.antiPhaseCoupled = true;
+    var newIdx = null;
+    for (var ni = bi + 1; ni < seqB.length; ni++){
+      if (seqB[ni].type === 'new'){
+        newIdx = ni;
         break;
       }
+    }
+    if (newIdx === null) continue;
+
+    var newB = seqB[newIdx];
+    if (fullB.gmForced || fullB.festivalNudge || newB.gmForced || newB.festivalNudge) continue;
+    if ((fullB.serial < genFrom && newB.serial < genFrom) || (fullB.serial > genThru && newB.serial > genThru)) continue;
+
+    var nearFullA = _nearestPhaseEvent(seqA, 'full', newB.serial);
+    if (nearFullA){
+      var phaseError = nearFullA.serial - newB.serial;
+      var shift = phaseError * MOON_ANTI_PHASE_COUPLING_GAIN;
+      if (shift > MOON_ANTI_PHASE_COUPLING_MAX_SHIFT_DAYS) shift = MOON_ANTI_PHASE_COUPLING_MAX_SHIFT_DAYS;
+      if (shift < -MOON_ANTI_PHASE_COUPLING_MAX_SHIFT_DAYS) shift = -MOON_ANTI_PHASE_COUPLING_MAX_SHIFT_DAYS;
+      if (Math.abs(shift) < 0.05) continue;
+
+      // Shift the whole Barrakas cycle together so event labels and the
+      // illumination curve keep telling the same phase story.
+      fullB.serial += shift;
+      newB.serial += shift;
+      fullB.antiPhaseCoupled = true;
+      newB.antiPhaseCoupled = true;
+      bi = newIdx;
     }
   }
 
@@ -868,9 +900,8 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
   _applyFestivalNudges(sys.moons, ms, genFrom, needThru);
 
   // --- Therendor–Barrakas weak anti-phase coupling ---
-  // When Therendor is full, nudge Barrakas toward new (and vice versa).
-  // Soft statistical tendency: if both have same-type events within 3 days,
-  // push Barrakas's event ±1 day away. Weak enough to be a tendency, not a lock.
+  // Weak restoring pull toward the lore-significant angle:
+  // Therendor full more often coincides with Barrakas new.
   _applyAntiPhaseCoupling(ms, 'Therendor', 'Barrakas', genFrom, needThru);
 
   // Clear Long Shadows cache since moon data has changed
@@ -1724,7 +1755,7 @@ export function _moonParseMoonName(str, sys){
 // angularSizeVsSun: 1.0 = same apparent size as Arrah (the sun).
 // albedo: real solar-system analog values. Geometric albedo can exceed 1.0
 //   (Enceladus 1.375, Tethys 1.229) due to backscattering from pure ice.
-//   Sypheros/Phoebe retrograde inc 175.3° handled in illumination calc.
+//   Dravago/Triton retrograde inclination is handled in illumination calc.
 export var MOON_ORBITAL_DATA = {
   Zarantyr:  { diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,  angularSizeVsSun: 9.08, albedo: 0.12 },
   Olarune:   { diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,  angularSizeVsSun: 5.73, albedo: 0.22 },
@@ -2918,9 +2949,9 @@ export var PLANAR_GENERATED_EVENT_PROFILE = {
 
   // DOLURRH — The Realm of the Dead (moon-tied to Aryth)
   // No daily dice. On Aryth full moon: d20(11-20)=coterminous. On Aryth new moon: d20(11-20)=remote.
-  // Aryth period: 48d = 7 cycles/yr. ~3.5 cot + ~3.5 remote per year. 1d only.
+  // Aryth period: 90.8d = ~3.7 cycles/yr. ~1.85 cot + ~1.85 remote per year. 1d only.
   'Dolurrh': {
-    expectedPerYear: 7.0,
+    expectedPerYear: 3.7,
     mechanism: 'moontied',
     moonName: 'Aryth',
     moonDie: 20,
