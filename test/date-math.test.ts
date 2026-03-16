@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
 import { toSerial, fromSerial, weekdayIndex, daysPerYear, _isGregorianLeapYear, _leapsBefore, todaySerial, weekStartSerial } from "../src/date-math.js";
-import { getCal, ensureSettings, weekLength } from "../src/state.js";
+import { getCal, ensureSettings, weekLength, applyCalendarSystem } from "../src/state.js";
 import { CALENDAR_SYSTEMS } from "../src/config.js";
 import { stepDays, setDate } from "../src/ui.js";
 import { formatDateLabel } from "../src/rendering.js";
@@ -164,6 +164,17 @@ describe("Gregorian Leap Year", () => {
     assertEquals(_leapsBefore(1, 4), 1);
     assertEquals(_leapsBefore(5, 4), 2);
     assertEquals(_leapsBefore(9, 4), 3);
+  });
+
+
+  it("Gregorian serial math uses 400-year century exceptions", () => {
+    freshInstall();
+    applyCalendarSystem("gregorian", "standard");
+
+    assertEquals(toSerial(1900, 3, 1) - toSerial(1900, 1, 28), 1);
+    assertEquals(toSerial(2000, 3, 1) - toSerial(2000, 1, 28), 2);
+    assertEquals(toSerial(2100, 3, 1) - toSerial(2100, 1, 28), 1);
+    assertEquals(toSerial(2400, 3, 1) - toSerial(2400, 1, 28), 2);
   });
 });
 
