@@ -34,6 +34,7 @@ These are the current planning assumptions unless explicitly changed later:
 - Dragonlance uses the 336-day interpretation.
 - Dragonlance setup anchors the moon system from `Night of the Eye`.
 - Dragonlance setup should let the GM set that anchor directly or randomize it.
+	- If possible, use the query syntax that prompts user-entered text, rather than ask for an api command.
 - Exandria should use seeded drift rather than pretending to have one exact canonical lunar model.
 - Exandria `Catha` drift should use `29 + 1d11`.
 - Exandria `Ruidus` drift should use `164 + 1d20 - 1d20`.
@@ -104,6 +105,7 @@ The refactor should achieve these outcomes:
 5. Setup becomes generic and world-extensible.
 6. Eberron-specific systems remain supported without polluting the generic path.
 7. Existing campaigns migrate cleanly.
+	1. (Author note: no existing campaigns exist. There is no migration required, nor preservation of legacy terms or definitions. All should be re-written as if from scratch, with suitable decisions made.)
 8. Adding a new world later should usually mean adding a world package, not editing six unrelated files.
 
 ## Non-Goals
