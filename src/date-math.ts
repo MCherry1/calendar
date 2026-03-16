@@ -55,8 +55,13 @@ export function _buildSerialCache(){
   var base = 0, leapFrac = 0, hasLeap = false;
   for (var i=0; i<months.length; i++){
     var m = months[i];
-    if (m.leapEvery){ hasLeap = true; leapFrac += (m.days|0) / m.leapEvery; }
-    else             { base += (m.days|0); }
+    if (m.leapEvery){
+      hasLeap = true;
+      if (_isGregorianLeapSlotMonthObj(m)) leapFrac += (m.days|0) * (97 / 400);
+      else leapFrac += (m.days|0) / m.leapEvery;
+    } else {
+      base += (m.days|0);
+    }
   }
   _serialCache.baseDpy = base;
   _serialCache.hasLeap = hasLeap;
@@ -70,6 +75,11 @@ export function _leapsBefore(y, every){
   return Math.floor((y - 1) / every) + 1;
 }
 
+function _gregorianLeapsBefore(y){
+  if (y <= 0) return 0;
+  return _leapsBefore(y, 4) - _leapsBefore(y, 100) + _leapsBefore(y, 400);
+}
+
 // Total elapsed days from the epoch to the start of year y.
 export function _daysBeforeYear(y){
   if (_serialCache.baseDpy === null) _buildSerialCache();
@@ -78,7 +88,10 @@ export function _daysBeforeYear(y){
   if (_serialCache.hasLeap){
     for (var i=0; i<months.length; i++){
       var m = months[i];
-      if (m.leapEvery) total += _leapsBefore(y, m.leapEvery) * (m.days|0);
+      if (m.leapEvery){
+        if (_isGregorianLeapSlotMonthObj(m)) total += _gregorianLeapsBefore(y) * (m.days|0);
+        else total += _leapsBefore(y, m.leapEvery) * (m.days|0);
+      }
     }
   }
   return total;
@@ -246,6 +259,5 @@ export function _prevActiveMi(mi, y){
   }
   return { mi: (mi + len - 1) % len, y: py }; // fallback
 }
-
 
 
