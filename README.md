@@ -274,22 +274,26 @@ That means axial tilt mostly shows up as broad seasonal daylight framing: longer
 - Saturn-rings reference note: the real rings are mostly water ice with dust/rock contamination, with particles ranging from dust grains to mountain-scale chunks. Their brightness varies by ring, from darker dirty sections to bright B-ring ice; the script's `0.50` uses a bright-average analog rather than claiming every ringlet is equally reflective
 ### Moons of Eberron
 
-The Eberron implementation uses integer-multiple synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms.
+The Eberron implementation uses fixed synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms. Moons no longer carry an intrinsic wobble; exact full/new peaks only move when an external force does so deliberately.
+
+Those external pulls currently come from festival nudges to local noon, canonical associated-plane windows that pull an exact full/new peak onto the nearest edge-day noon when a window would otherwise miss it, Long Shadows gobbling that centers claimed new moons on noon of Vult 27, GM anchors, and the Therendor/Barrakas anti-phase coupling.
+
+Day labels for `Full` and `New` are calibrated to the 12-moon Eberron sky: `Full` means at least `98.004%` illumination and `New` means at most `1.996%` illumination. That keeps the system at an average of 19 days per 28-day month with at least one full moon.
 
 | Eberron Moon | Title             | Plane     | Dragonmark          | Synodic Period (days) | Approx. Diameter (mi) | Mean Distance (mi) | Apparent Diameter vs Earth's Moon | Inclination (°) | Eccentricity | Albedo |
 | ------------ | ----------------- | --------- | ------------------- | --------------------: | --------------------: | -----------------: | --------------------------------: | --------------: | -----------: | -----: |
-| Zarantyr     | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |                  1250 |             14,300 |                             9.08x |           5.145 |       0.0549 |   0.12 |
-| Olarune      | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |                  1000 |             18,000 |                             5.73x |            0.33 |       0.0288 |   0.22 |
-| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |                  1100 |             39,000 |                             2.91x |            0.03 |       0.0022 |   0.99 |
-| Eyre         | The Anvil         | Fernia    | Mark of Making      |                  21.0 |                  1200 |             52,000 |                             2.38x |            1.53 |       0.0196 |   0.96 |
-| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |                  2000 |             77,500 |                             2.66x | 156.8 (retrograde) |     0.000016 |   0.76 |
-| Nymm         | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |                   900 |             95,000 |                             0.98x |            0.20 |       0.0013 |   0.43 |
-| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |                  1350 |            125,000 |                             1.11x |            0.43 |       0.1230 |   0.30 |
-| Barrakas     | The Lantern       | Irian     | Mark of Finding     |                  22.0 |                  1500 |            144,000 |                             1.07x |            0.02 |       0.0047 |  1.375 |
-| Rhaan        | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |                   800 |            168,000 |                             0.49x |            4.34 |       0.0013 |   0.32 |
-| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |                  1100 |            183,000 |                             0.62x |            1.08 |       0.0151 |  0.071 |
-| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |                  1300 |            195,000 |                             0.69x |            7.57 |       0.0283 |  0.275 |
-| Vult         | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |                  1800 |            252,000 |                             0.74x |            0.07 |       0.0014 |   0.23 |
+| Zarantyr     | The Storm Moon    | Kythri    | Mark of Storm       |               27.3200 |                  1250 |             14,300 |                             9.08x |           5.145 |       0.0549 |   0.12 |
+| Olarune      | The Sentinel Moon | Lamannia  | Mark of Sentinel    |               30.8052 |                  1000 |             18,000 |                             5.73x |            0.33 |       0.0288 |   0.22 |
+| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |               34.7350 |                  1100 |             39,000 |                             2.91x |            0.03 |       0.0022 |   0.99 |
+| Eyre         | The Anvil         | Fernia    | Mark of Making      |               39.1661 |                  1200 |             52,000 |                             2.38x |            1.53 |       0.0196 |   0.96 |
+| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |               44.1625 |                  2000 |             77,500 |                             2.66x | 156.8 (retrograde) |     0.000016 |   0.76 |
+| Nymm         | The Crown         | Daanvi    | Mark of Hospitality |               49.7962 |                   900 |             95,000 |                             0.98x |            0.20 |       0.0013 |   0.43 |
+| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |               56.1487 |                  1350 |            125,000 |                             1.11x |            0.43 |       0.1230 |   0.30 |
+| Barrakas     | The Lantern       | Irian     | Mark of Finding     |               63.3115 |                  1500 |            144,000 |                             1.07x |            0.02 |       0.0047 |  1.375 |
+| Rhaan        | The Book          | Thelanis  | Mark of Scribing    |               71.3881 |                   800 |            168,000 |                             0.49x |            4.34 |       0.0013 |   0.32 |
+| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |               80.4950 |                  1100 |            183,000 |                             0.62x |            1.08 |       0.0151 |  0.071 |
+| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |               90.7637 |                  1300 |            195,000 |                             0.69x |            7.57 |       0.0283 |  0.275 |
+| Vult         | The Warding Moon  | Shavarath | Mark of Warding     |              102.3424 |                  1800 |            252,000 |                             0.74x |            0.07 |       0.0014 |   0.23 |
 
 #### Why these reference moons
 

@@ -429,30 +429,30 @@ Supports three moon-system variants with deterministic phase behavior, reveal-ti
 
 | Moon      | Title             | Plane     | Dragonmark          | Synodic Period (days) | Diameter (mi) | Distance (mi) |     Inclination (°) | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
 | --------- | ----------------- | --------- | ------------------- | --------------------: | ------------: | ------------: | ------------------: | -----------: | -----: | --------- | --------: | ---------- | ---------- |
-| Zarantyr  | The Storm Moon    | Kythri    | Mark of Storm       |                 27.32 |          1250 |        14,300 |               5.145 |       0.0549 |   0.12 | random    |       1.4 | kythri     | 998-01-01  |
-| Olarune   | The Sentinel Moon | Lamannia  | Mark of Sentinel    |                  34.0 |          1000 |        18,000 |                0.33 |       0.0288 |   0.22 | random    |       1.7 | lamannia   | 998-01-01  |
-| Therendor | The Healer's Moon | Syrania   | Mark of Healing     |                  24.0 |          1100 |        39,000 |                0.03 |       0.0022 |   0.99 | random    |       1.2 | syrania    | 998-01-01  |
-| Eyre      | The Anvil         | Fernia    | Mark of Making      |                  21.0 |          1200 |        52,000 |                1.53 |       0.0196 |   0.96 | random    |       1.0 | fernia     | 998-01-01  |
-| Dravago   | The Herder's Moon | Risia     | Mark of Handling    |                  42.0 |          2000 |        77,500 | 156.8 (retrograde)  |     0.000016 |   0.76 | random    |       2.1 | risia      | 998-01-01  |
-| Nymm      | The Crown         | Daanvi    | Mark of Hospitality |                  28.0 |           900 |        95,000 |                0.20 |       0.0013 |   0.43 | random    |       1.4 | daanvi     | 998-01-01  |
-| Lharvion  | The Eye           | Xoriat    | Mark of Detection   |                  30.0 |          1350 |       125,000 |                0.43 |       0.1230 |   0.30 | random    |       1.5 | xoriat     | 998-01-01  |
-| Barrakas  | The Lantern       | Irian     | Mark of Finding     |                  22.0 |          1500 |       144,000 |                0.02 |       0.0047 |  1.375 | random    |       1.1 | irian      | 998-01-01  |
-| Rhaan     | The Book          | Thelanis  | Mark of Scribing    |                  37.0 |           800 |       168,000 |                4.34 |       0.0013 |   0.32 | random    |       1.9 | thelanis   | 998-01-01  |
-| Sypheros  | The Shadow        | Mabar     | Mark of Shadow      |                  67.0 |          1100 |       183,000 |                1.08 |       0.0151 |  0.071 | random    |       3.4 | mabar      | 998-01-01  |
-| Aryth     | The Gateway       | Dolurrh   | Mark of Passage     |                  48.0 |          1300 |       195,000 |                7.57 |       0.0283 |  0.275 | random    |       2.4 | dolurrh    | 998-01-01  |
-| Vult      | The Warding Moon  | Shavarath | Mark of Warding     |                  56.0 |          1800 |       252,000 |                0.07 |       0.0014 |   0.23 | random    |       2.8 | shavarath  | 998-01-01  |
+| Zarantyr  | The Storm Moon    | Kythri    | Mark of Storm       |               27.3200 |          1250 |        14,300 |               5.145 |       0.0549 |   0.12 | fixed     |       0.0 | kythri     | 998-01-01  |
+| Olarune   | The Sentinel Moon | Lamannia  | Mark of Sentinel    |               30.8052 |          1000 |        18,000 |                0.33 |       0.0288 |   0.22 | fixed     |       0.0 | lamannia   | 998-01-01  |
+| Therendor | The Healer's Moon | Syrania   | Mark of Healing     |               34.7350 |          1100 |        39,000 |                0.03 |       0.0022 |   0.99 | fixed     |       0.0 | syrania    | 998-01-01  |
+| Eyre      | The Anvil         | Fernia    | Mark of Making      |               39.1661 |          1200 |        52,000 |                1.53 |       0.0196 |   0.96 | fixed     |       0.0 | fernia     | 998-01-01  |
+| Dravago   | The Herder's Moon | Risia     | Mark of Handling    |               44.1625 |          2000 |        77,500 | 156.8 (retrograde)  |     0.000016 |   0.76 | fixed     |       0.0 | risia      | 998-01-01  |
+| Nymm      | The Crown         | Daanvi    | Mark of Hospitality |               49.7962 |           900 |        95,000 |                0.20 |       0.0013 |   0.43 | fixed     |       0.0 | daanvi     | 998-01-01  |
+| Lharvion  | The Eye           | Xoriat    | Mark of Detection   |               56.1487 |          1350 |       125,000 |                0.43 |       0.1230 |   0.30 | fixed     |       0.0 | xoriat     | 998-01-01  |
+| Barrakas  | The Lantern       | Irian     | Mark of Finding     |               63.3115 |          1500 |       144,000 |                0.02 |       0.0047 |  1.375 | fixed     |       0.0 | irian      | 998-01-01  |
+| Rhaan     | The Book          | Thelanis  | Mark of Scribing    |               71.3881 |           800 |       168,000 |                4.34 |       0.0013 |   0.32 | fixed     |       0.0 | thelanis   | 998-01-01  |
+| Sypheros  | The Shadow        | Mabar     | Mark of Shadow      |               80.4950 |          1100 |       183,000 |                1.08 |       0.0151 |  0.071 | fixed     |       0.0 | mabar      | 998-01-01  |
+| Aryth     | The Gateway       | Dolurrh   | Mark of Passage     |               90.7637 |          1300 |       195,000 |                7.57 |       0.0283 |  0.275 | fixed     |       0.0 | dolurrh    | 998-01-01  |
+| Vult      | The Warding Moon  | Shavarath | Mark of Warding     |              102.3424 |          1800 |       252,000 |                0.07 |       0.0014 |   0.23 | fixed     |       0.0 | shavarath  | 998-01-01  |
 
 #### Faerûnian (Toril)
 
 | Moon | Title | Synodic Period | Diameter | Distance | Inclination | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
 |---|---|---:|---:|---:|---:|---:|---:|---|---:|---|---|
-| Selûne | The Moonmaiden | 30.4375 days | 2,000 mi | 183,000 mi | 5.1° | 0.054 | 0.25 | random | 1.5 | selune | 1372-01-01 |
+| Selûne | The Moonmaiden | 30.4375 days | 2,000 mi | 183,000 mi | 5.1° | 0.054 | 0.25 | fixed | 0.0 | selune | 1372-01-01 |
 
 #### Gregorian / Earth
 
 | Moon | Title | Synodic Period | Diameter | Distance | Inclination | Eccentricity | Albedo | Variation | Amplitude | Epoch Seed | Epoch Date |
 |---|---|---:|---:|---:|---:|---:|---:|---|---:|---|---|
-| Luna | The Moon | 29.53059 days | 2,159 mi | 238,855 mi | 5.14° | 0.0549 | 0.12 | random | 0.5 | luna | 2021-01-28 |
+| Luna | The Moon | 29.53059 days | 2,159 mi | 238,855 mi | 5.14° | 0.0549 | 0.12 | fixed | 0.0 | luna | 2021-01-28 |
 
 ### 7.4 Reference Moon Mapping (Eberron)
 
@@ -489,7 +489,8 @@ Each Eberron moon mapped to a real Solar System moon. Inclination, eccentricity,
 
 - Each moon has: synodic period, semi-major axis, eccentricity, inclination, ascending node
 - Periods derived from reference moon scaled to Eberron's 336-day year, then multiplied by an integer factor to avoid overly short synodic periods
-- Random walk variation: `shape: 'random'`, amplitude ~5% of period, unified across all moons (no special cases)
+- Synodic periods are fixed by default; moons now stay on predictable schedules unless an external force explicitly retimes an exact full/new peak
+- External moon retiming currently comes from festival nudges (to local noon), canonical associated-plane pulls (to the nearest edge-day noon when a window lacks an exact peak), Long Shadows gobbling (to noon on Vult 27), GM anchors, and the Therendor/Barrakas anti-phase coupling
 
 ### 7.7 Phase and Visibility Pipeline
 
@@ -503,7 +504,7 @@ For each moon/day:
 7. Aggregate night-light intensity
 8. Tide emphasis (Eberron-specific weighting)
 
-**Phase thresholds:** Full ≥ 98% illumination. New ≤ 2% illumination.
+**Phase thresholds:** Full ≥ 98.004% illumination. New ≤ 1.996% illumination. These thresholds are calibrated so the Eberron system averages 19 full-moon days per 28-day month.
 
 ### 7.8 Eclipse System
 
@@ -668,7 +669,7 @@ For cyclic planes:
 
 #### Mabar — The Endless Night
 - Type: cyclic (special dual model)
-- Base orbit: 1 year; Coterminous: 4 calendar days (3 nights) around Long Shadows
+- Base orbit: 1 year; Coterminous: sundown Vult 26 through sunrise Vult 28, centered on noon of Vult 27
 - Special remote: 5-day window every 5 years around summer solstice
 - Anchor: year 998, Vult 26, coterminous
 - Special fields: `remoteOrbitYears: 5`, `remoteDaysSpecial: 5`

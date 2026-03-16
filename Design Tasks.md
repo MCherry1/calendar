@@ -65,6 +65,10 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
+### Rework moon retiming around Long Shadows, planar phase pulls, and calibrated full/new thresholds
+
+Completed by GPT-5 Codex on 2026-03-16.
+
 ### Fix review-discovered refactor regressions and add regression coverage
 
 Completed by GPT-5 Codex on 2026-03-14.
