@@ -337,15 +337,55 @@ export function _moonLoreHtml(moonName){
     'background:'+esc(moon.color||'#aaa')+';border:1px solid rgba(0,0,0,.3);'+
     'vertical-align:middle;margin-right:5px;"></span>';
 
-  var html = dot + '<b style="font-size:1.1em;">' + esc(moon.name) + '</b>' +
-    '<br><br>' + esc(lore.blurb) +
-    '<br><br><b>Orbit:</b> ' + esc(lore.orbit);
-
-  if (moon.dragonmark){
-    html += '<br><b>Dragonmark:</b> ' + esc(moon.dragonmark);
-  }
+  var html = dot + '<b style="font-size:1.1em;">' + esc(moon.name) + '</b>';
+  if (moon.title) html += ' <span style="opacity:.72;">' + esc(moon.title) + '</span>';
+  html += '<br><br>' + esc(lore.blurb);
+  html += '<br><br><b>Color:</b> ' + esc(String(moon.color || '#AAAAAA').toUpperCase());
+  html += '<br><b>Period:</b> ' + _moonLorePeriodLabel(moon.synodicPeriod);
+  html += '<br><b>Surface Brightness:</b> ' + esc(_moonLoreAlbedoLabel(moon.albedo)) + ' (albedo ' + _moonLoreAlbedoValue(moon.albedo) + ')';
+  html += '<br><b>Apparent Size:</b> ' + esc(_moonLoreSizeLabel(moon));
+  if (moon.plane) html += '<br><b>Associated Plane:</b> ' + esc(moon.plane);
+  if (moon.dragonmark) html += '<br><b>Dragonmark:</b> ' + esc(moon.dragonmark);
 
   return _menuBox('🌙 ' + esc(moon.name), html);
+}
+
+function _moonLorePeriodLabel(period){
+  var n = parseFloat(period);
+  if (!isFinite(n)) return 'Unknown';
+  return (Math.round(n * 100) / 100).toFixed(n >= 100 ? 1 : 2).replace(/\.00$/, '') + ' days';
+}
+
+function _moonLoreAlbedoValue(albedo){
+  var n = parseFloat(albedo);
+  if (!isFinite(n)) return 'unknown';
+  var rounded = Math.round(n * 1000) / 1000;
+  return String(rounded).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
+
+function _moonLoreAlbedoLabel(albedo){
+  var n = parseFloat(albedo);
+  if (!isFinite(n)) return 'Unknown brightness';
+  if (n >= 1) return 'Exceptionally bright';
+  if (n >= 0.7) return 'Bright';
+  if (n >= 0.4) return 'Above-average brightness';
+  if (n >= 0.18) return 'Average brightness';
+  if (n >= 0.1) return 'Dim';
+  return 'Very dim';
+}
+
+function _moonLoreSizeRatio(moon){
+  if (!moon || !moon.diameter || !moon.distance) return 1;
+  return (moon.diameter / moon.distance) / (2159 / 238855);
+}
+
+function _moonLoreSizeLabel(moon){
+  var ratio = _moonLoreSizeRatio(moon);
+  if (!isFinite(ratio) || ratio <= 0) return "Unknown relative to Luna";
+  if (Math.abs(ratio - 1) < 0.05) return "About the same apparent size as Luna";
+  if (ratio < 1) return Math.max(1, Math.round(ratio * 100)) + "% of Luna's average apparent size";
+  var rounded = (ratio < 5) ? (Math.round(ratio * 2) / 2) : Math.round(ratio);
+  return rounded + 'x Luna\'s average apparent size';
 }
 
 // Ring of Siberys lore panel
@@ -1649,7 +1689,7 @@ export function moonPanelHtml(serialOverride?){
     navRow +
     _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
     body + seedLine + gmControls +
-    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','help root') +'</div>'
+    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
   );
 }
 

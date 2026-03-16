@@ -29,14 +29,16 @@ describe("Task-focused UI", () => {
     assert(msg.msg.includes("Prompt !cal send"));
   });
 
-  it("uses the compact Today dashboard as the default root view", () => {
+  it("uses the current-month minical as the default root view", () => {
     freshInstall();
     _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = (globalThis as any)._chatLog.slice(-1)[0];
-    assert(msg.msg.includes("Events Today"));
+    assert(msg.msg.includes("Retreat"));
+    assert(msg.msg.includes("Advance"));
+    assert(msg.msg.includes("Send To Players"));
     assert(msg.msg.includes("Weather"));
     assert(msg.msg.includes("Moons"));
     assert(msg.msg.includes("Planes"));
-    assert(msg.msg.includes("GM Controls"));
+    assert(msg.msg.includes("Admin"));
   });
 });

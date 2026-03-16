@@ -59,8 +59,10 @@ export var CONFIG_DEFAULTS: Record<string, any> = {
 // To add a custom system or variant, add an entry here — that's the only place.
 export var CALENDAR_SYSTEMS: Record<string, any> = {
   eberron: {
-    label:          'Galifar',
-    description:    '12 months of 28 days. 7-day week. Default Eberron Campaign Setting calendar.',
+    label:          'Eberron',
+    worldLabel:     'Eberron',
+    continentLabel: 'Khorvaire',
+    description:    'Campaign setting with 12 months of 28 days and a 7-day week.',
     weekdays:       ['Sul','Mol','Zol','Wir','Zor','Far','Sar'],
     monthDays:      [28,28,28,28,28,28,28,28,28,28,28,28],
     structure:      null,
@@ -68,25 +70,29 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
     defaultVariant: 'standard',
     variants: {
       standard: {
-        label:      'Standard (Galifar)',
+        label:      'Galifar Calendar',
+        description:'The default civil calendar of Khorvaire, on Eberron.',
         monthNames: ['Zarantyr','Olarune','Therendor','Eyre','Dravago','Nymm',
                      'Lharvion','Barrakas','Rhaan','Sypheros','Aryth','Vult'],
         colorTheme: 'lunar'
       },
       druidic: {
-        label:      'Druidic',
+        label:      'Druidic Calendar',
+        description:'A druidic month-name tradition used across Eberron.',
         monthNames: ['Frostmantle','Thornrise','Treeborn','Rainsong','Arrowfar','Sunstride',
                      'Glitterstream','Havenwild','Stormborn','Harrowfall','Silvermoon','Windwhisper'],
         colorTheme: 'druidic'
       },
       halfling: {
-        label:      'Halfling',
+        label:      'Halfling Calendar',
+        description:'A halfling month-name tradition used across Eberron.',
         monthNames: ['Fang','Wind','Ash','Hunt','Song','Dust',
                      'Claw','Blood','Horn','Heart','Spirit','Smoke'],
         colorTheme: 'halfling'
       },
       dwarven: {
-        label:      'Dwarven',
+        label:      'Dwarven Calendar',
+        description:'A dwarven month-name tradition used across Eberron.',
         monthNames: ['Aruk','Lurn','Ulbar','Kharn','Ziir','Dwarhuun',
                      'Jond','Sylar','Razagul','Thazm','Drakhadur','Uarth'],
         colorTheme: 'dwarven'
@@ -94,8 +100,10 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
     }
   },
   faerunian: {
-    label:          'Harptos',
-    description:    '12 months of 30 days, split into three tendays. 5 festival days occur between months. Shieldmeet follows Midsummer every 4 years.',
+    label:          'Forgotten Realms',
+    worldLabel:     'Toril',
+    continentLabel: 'Faerun',
+    description:    'Campaign setting using the Harptos calendar on Faerun.',
     weekdays:       ['Firstday','Secondday','Thirdday','Fourthday','Fifthday','Sixthday','Seventhday','Eighthday','Ninthday','Tenthday'],
     weekdayAbbr:    { Firstday:'1st', Secondday:'2nd', Thirdday:'3rd', Fourthday:'4th',
                       Fifthday:'5th', Sixthday:'6th', Seventhday:'7th', Eighthday:'8th',
@@ -106,7 +114,8 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
     defaultVariant: 'standard',
     variants: {
       standard: {
-        label:      'Standard (Dalereckoning)',
+        label:      'Harptos Calendar',
+        description:'The default calendar of Faerun, on Toril, in the Forgotten Realms.',
         monthNames: ['Hammer','Alturiak','Ches','Tarsakh','Mirtul','Kythorn',
                      'Flamerule','Eleasis','Eleint','Marpenoth','Uktar','Nightal'],
         colorTheme: 'seasons'
@@ -114,8 +123,9 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
     }
   },
   gregorian: {
-    label:          'Gregorian',
-    description:    '12 months of varying length. Standard Earth calendar.',
+    label:          'Earth',
+    worldLabel:     'Earth',
+    description:    'Earth setting using the Gregorian calendar.',
     weekdays:       ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
     weekdayAbbr:    { Sunday:'Sun', Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed',
                       Thursday:'Thu', Friday:'Fri', Saturday:'Sat' },
@@ -125,7 +135,8 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
     defaultVariant: 'standard',
     variants: {
       standard: {
-        label:      'Standard',
+        label:      'Gregorian Calendar',
+        description:'The standard civil calendar used on Earth.',
         monthNames: ['January','February','March','April','May','June',
                      'July','August','September','October','November','December'],
         colorTheme: 'birthstones'

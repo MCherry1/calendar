@@ -5,7 +5,7 @@ import { mergeInNewDefaultEvents } from './events.js';
 import { cleanWho, sendUiToGM, whisperUi } from './messaging.js';
 import { Parse } from './parsing.js';
 import { button, esc } from './rendering.js';
-import { applyCalendarSystem, applySeasonSet, checkInstall, deepClone, defaults, ensureSettings, getCal, getManualSuppressedSources, getSetupState, setupIsComplete } from './state.js';
+import { applyCalendarSystem, applySeasonSet, checkInstall, deepClone, defaults, ensureSettings, getCal, getManualSuppressedSources, getSetupState, setupIsComplete, titleCase } from './state.js';
 import { _displayMonthDayParts, _menuBox, nextForDayOnly, nextForMonthDay, sendCurrentDate, setDate } from './ui.js';
 import { _normalizeWeatherLocation, _rememberRecentWeatherLocation, _weatherLocationLabel, getWeatherState, weatherEnsureForecast, weatherLocationWizardHtml } from './weather.js';
 import { getWorld } from './worlds/index.js';
@@ -152,9 +152,9 @@ function _setupSummaryHtml(draft){
   var variant = sys.variants && sys.variants[variantKey] ? sys.variants[variantKey] : {};
   var dateLabel = draft.date ? _setupDateLabel(draft.date, sysKey, variantKey) : 'Not set';
   var bits = [];
-  bits.push('<div><b>Calendar:</b> ' + esc(sys.label || sysKey || 'Not set') + '</div>');
-  if (variantKey && Object.keys(sys.variants || {}).length > 1){
-    bits.push('<div><b>Variant:</b> ' + esc(variant.label || variantKey) + '</div>');
+  bits.push('<div><b>Setting:</b> ' + esc(sys.label || sysKey || 'Not set') + '</div>');
+  if (variantKey){
+    bits.push('<div><b>Calendar:</b> ' + esc(variant.label || variantKey) + '</div>');
   }
   bits.push('<div><b>Date:</b> ' + esc(dateLabel) + '</div>');
   bits.push('<div><b>Season model:</b> ' + esc(String(draft.seasonVariant || 'Not set')) + '</div>');
@@ -179,13 +179,23 @@ function _setupPromptButton(label, cmd, hint){
     '</div>';
 }
 
+function _setupCalendarSelectionNotice(sysKey, variantKey){
+  var sys = _setupSystem(sysKey) || {};
+  var variant = (sys.variants && sys.variants[variantKey]) || {};
+  var calendarLabel = variant.label || titleCase(variantKey || sys.defaultVariant || 'standard');
+  var detail = variant.description || sys.description || '';
+  return '<b>' + esc(calendarLabel) + '</b> selected.' +
+    (detail ? ' ' + esc(detail) : '') +
+    ' Use <code>!cal setup restart</code> to choose a different setting.';
+}
+
 function _setupCalendarStepHtml(draft){
   var rows = CALENDAR_SYSTEM_ORDER.map(function(sysKey){
     var sys = CALENDAR_SYSTEMS[sysKey];
     return _setupPromptButton(sys.label || sysKey, 'setup calendar ' + sysKey, sys.description || '');
   }).join('');
-  return _menuBox('Calendar Setup - Step 1: Calendar System',
-    '<div style="margin-bottom:6px;">Choose the calendar family for this campaign.</div>' + rows
+  return _menuBox('Calendar Setup - Step 1: Setting',
+    '<div style="margin-bottom:6px;">Choose the campaign setting first. If that setting only has one calendar, Calendar selects it automatically.</div>' + rows
   );
 }
 
@@ -197,11 +207,11 @@ function _setupVariantStepHtml(draft){
     return _setupPromptButton(
       variant.label || variantKey,
       'setup variant ' + variantKey,
-      (variant.monthNames || []).slice(0, 4).join(', ')
+      variant.description || (variant.monthNames || []).slice(0, 4).join(', ')
     );
   }).join('');
-  return _menuBox('Calendar Setup - Step 2: Month Names',
-    '<div style="margin-bottom:6px;">Choose the month-name set for ' + esc(sys.label || sysKey) + '.</div>' + rows
+  return _menuBox('Calendar Setup - Step 2: Calendar',
+    '<div style="margin-bottom:6px;">Choose the calendar used in ' + esc(sys.label || sysKey) + '.</div>' + rows
   );
 }
 
@@ -290,7 +300,8 @@ function _setupWeatherLocationStepHtml(draft){
   return weatherLocationWizardHtml(step, wizard, {
     commandPrefix: 'setup weather',
     titlePrefix: 'Calendar Setup - Weather Location',
-    laterCommand: 'setup weather later'
+    laterCommand: 'setup weather later',
+    allowSaveCurrent: false
   });
 }
 
@@ -462,6 +473,17 @@ function _handleSetupWeatherStep(m, args){
     delete draft.weatherWizard;
     return _showSetupWizard(m, 'Weather location ready: <b>' + esc(_weatherLocationLabel(recent)) + '</b>.');
   }
+  if (sub === 'preset'){
+    var presetIdx = Math.max(1, parseInt(args[1], 10) || 1) - 1;
+    var preset = (getWeatherState().savedLocations || [])[presetIdx];
+    if (!preset){
+      return _showSetupWizard(m, 'That saved location is no longer available.');
+    }
+    draft.weatherLocation = deepClone(preset);
+    delete draft.weatherLocationLater;
+    delete draft.weatherWizard;
+    return _showSetupWizard(m, 'Weather location ready: <b>' + esc(_weatherLocationLabel(preset)) + '</b>.');
+  }
 
   if (!draft.weatherWizard || typeof draft.weatherWizard !== 'object') draft.weatherWizard = {};
   if (sub === 'climate'){
@@ -473,7 +495,8 @@ function _handleSetupWeatherStep(m, args){
     whisperUi(cleanWho(m.who), weatherLocationWizardHtml('terrain', draft.weatherWizard, {
       commandPrefix: 'setup weather',
       titlePrefix: 'Calendar Setup - Weather Location',
-      laterCommand: 'setup weather later'
+      laterCommand: 'setup weather later',
+      allowSaveCurrent: false
     }));
     return;
   }
@@ -536,6 +559,9 @@ export function maybeHandleSetupGate(msg, args){
       delete setup.draft.seasonVariant;
       delete setup.draft.hemisphere;
       delete setup.draft.planesEnabled;
+      if (setup.draft.calendarVariant){
+        return _showSetupWizard(msg, _setupCalendarSelectionNotice(setup.draft.calendarSystem, setup.draft.calendarVariant)), true;
+      }
       return _showSetupWizard(msg), true;
     }
     if (action === 'variant'){

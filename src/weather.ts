@@ -711,6 +711,7 @@ export function getWeatherState(){
     forecast:     [],    // array of day records keyed by serial
     history:      [],    // locked past days (up to 60)
     playerReveal: { byLocation: {} }, // locationSig -> serial(str) -> reveal entry
+    savedLocations: [],
     recentLocations: []
   };
   var ws = root.weather;
@@ -725,8 +726,10 @@ export function getWeatherState(){
       ws.playerReveal.byLocation[legacySig][key] = legacyReveal[key];
     });
   }
+  if (!Array.isArray(ws.savedLocations)) ws.savedLocations = [];
   if (!Array.isArray(ws.recentLocations)) ws.recentLocations = [];
   if (ws.location) ws.location = _normalizeWeatherLocation(ws.location);
+  ws.savedLocations = ws.savedLocations.map(_normalizeWeatherLocation).filter(Boolean);
   ws.recentLocations = ws.recentLocations.map(_normalizeWeatherLocation).filter(Boolean).slice(0, 3);
   if (!ws.manifestZones || typeof ws.manifestZones !== 'object') ws.manifestZones = {};
   if (ws.location && ws.location.manifestZone){
@@ -776,6 +779,32 @@ export function _rememberRecentWeatherLocation(ws: any, loc: any){
     if (keep.length >= 3) break;
   }
   ws.recentLocations = keep;
+}
+
+function _normalizeWeatherPresetName(name: any){
+  return String(name || '').replace(/\s+/g, ' ').trim();
+}
+
+export function _saveWeatherLocationPreset(ws: any, loc: any, presetName: any){
+  ws = ws || getWeatherState();
+  var name = _normalizeWeatherPresetName(presetName);
+  var preset = _normalizeWeatherLocation(loc);
+  if (!name || !preset) return null;
+  preset.name = name;
+  var updated = false;
+  var keep = [preset];
+  var existingList = Array.isArray(ws.savedLocations) ? ws.savedLocations : [];
+  for (var i = 0; i < existingList.length; i++){
+    var existing = _normalizeWeatherLocation(existingList[i]);
+    if (!existing) continue;
+    if (String(existing.name || '').toLowerCase() === name.toLowerCase()){
+      updated = true;
+      continue;
+    }
+    keep.push(existing);
+  }
+  ws.savedLocations = keep;
+  return { updated: updated, preset: preset };
 }
 
 function _manifestZoneKey(nameOrKey: any){
@@ -2875,10 +2904,34 @@ export function weatherLocationWizardHtml(step: any, partial?: any, opts?: any){
   var commandPrefix = String(opts.commandPrefix || 'weather location');
   var titlePrefix = String(opts.titlePrefix || 'Set Location');
   var laterCommand = String(opts.laterCommand || '');
+  var allowSaveCurrent = opts.allowSaveCurrent !== false;
 
   // Step 1: Climate
   if (!step || step === 'start'){
     var wsRecent = getWeatherState();
+    var currentHtml = '';
+    if (allowSaveCurrent && wsRecent.location){
+      currentHtml =
+        '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Current location: <b>' +
+        esc(_weatherLocationLabel(wsRecent.location)) +
+        '</b></div>' +
+        '<div style="margin:0 0 8px 0;">' +
+        button('Save Current Location As...', commandPrefix + ' save ?{Preset name}') +
+        '</div>' +
+        '<div style="border-top:1px solid rgba(0,0,0,.1);margin:8px 0 6px 0;"></div>';
+    }
+    var presetHtml = '';
+    if (wsRecent.savedLocations && wsRecent.savedLocations.length){
+      presetHtml =
+        '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Saved locations:</div>' +
+        wsRecent.savedLocations.map(function(loc: any, idx: any){
+          return '<div style="margin:3px 0;">'+
+            button(loc.name || _weatherLocationLabel(loc), commandPrefix + ' preset ' + (idx + 1))+
+            ' <span style="opacity:.7;font-size:.85em;">'+esc(_weatherLocationLabel(loc))+'</span>'+
+            '</div>';
+        }).join('') +
+        '<div style="border-top:1px solid rgba(0,0,0,.1);margin:8px 0 6px 0;"></div>';
+    }
     var recentHtml = '';
     if (wsRecent.recentLocations && wsRecent.recentLocations.length){
       recentHtml =
@@ -2909,7 +2962,7 @@ export function weatherLocationWizardHtml(step: any, partial?: any, opts?: any){
           ? '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Southern hemisphere campaign? › !cal hemisphere south</div>'
           : '<div style="font-size:.8em;opacity:.45;margin-top:8px;font-style:italic;">Northern hemisphere campaign? › !cal hemisphere north</div>')
       : '';
-    return _menuBox(titlePrefix + ' - Step 1: Climate', recentHtml + climateButtons + hemHint);
+    return _menuBox(titlePrefix + ' - Step 1: Climate', currentHtml + presetHtml + recentHtml + climateButtons + hemHint);
   }
 
   // Step 2: Geography
@@ -3403,6 +3456,40 @@ export function handleWeatherCommand(m, args){
           break;
         }
         _setWeatherLocationFromWizard(m, recentList[recentIdx]);
+        break;
+      }
+      if (locSub === 'preset'){
+        var presetIdx = Math.max(1, parseInt(args[3], 10) || 1) - 1;
+        var savedList = getWeatherState().savedLocations || [];
+        if (!savedList[presetIdx]){
+          whisperUi(m.who, 'That saved location is no longer available. '+button('Back','weather location'));
+          break;
+        }
+        _setWeatherLocationFromWizard(m, savedList[presetIdx]);
+        break;
+      }
+      if (locSub === 'save'){
+        var presetName = _normalizeWeatherPresetName(args.slice(3).join(' '));
+        var wsSave = getWeatherState();
+        if (!wsSave.location){
+          whisperUi(m.who, 'Set a weather location first. '+button('Back','weather location'));
+          break;
+        }
+        if (!presetName){
+          whisperUi(m.who, 'Enter a preset name first. '+button('Back','weather location'));
+          break;
+        }
+        var saved = _saveWeatherLocationPreset(wsSave, wsSave.location, presetName);
+        if (!saved){
+          whisperUi(m.who, 'Could not save that preset. '+button('Back','weather location'));
+          break;
+        }
+        whisperUi(m.who,
+          _menuBox(saved.updated ? 'Saved Location Updated' : 'Saved Location Added',
+            '<div><b>'+esc(saved.preset.name)+'</b> now points to <b>'+esc(_weatherLocationLabel(saved.preset))+'</b>.</div>'
+          ) +
+          weatherLocationWizardHtml('start')
+        );
         break;
       }
       if (locSub === 'zone'){

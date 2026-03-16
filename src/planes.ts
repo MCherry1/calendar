@@ -705,22 +705,25 @@ export var PLANE_GENERATED_LOOKAHEAD = {
   gmDays: 1680   // 5 years at 336 days/year
 };
 
-// Medium presets: canon for the full year is free; generated events for N days.
+// Medium presets now match the moon workflow: canon remains freely known for
+// the current year, while generated events are revealed in month-scale chunks.
 export var PLANE_MEDIUM_PRESETS = [
-  { label:'1d',  days:1,   dc:'DC 10' },
-  { label:'3d',  days:3,   dc:'DC 15' },
-  { label:'6d',  days:6,   dc:'DC 20' },
-  { label:'10d', days:10,  dc:'DC 25' }
+  { label:'1m',  days:28,  dc:'DC 10', token:'1m' },
+  { label:'3m',  days:84,  dc:'DC 15', token:'3m' },
+  { label:'6m',  days:168, dc:'DC 20', token:'6m' },
+  { label:'10m', days:280, dc:'DC 25', token:'10m' }
 ];
 // High presets: full knowledge (canon + generated) for N months.
 export var PLANE_HIGH_PRESETS = [
-  { label:'1m',  days:28,  dc:'DC 10' },
-  { label:'3m',  days:84,  dc:'DC 15' },
-  { label:'6m',  days:168, dc:'DC 20' },
-  { label:'10m', days:280, dc:'DC 25' }
+  { label:'1m',  days:28,  dc:'DC 10', token:'1m' },
+  { label:'3m',  days:84,  dc:'DC 15', token:'3m' },
+  { label:'6m',  days:168, dc:'DC 20', token:'6m' },
+  { label:'10m', days:280, dc:'DC 25', token:'10m' }
 ];
 
 export var PLANE_REVEAL_RANGE_OPTIONS = {
+  '1d': 1, '3d': 3, '6d': 6, '10d': 10,
+  '1w': 7, '2w': 14, '4w': 28,
   '1m': 28, '3m': 84, '6m': 168, '10m': 280,
   // Legacy year-based options (converted to days)
   '1y': 336, '3y': 1008, '6y': 2016, '10y': 3360
@@ -1168,10 +1171,10 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   var gmControls = '';
   if (isGM){
     var pSendBtns = PLANE_MEDIUM_PRESETS.map(function(p){
-      return button(p.label + ' (' + p.dc + ')', 'planes send medium ' + p.days + 'd');
+      return button(p.label + ' (' + p.dc + ')', 'planes send medium ' + (p.token || (p.days + 'd')));
     }).join(' ');
     var pHighBtns = PLANE_HIGH_PRESETS.map(function(p){
-      return button(p.label + ' (' + p.dc + ')', 'planes send high ' + p.days + 'd');
+      return button(p.label + ' (' + p.dc + ')', 'planes send high ' + (p.token || (p.days + 'd')));
     }).join(' ');
 
     gmControls =
@@ -1181,7 +1184,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
         '<div style="font-size:.82em;margin-bottom:2px;">'+button('Prompt !cal planes on','planes on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
         button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
         '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
-          'CLI: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>'+
+          'CLI: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>'+
         '</div>'+
       '</div>';
   }
@@ -1208,7 +1211,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     navRow +
     _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) +
     body + longShadowsHtml + srcLine + horizonLine + gmControls +
-    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','help root') +'</div>'
+    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
   );
 }
 
@@ -1383,7 +1386,7 @@ export function handlePlanesCommand(m, args){
     return whisper(m.who, planesPanelHtml(true));
   }
 
-  // !cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
+  // !cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]
   // Without a tier, shows GM-only snapshot.
   // With a tier, broadcasts a player-facing planar forecast and upgrades stored tier.
   if (sub === 'send'){
@@ -1416,11 +1419,11 @@ export function handlePlanesCommand(m, args){
 
     var tier = PLANE_REVEAL_TIERS[tierRaw] ? tierRaw : null;
     if (!tier){
-      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>');
     }
     var reqHorizon = _parsePlaneRevealRange(args[3], tier);
     if (!reqHorizon){
-      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>');
     }
 
     var psSend = getPlanesState();
@@ -1526,7 +1529,7 @@ export function handlePlanesCommand(m, args){
 
   whisper(m.who,
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
-    '<code>!cal planes send [low|medium|high] [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
@@ -1535,5 +1538,3 @@ export function handlePlanesCommand(m, args){
     '<code>!cal planes clear [&lt;name&gt;]</code>'
   );
 }
-
-

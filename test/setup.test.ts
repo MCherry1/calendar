@@ -67,7 +67,15 @@ describe("Setup onboarding", () => {
     freshInstall();
     handleInput(gmMsg("!cal"));
     assert(lastChat().msg.includes("Calendar Setup"));
-    assert(lastChat().msg.includes("Calendar System"));
+    assert(lastChat().msg.includes("Step 1: Setting"));
+  });
+
+  it("auto-selects the lone Forgotten Realms calendar and explains it", () => {
+    freshInstall();
+    handleInput(gmMsg("!cal setup calendar faerunian"));
+    assert(lastChat().msg.includes("Harptos Calendar"));
+    assert(lastChat().msg.includes("Forgotten Realms"));
+    assert(lastChat().msg.includes("Step 3: Current In-Game Date"));
   });
 
   it("applies a weather-off setup flow and marks the campaign complete", () => {

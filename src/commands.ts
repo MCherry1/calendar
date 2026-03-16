@@ -4,9 +4,9 @@ import { ensureSettings, getCal } from './state.js';
 import { todaySerial } from './date-math.js';
 import { eventDisplayName, occurrencesInRange } from './events.js';
 import { button, esc } from './rendering.js';
-import { _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, currentDateLabel, taskCardHtml } from './ui.js';
+import { _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, currentDateLabel, sendCurrentDate, taskCardHtml } from './ui.js';
 import { isTimeOfDayActive } from './time-of-day.js';
-import { _todayAllHtml, invokeEventSub } from './today.js';
+import { invokeEventSub } from './today.js';
 import { WEATHER_SOURCE_LABELS, _forecastRecord, _playerDayHtml, _weatherRevealForSerial, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _normalizePlaneRevealTier, _planarYearDays, _planesTodaySummaryHtml, getPlanarState, getPlanesState } from './planes.js';
@@ -43,11 +43,7 @@ export function runEventsShortcut(m, a, sub){
 export function _showDefaultCalView(m){
   weatherEnsureForecast();
   moonEnsureSequences();
-  if (playerIsGM(m.playerid)){
-    whisper(m.who, _todayAllHtml());
-  } else {
-    whisper(m.who, _playerTodayHtml(m.playerid));
-  }
+  sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
 }
 
 export function _playerPlanarActiveTodayLines(today, viewTier, genHorizon){
@@ -178,5 +174,3 @@ export function _playerTodayHtml(playerid){
 
   return _menuBox('Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label), sections.join(''));
 }
-
-

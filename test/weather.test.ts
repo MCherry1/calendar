@@ -10,7 +10,7 @@ import {
   _bestTier, _locSig, _weatherRevealBucket, _recordReveal,
   _weatherRevealForSerial, _grantCommonWeatherReveals,
   _parseWeatherRevealDayToken, _parseWeatherRevealDateSpec,
-  weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand
+  weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml
 } from "../src/weather.js";
 import { _subsystemIsVerbose, _subsystemVerbosityValue, _displayMonthDayParts, currentDateLabel } from "../src/ui.js";
 import { _todayAllHtml, _todayWeatherIsStable } from "../src/today.js";
@@ -446,6 +446,27 @@ describe("Weather: common weather reveals", () => {
       const rev = _weatherRevealForSerial(ws, today + d);
       assertEquals(rev.tier, "low", `day +${d} should have low tier`);
     }
+  });
+});
+
+describe("Weather: saved location presets", () => {
+  it("saves named presets and lists them before recents in the wizard", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    ws.location = { name: "Current", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate/inland/open" } as any;
+    ws.recentLocations = [
+      { name: "Recent One", climate: "tropical", geography: "coastal", terrain: "forest", sig: "tropical/coastal/forest" }
+    ] as any;
+
+    handleWeatherCommand({ who: "GM (GM)", playerid: "GM" } as any, ["weather", "location", "save", "Sharn"]);
+
+    assertEquals(ws.savedLocations.length, 1);
+    assertEquals(ws.savedLocations[0].name, "Sharn");
+
+    const html = weatherLocationWizardHtml("start");
+    assert(html.includes("Saved locations:"));
+    assert(html.includes("Recent locations:"));
+    assert(html.indexOf("Saved locations:") < html.indexOf("Recent locations:"));
   });
 });
 

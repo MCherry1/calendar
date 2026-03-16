@@ -2,7 +2,7 @@ import type { WorldDefinition } from './types.js';
 
 export const faerun: WorldDefinition = {
   key: 'faerunian',
-  label: 'Harptos',
+  label: 'Forgotten Realms',
   description:
     '12 months of 30 days, split into three tendays. 5 festival days occur between months. Shieldmeet follows Midsummer every 4 years.',
   eraLabel: 'DR',
@@ -10,7 +10,7 @@ export const faerun: WorldDefinition = {
 
   calendar: {
     key: 'faerunian',
-    label: 'Harptos',
+    label: 'Harptos Calendar',
     weekdays: [
       'Firstday',
       'Secondday',

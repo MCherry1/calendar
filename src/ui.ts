@@ -196,17 +196,13 @@ export function _weatherViewDays(n){
 }
 
 export function _playerButtonsHtml(){
-  var nav = [
-    button('◀ Prev','show previous month'),
-    button('Next ▶','show next month')
-  ];
   var out = [];
   var st = ensureSettings();
-  out.push(button('📋 Today','today'));
-  if (st.weatherEnabled !== false) out.push(button('🌤 Weather','weather'));
-  if (st.moonsEnabled   !== false) out.push(button('🌙 Moons','moon'));
-  if (st.planesEnabled  !== false) out.push(button('🌀 Planes','planes'));
-  return nav.join(' ') + '<br>' + out.join(' ');
+  out.push('<div>'+button('◀ Prev','show previous month')+' '+button('Next ▶','show next month')+'</div>');
+  if (st.weatherEnabled !== false) out.push('<div>'+button('🌤 Weather','weather')+'</div>');
+  if (st.moonsEnabled   !== false) out.push('<div>'+button('🌙 Moons','moon')+'</div>');
+  if (st.planesEnabled  !== false) out.push('<div>'+button('🌀 Planes','planes')+'</div>');
+  return out.join('');
 }
 
 export function sendCurrentDate(to, gmOnly, opts?){
@@ -803,27 +799,16 @@ export function taskCardHtml(title, summary, actions?, detail?){
 }
 
 export function gmButtonsHtml(){
-  var wrap = STYLES.gmbuttonWrap;
   var st = ensureSettings();
-  // Row 1: day controls + send
-  var row1 = [
-    '<div style="'+wrap+'">'+ mb('⏮ Back','retreat 1')   +'</div>',
-    '<div style="'+wrap+'">'+ mb('⏭ Forward','advance 1') +'</div>',
-    '<div style="'+wrap+'">'+ mb('📣 Send','send')         +'</div>'
+  var rows = [
+    '<div>'+mb('⏮ Retreat','retreat 1')+' '+mb('⏭ Advance','advance 1')+'</div>',
+    '<div>'+mb('📣 Send To Players','send')+'</div>'
   ];
-  // Row 2: today deep-dive + subsystems
-  row1.splice(2, 0, '<div style="'+wrap+'">'+ mb('Time','time') +'</div>');
-  var row2 = [
-    '<div style="'+wrap+'">'+ mb('📋 Today','today')       +'</div>'
-  ];
-  if (st.weatherEnabled !== false) row2.push('<div style="'+wrap+'">'+ mb('🌤 Weather','weather') +'</div>');
-  if (st.moonsEnabled   !== false) row2.push('<div style="'+wrap+'">'+ mb('🌙 Moons','moon')     +'</div>');
-  if (st.planesEnabled  !== false) row2.push('<div style="'+wrap+'">'+ mb('🌀 Planes','planes')   +'</div>');
-  // Row 3: admin
-  var row3 = [
-    '<div style="'+wrap+'">'+ nav('⚙ Admin','root') +'</div>'
-  ];
-  return row1.join('') + '<br>' + row2.join('') + '<br>' + row3.join('');
+  if (st.weatherEnabled !== false) rows.push('<div>'+mb('🌤 Weather','weather')+'</div>');
+  if (st.moonsEnabled   !== false) rows.push('<div>'+mb('🌙 Moons','moon')+'</div>');
+  if (st.planesEnabled  !== false) rows.push('<div>'+mb('🌀 Planes','planes')+'</div>');
+  rows.push('<div>'+nav('⚙ Admin','root')+'</div>');
+  return rows.join('');
 }
 
 export function _activePlanarWeatherShiftLines(serial){
@@ -1030,9 +1015,7 @@ export function helpStatusSummaryHtml(){
   var variant = (sys.variants && sys.variants[st.calendarVariant]) || {};
   var sysLabel = esc(sys.label || titleCase(st.calendarSystem || ''));
   var varLabel = esc(variant.label || titleCase(st.calendarVariant || ''));
-  // Show variant only when the system has more than one.
-  var varCount = sys.variants ? Object.keys(sys.variants).length : 1;
-  var calLine  = varCount > 1 ? sysLabel + ' &mdash; ' + varLabel : sysLabel;
+  var calLine  = (varLabel && varLabel !== sysLabel) ? (sysLabel + ' &mdash; ' + varLabel) : sysLabel;
 
   // Overrides: only show if they deviate from the variant/system defaults.
   var overrides = [];
@@ -1143,7 +1126,7 @@ export function helpRootMenu(m){
       'Reach the high-churn admin tools here and keep deeper configuration inside the existing drill-down menus.',
       [
         mbP(m,'Time','time'),
-        navP(m,'Calendar Systems','calendar'),
+        navP(m,'Supported Settings','calendar'),
         navP(m,'Themes','themes'),
         navP(m,'Seasons','seasons'),
         mbP(m,'Effects','effects')
@@ -1168,7 +1151,7 @@ export function helpThemesMenu(m){
 export function helpCalendarSystemMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
-    _menuBox(ro ? 'Calendar Systems (view only)' : 'Calendar Systems', calendarSystemListHtml(ro))+
+    _menuBox(ro ? 'Supported Settings (view only)' : 'Supported Settings', calendarSystemListHtml(ro))+
     '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
   );
 }
@@ -1240,7 +1223,5 @@ export function calendarSystemListHtml(readOnly?){
       '</div>';
   });
 
-  return '<div style="margin:4px 0;"><b>Calendar Systems</b></div>'+rows.join('<hr style="border:none;border-top:1px solid #444;margin:4px 0;">');
+  return '<div style="margin:4px 0;"><b>Supported Settings</b></div>'+rows.join('<hr style="border:none;border-top:1px solid #444;margin:4px 0;">');
 }
-
-

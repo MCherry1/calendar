@@ -2,14 +2,14 @@ import type { WorldDefinition } from './types.js';
 
 export const gregorian: WorldDefinition = {
   key: 'gregorian',
-  label: 'Gregorian',
+  label: 'Earth',
   description: '12 months of varying length. Standard Earth calendar.',
   eraLabel: 'CE',
   defaultDate: { month: 0, day: 1, year: 2024 },
 
   calendar: {
     key: 'gregorian',
-    label: 'Gregorian',
+    label: 'Gregorian Calendar',
     weekdays: [
       'Sunday', 'Monday', 'Tuesday', 'Wednesday',
       'Thursday', 'Friday', 'Saturday',

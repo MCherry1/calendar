@@ -509,9 +509,14 @@ export var commands = {
     applyCalendarSystem(sysKey, vk);
     _invalidateSerialCache();
     refreshAndSend();
-    var msg = 'Calendar: <b>'+esc(sys.label||titleCase(sysKey))+'</b>';
-    if (Object.keys(sys.variants||{}).length > 1) msg += ' — '+esc(variant.label||titleCase(vk));
-    whisper(m.who, msg+'.');
+    var msg = 'Setting: <b>'+esc(sys.label||titleCase(sysKey))+'</b>';
+    if (variant && (variant.label || '').trim()) msg += ' — '+esc(variant.label||titleCase(vk));
+    if (variant && variant.description){
+      msg += '.<br><span style="opacity:.78;">'+esc(variant.description)+'</span>';
+    } else {
+      msg += '.';
+    }
+    whisper(m.who, msg);
   }},
 
   seasons: { gm:true, run:function(m, a){

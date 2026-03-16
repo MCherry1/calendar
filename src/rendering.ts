@@ -163,7 +163,9 @@ export function _calendarCellInnerHtml(content, extraStyle?){
 export function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture);
   var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"' : '';
-  var numWrap = '<div'+(numeralStyle ? ' style="'+numeralStyle+'"' : '')+'>'+ctx.d+'</div>';
+  var numStyle = 'display:flex;align-items:center;justify-content:center;min-height:1.05em;line-height:1;';
+  if (numeralStyle) numStyle += numeralStyle;
+  var numWrap = '<div style="'+numStyle+'">'+ctx.d+'</div>';
   var dots = _eventDotsHtml(ctx.events);
   return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(numWrap+dots)+'</td>';
 }
@@ -547,6 +549,23 @@ export function _buildSyntheticEventsLookup(syntheticEvents, fallbackTitle){
 
 export function _renderSyntheticMiniCal(title, startSerial, endSerial, syntheticEvents){
   var bySerial = _buildSyntheticEventsLookup(syntheticEvents, title);
+  var startDate = fromSerial(startSerial|0);
+  var endDate = fromSerial(endSerial|0);
+  if (startDate.year === endDate.year && startDate.mi === endDate.mi && startDate.day === 1){
+    var monthObj = getCal().months[startDate.mi] || {};
+    var monthDays = Math.max(1, monthObj.days|0);
+    if (endDate.day === monthDays){
+      return renderMonthTable({
+        year: startDate.year,
+        mi: startDate.mi,
+        mode: 'full',
+        includeCalendarEvents: false,
+        extraEventsFn: function(serial){
+          return bySerial[String(serial)] || [];
+        }
+      });
+    }
+  }
   return buildCalendarsHtmlForSpec({
     title: title,
     start: startSerial,
@@ -840,6 +859,5 @@ export function restoreDefaultEvents(query){
   refreshAndSend();
   sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".');
 }
-
 
 
