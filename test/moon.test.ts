@@ -5,7 +5,7 @@ import { freshInstall } from "./helpers.js";
 import { toSerial, todaySerial } from "../src/date-math.js";
 import { solarProfileForSerial } from "../src/time-of-day.js";
 import {
-  MOON_SYSTEMS, _moonHashStr, _moonPrng, _eberronMoonCore,
+  MOON_SYSTEMS, _moonHashStr, _eberronMoonCore,
   moonEnsureSequences, moonPhaseAt, _applyAntiPhaseCoupling,
   nighttimeLightCondition, nighttimeLux,
   _diskOverlapFraction, _eclipseTimeBlock, _eclipseLifecycleText,
@@ -31,6 +31,7 @@ describe("Moon System", () => {
       assert(m.synodicPeriod > 0, `${m.name} synodic period`);
       assert(m.plane, `${m.name} plane`);
       assert(m.color, `${m.name} color`);
+      assert(!Object.prototype.hasOwnProperty.call(m, "variation"), `${m.name} has no variation config`);
     }
   });
 
@@ -40,15 +41,6 @@ describe("Moon System", () => {
     assertEquals(h, _moonHashStr("test-seed"));
     assertNotEquals(h, _moonHashStr("other"));
     assert(h >= 0 && h < 1);
-  });
-
-  it("_moonPrng produces repeatable sequences", () => {
-    freshInstall();
-    const a = _moonPrng(0.42), b = _moonPrng(0.42);
-    const sa = Array.from({ length: 5 }, () => a());
-    const sb = Array.from({ length: 5 }, () => b());
-    for (let i = 0; i < 5; i++) assertEquals(sa[i], sb[i]);
-    for (const v of sa) assert(v >= 0 && v < 1);
   });
 
   it("_eberronMoonCore returns data for all named moons", () => {

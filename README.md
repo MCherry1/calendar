@@ -274,7 +274,7 @@ That means axial tilt mostly shows up as broad seasonal daylight framing: longer
 - Saturn-rings reference note: the real rings are mostly water ice with dust/rock contamination, with particles ranging from dust grains to mountain-scale chunks. Their brightness varies by ring, from darker dirty sections to bright B-ring ice; the script's `0.50` uses a bright-average analog rather than claiming every ringlet is equally reflective
 ### Moons of Eberron
 
-The Eberron implementation uses fixed synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms. Moons no longer carry an intrinsic wobble; exact full/new peaks only move when an external force does so deliberately.
+The Eberron implementation uses fixed synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms. Exact full/new peaks only move when an external force does so deliberately.
 
 Those external pulls currently come from festival nudges to local noon, canonical associated-plane windows that pull an exact full/new peak onto the nearest edge-day noon when a window would otherwise miss it, Long Shadows gobbling that centers claimed new moons on noon of Vult 27, GM anchors, and the Therendor/Barrakas anti-phase coupling.
 

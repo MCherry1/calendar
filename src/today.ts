@@ -11,7 +11,7 @@ import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTi
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
-import { MOON_SYSTEMS, _eclipseNotableToday, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
+import { MOON_SYSTEMS, _eclipseNotableToday, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, handlePlanesCommand } from './planes.js';
 
 
@@ -148,8 +148,8 @@ export function _todayAllHtml(){
         var peak = moonPhaseAt(moon.name, today);
         if (!peak) return;
         var label = _moonPhaseLabel(peak.illum, peak.waxing);
-        if (peak.illum >= 0.97) moonNow.push(moon.name + ' full');
-        else if (peak.illum <= 0.03) moonNow.push(moon.name + ' new');
+        if (_isFullMoonIllum(peak.illum)) moonNow.push(moon.name + ' full');
+        else if (_isNewMoonIllum(peak.illum)) moonNow.push(moon.name + ' new');
         else if (moonNow.length < 1) moonNow.push(moon.name + ' ' + label.toLowerCase());
       });
       moonSummary = moonNow.length ? esc(moonNow.slice(0, 2).join(' · ')) + '.' : 'No notable lunar peaks today.';

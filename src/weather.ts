@@ -56,7 +56,7 @@ import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messagi
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
 
-import { moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel } from './moon';
+import { _isFullMoonIllum, moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel } from './moon';
 import { getActivePlanarEffects } from './planes';
 import { _activePlanarWeatherShiftLines, _weatherInfluenceTexts, _weatherInfluenceHtml, _planarWeatherInfluenceText } from './ui';
 import { colorForMonth } from './state';
@@ -109,7 +109,7 @@ export function _weatherTempMechanics(band){
 
 export function _isZarantyrFull(serial){
   var ph = moonPhaseAt('Zarantyr', serial);
-  return !!(ph && ph.illum >= 0.97);
+  return !!(ph && _isFullMoonIllum(ph.illum));
 }
 
 // ---------------------------------------------------------------------------
@@ -881,7 +881,7 @@ function _isArythFull(serial: any){
   try {
     moonEnsureSequences(serial, 60);
     var ph = moonPhaseAt('Aryth', serial);
-    return !!(ph && ph.illum >= 0.97);
+    return !!(ph && _isFullMoonIllum(ph.illum));
   } catch(e){
     return false;
   }
@@ -3423,4 +3423,3 @@ export function handleWeatherCommand(m, args){
       break;
   }
 }
-

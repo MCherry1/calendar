@@ -72,7 +72,6 @@ export var MOON_SYSTEMS = {
       { name:'Zarantyr', referenceMoon:_eberronMoonCore('Zarantyr').referenceMoon,  title:'The Storm Moon',    color:_eberronMoonCore('Zarantyr').color, associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
         synodicPeriod:27.32, diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,
         inclination:5.145, eccentricity:0.0549, albedo:0.12,
-        variation:null,
         epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} } },
 
       // ── OLARUNE ── The Sentinel Moon ───────────────────────────────
@@ -83,7 +82,6 @@ export var MOON_SYSTEMS = {
       { name:'Olarune', referenceMoon:_eberronMoonCore('Olarune').referenceMoon,   title:'The Sentinel Moon', color:_eberronMoonCore('Olarune').color, associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
         synodicPeriod:30.8052, diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,
         inclination:0.33, eccentricity:0.0288, albedo:0.22,
-        variation:null,
         epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── THERENDOR ── The Healer's Moon ─────────────────────────────
@@ -96,7 +94,6 @@ export var MOON_SYSTEMS = {
       { name:'Therendor', referenceMoon:_eberronMoonCore('Therendor').referenceMoon, title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
         synodicPeriod:34.7350, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
         inclination:0.03, eccentricity:0.0022, albedo:0.99,
-        variation:null,
         epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
 
       // ── EYRE ── The Anvil ──────────────────────────────────────────
@@ -108,7 +105,6 @@ export var MOON_SYSTEMS = {
       { name:'Eyre', referenceMoon:_eberronMoonCore('Eyre').referenceMoon,      title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
         synodicPeriod:39.1661, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
         inclination:1.53, eccentricity:0.0196, albedo:0.96,
-        variation:null,
         epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── DRAVAGO ── The Herder's Moon ───────────────────────────────
@@ -122,7 +118,6 @@ export var MOON_SYSTEMS = {
       { name:'Dravago', referenceMoon:_eberronMoonCore('Dravago').referenceMoon,   title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
         synodicPeriod:44.1625, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
         inclination:156.8, eccentricity:0.000016, albedo:0.76,
-        variation:null,
         epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
 
       // ── NYMM ── The Crown ──────────────────────────────────────────
@@ -136,7 +131,6 @@ export var MOON_SYSTEMS = {
       { name:'Nymm', referenceMoon:_eberronMoonCore('Nymm').referenceMoon,      title:'The Crown',         color:_eberronMoonCore('Nymm').color, associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
         synodicPeriod:49.7962, diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance,
         inclination:0.20, eccentricity:0.0013, albedo:0.43,
-        variation:null,
         epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
         nodePrecession:{ period:336, navigable:true } },
 
@@ -151,7 +145,6 @@ export var MOON_SYSTEMS = {
       { name:'Lharvion', referenceMoon:_eberronMoonCore('Lharvion').referenceMoon,  title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
         synodicPeriod:56.1487, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
         inclination:0.43, eccentricity:0.1230, albedo:0.30,
-        variation:null,
         epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
 
       // ── BARRAKAS ── The Lantern ────────────────────────────────────
@@ -165,7 +158,6 @@ export var MOON_SYSTEMS = {
       { name:'Barrakas', referenceMoon:_eberronMoonCore('Barrakas').referenceMoon,  title:'The Lantern',       color:_eberronMoonCore('Barrakas').color, associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
         synodicPeriod:63.3115, diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance,
         inclination:0.02, eccentricity:0.0047, albedo:1.375,
-        variation:null,
         epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} } },
 
       // ── RHAAN ── The Book ──────────────────────────────────────────
@@ -184,7 +176,6 @@ export var MOON_SYSTEMS = {
       { name:'Rhaan', referenceMoon:_eberronMoonCore('Rhaan').referenceMoon,     title:'The Book',          color:_eberronMoonCore('Rhaan').color, associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
         synodicPeriod:71.3881, diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance,
         inclination:4.34, eccentricity:0.0013, albedo:0.32,
-        variation:null,
         epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} } },
 
       // ── SYPHEROS ── The Shadow ─────────────────────────────────────
@@ -196,8 +187,7 @@ export var MOON_SYSTEMS = {
       // Real Phobos: ecc 0.0151, inc 1.08°, albedo 0.071.
       { name:'Sypheros', referenceMoon:_eberronMoonCore('Sypheros').referenceMoon,  title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
         synodicPeriod:80.4950, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
-        inclination:1.08, eccentricity:0.0151, albedo:0.071,
-        variation:null },
+        inclination:1.08, eccentricity:0.0151, albedo:0.071 },
 
       // ── ARYTH ── The Gateway ───────────────────────────────────────
       // Analog: Iapetus (Saturn). THE two-tone moon — leading hemisphere
@@ -212,7 +202,6 @@ export var MOON_SYSTEMS = {
       { name:'Aryth', referenceMoon:_eberronMoonCore('Aryth').referenceMoon,     title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
         synodicPeriod:90.7637, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
         inclination:7.57, eccentricity:0.0283, albedo:0.275,
-        variation:null,
         epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
 
       // ── VULT ── The Warding Moon ───────────────────────────────────
@@ -227,7 +216,6 @@ export var MOON_SYSTEMS = {
       { name:'Vult', referenceMoon:_eberronMoonCore('Vult').referenceMoon,      title:'The Warding Moon',  color:_eberronMoonCore('Vult').color, associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
         synodicPeriod:102.3424, diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance,
         inclination:0.07, eccentricity:0.0014, albedo:0.23,
-        variation:null,
         epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} } }
     ]
   },
@@ -249,7 +237,6 @@ export var MOON_SYSTEMS = {
       { name:'Selûne', title:'The Moonmaiden', color:'#C8D8F0', associatedMonth:null,
         synodicPeriod:30.4375, diameter:2000, distance:183000,
         inclination:5.1, eccentricity:0.054, albedo:0.25,
-        variation:null,
         epochSeed:{ defaultSeed:'selune', referenceDate:{year:1372,month:1,day:1} },
         loreNote:'Full at midnight Hammer 1, 1372 DR. Trailed by the Tears of Selûne. Associated with lycanthropy, divination, navigation, and tides.',
         deity:'Selûne' }
@@ -262,7 +249,6 @@ export var MOON_SYSTEMS = {
   // Standard astronomical reference. Synodic period 29.53059 days.
   // Anchor: full moon on January 28, 2021 (a known astronomical full moon).
   // Albedo 0.12, diameter 2159 miles, distance 238855 miles.
-  // Variation: slight (~0.5 day) due to orbital eccentricity.
   gregorian: {
     id: 'gregorian',
     name: 'Earth',
@@ -271,7 +257,6 @@ export var MOON_SYSTEMS = {
       { name:'Luna', title:'The Moon', color:'#DCDCDC', associatedMonth:null,
         synodicPeriod:29.53059, diameter:2159, distance:238855,
         inclination:5.14, eccentricity:0.0549, albedo:0.12,
-        variation:null,
         epochSeed:{ defaultSeed:'luna', referenceDate:{year:2021,month:1,day:28} },
         loreNote:'Earth\'s natural satellite. Synodic period 29.53 days. Governs tides and has inspired mythology across all human cultures.' }
     ]
@@ -399,7 +384,7 @@ export function _siberysLoreHtml(){
 }
 
 // ---------------------------------------------------------------------------
-// 20b) State & PRNG helpers
+// 20b) State helpers
 // ---------------------------------------------------------------------------
 
 export function getMoonState(){
@@ -434,17 +419,6 @@ export function _moonHashStr(str){
     h = (Math.imul(h, 0x01000193)) >>> 0;
   }
   return h / 4294967296;
-}
-
-export function _moonPrng(seedFloat){
-  // Mulberry32 — fast, deterministic, seedable PRNG. Returns next() -> [0,1)
-  var s = (seedFloat * 4294967296) >>> 0;
-  return function(){
-    s += 0x6D2B79F5;
-    var t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 // Seeded dice roller — deterministic from serial + salt string.
@@ -485,15 +459,12 @@ export var FESTIVAL_SOFT_ANCHORS = [
 
 export var MOON_PRE_GENERATE_YEARS = 2;
 export var MOON_PREDICTION_LIMITS = {
-  // Low: look outside + 2 days. Phases are obvious.
+  // Low: only surface phases obvious in the immediate sky.
   lowDays: 2,
-  // Medium: varies by button press. One full cycle exact, beyond that adds
-  // uncertainty windows. Max reach = 10 months.
+  // Medium: exact within the chosen horizon. Max reach = 10 months.
   mediumMaxDays: 280,
   // High: full knowledge. Max reach = 2 years (pre-generation window).
-  highMaxDays: 672,
-  // Within this range from today, high-tier predictions are exact (no window).
-  highExactDays: 180
+  highMaxDays: 672
 };
 
 // Preset reveal buttons: 1m, 3m, 6m, 10m (in 28-day months, inclusive of today)
@@ -564,24 +535,8 @@ export function _moonYearDays(){
 // epochSeed. GM hard anchors use gmAnchors path in moonEnsureSequences.
 
 // ---------------------------------------------------------------------------
-// 20d) Variation step
+// 20d) Phase helper serials
 // ---------------------------------------------------------------------------
-
-export function _moonVariationStep(variation, cycleIndex, rng){
-  // Returns signed day offset to add to synodicPeriod for this cycle.
-  // The shipped moon sets now use fixed periods; this remains available
-  // for future calendar systems that deliberately want intrinsic wobble.
-  if (!variation) return 0;  // Allows a system to define a truly fixed moon if needed.
-
-  var amp = variation.amplitude || 0;
-
-  if (variation.shape === 'random'){
-    return amp * (rng() * 2 - 1);
-  }
-
-  // Xoriat and any future special shapes fall through to 0
-  return 0;
-}
 
 export function _serialDayMidpoint(serial){
   return Math.floor(serial) + 0.5;
@@ -818,9 +773,8 @@ export function _applyAssociatedPlanePhaseShifts(moons, ms, genFrom, genThru){
 // ---------------------------------------------------------------------------
 
 export function _generateStandardSequence(moon, startSerial, endSerial, seedOverride){
-  var period    = moon.synodicPeriod;
-  var variation = moon.variation;
-  var events    = [];
+  var period = moon.synodicPeriod;
+  var events = [];
 
   // Determine epoch: serial of a known full moon to start counting from.
   // All moons now use epochSeed for their starting point.
@@ -835,43 +789,28 @@ export function _generateStandardSequence(moon, startSerial, endSerial, seedOver
     epochSerial = startSerial;
   }
 
-  // RNG seeded from moon name (+ seed word for Zarantyr) for reproducibility
-  var rngSeed = _moonHashStr(moon.name + (seedOverride || ''));
-  var rng = _moonPrng(rngSeed);
-
   // Rewind epochSerial backward to just before startSerial.
-  // We must consume the RNG in forward order, so: first estimate how many cycles
-  // to burn, burn them, then walk forward to the right starting point.
   var cur = epochSerial;
-  var ci  = 0;
 
-  // If epochSerial is ahead of startSerial, step backward in whole-period chunks
-  // (no RNG consumed for backward steps -- we'll re-approach from a safe rewind point).
   if (cur > startSerial){
     var approxCyclesBack = Math.ceil((cur - startSerial) / period) + 2;
     cur -= approxCyclesBack * period;
-    // ci stays 0 -- we haven't consumed RNG yet, so pattern starts fresh from this earlier point
   }
 
-  // Now walk forward, consuming RNG, until we're just before startSerial
   var MAX_REWIND = 2000;
   while (cur + period < startSerial - period && MAX_REWIND-- > 0){
-    cur += period + _moonVariationStep(variation, ci++, rng);
+    cur += period;
   }
 
-  // Walk forward, emitting full and new events
   var MAX_FWD = 800;
   while (cur <= endSerial && MAX_FWD-- > 0){
-    var thisOffset = _moonVariationStep(variation, ci, rng);
-    var thisPeriod = Math.max(period * 0.25, period + thisOffset);
     var fullS = cur;
-    var newS  = cur + thisPeriod * 0.5;
+    var newS  = cur + period * 0.5;
     if (fullS >= startSerial && fullS <= endSerial)
       events.push({ serial:fullS, type:'full', retro:false });
     if (newS  >= startSerial && newS  <= endSerial)
       events.push({ serial:newS,  type:'new',  retro:false });
-    cur += thisPeriod;
-    ci++;
+    cur += period;
   }
 
   return events;
@@ -972,17 +911,8 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
     var seed = moonSeedOverride || (globalSeed ? (globalSeed + '::' + moon.name) : null);
     var seq = _generateStandardSequence(moon, genFrom, needThru, seed);
 
-    // Apply GM anchor overrides with multi-cycle smoothing.
-    // Instead of teleporting an event to the target date, we distribute the
-    // offset across the preceding N cycles so the moon appears to drift
-    // naturally toward the target. Each prior event is adjusted by a fraction
-    // of the total offset, weighted more heavily toward the target (later
-    // cycles absorb more of the shift). This exploits the built-in variation
-    // to make the movement look like natural orbital drift.
-    //
-    // smoothingCycles: how many prior events to adjust (default 4)
-    // The target event itself lands exactly on the anchor serial.
-    // Prior events are shifted proportionally: cycle i gets weight (i+1)/sum.
+    // Apply GM anchor overrides with multi-cycle smoothing so the exact peak
+    // lands on the anchor while the lead-in cycles bend toward it.
     var gmList = ms.gmAnchors[moon.name] || [];
     gmList.forEach(function(anchor){
       if (anchor.serial < genFrom || anchor.serial > needThru) return;
@@ -1112,6 +1042,7 @@ export function _longShadowsClaimedMoons(year){
 
     for (var j = 0; j < seq.length; j++){
       if (seq[j].type !== 'new') continue;
+      if (seq[j].gmForced) continue;
       var dist = seq[j].serial - midpoint;
       if (Math.abs(dist) <= 20){
         candidates.push({ name: moon.name, seqIdx: j, newSerial: seq[j].serial, signedDist: dist, absDist: Math.abs(dist) });
@@ -1267,7 +1198,7 @@ export function _moonNextEvent(moonName, serial, type){
 }
 
 // ---------------------------------------------------------------------------
-// 20i) Moon uncertainty & tiered forecast helpers
+// 20i) Moon reveal tiers & forecast helpers
 // ---------------------------------------------------------------------------
 
 // Moon reveal tiers -- unified with weather and planes.
@@ -1286,47 +1217,6 @@ export var MOON_SOURCE_LABELS = {
   medium:   'Skilled Forecast',
   high:     'Expert Forecast'
 };
-
-// ---------------------------------------------------------------------------
-// Uncertainty window for player-facing moon predictions.
-// ---------------------------------------------------------------------------
-// The window represents the range of dates an event COULD land on, given
-// that each remaining lunar cycle introduces random drift of ±amplitude days.
-//
-// Window width = amplitude × √(remainingCycles) × 1.3 (80% confidence)
-// Minimum 2 days even for tight predictions.
-//
-// CRITICAL: the window is ASYMMETRICALLY OFFSET from the actual day.
-// The real event day sits anywhere from 15% to 85% of the way through
-// the window — sometimes the window is mostly before the real day,
-// sometimes mostly after. Players cannot reverse-engineer the center.
-//
-// The offset is deterministic per-event (seeded from moon name + event
-// serial + type) so the same query always returns the same answer.
-
-// Returns { lo, hi } in days-from-today for a prediction window.
-// `d` = actual days until event, `period` = synodic period,
-// `amplitude` = variation amplitude in days, `seed` = deterministic seed.
-export function _moonPredictionWindow(d, period, amplitude, seed){
-  if (!(amplitude > 0)){
-    return { lo: d, hi: d };
-  }
-  // How many full cycles of drift remain between now and the event?
-  var remainingCycles = Math.max(0.1, d / period);
-  // Random walk: potential drift ≈ amplitude × √(remaining_cycles)
-  // Scale by 1.3 for ~80% confidence interval
-  var winWidth = Math.max(2, Math.round(amplitude * Math.sqrt(remainingCycles) * 1.3));
-  // Deterministic asymmetric offset: seed → fraction 0..1
-  var h = seed | 0;
-  h = ((h * 16807) + 0) % 2147483647;
-  var frac = (h & 0x7fffffff) / 2147483647;  // 0..1
-  var placement = 0.15 + frac * 0.70;  // 0.15..0.85
-  var daysBefore = Math.round(winWidth * placement);
-  var daysAfter  = winWidth - daysBefore;
-  var lo = Math.max(1, d - daysBefore);
-  var hi = d + daysAfter;
-  return { lo: lo, hi: hi };
-}
 
 // Format a "next event" string based on reveal tier.
 export function _moonNextEventStr(moon, today, type, tier, horizonDays){
@@ -1354,36 +1244,14 @@ export function _moonNextEventStr(moon, today, type, tier, horizonDays){
     return label + ': beyond prediction';
   }
 
-  var period = moon.synodicPeriod || 28;
-
-  // Deterministic seed: combine moon name hash + event serial + type
-  var evSeed = exact * 31 + (type === 'full' ? 7 : 13);
-  for (var si = 0; si < moon.name.length; si++){
-    evSeed = ((evSeed << 5) - evSeed + moon.name.charCodeAt(si)) | 0;
-  }
-
-  // Variation amplitude in days (from the moon's variation config)
-  var amp = (moon.variation && moon.variation.amplitude) || 0;
-
-  // Low: only shows if within 2 days, always with uncertainty window
+  // Low: only surfaces very near events and keeps the wording approximate.
   if (tier === 'low'){
-    var lowWin = _moonPredictionWindow(d, period, amp, evSeed);
-    return (lowWin.lo === lowWin.hi)
-      ? (label + ' in about ' + lowWin.lo + ' day' + (lowWin.lo===1?'':'s'))
-      : (label + ' in about ' + lowWin.lo + '\u2013' + lowWin.hi + ' days');
+    return label + ' in about ' + d + ' day' + (d === 1 ? '' : 's');
   }
 
-  // Medium: first cycle exact, beyond that adds uncertainty windows
+  // Medium and high both report the exact day inside the revealed horizon.
   if (tier === 'medium'){
-    // Within one cycle of this moon → exact
-    if (d <= period){
-      return label + ' ' + inDays(d);
-    }
-    // Beyond one cycle → asymmetric window
-    var win = _moonPredictionWindow(d, period, amp, evSeed);
-    return (win.lo === win.hi)
-      ? (label + ' in about ' + win.lo + ' day' + (win.lo===1?'':'s'))
-      : (label + ' in about ' + win.lo + '\u2013' + win.hi + ' days');
+    return label + ' ' + inDays(d);
   }
 
   // High: full exact knowledge within the horizon
@@ -1446,8 +1314,8 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
     } catch(e){}
   }
 
-  // Mundane tier: phase + approximate next event.
-  // Magical tier: phase + illumination + secondary event.
+  // Lower reveal tiers: phase + next event.
+  // High reveal tier: phase + illumination + secondary event.
   var infoParts = [emoji + ' ' + esc(label)];
   if (tier === 'high') infoParts[0] += ' (' + pct + '%)';
 
@@ -1462,7 +1330,7 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
     result += '<span style="opacity:.45;font-size:.82em;margin-left:8px;">'+esc(nextStr)+'</span>';
   }
 
-  // Magical: show secondary event too.
+  // High tier: show the secondary event too.
   if (tier === 'high'){
     var secStr = '';
     if (dFull !== null && (dNew === null || dFull <= dNew))
@@ -1486,7 +1354,7 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
   var start = startSerial|0;
   var end = endSerial|0;
   if (end < start){ var tmp = start; start = end; end = tmp; }
-  var isMagical = _normalizeMoonRevealTier(tier) === 'high';
+  var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
   var today = todaySerial();
 
   for (var ser = start; ser <= end; ser++){
@@ -1495,7 +1363,7 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
     for (var i = 0; i < sys.moons.length; i++){
       var moon = sys.moons[i];
       // For player display: suppress events past the reveal horizon
-      if (!isMagical && isFinite(baseHorizonDays) && ser > today){
+      if (!isHighTier && isFinite(baseHorizonDays) && ser > today){
         if ((ser - today) > baseHorizonDays) continue;
       }
       var peakType = _moonPeakPhaseDay(moon.name, ser);
@@ -1525,7 +1393,7 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
       });
     }
 
-    if (isMagical){
+    if (isHighTier){
       var eNotes = _eclipseNotableToday(ser);
       for (var ei = 0; ei < eNotes.length; ei++){
         out.push({

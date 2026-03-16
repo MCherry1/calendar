@@ -38,7 +38,7 @@ Moons are explicitly seed-driven.
 
 - Each moon definition includes an `epochSeed` with a `defaultSeed` word and a `referenceDate`.
 - `_generateStandardSequence()` converts that seed word into a reproducible epoch offset with `_moonHashStr(seedWord) * synodicPeriod`.
-- A deterministic PRNG (`_moonPrng`) then drives per-cycle variation so the same moon/seed combination produces the same sequence every time.
+- From that epoch, the sequence advances on a fixed synodic period, so the same moon/seed combination produces the same baseline peaks every time.
 - The GM-facing command `!cal moon seed <word>` sets one global system seed in `moon.systemSeed`; that seed is then namespaced per moon before sequence generation.
 
 Sequence generation is still layered:
