@@ -8,7 +8,7 @@ import { button, esc } from './rendering.js';
 import { applyCalendarSystem, applySeasonSet, checkInstall, deepClone, defaults, ensureSettings, getCal, getManualSuppressedSources, getSetupState, setupIsComplete, titleCase } from './state.js';
 import { _displayMonthDayParts, _menuBox, nextForDayOnly, nextForMonthDay, sendCurrentDate, setDate } from './ui.js';
 import { _normalizeWeatherLocation, _rememberRecentWeatherLocation, _weatherLocationLabel, getWeatherState, weatherEnsureForecast, weatherLocationWizardHtml } from './weather.js';
-import { getWorld } from './worlds/index.js';
+import { getWorld, WORLD_ORDER, WORLDS } from './worlds/index.js';
 
 function _setupDraft(){
   return getSetupState().draft;
@@ -142,6 +142,12 @@ function _setupCurrentStep(draft){
   var _stepCaps = (getWorld(sysKey) || {}).capabilities;
   if (_stepCaps && _stepCaps.planes && draft.planesEnabled === undefined) return 'planes';
   if (draft.weatherMode !== 'off' && !draft.weatherLocation && !draft.weatherLocationLater) return 'weather-location';
+  // World-defined extra steps (e.g. Dragonlance conjunction anchor)
+  var world = getWorld(sysKey);
+  var extras = (world && world.setup && world.setup.extraSteps) || [];
+  for (var xi = 0; xi < extras.length; xi++){
+    if (draft['extra_' + extras[xi].key] === undefined) return 'extra:' + extras[xi].key;
+  }
   return 'review';
 }
 
@@ -200,9 +206,11 @@ function _setupCalendarSelectionNotice(sysKey, variantKey){
 }
 
 function _setupCalendarStepHtml(draft){
-  var rows = CALENDAR_SYSTEM_ORDER.map(function(sysKey){
-    var sys = CALENDAR_SYSTEMS[sysKey];
-    return _setupPromptButton(sys.label || sysKey, 'setup calendar ' + sysKey, sys.description || '');
+  var rows = WORLD_ORDER.map(function(sysKey){
+    var world = WORLDS[sysKey];
+    var label = world ? world.label : sysKey;
+    var desc = world ? world.description : '';
+    return _setupPromptButton(label, 'setup calendar ' + sysKey, desc);
   }).join('');
   return _menuBox('Calendar Setup - Step 1: Setting',
     '<div style="margin-bottom:6px;">Choose the campaign setting first. If that setting only has one calendar, Calendar selects it automatically.</div>' + rows
@@ -326,6 +334,29 @@ function _setupReviewStepHtml(draft){
   );
 }
 
+function _setupExtraStepHtml(draft, stepKey){
+  var sysKey = String(draft.calendarSystem || '').toLowerCase();
+  var world = getWorld(sysKey);
+  var extras = (world && world.setup && world.setup.extraSteps) || [];
+  var stepDef = null;
+  for (var i = 0; i < extras.length; i++){
+    if (extras[i].key === stepKey){ stepDef = extras[i]; break; }
+  }
+  if (!stepDef) return _menuBox('Calendar Setup', '<div>Unknown step.</div>');
+  var rows = '';
+  if (stepDef.type === 'choice' && stepDef.options){
+    rows = stepDef.options.map(function(opt){
+      return _setupPromptButton(opt.label, 'setup extra ' + stepKey + ' ' + opt.key, '');
+    }).join('');
+  } else if (stepDef.type === 'toggle'){
+    rows = button('Yes', 'setup extra ' + stepKey + ' yes') + ' ' +
+           button('No', 'setup extra ' + stepKey + ' no');
+  } else if (stepDef.type === 'query'){
+    rows = button('Enter', 'setup extra ' + stepKey + ' ?{' + (stepDef.label || stepKey) + '|' + (stepDef.default || '') + '}');
+  }
+  return _menuBox('Calendar Setup - ' + (stepDef.label || stepKey), rows);
+}
+
 function _renderSetupWizard(draft, notice){
   var step = _setupCurrentStep(draft);
   var body = '';
@@ -340,6 +371,7 @@ function _renderSetupWizard(draft, notice){
   else if (step === 'weather') body = _setupWeatherStepHtml();
   else if (step === 'planes') body = _setupPlanesStepHtml();
   else if (step === 'weather-location') body = _setupWeatherLocationStepHtml(draft);
+  else if (step.indexOf('extra:') === 0) body = _setupExtraStepHtml(draft, step.slice(6));
   else body = _setupReviewStepHtml(draft);
   if (!notice) return body;
   return _menuBox('Calendar Setup', '<div style="margin-bottom:6px;">' + notice + '</div>') + body;
@@ -672,6 +704,15 @@ export function maybeHandleSetupGate(msg, args){
     if (action === 'apply'){
       _applySetupDraft(msg);
       return true;
+    }
+    if (action === 'extra'){
+      setup.status = 'in_progress';
+      var extraKey = String(args[3] || '');
+      var extraVal = String(args[4] || '');
+      if (extraKey && extraVal){
+        setup.draft['extra_' + extraKey] = extraVal;
+      }
+      return _showSetupWizard(msg), true;
     }
     _beginSetup(msg, false);
     return true;
