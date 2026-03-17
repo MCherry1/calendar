@@ -131,7 +131,21 @@ On initialization, the script asks for a starting date. The prompt is in the dis
 
 ---
 ### Default Views Redesign and System Entry Points
-This 
+This script has gotten badly mangled in it's presentation through various unguided fixes. Here is the overall picture.
+
+There are 5 core commands:
+* !cal
+	* !cal today (alias)
+	* This one is also the general initialization, if the script has not been initialized yet.
+* !cal events
+* !cal moons
+* !cal weather
+* !cal planes
+
+Aside from !cal, each these is the default entry point to their subsystem. ALL of them will output a system-specific minical. I will now define their minical display, player view variation, and buttons.
+
+#### Events
+
 
 ---
 
