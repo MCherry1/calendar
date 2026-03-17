@@ -173,11 +173,9 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
 * Buttons below are:
 	* Previous | Next (month steps)
-	* Additional Views
+	* Additional Views (no additional buttons after these are displayed)
 		* Current Year
-			* (no buttons)
 		* Upcoming (#n of months in calendar year) months (current month plus n-1)
-			* (no buttons)
 		* Specific Month (query mm or mm yyyy)
 		* Specific Year (query yy)
 	* Send (send current month view to players, GM only)
