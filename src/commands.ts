@@ -11,7 +11,7 @@ import { WEATHER_SOURCE_LABELS, _forecastRecord, _playerDayHtml, _weatherRevealF
 import { MOON_SYSTEMS, _eclipseNotableToday, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _normalizePlaneRevealTier, _planarYearDays, _planesTodaySummaryHtml, getPlanarState, getPlanesState } from './planes.js';
 import { whisper } from './messaging.js';
-export { send, sendToAll, sendToGM, sendUi, sendUiToAll, sendUiToGM, whisper, whisperUi, warnGM, warnGMUi, cleanWho } from './messaging.js';
+export { send, sendToAll, sendToGM, sendUi, sendUiToAll, sendUiToGM, whisper, whisperParts, whisperUi, warnGM, warnGMUi, cleanWho } from './messaging.js';
 
 
 /* ============================================================================

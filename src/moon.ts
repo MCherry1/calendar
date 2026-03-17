@@ -6,7 +6,7 @@ import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button, esc } from './rendering.js';
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
-import { send, sendToAll, warnGM, whisper } from './commands.js';
+import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 
@@ -1582,13 +1582,14 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
 // ---------------------------------------------------------------------------
 
 // GM panel -- always shows high-detail data
-export function moonPanelHtml(serialOverride?){
+// Returns an array of HTML parts to send as separate messages (avoids Roll20 size limits).
+export function moonPanelParts(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
-    return _menuBox('\uD83C\uDF19 Moons',
+    return [_menuBox('\uD83C\uDF19 Moons',
       '<div style="opacity:.7;">Moon system is disabled.</div>'+
       '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings moons on</code></div>'
-    );
+    )];
   }
 
   var ms  = getMoonState();
@@ -1600,55 +1601,63 @@ export function moonPanelHtml(serialOverride?){
 
   var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
   if (!sys){
-    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+    return [_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>')];
   }
 
-  var rows = sys.moons.map(function(moon){
-    return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
-  });
   var displayMode = _normalizeDisplayMode(st.moonDisplayMode);
   var verbose = _subsystemIsVerbose();
-  var mr = _monthRangeFromSerial(today);
-  var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
-  var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
     button('◀ Prev Month','moon on '+_serialToDateSpec(prevSer))+' '+
     button('Next Month ▶','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
-  var body = '';
+
+  var parts = [];
+
+  // Part 1: Calendar grid (if shown)
   if (displayMode !== 'list'){
-    body += moonMiniCal;
-    body += _legendLine(['🌕 Full', '🌑 New', '🌘 Eclipse/Occultation']);
+    var mr = _monthRangeFromSerial(today);
+    var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
+    var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
+    var calBody = navRow +
+      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
+      moonMiniCal +
+      _legendLine(['🌕 Full', '🌑 New', '🌘 Eclipse/Occultation']);
     if (verbose){
-      body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
+      calBody += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
     }
+    parts.push(_menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), calBody));
   }
+
+  // Part 2: Moon list rows (if shown)
   if (displayMode !== 'calendar'){
-    body += rows.join('');
-  }
-  if (!body){
-    body = '<div style="opacity:.7;">No lunar display mode selected.</div>';
+    var rows = sys.moons.map(function(moon){
+      return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
+    });
+    var listBody = (displayMode === 'list' ? navRow +
+      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) : '') +
+      rows.join('');
+    parts.push(_menuBox(displayMode === 'list' ? '\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel) : '\uD83C\uDF19 Moon Phases', listBody));
   }
 
-  // Current player reveal tier
+  if (!parts.length){
+    parts.push(_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No lunar display mode selected.</div>'));
+  }
+
+  // Part 3: GM controls (always separate message to stay within size limits)
   var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'medium'));
-  var horizonLabel = _rangeLabel(ms.revealHorizonDays || 7);
 
-  // Seed line for system-wide moon generation
   var seedLine = '';
   if (sys.moons && sys.moons.length){
     var activeSeed = (ms.systemSeed != null && String(ms.systemSeed).trim() !== '')
       ? String(ms.systemSeed)
       : 'default';
-    seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:7px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
-      'System seed: <code>'+esc(activeSeed)+'</code>'+
-      ' &nbsp;\u00B7&nbsp; <code>!cal moon seed &lt;word&gt;</code>'+
+    seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:5px;">'+
+      'Seed: <code>'+esc(activeSeed)+'</code>'+
     '</div>';
   }
 
-  // GM controls — send buttons with DC hints
   var sendBtns = MOON_REVEAL_PRESETS.map(function(p){
     return button(p.label + ' (' + p.dc + ')', 'moon send medium ' + p.days + 'd');
   }).join(' ');
@@ -1660,7 +1669,7 @@ export function moonPanelHtml(serialOverride?){
     return button(moon.name, 'moon view ' + moon.name);
   }).join(' ');
 
-  var gmControls = '<div style="margin-top:6px;font-size:.82em;opacity:.7;">'+
+  var gmControls = '<div style="font-size:.82em;opacity:.7;">'+
     '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
     '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
     '<div style="margin-bottom:4px;margin-top:4px;">Individual: '+moonViewBtns+'</div>'+
@@ -1669,16 +1678,19 @@ export function moonPanelHtml(serialOverride?){
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>'+
     '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
-    'Player tier: '+esc(tierLabel)+' · '+
-    'CLI: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>'+
-    '</div>';
+    'Player tier: '+esc(tierLabel)+
+    '</div>'+
+    seedLine+
+    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
 
-  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
-    navRow +
-    _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
-    body + seedLine + gmControls +
-    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
-  );
+  parts.push(_menuBox('\uD83C\uDF19 GM Controls', gmControls));
+
+  return parts;
+}
+
+// Legacy single-string wrapper (for contexts where a single HTML return is needed)
+export function moonPanelHtml(serialOverride?){
+  return moonPanelParts(serialOverride).join('');
 }
 
 // Player panel -- calendar grid is the primary view, minimal list
@@ -3457,7 +3469,7 @@ export function handleMoonCommand(m, args){
   if (!sub || sub === 'show'){
     moonEnsureSequences();
     if (playerIsGM(m.playerid)){
-      return whisper(m.who, moonPanelHtml());
+      return whisperParts(m.who, moonPanelParts());
     } else {
       return whisper(m.who, moonPlayerPanelHtml());
     }
@@ -3637,7 +3649,7 @@ export function handleMoonCommand(m, args){
     ));
 
     warnGM('Sent '+titleCase(effectiveTier)+' lunar forecast to players ('+_rangeLabel(effectiveHorizon)+').');
-    return whisper(m.who, moonPanelHtml());
+    return whisperParts(m.who, moonPanelParts());
   }
 
   // !cal moon on <dateSpec>  — inspect moon states on a specific day
@@ -3649,7 +3661,7 @@ export function handleMoonCommand(m, args){
     }
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
     moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
-    return whisper(m.who, moonPanelHtml(serialOn));
+    return whisperParts(m.who, moonPanelParts(serialOn));
   }
 
   // !cal moon seed <word>

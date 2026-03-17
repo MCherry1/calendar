@@ -29,5 +29,11 @@ export function sendUi(opts, html){
 export function sendUiToAll(html){ sendUi({ broadcast:true }, html); }
 export function sendUiToGM(html){ sendUi({ gmOnly:true }, html); }
 export function whisperUi(to, html){ sendUi({ to:to }, html); }
+export function whisperParts(to, parts){
+  if (!Array.isArray(parts)) parts = [parts];
+  for (var i = 0; i < parts.length; i++){
+    if (parts[i]) whisper(to, parts[i]);
+  }
+}
 export function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
 export function warnGMUi(msg){ sendChat(script_name, '/w gm ' + msg, null, { noarchive: true }); }
