@@ -150,7 +150,8 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Cells are numbered, with a fill color from the events
 * Buttons below are:
 	* Previous | Next (months)
-	* 
+	* Management
+		* Source Controls
 
 
 ---
