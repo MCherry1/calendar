@@ -48,3 +48,14 @@ export function intercalaryRenderFor(sysKey: string): IntercalaryRenderMode {
 export function dateFormatFor(sysKey: string): DateFormatStyle {
   return WORLDS[sysKey]?.calendar.dateFormatStyle ?? 'ordinal_of_month';
 }
+
+/** Check whether a world has a particular capability. */
+export function worldHas(sysKey: string, cap: keyof import('./types.js').WorldCapabilities): boolean {
+  const w = WORLDS[sysKey];
+  return !!(w && w.capabilities[cap]);
+}
+
+/** Get the moon system definition for a world (if any). */
+export function moonSystemFor(sysKey: string): import('./types.js').MoonSystemDefinition | undefined {
+  return WORLDS[sysKey]?.moons;
+}
