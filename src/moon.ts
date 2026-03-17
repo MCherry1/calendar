@@ -6,7 +6,7 @@ import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button, esc } from './rendering.js';
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
-import { send, sendToAll, warnGM, whisper } from './commands.js';
+import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 
@@ -260,8 +260,93 @@ export var MOON_SYSTEMS = {
         epochSeed:{ defaultSeed:'luna', referenceDate:{year:2021,month:1,day:28} },
         loreNote:'Earth\'s natural satellite. Synodic period 29.53 days. Governs tides and has inspired mythology across all human cultures.' }
     ]
+  },
+
+  // =========================================================================
+  // GREYHAWK — Luna and Celene (moons of Oerth)
+  // =========================================================================
+  greyhawk: {
+    id: 'greyhawk',
+    name: 'Oerth',
+    description: "Luna (28-day cycle) and Celene (91-day cycle), the two moons of Oerth.",
+    moons: [
+      { name:'Luna', title:'The Great Moon', color:'#F5F5DC', associatedMonth:null,
+        synodicPeriod:28, loreNote:'Oerth\'s larger moon. Its 28-day cycle aligns perfectly with the calendar months.' },
+      { name:'Celene', title:'The Handmaiden', color:'#B0E0E6', associatedMonth:null,
+        synodicPeriod:91, loreNote:'Oerth\'s smaller, aquamarine-hued moon. Its 91-day cycle is watched by druids and astrologers.' }
+    ]
+  },
+
+  // =========================================================================
+  // DRAGONLANCE — Three moons of Krynn
+  // =========================================================================
+  dragonlance: {
+    id: 'dragonlance',
+    name: 'Krynn',
+    description: "Solinari, Lunitari, and Nuitari — the three moons of Krynn that govern magic.",
+    moons: [
+      { name:'Solinari', title:'The Silver Moon', color:'#E8E8E8', associatedMonth:null,
+        synodicPeriod:36, loreNote:'Solinari governs Good magic on Krynn. Its 36-day cycle determines the power of White Robed wizards.' },
+      { name:'Lunitari', title:'The Red Moon', color:'#CD5C5C', associatedMonth:null,
+        synodicPeriod:28, loreNote:'Lunitari governs Neutral magic on Krynn. Its 28-day cycle matches the calendar months.' },
+      { name:'Nuitari', title:'The Black Moon', color:'#1A1A2E', associatedMonth:null,
+        synodicPeriod:8, loreNote:'Nuitari governs Evil magic on Krynn. Its rapid 8-day cycle is invisible to all but those who serve darkness.' }
+    ]
+  },
+
+  // =========================================================================
+  // EXANDRIA — Catha and Ruidus
+  // =========================================================================
+  exandria: {
+    id: 'exandria',
+    name: 'Exandria',
+    description: "Catha (the guiding light) and Ruidus (the bloody eye) — the moons of Exandria.",
+    moons: [
+      { name:'Catha', title:'The Guiding Light', color:'#F0E6D6', associatedMonth:null,
+        synodicPeriod:29, loreNote:'Catha is Exandria\'s primary moon, associated with the Moonweaver, Sehanine.' },
+      { name:'Ruidus', title:'The Bloody Eye', color:'#8B0000', associatedMonth:null,
+        synodicPeriod:164, loreNote:'Ruidus is a small reddish-purple moon shrouded in mystery. It appears full when visible and is considered an ill omen.' }
+    ]
+  },
+
+  // =========================================================================
+  // MYSTARA — Matera and Patera
+  // =========================================================================
+  mystara: {
+    id: 'mystara',
+    name: 'Mystara',
+    description: "Matera (visible) and Patera (invisible) — the moons of Mystara.",
+    moons: [
+      { name:'Matera', title:'The Visible Moon', color:'#F5F5DC', associatedMonth:null,
+        synodicPeriod:28, loreNote:'Matera is the primary visible moon of Mystara. Its 28-day cycle governs tides and is the basis of the common month.' },
+      { name:'Patera', title:'The Invisible Moon', color:'#4A4A6A', associatedMonth:null,
+        synodicPeriod:32, loreNote:'Patera is the invisible moon of Mystara, home to the Ee\'aar. Only visible to those with special sight or powerful magic.' }
+    ]
+  },
+
+  // =========================================================================
+  // BIRTHRIGHT — Aelies (single moon of Aebrynis)
+  // =========================================================================
+  birthright: {
+    id: 'birthright',
+    name: 'Aebrynis',
+    description: "Aelies, the silver moon of Aebrynis. 32-day cycle matching the Cerilian months.",
+    moons: [
+      { name:'Aelies', title:'The Silver Moon', color:'#C0C0C0', associatedMonth:null,
+        synodicPeriod:32, loreNote:'Aelies is the single moon of Aebrynis. Its 32-day cycle matches the regular months of the Cerilian calendar.' }
+    ]
   }
 };
+
+/**
+ * Central moon-system accessor.
+ * Returns the moon system for the active calendarSystem, or null if the world
+ * has no moons defined. Eliminates the old Eberron-fallback pattern.
+ */
+export function _getMoonSys(sysKeyOverride?){
+  var key = sysKeyOverride || ensureSettings().calendarSystem;
+  return MOON_SYSTEMS[key] || null;
+}
 
 // ---------------------------------------------------------------------------
 // 20a-ii) Moon lore — short blurbs for player reference
@@ -271,52 +356,40 @@ export var MOON_SYSTEMS = {
 
 export var MOON_LORE = {
   Zarantyr: {
-    blurb: "The Storm Moon is the closest and largest moon in the sky. It appears to shift in color, and storms are said to be fiercer when Zarantyr is full. Associated with Kythri, the Churning Chaos, and the Mark of Storm borne by House Lyrandar.",
-    orbit: "Closest moon. ~27-day cycle. Analog: Luna. Moderate eccentricity with wide inclination sweep — storms rage when Zarantyr is full."
+    blurb: "The Storm Moon is the closest and largest moon in the sky. It appears to shift in color, and storms are said to be fiercer when Zarantyr is full. Associated with Kythri, the Churning Chaos, and the Mark of Storm borne by House Lyrandar."
   },
   Olarune: {
-    blurb: "The Sentinel Moon glows with a warm amber light. Druids and rangers watch Olarune closely, as its phases are tied to the rhythms of the natural world. Associated with Lamannia, the Twilight Forest, and the Mark of Sentinel borne by House Deneith.",
-    orbit: "Second closest. ~31-day cycle. Analog: Titan. Low inclination, steady orbit — the sentinel watches from behind an orange haze."
+    blurb: "The Sentinel Moon glows with a warm amber light. Druids and rangers watch Olarune closely, as its phases are tied to the rhythms of the natural world. Associated with Lamannia, the Twilight Forest, and the Mark of Sentinel borne by House Deneith."
   },
   Therendor: {
-    blurb: "The Healer's Moon shines with a soft silver light. Healers and midwives track its phases, and some hospitals time treatments to its cycle. Associated with Syrania, the Azure Sky, and the Mark of Healing borne by House Jorasco.",
-    orbit: "Third orbit. ~35-day cycle. Analog: Europa. Gentle, bright, and reliable — the healer's calm exterior hides depth beneath."
+    blurb: "The Healer's Moon shines with a soft silver light. Healers and midwives track its phases, and some hospitals time treatments to its cycle. Associated with Syrania, the Azure Sky, and the Mark of Healing borne by House Jorasco."
   },
   Eyre: {
-    blurb: "The Anvil gleams like heated steel. Artificers and smiths consider it auspicious to begin major works when Eyre is full. Its brightness visibly pulses as it speeds and slows in its eccentric orbit — like a forge breathing through bellows. Associated with Fernia, the Sea of Fire, and the Mark of Making borne by House Cannith.",
-    orbit: "Fourth orbit. ~39-day cycle. Analog: Hyperion. Highest eccentricity of the regular moons — brightness swings ~56% from near to far. Chaotic tumbler: never shows the same face twice."
+    blurb: "The Anvil gleams like heated steel. Artificers and smiths consider it auspicious to begin major works when Eyre is full. Its brightness visibly pulses as it speeds and slows in its eccentric orbit — like a forge breathing through bellows. Associated with Fernia, the Sea of Fire, and the Mark of Making borne by House Cannith."
   },
   Dravago: {
-    blurb: "The Herder's Moon is the largest moon by diameter, though its great distance makes it appear modest. Farmers and herders watch it for seasonal guidance. Its orbit is the most perfectly circular of all twelve moons — an unchanging, frozen path. Associated with Risia, the Plain of Ice, and the Mark of Handling borne by House Vadalis.",
-    orbit: "Fifth orbit. ~44-day cycle. Analog: Tethys. The most circular orbit of any moon — near-zero eccentricity. Pure ice, extremely bright. Frozen stillness."
+    blurb: "The Herder's Moon is the largest moon by diameter, though its great distance makes it appear modest. Farmers and herders watch it for seasonal guidance. Its orbit is the most perfectly circular of all twelve moons — an unchanging, frozen path. Associated with Risia, the Plain of Ice, and the Mark of Handling borne by House Vadalis."
   },
   Nymm: {
-    blurb: "The Crown shines with a golden light. It is considered the most auspicious moon for celebrations, feasts, and acts of hospitality. It is the only moon with its own sovereign authority — an invisible shield that answers to no other. Associated with Daanvi, the Perfect Order, and the Mark of Hospitality borne by House Ghallanda.",
-    orbit: "Sixth orbit. Roughly 50-day cycle — steadier than most, but not perfectly fixed. Analog: Ganymede. Near-perfect circle, near-equatorial. In mathematical resonance with Therendor and Eyre."
+    blurb: "The Crown shines with a golden light. It is considered the most auspicious moon for celebrations, feasts, and acts of hospitality. It is the only moon with its own sovereign authority — an invisible shield that answers to no other. Associated with Daanvi, the Perfect Order, and the Mark of Hospitality borne by House Ghallanda."
   },
   Lharvion: {
-    blurb: "The Eye is the most unsettling moon. It sometimes appears to move backward, and its phases do not follow any predictable pattern. Its orbit is the most extreme of any moon — swinging from terrifyingly close and bright to nearly vanishing at the edge of sight. Seers and inquisitives study it, but few claim to understand it. Associated with Xoriat, the Realm of Madness, and the Mark of Detection borne by House Medani.",
-    orbit: "Seventh orbit. Nominally ~56-day cycle, but truly erratic. Analog: Nereid. Most eccentric orbit of any known moon — 7x distance swing. Backward motion, sudden jumps, and doubled phases have all been recorded."
+    blurb: "The Eye is the most unsettling moon. It sometimes appears to move backward, and its phases do not follow any predictable pattern. Its orbit is the most extreme of any moon — swinging from terrifyingly close and bright to nearly vanishing at the edge of sight. Seers and inquisitives study it, but few claim to understand it. Associated with Xoriat, the Realm of Madness, and the Mark of Detection borne by House Medani."
   },
   Barrakas: {
-    blurb: "The Lantern glows with a steady pale light brighter than any other moon — brighter, in fact, than physics should allow, reflecting more light than falls upon it. Travelers and explorers consider it a guide, and it is said that those who search by the light of Barrakas will find what they seek. Associated with Irian, the Eternal Dawn, and the Mark of Finding borne by House Tharashk.",
-    orbit: "Eighth orbit. ~63-day cycle. Analog: Enceladus. Brightest body in the sky — geometric albedo exceeds 1.0. Near-equatorial orbit lights all latitudes equally."
+    blurb: "The Lantern glows with a steady pale light brighter than any other moon — brighter, in fact, than physics should allow, reflecting more light than falls upon it. Travelers and explorers consider it a guide, and it is said that those who search by the light of Barrakas will find what they seek. Associated with Irian, the Eternal Dawn, and the Mark of Finding borne by House Tharashk."
   },
   Rhaan: {
-    blurb: "The Book shines with a blue-white light. Scholars and scribes hold it sacred, and the greatest works of literature are said to have been composed under its light. Its surface is a patchwork of mismatched terrain — as if pages from different books were stitched together. A great cliff, the tallest in all the heavens, marks where one story ends and another begins. Associated with Thelanis, the Faerie Court, and the Mark of Scribing borne by House Sivis.",
-    orbit: "Ninth orbit. ~71-day cycle. Analog: Miranda. Nearly circular now, but once tumbled chaotically — every story of that violent past is written on its scarred face. Named for a character in a play."
+    blurb: "The Book shines with a blue-white light. Scholars and scribes hold it sacred, and the greatest works of literature are said to have been composed under its light. Its surface is a patchwork of mismatched terrain — as if pages from different books were stitched together. A great cliff, the tallest in all the heavens, marks where one story ends and another begins. Associated with Thelanis, the Faerie Court, and the Mark of Scribing borne by House Sivis."
   },
   Sypheros: {
-    blurb: "The Shadow is a dark, dim moon that is difficult to see even when full. It is associated with secrets, espionage, and hidden knowledge. It circles low and close, like a moon already being pulled toward ruin, and the dark material that stains the Gateway's face is shed by the Shadow. Associated with Mabar, the Endless Night, and the Mark of Shadow borne by House Phiarlan and House Thuranni.",
-    orbit: "Tenth orbit. ~80-day cycle. Analog: Phobos. Low-inclination prograde orbit, modest eccentricity, coal-dark albedo. Source of darkness coating Aryth."
+    blurb: "The Shadow is a dark, dim moon that is difficult to see even when full. It is associated with secrets, espionage, and hidden knowledge. It circles low and close, like a moon already being pulled toward ruin, and the dark material that stains the Gateway's face is shed by the Shadow. Associated with Mabar, the Endless Night, and the Mark of Shadow borne by House Phiarlan and House Thuranni."
   },
   Aryth: {
-    blurb: "The Gateway burns with a deep orange-red light. It is associated with death, transition, and passage between worlds. One face is coal-black, the other bright — a literal threshold between light and darkness. A great ridge circles its equator like a doorframe between realms. The Aereni elves track Aryth closely, and funeral rites are often timed to its phases. Associated with Dolurrh, the Realm of the Dead, and the Mark of Passage borne by House Orien.",
-    orbit: "Eleventh orbit. ~91-day cycle. Analog: Iapetus. Two-tone surface (dark leading, bright trailing). Highest inclination of regular moons (7.57°) — sees both extremes."
+    blurb: "The Gateway burns with a deep orange-red light. It is associated with death, transition, and passage between worlds. One face is coal-black, the other bright — a literal threshold between light and darkness. A great ridge circles its equator like a doorframe between realms. The Aereni elves track Aryth closely, and funeral rites are often timed to its phases. Associated with Dolurrh, the Realm of the Dead, and the Mark of Passage borne by House Orien."
   },
   Vult: {
-    blurb: "The Warding Moon is the farthest and slowest of the twelve moons. It is associated with protection and defense, and its full moons are considered times of safety. Its surface bears the scars of endless bombardment — every crater a battle fought and survived. A great mountain rises from its surface like a fortress on the frontier. During Long Shadows, when Mabar is coterminous, even Vult's protective light may be swallowed by darkness. Associated with Shavarath, the Battleground, and the Mark of Warding borne by House Kundarak.",
-    orbit: "Outermost orbit. ~102-day cycle. Analog: Oberon. Near-perfect circle, near-equatorial — disciplined, unwavering patrol. Named for a warrior-king. Its light is a ward against darkness."
+    blurb: "The Warding Moon is the farthest and slowest of the twelve moons. It is associated with protection and defense, and its full moons are considered times of safety. Its surface bears the scars of endless bombardment — every crater a battle fought and survived. A great mountain rises from its surface like a fortress on the frontier. During Long Shadows, when Mabar is coterminous, even Vult's protective light may be swallowed by darkness. Associated with Shavarath, the Battleground, and the Mark of Warding borne by House Kundarak."
   }
 };
 
@@ -324,7 +397,7 @@ export function _moonLoreHtml(moonName){
   var lore = MOON_LORE[moonName];
   if (!lore) return null;
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   var moon = null;
   if (sys && sys.moons){
     for (var i = 0; i < sys.moons.length; i++){
@@ -939,7 +1012,7 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
   var priorFrom = (isFinite(ms.generatedFrom) && ms.generatedFrom > 0) ? ms.generatedFrom : null;
   if (priorFrom != null && ms.generatedThru >= needThru && priorFrom <= wantFrom) return;
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys) return;
 
   var genFrom = (priorFrom != null) ? Math.min(priorFrom, wantFrom) : wantFrom;
@@ -1066,7 +1139,7 @@ export function _longShadowsClaimedMoons(year){
   if (_longShadowsCache[year]) return _longShadowsCache[year];
 
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons){ _longShadowsCache[year] = []; return []; }
   moonEnsureSequences();
 
@@ -1388,7 +1461,7 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
 
 export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays?){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   var out = [];
   if (!sys || !sys.moons || !sys.moons.length) return out;
   var start = startSerial|0;
@@ -1480,7 +1553,7 @@ export function _singleMoonMiniCalEvents(moonName, startSerial, endSerial){
 
 export function _singleMoonMiniCalHtml(moonName, serial){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return '';
   var moonDef = null;
   for (var i = 0; i < sys.moons.length; i++){
@@ -1511,7 +1584,7 @@ function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
   }
 
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return '';
   var moonDef = null;
   for (var i = 0; i < sys.moons.length; i++){
@@ -1544,7 +1617,7 @@ function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
 
 export function _moonTodaySummaryHtml(today, tier, horizonDays){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons || !sys.moons.length) return '';
   tier = _normalizeMoonRevealTier(tier);
   var horizon = parseInt(horizonDays, 10);
@@ -1594,13 +1667,14 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
 // ---------------------------------------------------------------------------
 
 // GM panel -- always shows high-detail data
-export function moonPanelHtml(serialOverride?){
+// Returns an array of HTML parts to send as separate messages (avoids Roll20 size limits).
+export function moonPanelParts(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
-    return _menuBox('\uD83C\uDF19 Moons',
+    return [_menuBox('\uD83C\uDF19 Moons',
       '<div style="opacity:.7;">Moon system is disabled.</div>'+
       '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings moons on</code></div>'
-    );
+    )];
   }
 
   var ms  = getMoonState();
@@ -1610,57 +1684,65 @@ export function moonPanelHtml(serialOverride?){
   moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
   var dateLabel = dateLabelFromSerial(today);
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys){
-    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+    return [_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>')];
   }
 
-  var rows = sys.moons.map(function(moon){
-    return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
-  });
   var displayMode = _normalizeDisplayMode(st.moonDisplayMode);
   var verbose = _subsystemIsVerbose();
-  var mr = _monthRangeFromSerial(today);
-  var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
-  var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
     button('◀ Prev Month','moon on '+_serialToDateSpec(prevSer))+' '+
     button('Next Month ▶','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
-  var body = '';
+
+  var parts = [];
+
+  // Part 1: Calendar grid (if shown)
   if (displayMode !== 'list'){
-    body += moonMiniCal;
-    body += _legendLine(['🌕 Full', '🌑 New', '🌘 Eclipse/Occultation']);
+    var mr = _monthRangeFromSerial(today);
+    var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
+    var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
+    var calBody = navRow +
+      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
+      moonMiniCal +
+      _legendLine(['🌕 Full', '🌑 New', '🌘 Eclipse/Occultation']);
     if (verbose){
-      body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
+      calBody += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
     }
+    parts.push(_menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), calBody));
   }
+
+  // Part 2: Moon list rows (if shown)
   if (displayMode !== 'calendar'){
-    body += rows.join('');
-  }
-  if (!body){
-    body = '<div style="opacity:.7;">No lunar display mode selected.</div>';
+    var rows = sys.moons.map(function(moon){
+      return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
+    });
+    var listBody = (displayMode === 'list' ? navRow +
+      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) : '') +
+      rows.join('');
+    parts.push(_menuBox(displayMode === 'list' ? '\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel) : '\uD83C\uDF19 Moon Phases', listBody));
   }
 
-  // Current player reveal tier
+  if (!parts.length){
+    parts.push(_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No lunar display mode selected.</div>'));
+  }
+
+  // Part 3: GM controls (always separate message to stay within size limits)
   var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'medium'));
-  var horizonLabel = _rangeLabel(ms.revealHorizonDays || 7);
 
-  // Seed line for system-wide moon generation
   var seedLine = '';
   if (sys.moons && sys.moons.length){
     var activeSeed = (ms.systemSeed != null && String(ms.systemSeed).trim() !== '')
       ? String(ms.systemSeed)
       : 'default';
-    seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:7px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
-      'System seed: <code>'+esc(activeSeed)+'</code>'+
-      ' &nbsp;\u00B7&nbsp; <code>!cal moon seed &lt;word&gt;</code>'+
+    seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:5px;">'+
+      'Seed: <code>'+esc(activeSeed)+'</code>'+
     '</div>';
   }
 
-  // GM controls — send buttons with DC hints
   var sendBtns = MOON_REVEAL_PRESETS.map(function(p){
     return button(p.label + ' (' + p.dc + ')', 'moon send medium ' + p.days + 'd');
   }).join(' ');
@@ -1672,7 +1754,7 @@ export function moonPanelHtml(serialOverride?){
     return button(moon.name, 'moon view ' + moon.name);
   }).join(' ');
 
-  var gmControls = '<div style="margin-top:6px;font-size:.82em;opacity:.7;">'+
+  var gmControls = '<div style="font-size:.82em;opacity:.7;">'+
     '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
     '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
     '<div style="margin-bottom:4px;margin-top:4px;">Individual: '+moonViewBtns+'</div>'+
@@ -1681,16 +1763,19 @@ export function moonPanelHtml(serialOverride?){
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>'+
     '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
-    'Player tier: '+esc(tierLabel)+' · '+
-    'CLI: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>'+
-    '</div>';
+    'Player tier: '+esc(tierLabel)+
+    '</div>'+
+    seedLine+
+    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
 
-  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel),
-    navRow +
-    _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
-    body + seedLine + gmControls +
-    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
-  );
+  parts.push(_menuBox('\uD83C\uDF19 GM Controls', gmControls));
+
+  return parts;
+}
+
+// Legacy single-string wrapper (for contexts where a single HTML return is needed)
+export function moonPanelHtml(serialOverride?){
+  return moonPanelParts(serialOverride).join('');
 }
 
 // Player panel -- calendar grid is the primary view, minimal list
@@ -1709,7 +1794,7 @@ export function moonPlayerPanelHtml(serialOverride?){
   moonEnsureSequences(today, horizon + 30);
   var dateLabel = dateLabelFromSerial(today);
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys){
     return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
   }
@@ -1910,7 +1995,7 @@ export var NIGHTLIGHT_OVERHEAD_FRACTION = 0.50;
 
 export function nighttimeLux(serial, precipStage){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons || !sys.moons.length) return { total: NIGHTLIGHT_AMBIENT_LUX, moons: [], ambient: NIGHTLIGHT_AMBIENT_LUX };
 
   var moonContributions = [];
@@ -2292,7 +2377,7 @@ export var MOON_VIS_LABELS = {
 export function _moonVisibilityAll(serial, timeFrac){
   if (timeFrac == null) timeFrac = 0;  // default midnight
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
   var results = [];
   for (var i = 0; i < sys.moons.length; i++){
@@ -2539,7 +2624,7 @@ export function _eclipseSentenceType(typeLabel){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
 
   serial = serial|0;
@@ -2624,7 +2709,7 @@ export function _eclipseSentenceType(typeLabel){
 // Legacy notable-text formatter retained for reference during review.
 // function _eclipseNotableTodayLegacy(serial){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   var ecl = _getEclipsesLegacy(serial);
   var notes = [];
   for (var i = 0; i < ecl.length; i++){
@@ -2651,7 +2736,7 @@ export function getEclipses(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
 
   serial = serial|0;
@@ -2745,7 +2830,7 @@ export function _eclipseNotableToday(serial){
 export function getTidalIndex(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return 5; // neutral
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return 5;
   moonEnsureSequences();
 
@@ -3469,7 +3554,7 @@ export function handleMoonCommand(m, args){
   if (!sub || sub === 'show'){
     moonEnsureSequences();
     if (playerIsGM(m.playerid)){
-      return whisper(m.who, moonPanelHtml());
+      return whisperParts(m.who, moonPanelParts());
     } else {
       return whisper(m.who, moonPlayerPanelHtml());
     }
@@ -3477,7 +3562,7 @@ export function handleMoonCommand(m, args){
 
   // !cal moon lore [name] — available to everyone, whispered to querier
   if (sub === 'lore' || sub === 'info'){
-    var loreSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var loreSys = _getMoonSys();
     if (!loreSys || !loreSys.moons) return whisper(m.who, 'No moon data available.');
     var loreName = String(args[2] || '').trim();
     if (!loreName){
@@ -3549,7 +3634,7 @@ export function handleMoonCommand(m, args){
     }
     if (sub === 'view' || sub === 'cal'){
       var pViewName = String(args[2] || '').trim();
-      var pViewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      var pViewSys = _getMoonSys();
       var pTier = _normalizeMoonRevealTier(getMoonState().revealTier || 'medium');
       var pHorizonView = parseInt(getMoonState().revealHorizonDays, 10) || 7;
       if (!pViewName){
@@ -3630,7 +3715,7 @@ export function handleMoonCommand(m, args){
     }
     var effectiveHorizon = parseInt(ms0.revealHorizonDays, 10) || reqHorizon;
 
-    var sys0 = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var sys0 = _getMoonSys();
     if (!sys0) return whisper(m.who, 'No moon data for this calendar system.');
 
     var rows0 = sys0.moons.map(function(moon){
@@ -3649,7 +3734,7 @@ export function handleMoonCommand(m, args){
     ));
 
     warnGM('Sent '+titleCase(effectiveTier)+' lunar forecast to players ('+_rangeLabel(effectiveHorizon)+').');
-    return whisper(m.who, moonPanelHtml());
+    return whisperParts(m.who, moonPanelParts());
   }
 
   // !cal moon on <dateSpec>  — inspect moon states on a specific day
@@ -3661,7 +3746,7 @@ export function handleMoonCommand(m, args){
     }
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
     moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
-    return whisper(m.who, moonPanelHtml(serialOn));
+    return whisperParts(m.who, moonPanelParts(serialOn));
   }
 
   // !cal moon seed <word>
@@ -3693,7 +3778,7 @@ export function handleMoonCommand(m, args){
         '— dateSpec: <code>14</code> or <code>Rhaan 14</code> or <code>Rhaan 14 999</code>'
       );
 
-    var sys2  = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var sys2  = _getMoonSys();
     var mName = _moonParseMoonName(moonNameRaw, sys2);
     if (!mName) return whisper(m.who, 'Unknown moon: <b>'+esc(moonNameRaw)+'</b>');
 
@@ -3725,7 +3810,7 @@ export function handleMoonCommand(m, args){
   // !cal moon view <MoonName> [dateSpec]  — single-moon mini-calendar
   if (sub === 'view' || sub === 'cal'){
     var viewNameRaw = String(args[2] || '').trim();
-    var viewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var viewSys = _getMoonSys();
     if (!viewNameRaw){
       // Show picker buttons for each moon
       var viewBtns = viewSys.moons.map(function(moon){
@@ -3763,7 +3848,7 @@ export function handleMoonCommand(m, args){
   // !cal moon reset [<MoonName>]  — remove GM phase overrides
   if (sub === 'reset'){
     var clearName = String(args[2] || '').trim();
-    var sys3 = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var sys3 = _getMoonSys();
     var mName3 = clearName ? _moonParseMoonName(clearName, sys3) : null;
     var ms3 = getMoonState();
     if (mName3){

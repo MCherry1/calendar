@@ -55,6 +55,7 @@ import {
 import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messaging';
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
+import { weekdayProgressionFor } from './worlds/index';
 
 import { _isFullMoonIllum, moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel } from './moon';
 import { getActivePlanarEffects } from './planes';
@@ -906,7 +907,8 @@ export function _weatherRecordForDisplay(rec: any){
 }
 
 function _isArythFull(serial: any){
-  if (ensureSettings().calendarSystem !== 'eberron') return false;
+  // Aryth is an Eberron moon — this check naturally returns false for
+  // any world that lacks it, so no world-name guard is needed.
   try {
     moonEnsureSequences(serial, 60);
     var ph = moonPhaseAt('Aryth', serial);
@@ -1705,11 +1707,21 @@ export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulate
   // temp ≤3 (≤34F) = snow zone; temp 4 (35-44F) = sleet zone; temp ≥5 (45F+) = rain zone
   // precip 1 = partly cloudy/light, 2 = overcast/moderate, 3 = precipitation,
   // 4 = heavy precipitation, 5 = extreme/deluge
+  //
+  // Climate-aware floor: tropical/subtropical terrains like swamp should not
+  // generate snow from stochastic cold snaps. The climate base determines the
+  // effective precip-type temperature floor.
+  var climate = (loc && loc.climate) ? String(loc.climate).toLowerCase() : '';
+  var effectiveTemp = temp;
+  if (climate === 'tropical' && effectiveTemp <= 3) effectiveTemp = 5;
+  else if (climate === 'subtropical' && effectiveTemp <= 3) effectiveTemp = 4;
+  else if (terrain === 'swamp' && effectiveTemp <= 2) effectiveTemp = Math.max(effectiveTemp, 4);
+
   var precipType = 'none';
   if (precip >= 1){
-    if (temp <= 3){
+    if (effectiveTemp <= 3){
       precipType = (precip >= 4) ? 'blizzard' : (precip >= 3) ? 'snow' : 'snow_light';
-    } else if (temp === 4){
+    } else if (effectiveTemp === 4){
       precipType = (precip >= 4) ? 'ice_storm' : (precip >= 3) ? 'sleet' : 'sleet_light';
     } else {
       precipType = (precip >= 5) ? 'deluge' : (precip >= 4) ? 'heavy_rain' : (precip >= 3) ? 'rain' : 'rain_light';
@@ -2183,7 +2195,7 @@ export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLa
   if (!rec) return '';
   var d        = fromSerial(rec.serial);
   var dateLabel: any;
-  if (isToday && ensureSettings().calendarSystem !== 'faerunian'){
+  if (isToday && weekdayProgressionFor(ensureSettings().calendarSystem) !== 'month_reset'){
     dateLabel = esc(getCal().weekdays[getCal().current.day_of_the_week]) + ', ' + esc(_displayMonthDayParts(d.mi, d.day).label);
   } else {
     dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);

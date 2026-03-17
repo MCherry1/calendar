@@ -69,6 +69,31 @@ export var SEASON_SETS = {
       'Early Rainy Season','Early-Mid Rainy Season','Mid-Late Rainy Season','Late Rainy Season'
     ],
     hemisphereAware: false
+  },
+  greyhawk: {
+    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
+            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: false
+  },
+  dragonlance: {
+    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
+            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: false
+  },
+  exandria: {
+    names: ['Winter','Winter','Spring','Spring','Summer',
+            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: false
+  },
+  mystara: {
+    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
+            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: false
+  },
+  birthright: {
+    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
+            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
+    hemisphereAware: false
   }
 };
 
@@ -123,6 +148,46 @@ export var CALENDAR_STRUCTURE_SETS = {
     { regularIndex: 9 },
     { regularIndex:10 },
     { regularIndex:11 }
+  ],
+  // Greyhawk: 12 regular months + 4 intercalary festival weeks (7 days each).
+  // Total: 364 days = 52 full weeks.
+  greyhawk: [
+    { isIntercalary:true, name:'Needfest', days:7 },
+    { regularIndex: 0 },
+    { regularIndex: 1 },
+    { regularIndex: 2 },
+    { isIntercalary:true, name:'Growfest', days:7 },
+    { regularIndex: 3 },
+    { regularIndex: 4 },
+    { regularIndex: 5 },
+    { isIntercalary:true, name:'Richfest', days:7 },
+    { regularIndex: 6 },
+    { regularIndex: 7 },
+    { regularIndex: 8 },
+    { isIntercalary:true, name:'Brewfest', days:7 },
+    { regularIndex: 9 },
+    { regularIndex:10 },
+    { regularIndex:11 }
+  ],
+  // Birthright: 12 regular months of 32 days + 4 intercalary festival days (1 day each).
+  // Total: 388 days.
+  birthright: [
+    { regularIndex: 0 },
+    { isIntercalary:true, name:'Erntenir',  days:1 },
+    { regularIndex: 1 },
+    { regularIndex: 2 },
+    { regularIndex: 3 },
+    { isIntercalary:true, name:'Haelynir',  days:1 },
+    { regularIndex: 4 },
+    { regularIndex: 5 },
+    { regularIndex: 6 },
+    { isIntercalary:true, name:'Midsummer', days:1 },
+    { regularIndex: 7 },
+    { regularIndex: 8 },
+    { regularIndex: 9 },
+    { isIntercalary:true, name:'Midwinter', days:1 },
+    { regularIndex:10 },
+    { regularIndex:11 }
   ]
 };
 /* --- Color themes ---------------------------------------------------------*/
@@ -151,9 +216,29 @@ export var COLOR_THEMES = {
   birthstones: [
     "#7A1E2C","#8E5AC8","#66E5D9","#F2FBFF","#00A86B","#F7F3EE",
     "#D0002A","#A8E100","#0A4AA6","#E83E8C","#FFA726","#00B8D4"
+  ],
+  greyhawk: [
+    "#E8EDF3","#C9D6E3","#A8E6A3","#D8F3DC","#B5D89A","#FFC54D",
+    "#FFD700","#64B5F6","#F4A261","#8B5A2B","#B38E3C","#475569"
+  ],
+  dragonlance: [
+    "#C0D6E4","#8FAABB","#C8E6C9","#A5D6A7","#E6E6FA","#FFD54F",
+    "#FFB74D","#E57373","#FFCC80","#CE93D8","#78909C","#546E7A"
+  ],
+  exandria: [
+    "#E3F2FD","#BBDEFB","#C8E6C9","#A5D6A7","#FFF9C4","#FFE082",
+    "#FFAB40","#EF9A9A","#CE93D8","#B39DDB","#90A4AE"
+  ],
+  mystara: [
+    "#E0F7FA","#B2EBF2","#C8E6C9","#A5D6A7","#DCEDC8","#FFF9C4",
+    "#FFE082","#FFCC80","#FFAB91","#BCAAA4","#B0BEC5","#78909C"
+  ],
+  birthright: [
+    "#D7CCC8","#BCAAA4","#C8E6C9","#A5D6A7","#AED581","#FFEE58",
+    "#FFD54F","#FFB74D","#FF8A65","#A1887F","#90A4AE","#78909C"
   ]
 };
-export var THEME_ORDER = ['seasons','lunar','druidic','halfling','dwarven','birthstones'];
+export var THEME_ORDER = ['seasons','lunar','druidic','halfling','dwarven','birthstones','greyhawk','dragonlance','exandria','mystara','birthright'];
 /* --- Named colors for events ----------------------------------------------*/
 // Use by name in event commands: !cal add March 14 Feast emerald
 export var NAMED_COLORS: Record<string, string> = {
@@ -245,19 +330,58 @@ export var DEFAULT_EVENTS = {
     { name: "Summer Solstice",    month: 6,  day: 21, color: "#FFD166" },
     { name: "First Day of Autumn",month: 9,  day: 22, color: "#F4A261" },
     { name: "Autumn Equinox",     month: 9,  day: 22, color: "#F4A261" }
+  ],
+  greyhawk_festivals: [
+    { name: "Needfest begins",  month: 1,  day: 1, color: "#E0C68A", source: "greyhawk" },
+    { name: "Growfest begins",  month: 4,  day: 1, color: "#A8E6A3", source: "greyhawk" },
+    { name: "Richfest begins",  month: 7,  day: 1, color: "#FFD700", source: "greyhawk" },
+    { name: "Midsummer",        month: 7,  day: 4, color: "#FFD700", source: "greyhawk" },
+    { name: "Brewfest begins",  month: 10, day: 1, color: "#D2691E", source: "greyhawk" }
+  ],
+  dragonlance_calendar: [
+    { name: "Yule",           month: 1, day: 1,  color: "#A8DADC", source: "dragonlance" },
+    { name: "Spring Dawning", month: 3, day: 1,  color: "#A8E6A3", source: "dragonlance" },
+    { name: "Midsummer",      month: 6, day: 14, color: "#FFD700", source: "dragonlance" },
+    { name: "Harvest Home",   month: 9, day: 14, color: "#F4A261", source: "dragonlance" }
+  ],
+  exandria_holidays: [
+    { name: "New Dawn",          month: 1,  day: 1,  color: "#FFD700", source: "exandria" },
+    { name: "Hillsgold",         month: 1,  day: 27, color: "#DAA520", source: "exandria" },
+    { name: "Day of Challenging",month: 3,  day: 7,  color: "#CD5C5C", source: "exandria" },
+    { name: "Harvest's Close",   month: 8,  day: 3,  color: "#F4A261", source: "exandria" },
+    { name: "Zenith",            month: 7,  day: 26, color: "#FFD700", source: "exandria" },
+    { name: "The Crystalheart",  month: 11, day: 11, color: "#87CEEB", source: "exandria" }
+  ],
+  mystara_holidays: [
+    { name: "New Year",         month: 1,  day: 1,  color: "#FFD700", source: "mystara" },
+    { name: "Vernal Equinox",   month: 3,  day: 14, color: "#A8E6A3", source: "mystara" },
+    { name: "Summer Solstice",  month: 6,  day: 14, color: "#FFD166", source: "mystara" },
+    { name: "Autumnal Equinox", month: 9,  day: 14, color: "#F4A261", source: "mystara" },
+    { name: "Winter Solstice",  month: 12, day: 14, color: "#A8DADC", source: "mystara" }
+  ],
+  birthright_festivals: [
+    { name: "Erntenir (Harvest Festival)", month: 2,  day: 1, color: "#DAA520", source: "birthright" },
+    { name: "Haelynir (Day of the Sun)",   month: 5,  day: 1, color: "#FFD700", source: "birthright" },
+    { name: "Midsummer",                   month: 8,  day: 1, color: "#FF6347", source: "birthright" },
+    { name: "Midwinter",                   month: 11, day: 1, color: "#87CEEB", source: "birthright" }
   ]
 };
 
 // Optional source-to-calendar scoping for default events.
 // If a source key appears here, its events only load for listed calendar systems.
 export var DEFAULT_EVENT_SOURCE_CALENDARS = {
-  sharn:             ['eberron'],
-  khorvaire:         ['eberron'],
-  'sovereign host':  ['eberron'],
-  'dark six':        ['eberron'],
-  'silver flame':    ['eberron'],
-  stormreach:        ['eberron'],
-  gregorian_seasons: ['gregorian']
+  sharn:                 ['eberron'],
+  khorvaire:             ['eberron'],
+  'sovereign host':      ['eberron'],
+  'dark six':            ['eberron'],
+  'silver flame':        ['eberron'],
+  stormreach:            ['eberron'],
+  gregorian_seasons:     ['gregorian'],
+  greyhawk_festivals:    ['greyhawk'],
+  dragonlance_calendar:  ['dragonlance'],
+  exandria_holidays:     ['exandria'],
+  mystara_holidays:      ['mystara'],
+  birthright_festivals:  ['birthright']
 };
 
 /* --- Rendering constants --------------------------------------------------*/
@@ -276,9 +400,9 @@ export var STYLES = {
   table:           'border-collapse:collapse;margin:4px;margin-bottom:14px;',
   th:              'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:            'border:1px solid #444;padding:0;',
-  td:              'border:1px solid #444;width:2em;height:1.9em;text-align:center;vertical-align:middle;',
-  calTd:           'border:1px solid #444;width:2em;height:1.9em;padding:0;text-align:center;vertical-align:middle;',
-  calCellInner:    'min-height:1.9em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1;padding:1px 0;box-sizing:border-box;',
+  td:              'border:1px solid #444;width:2em;height:1.4em;text-align:center;vertical-align:middle;',
+  calTd:           'border:1px solid #444;width:2em;height:1.4em;padding:0;text-align:center;vertical-align:middle;',
+  calCellInner:    'min-height:1.4em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0px;line-height:1;padding:0;box-sizing:border-box;',
   monthHeaderBase: 'padding:6px;text-align:left;',
   gmbuttonWrap:    'display:inline-block;margin:2px 4px 2px 0;',
   today:  'position:relative;z-index:10;border-radius:2px;box-shadow:0 2px 6px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.16);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;',

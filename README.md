@@ -7,7 +7,7 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 	- location-based, generated weather, with mechanical effects (homebrew system)
 	- planar movements (Eberron setting)
 
-**Supports:** Eberron, Forgotten Realms, Earth (Gregorian)
+**Supports:** Eberron, Forgotten Realms, Greyhawk, Dragonlance, Exandria, Mystara, Birthright, Earth (Gregorian)
 
 ---
 
@@ -52,7 +52,7 @@ Create these as Roll20 macros for quick-bar access:
 - [Planes](#planes)
 - [Command Reference](#command-reference)
 - [Development](#development)
-- [Calendar Systems](#calendar-systems)
+- [Supported Settings](#supported-settings)
 
 ---
 
@@ -215,7 +215,7 @@ Use that table as the default "skilled forecast" pacing for Survival, Nature, na
 
 For weather, `high` can also mean a **specific-date reveal**: the GM can reveal just the chosen future date or range at the current location without exposing all intervening days.
 
-If you want custom reveal horizons beyond the preset buttons, widen them in Fibonacci-style steps instead of simple doubling: `1, 2, 3, 5, 8, 13`, then round into table-friendly units. In practice that means weather and planes usually grow by days, while moons grow by months.
+If you want custom reveal horizons beyond the preset buttons, widen them in Fibonacci-style steps instead of simple doubling: `1, 2, 3, 5, 8, 13`, then round into table-friendly units. In practice that means weather usually grows by days, while moons and planes grow by months.
 
 </details>
 
@@ -1019,16 +1019,99 @@ CI runs typecheck, tests, build, and the PowerShell smoke check on every PR and 
 
 ---
 
-## Calendar Systems
+## Supported Settings
+
+Switch settings via the setup wizard (`!cal setup`) or Admin panel (`!cal` → Admin).
 
 <details>
-<summary>Show supported calendar-system variants</summary>
+<summary><strong>Eberron</strong></summary>
 
-Switch calendar systems via the Admin panel (`!cal` → ⚙ Admin):
+- **Calendar:** Galifar Calendar — 12 months × 28 days (336-day year), 7-day week (Sul–Sar), YK era
+- **Variants:** Galifar (standard), Druidic, Halfling, Dwarven month names
+- **Moons:** 12 moons, one per month, each tied to a plane and Dragonmark. Synodic periods range from 27 to 102 days. Full system with eclipses, conjunctions, and Long Shadows.
+- **Weather:** Full location-based weather with temperature, wind, precipitation, and D&D 5e mechanics
+- **Planes:** 13 transitive/outer planes with coterminous/remote cycles, manifest zones, and timed overrides
+- **Events:** Sharn, Khorvaire, Sovereign Host, Dark Six, Silver Flame, and Stormreach event packs
 
-- **Galifar** (Khorvaire/Eberron) — 12 months × 28 days, YK era, 7-day weeks.
-- **Harptos** (Faerûn/Forgotten Realms) — 12 months × 30 days + intercalary festival days, DR era, tendays displayed as 3 rows × 10 columns, with festival-day strips for intercalary dates
-- **Gregorian** (Earth) — 12 months x 28-31 days, CE era, 7-day weeks, leap years every 4th year except for years divisible by 100, except in turn for years also divisible by 400.
+</details>
+
+<details>
+<summary><strong>Forgotten Realms</strong></summary>
+
+- **Calendar:** Harptos Calendar — 12 months × 30 days + 5 intercalary festival days (365/366-day year), 10-day tendays, DR era
+- **Moons:** Selune — 30.4375-day cycle aligned to the Harptos 4-year leap cycle
+- **Weather:** Full weather system
+- **Intercalary days:** Midwinter, Greengrass, Midsummer, Shieldmeet (leap years), Highharvestide, Feast of the Moon — rendered as festival strips between months
+
+</details>
+
+<details>
+<summary><strong>Greyhawk</strong></summary>
+
+- **Calendar:** Dozenmonth of Luna — 12 months × 28 days + 4 intercalary festival weeks of 7 days (364-day year), 7-day week (Starday–Freeday), CY era
+- **Moons:** Luna (28-day cycle, aligned to months) and Celene the Handmaiden (91-day cycle)
+- **Weather:** Full weather system
+- **Events:** Needfest, Growfest, Richfest, and Brewfest festival weeks
+- **Intercalary rendering:** Festival weeks render as their own week blocks in the calendar grid
+
+</details>
+
+<details>
+<summary><strong>Dragonlance</strong></summary>
+
+- **Calendar:** Krynnish Calendar — 12 months × 28 days (336-day year), 7-day week (Linaras–Bracha), PC era
+- **Moons:** Three moons governing magic on Krynn:
+  - Solinari (36-day cycle) — Silver Moon, Good magic, White Robes
+  - Lunitari (28-day cycle) — Red Moon, Neutral magic, Red Robes
+  - Nuitari (8-day cycle) — Black Moon, Evil magic, Black Robes (hidden from players by default)
+- **Weather:** Full weather system
+- **Events:** Yule, Spring Dawning, Midsummer, Harvest Home
+- **Setup:** Night of the Eye anchor configuration (seed-derived or manual)
+
+</details>
+
+<details>
+<summary><strong>Exandria</strong> (Critical Role)</summary>
+
+- **Calendar:** Exandrian Calendar — 11 months of 28–32 days (328-day year), 7-day week (Miresen–Da'leysen), PD era
+- **Moons:**
+  - Catha (base 29-day cycle with seeded drift) — The Guiding Light, associated with Sehanine the Moonweaver
+  - Ruidus (base 164-day cycle with triangular drift) — The Bloody Eye, appears full when visible, visible only during a 14-day window per cycle
+- **Weather:** Full weather system
+- **Events:** New Dawn, Hillsgold, Day of Challenging, Harvest's Close, Zenith, The Crystalheart
+
+</details>
+
+<details>
+<summary><strong>Mystara</strong> (BECMI / Known World)</summary>
+
+- **Calendar:** Thyatian Calendar — 12 months × 28 days (336-day year), 7-day week (Lunadain–Loshdain), AC era
+- **Moons:**
+  - Matera (28-day cycle) — The Visible Moon, governs tides
+  - Patera (32-day cycle) — The Invisible Moon, home of the Ee'aar (hidden from players by default)
+- **Weather:** Full weather system
+- **Events:** New Year, equinoxes, and solstices
+
+</details>
+
+<details>
+<summary><strong>Birthright</strong></summary>
+
+- **Calendar:** Cerilian Calendar — 12 months × 32 days + 4 intercalary festival days (388-day year), 8-day week (Firlen–Achlen), MA era
+- **Moons:** Aelies (32-day cycle) — The Silver Moon of Aebrynis, cycle matches the month length
+- **Weather:** Full weather system
+- **Events:** Erntenir (Harvest Festival), Haelynir (Day of the Sun), Midsummer, Midwinter
+
+</details>
+
+<details>
+<summary><strong>Earth (Gregorian)</strong></summary>
+
+- **Calendar:** Gregorian Calendar — 12 months × 28–31 days (365/366-day year), 7-day week (Sunday–Saturday), CE era
+- **Leap years:** Every 4th year, except centuries, except centuries divisible by 400
+- **Moons:** Luna — 29.53-day synodic period
+- **Weather:** Full weather system
+- **Events:** Astronomical solstices and equinoxes
 
 </details>
 

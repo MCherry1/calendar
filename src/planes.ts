@@ -4,7 +4,7 @@ import { ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc } from './rendering.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
-import { send, sendToAll, warnGM, whisper } from './commands.js';
+import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { PLANAR_GENERATED_EVENT_PROFILE, _dN, _generatedEventAt, _generatedPhase, _nextGeneratedForecast, _rangeLabel, getLongShadowsMoons, isGeneratedShift } from './moon.js';
 
 
@@ -221,9 +221,8 @@ export function getPlanesState(){
 
 // Get the plane definition by name (case-insensitive).
 export function _getPlaneData(name){
-  var st = ensureSettings();
-  var planes = PLANE_DATA[st.calendarSystem] || PLANE_DATA.eberron;
-  if (!planes) return null;
+  var planes = _getAllPlaneData();
+  if (!planes || !planes.length) return null;
   var lc = name.toLowerCase();
   for (var i = 0; i < planes.length; i++){
     if (planes[i].name.toLowerCase() === lc) return planes[i];
@@ -232,9 +231,10 @@ export function _getPlaneData(name){
 }
 
 // Get all plane definitions for the current calendar system.
+// Returns empty array for worlds without planar data.
 export function _getAllPlaneData(){
   var st = ensureSettings();
-  return PLANE_DATA[st.calendarSystem] || PLANE_DATA.eberron || [];
+  return PLANE_DATA[st.calendarSystem] || [];
 }
 
 // Convert years to days using the calendar's year length.
@@ -967,13 +967,14 @@ export function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
 // 21f) Panel HTML — GM and player views
 // ---------------------------------------------------------------------------
 
+// Returns an array of HTML parts to send as separate messages (avoids Roll20 size limits).
 export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizonDays?, generatedHorizonDays?){
   var st = ensureSettings();
   if (st.planesEnabled === false){
-    return _menuBox('\uD83C\uDF00 Planes',
+    return [_menuBox('\uD83C\uDF00 Planes',
       '<div style="opacity:.7;">Planar system is disabled.</div>'+
       (isGM ? '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings planes on</code></div>' : '')
-    );
+    )];
   }
 
   var viewTier = isGM ? 'high' : _normalizePlaneRevealTier(revealTier || getPlanesState().revealTier || 'medium');
@@ -1195,24 +1196,46 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   var horizonLine = (!isGM)
     ? '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:4px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>'
     : '';
-  var body = '';
+  // Build parts array to send as separate messages (avoids Roll20 size limits)
+  var parts = [];
+
   if (displayMode !== 'list'){
-    body += planesMiniCal;
-    body += _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']);
+    var calBody = navRow +
+      _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) +
+      planesMiniCal +
+      _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']) +
+      longShadowsHtml;
+    parts.push(_menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel), calBody));
   }
   if (displayMode !== 'calendar'){
-    body += rows.join('');
+    var listBody = (displayMode === 'list' ? navRow +
+      _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) : '') +
+      rows.join('') + longShadowsHtml + srcLine + horizonLine;
+    parts.push(_menuBox(displayMode === 'list' ? '\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel) : '\uD83C\uDF00 Planar Phases', listBody));
   }
-  if (!body){
-    body = '<div style="opacity:.7;">No planar display mode selected.</div>';
+  if (!parts.length){
+    parts.push(_menuBox('\uD83C\uDF00 Planes', '<div style="opacity:.7;">No planar display mode selected.</div>'));
   }
 
-  return _menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel),
-    navRow +
-    _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) +
-    body + longShadowsHtml + srcLine + horizonLine + gmControls +
-    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
-  );
+  // GM controls as separate message
+  if (gmControls){
+    parts.push(_menuBox('\uD83C\uDF00 GM Controls',
+      gmControls +
+      '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
+    ));
+  } else {
+    // For players, append back button to last part
+    var lastIdx = parts.length - 1;
+    parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') +
+      '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div></div>';
+  }
+
+  return parts;
+}
+
+// Legacy single-string wrapper
+export function planesPanelHtmlSingle(isGM, revealTier?, serialOverride?, revealHorizonDays?, generatedHorizonDays?){
+  return planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, generatedHorizonDays).join('');
 }
 
 function _planesBroadcastSummaryHtml(viewTier, revealHorizonDays, generatedHorizonDays, serialOverride?){
@@ -1259,7 +1282,7 @@ export function handlePlanesCommand(m, args){
   var playerGenHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
 
   if (!sub || sub === 'show'){
-    return whisper(m.who, isGM ? planesPanelHtml(true) : planesPanelHtml(false, playerTier, null, playerHorizon, playerGenHorizon));
+    return whisperParts(m.who, isGM ? planesPanelHtml(true) : planesPanelHtml(false, playerTier, null, playerHorizon, playerGenHorizon));
   }
 
   // Player self-query mode (read-only, knowledge-limited).
@@ -1275,7 +1298,7 @@ export function handlePlanesCommand(m, args){
       if (pSerial < pToday || pSerial > (pToday + playerHorizon)){
         return whisper(m.who, 'That date is beyond your planar knowledge.');
       }
-      return whisper(m.who, planesPanelHtml(false, playerTier, pSerial, playerHorizon, playerGenHorizon));
+      return whisperParts(m.who, planesPanelHtml(false, playerTier, pSerial, playerHorizon, playerGenHorizon));
     }
 
     return whisper(m.who,
@@ -1292,7 +1315,7 @@ export function handlePlanesCommand(m, args){
       return whisper(m.who, 'Usage: <code>!cal planes on &lt;dateSpec&gt;</code> (example: <code>!cal planes on Rhaan 14 998</code>)');
     }
     var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
-    return whisper(m.who, planesPanelHtml(true, null, serialOn));
+    return whisperParts(m.who, planesPanelHtml(true, null, serialOn));
   }
 
   // !cal planes set <n> <phase> [days]  — force override a plane's phase
@@ -1325,7 +1348,7 @@ export function handlePlanesCommand(m, args){
 
     var durMsg = durationDays > 0 ? ' for <b>'+durationDays+'</b> day'+(durationDays>1?'s':'') : ' (indefinite)';
     whisper(m.who, '<b>'+esc(plane.name)+'</b> forced to <b>'+esc(PLANE_PHASE_LABELS[setPhase])+'</b>'+durMsg+'.');
-    return whisper(m.who, planesPanelHtml(true));
+    return whisperParts(m.who, planesPanelHtml(true));
   }
 
   // !cal planes clear <name>  — remove override for a plane
@@ -1337,7 +1360,7 @@ export function handlePlanesCommand(m, args){
       psC.anchors = {};
       psC.gmCustomEvents = {};
       whisper(m.who, 'All planar overrides and anchor overrides cleared.');
-      return whisper(m.who, planesPanelHtml(true));
+      return whisperParts(m.who, planesPanelHtml(true));
     }
     var planeC = _getPlaneData(clearName);
     if (!planeC) return whisper(m.who, 'Unknown plane: <b>'+esc(clearName)+'</b>');
@@ -1345,7 +1368,7 @@ export function handlePlanesCommand(m, args){
     delete psC.anchors[planeC.name];
     delete psC.gmCustomEvents[planeC.name];
     whisper(m.who, 'Override cleared for <b>'+esc(planeC.name)+'</b>.');
-    return whisper(m.who, planesPanelHtml(true));
+    return whisperParts(m.who, planesPanelHtml(true));
   }
 
   // !cal planes anchor <name> <phase> <dateSpec>  — set anchor date for cycle calculation
@@ -1383,7 +1406,7 @@ export function handlePlanesCommand(m, args){
     );
     // Clear any phase override since we're now using calculated cycles
     delete psA.overrides[planeA.name];
-    return whisper(m.who, planesPanelHtml(true));
+    return whisperParts(m.who, planesPanelHtml(true));
   }
 
   // !cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]
@@ -1460,7 +1483,7 @@ export function handlePlanesCommand(m, args){
       ? 'canon ' + _planeRangeLabel(effectiveCanonHorizon) + ', generated ' + effectiveGenHorizon + 'd'
       : _planeRangeLabel(effectiveCanonHorizon);
     warnGM('Sent '+titleCase(effectiveTier)+' planar forecast to players ('+rangeNote+').');
-    whisper(m.who, planesPanelHtml(true));
+    whisperParts(m.who, planesPanelHtml(true));
     return;
   }
 
@@ -1493,7 +1516,7 @@ export function handlePlanesCommand(m, args){
     whisper(m.who,
       'Suppressed <b>'+esc(suppPlane.name)+'</b> generated '+esc(suppEvt.phase)+
       ' event starting '+esc(suppDateLabel)+' ('+suppEvt.durationDays+'d).');
-    return whisper(m.who, planesPanelHtml(true));
+    return whisperParts(m.who, planesPanelHtml(true));
   }
 
   // !cal planes seed <name> <year>
@@ -1512,7 +1535,7 @@ export function handlePlanesCommand(m, args){
       var psSeedClear = getPlanesState();
       if (psSeedClear.seedOverrides) delete psSeedClear.seedOverrides[seedPlane.name];
       whisper(m.who, '<b>'+esc(seedPlane.name)+'</b> seed anchor override removed. Using epoch-derived anchor.');
-      return whisper(m.who, planesPanelHtml(true));
+      return whisperParts(m.who, planesPanelHtml(true));
     }
     if (!isFinite(seedYear)){
       return whisper(m.who, 'Please provide a year. Example: <code>!cal planes seed '+esc(seedPlane.name)+' 998</code>');
@@ -1524,7 +1547,7 @@ export function handlePlanesCommand(m, args){
       '<b>'+esc(seedPlane.name)+'</b> seed anchor overridden to year <b>'+seedYear+'</b>.<br>'+
       (seedPlane.linkedTo ? '<i>Note: linked plane '+esc(seedPlane.linkedTo)+' will derive from its own setting.</i><br>' : '')+
       'Use <code>!cal planes seed '+esc(seedPlane.name)+' clear</code> to remove.');
-    return whisper(m.who, planesPanelHtml(true));
+    return whisperParts(m.who, planesPanelHtml(true));
   }
 
   whisper(m.who,

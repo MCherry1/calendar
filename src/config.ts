@@ -142,9 +142,110 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
         colorTheme: 'birthstones'
       }
     }
+  },
+  greyhawk: {
+    label:          'Greyhawk',
+    worldLabel:     'Oerth',
+    description:    '12 months of 28 days with 4 intercalary festival weeks. 7-day week. Common Year reckoning.',
+    weekdays:       ['Starday','Sunday','Moonday','Godsday','Waterday','Earthday','Freeday'],
+    weekdayAbbr:    { Starday:'Sta', Sunday:'Sun', Moonday:'Mon', Godsday:'God', Waterday:'Wat', Earthday:'Ear', Freeday:'Fre' },
+    monthDays:      [28,28,28,28,28,28,28,28,28,28,28,28],
+    structure:      'greyhawk',
+    defaultSeason:  'greyhawk',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Dozenmonth of Luna',
+        description:'The common Oerthian calendar with 12 months and 4 festival weeks.',
+        monthNames: ['Fireseek','Readying','Coldeven','Planting','Flocktime','Wealsun',
+                     'Reaping','Goodmonth','Harvester','Patchwall','Ready\'reat','Sunsebb'],
+        colorTheme: 'greyhawk'
+      }
+    }
+  },
+  dragonlance: {
+    label:          'Dragonlance',
+    worldLabel:     'Krynn',
+    description:    '12 months of 28 days (336-day year). 7-day week. Three moons govern magic.',
+    weekdays:       ['Linaras','Palast','Majetag','Kirinor','Misham','Bakukal','Bracha'],
+    weekdayAbbr:    { Linaras:'Lin', Palast:'Pal', Majetag:'Maj', Kirinor:'Kir', Misham:'Mis', Bakukal:'Bak', Bracha:'Bra' },
+    monthDays:      [28,28,28,28,28,28,28,28,28,28,28,28],
+    structure:      null,
+    defaultSeason:  'dragonlance',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Krynnish Calendar',
+        description:'The Solamnic calendar of Krynn, with seasonal month names.',
+        monthNames: ['Winter Come','Winter Deep','Spring Dawning','Spring Rain',
+                     'Spring Blossom','Summer Home','Summer Run','Summer End',
+                     'Autumn Harvest','Autumn Twilight','Autumn Dark','Winter Night'],
+        colorTheme: 'dragonlance'
+      }
+    }
+  },
+  exandria: {
+    label:          'Exandria',
+    worldLabel:     'Exandria',
+    description:    '11 months of 29-32 days (328-day year). 7-day week. Exandrian calendar from Critical Role.',
+    weekdays:       ['Miresen','Grissen','Whelsen','Conthsen','Folsen','Yulisen','Da\'leysen'],
+    weekdayAbbr:    { Miresen:'Mir', Grissen:'Gri', Whelsen:'Whe', Conthsen:'Con', Folsen:'Fol', Yulisen:'Yul', "Da'leysen":'Dal' },
+    monthDays:      [29,30,30,31,28,29,32,29,30,30,30],
+    structure:      null,
+    defaultSeason:  'exandria',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Exandrian Calendar',
+        description:'The standard calendar of Exandria from Critical Role.',
+        monthNames: ['Horisal','Misuthar','Dualahei','Thunsheer','Unndilar','Brussendar',
+                     'Sydenstar','Fessuran','Quen\'pillar','Cuersaar','Duscar'],
+        colorTheme: 'exandria'
+      }
+    }
+  },
+  mystara: {
+    label:          'Mystara',
+    worldLabel:     'Mystara',
+    description:    '12 months of 28 days (336-day year). 7-day week. Known World / BECMI setting.',
+    weekdays:       ['Lunadain','Moldain','Gromdain','Tserdain','Moldain','Soladain','Loshdain'],
+    weekdayAbbr:    { Lunadain:'Lun', Moldain:'Mol', Gromdain:'Gro', Tserdain:'Tse', Soladain:'Sol', Loshdain:'Los' },
+    monthDays:      [28,28,28,28,28,28,28,28,28,28,28,28],
+    structure:      null,
+    defaultSeason:  'mystara',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Thyatian Calendar',
+        description:'The Thyatian calendar used across the Known World of Mystara.',
+        monthNames: ['Nuwmont','Vatermont','Thaumont','Flaurmont','Yarthmont','Klarmont',
+                     'Felmont','Fyrmont','Ambyrmont','Sviftmont','Eirmont','Kaldmont'],
+        colorTheme: 'mystara'
+      }
+    }
+  },
+  birthright: {
+    label:          'Birthright',
+    worldLabel:     'Aebrynis',
+    description:    '12 months of 32 days plus 4 festival days (388-day year). 8-day week. Deismaar reckoning.',
+    weekdays:       ['Firlen','Dielen','Trielen','Fiaren','Quinlen','Seislen','Seplen','Achlen'],
+    weekdayAbbr:    { Firlen:'Fir', Dielen:'Die', Trielen:'Tri', Fiaren:'Fia', Quinlen:'Qui', Seislen:'Sei', Seplen:'Sep', Achlen:'Ach' },
+    monthDays:      [32,32,32,32,32,32,32,32,32,32,32,32],
+    structure:      'birthright',
+    defaultSeason:  'birthright',
+    defaultVariant: 'standard',
+    variants: {
+      standard: {
+        label:      'Cerilian Calendar',
+        description:'The Anuirean calendar of Cerilia, on Aebrynis.',
+        monthNames: ['Emmanir','Deismir','Talenir','Roelir','Anarire','Sarimiere',
+                     'Roesone','Passir','Sehnir','Keltier','Michaelen','Faniele'],
+        colorTheme: 'birthright'
+      }
+    }
   }
 };
-export var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','gregorian'];
+export var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','gregorian','greyhawk','dragonlance','exandria','mystara','birthright'];
 
 /* --- Display tuning -------------------------------------------------------*/
 // How many days before/after the displayed month boundary trigger an adjacent
