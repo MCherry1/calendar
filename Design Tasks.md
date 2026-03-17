@@ -148,6 +148,8 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 #### Events
 * The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a fill color from the events
+* Dots provided for additional events
+* Tooltip event titles on hover (sources in parentheses)
 * Buttons below are:
 	* Previous | Next (months)
 	* Send (send current view to players, GM only)
@@ -161,6 +163,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 #### Moons
 * The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a black dot for a least 1 new and a yellow dot for at least 1 full
+* Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
 * Buttons below are:
 	* Previous | Next (months)
 	* Send (send current view to players, GM only)
