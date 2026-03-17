@@ -1705,11 +1705,21 @@ export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulate
   // temp ≤3 (≤34F) = snow zone; temp 4 (35-44F) = sleet zone; temp ≥5 (45F+) = rain zone
   // precip 1 = partly cloudy/light, 2 = overcast/moderate, 3 = precipitation,
   // 4 = heavy precipitation, 5 = extreme/deluge
+  //
+  // Climate-aware floor: tropical/subtropical terrains like swamp should not
+  // generate snow from stochastic cold snaps. The climate base determines the
+  // effective precip-type temperature floor.
+  var climate = (loc && loc.climate) ? String(loc.climate).toLowerCase() : '';
+  var effectiveTemp = temp;
+  if (climate === 'tropical' && effectiveTemp <= 3) effectiveTemp = 5;
+  else if (climate === 'subtropical' && effectiveTemp <= 3) effectiveTemp = 4;
+  else if (terrain === 'swamp' && effectiveTemp <= 2) effectiveTemp = Math.max(effectiveTemp, 4);
+
   var precipType = 'none';
   if (precip >= 1){
-    if (temp <= 3){
+    if (effectiveTemp <= 3){
       precipType = (precip >= 4) ? 'blizzard' : (precip >= 3) ? 'snow' : 'snow_light';
-    } else if (temp === 4){
+    } else if (effectiveTemp === 4){
       precipType = (precip >= 4) ? 'ice_storm' : (precip >= 3) ? 'sleet' : 'sleet_light';
     } else {
       precipType = (precip >= 5) ? 'deluge' : (precip >= 4) ? 'heavy_rain' : (precip >= 3) ? 'rain' : 'rain_light';
