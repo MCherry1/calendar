@@ -89,9 +89,7 @@ There are 5 core commands:
 
 Aside from !cal, each these is the default entry point to their subsystem. ALL of them will output a system-specific minical. I will now define their minical display, player view variation, and buttons.
 
-Agent task can you template this Today section for me to use for the others? I am working on it.
-___
-#### Today
+#### Today (!cal or !cal today)
 * All info is specific to the current calendar date
 * Only show information if the subsystem is active.
 * Show New and/or Full moons 
@@ -113,20 +111,24 @@ ___
 * Send 
 ___
 
-#### Events
-* The default calendar view.
-* Only show information if the subsystem is active.
+#### Events (!cal events)
+* This system is for managing events.
+* Only show information if the relevant subsystem is active.
 ##### Minical
-* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Default to Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Header bar is based on the color scheme, and consists of the current month and year
+* Subheader bar is the days of the week
 * Cells are numbered, with a fill color from the events
-* Dots provided for additional events
+* Colored dots shown on multi-event days
 * Tooltip event titles on hover (sources in parentheses)
+* If the show previous/next buttons are used, obviously, show those months.
 ##### Text Info
 * Current Date
-* Events/Holidays
+* If and only if the displayed month is the same as the current month:
+	* Bulleted list of Active Events/Holidays on the current date
 ##### Buttons
 * Show Previous | Show Next (months)
-	* Shows the requested month, same button set
+	* Shows the requested month, Current Date below, and same button set
 * Additional Views (opens drop down menu)
 	* Current Year (numerical calendar year of months)
 	* Upcoming (#n of months in calendar year) Months (current month plus n-1)
