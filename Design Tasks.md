@@ -70,64 +70,129 @@ None currently.
 ---
 
 ## Agent Ready
----
-
-user-defined fixes
-* planes forecast says days in the readme. it should be months - behaving the same as moons. make sure the code reflects this.
-* we lost our initialization message on api boot
-* change labeling of the different calendars to Setting (Eberron, Forgotten Realms, etc.), rather than world. The heirarchy would be Setting, World, Continent, Calendar. If there is only one choice, don't bother giving a chance to select. Just select and provide the info. Like, {Forgotten Realms} > ~~Toril~~, ~~Faerun~~, ~~Harptos Calendar~~, (all skipped), then it just outputs a message like:
-
-
->Harptos Calendar selected. The Haptos Calendar is the default calendar of Faerun, on the planet Toril, set in the Forgotten Realms. It consists of blah blah blah.
->!cal initialize to choose a different calendar (or whatever our command is)
-then it lists our initialization message that happens when the API loads.
->Harptos Calendar Initialized
->blah blah current date etc.
-
-* The README needs some refactoring as well. The Moons: Modeling the Sky section can remain, but all the setting specific info should be stuck into the setting specific sections. links hsould be provided however. same for planes
-* Minical cells are weirdly rectangular. Too tall. Why? especially the highlighted current day cell's row. Shorten it, and center the number vertically within the cell. Was this a problem with the dots? I thought maybe 3 wide by 4 tall ratio would look nice. you tell me. they look like mahjong tiles now too tall.
-* Moons lore tab should just not list the analog info but should show the moon's color, period, qualitative albedo (bright, dim, average brightness, etc.) as well as how big it is in the sky compared to Luna's average associated planes and dragonmark. % for less than size, integer x for more than, including 0.5 steps for less than 5x.
-* !cal and !cal show should show the current minical, with buttons below. buttons are simple
-	* row 1 is retreat and advance side by side
-	* row 2 is send to players
-	* row 3 is weather
-	* row 4 is moons
-	* row 5 is planes
-	* row 6 is admin
-* rows are not shown if the system is not enabled. admin can enable systems.
-* when you click the button for 3-5 it shows the minical for the current month.
-* ALSO MAJOR BUG ON MOONS AND PLANES DETAIL VIEW. cell builder is all broken.
-* Moons should default to the current month's Minical, with adjacent week strips when current week is within 1 week of end/begin of month. I can't even see the cals for more input
-* Same for planes. Cant even evaluate functionality.
-* Weather view should show forecast view by default.
-	* What emojis do we have available to us? Can we also list the temperature number, in a font color that matches to the temperature scale? (hot end red, cold end blue)
-	* buttons underneath should be row 1) Send | Reveal Forecast, row 2) mechanics, row 3) management
-	* Management should be
-		* Reroll Today | Reroll All
-		* History
-			* History Should use the same forecast display, not a list.
-		* Set Location
-		* Set Manifest Zone
-	* Reveal Forecast should be 2 rows, one for Medium, One for High, with 1 3 6 10 day buttons
-	* Send sends currently known forecast obvs
-	* Mechanics needs a cleaner presentation. also.. is the rolling totally broken? please audit. I'm seeing snow in the swamp
-		* Above table, general forecast. Cold and snowy, etc.
-		* Presentation is table, 7 rows (one is header), 4 columns (Time is clickable buttons)
-		* Time, Temp, Prec., Wind
-		* Use number scale.
-		* "Hover Time to Show"
-		* Hovering time of day field lists bullet point mechanics active during that bucket.
-		* Hovering over a nighttiume bucket includes the lighting active.
-			* Lighting is okay, but the in shadow part should be as prominent as the "Bright Moonlight" part.
-			* Love the sourcing. Does the percentages refer to the % of light coming from each source? They should. Just top 3 needed.
-				* Primary Sources: Zarantyr (45%), Olarune (35%), Therendor (10%)
-				* Reduced by Clouds (x15%)
-Error message: solve it
-[**Test & Build**](https://github.com/MCherry1/calendar/actions/runs/23168766586/job/67315443176#step:19:2)
-
-Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@v4, actions/setup-node@v4, actions/upload-artifact@v4. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: [https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/)
 
 ---
+
+### Default Views Redesign
+
+**Design principle:** The minical is the gold standard entry to every view. Always current month. Compact info below. Tight buttons.
+
+#### Dashboard (`!cal` / `!cal show`)
+
+```
+┌──────────────────────────────────┐
+│  « Month Year               ☼ » │
+│  [  Current Month Minical     ] │
+│                                  │
+│  Weekday, Day Month Year — Era   │
+│  Season · Time of Day            │
+│  (today summary — TBD)           │
+│                                  │
+│  ◄ Retreat          Advance ►    │
+│  Send to Players                 │
+│  Weather          (if enabled)   │
+│  Moons            (if enabled)   │
+│  Planes           (if enabled)   │
+│  Admin                           │
+└──────────────────────────────────┘
+```
+
+- Buttons 3–5 open their subsystem view (which also starts with current-month minical)
+- Rows hidden when subsystem not enabled for this world (capabilities-driven)
+- Today summary line format TBD — keep it to 1–2 tight lines max
+
+#### Events View
+
+Done. Current-month minical with event markers in cells, compact event list below.
+
+#### Moons View (`!cal moon`)
+
+Done. Current-month minical with phase markers, moon list rows below. GM controls in separate message. Needs minor reformatting pass only.
+
+#### Weather View (`!cal weather`)
+
+```
+┌──────────────────────────────────┐
+│  « Month Year               ☼ » │
+│  [  Current Month Minical     ] │
+│  emoji + temp color in cells     │
+│                                  │
+│  Today: 🌤 72°F  Light wind     │
+│  Location: Sharn (urban)         │
+│                                  │
+│  Send  |  Reveal Forecast        │
+│  Mechanics                       │
+│  Management                      │
+└──────────────────────────────────┘
+```
+
+- **Minical cells:** weather emoji + temperature number in scale-colored font (red→hot, blue→cold)
+- **Below minical:** one tight line for today's narrative + location
+- **Row 1:** `Send` (sends currently known forecast) | `Reveal Forecast`
+- **Row 2:** `Mechanics`
+- **Row 3:** `Management`
+- **Reveal Forecast** expands: two rows (Medium / High tier), each with `1 3 6 10` day buttons
+- **Management** expands:
+  - `Reroll Today` | `Reroll All`
+  - `History` — uses the same minical forecast display, not a text list
+  - `Set Location`
+  - `Set Manifest Zone`
+- **Mechanics** panel:
+  - General summary line above table ("Cold and snowy", etc.)
+  - Table: 7 rows (header + 6 periods), 4 columns: Time | Temp | Prec. | Wind
+  - Number scale values
+  - Time cells are clickable buttons — hover shows bullet-point mechanics for that period
+  - Night buckets include lighting: moonlight sourcing (top 3 sources with %, cloud reduction)
+  - Shadow info as prominent as "Bright Moonlight"
+
+#### Planes View (`!cal planes`)
+
+```
+┌──────────────────────────────────┐
+│  « Month Year               ☼ » │
+│  [  Current Month Minical     ] │
+│  phase transition markers        │
+│                                  │
+│  🔴 Kythri — Coterminous        │
+│  🔵 Risia — Remote (waxing 3mo) │
+│                                  │
+│  Send  |  Lore                   │
+│  Display Mode | Custom Date      │
+└──────────────────────────────────┘
+```
+
+- **Minical cells:** plane phase transition indicators (coterminous / remote / waxing / waning colors)
+- **Below minical:** compact list of currently notable planes only — coterminous, remote, or approaching transition. Not all 13.
+- **Row 1:** `Send` (with tier presets Medium/High) | `Lore`
+- **Row 2:** Display mode toggle | Custom date prompt
+- GM controls in separate message (same whisperParts pattern)
+
+---
+
+### Minical Cell Proportions
+
+Cells are currently `width:2em; height:1.4em` — wider than tall. User reports they look too tall visually, especially the highlighted today row. Investigate whether the today-highlight styles (`box-shadow`, `outline`, `outline-offset`) or `calCellInner` min-height are adding visual bulk. Target: approximately 3:4 width-to-height ratio, number vertically centered.
+
+**File:** `src/constants.ts:403-408`
+
+### Moon Lore: Remove Analog Info, Add Qualitative Stats
+
+`_moonLoreHtml()` still shows reference-moon analog data. Replace with:
+- Color swatch
+- Synodic period
+- Qualitative albedo: bright / dim / average
+- Apparent sky size vs Luna: `%` for smaller, integer `×` for larger (0.5× steps below 5×)
+- Associated plane and dragonmark
+
+**File:** `src/moon.ts` — `_moonLoreHtml()` function
+
+### README: Migrate Setting-Specific Info to Per-Setting Sections
+
+The general "Moons: Modeling the Sky" and "Planes" sections still contain Eberron-specific data (12 moon names, 13 plane names). Move setting-specific details into the per-setting subsections under "Supported Settings" (added in Phase 7). Keep the general sections setting-agnostic with cross-links. Same treatment for any Eberron-specific content in Weather section.
+
+### Planes Forecast: Days → Months in README
+
+Verify all README references to planes/moons forecast increments say "months" not "days." The code already forecasts in month increments for moons and planes.
 
 ### Named Saved Weather Location Presets
 
