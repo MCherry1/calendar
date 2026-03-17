@@ -98,12 +98,13 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 ##### Text Info
 * Current Date
 * Events/Holidays
-* Line Break
+* Spacing Line Break
 * Time of Day
 * Current Weather
-* Line Break
+* Spacing Line Break
 * New Moons: List
 * Full Moons: List
+* Spacing Line Break
 * Coterminous Planes: List
 * Remote Planes: List
 ##### Buttons
@@ -115,7 +116,6 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* Weather
 	* Planes
 	* Admin
-___
 
 #### Events (!cal events)
 * This system is for managing events.
@@ -134,11 +134,11 @@ ___
 	* Bulleted list of Active Events/Holidays on the current date
 ##### Buttons
 * Previous | Next (months)
-	* Shows the requested month, Current Date below, and same button set
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Additional Views or Management.
 * Send to Players (send month view to players, GM only. this one is specific. its not necessarily the ACTIVE CURRENT month, but the month that was most recently displayed to the GM, which many be differnt via the previous and next buttons)
 * small line break
 * Additional Views (opens drop down menu)
-	* Current Year
+	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
@@ -160,6 +160,8 @@ ___
 * Show New and/or Full moons
 ##### Minical
 * Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Header bar is based on the color scheme, and consists of the current month and year
+* Subheader bar is the days of the week
 * Cells are numbered, with a black dot for at least 1 new and a yellow dot for at least 1 full
 * Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
 ##### Text Info
@@ -168,15 +170,18 @@ ___
 * Full Moons: List
 ##### Buttons
 * Previous | Next (month steps)
-	* Shows the requested month, Current Date below, and same button set
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Additional Views, Current Phases, or Management.
 * Send to Players (send month view to players, GM only. this one is specific. its not necessarily the ACTIVE CURRENT month, but the month that was most recently displayed to the GM, which many be differnt via the previous and next buttons)
 * small line break
 * Additional Views (no additional buttons after these are displayed)
-	* Current Year
+	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
+* small line break
+* Current Phases
+	* Whispers a clean bulleted list with swatch + moon name, subbullets current phase (waning crescent, etc.) and upcoming "New/Full in X days on insert-month-and-day-date-format"
 * small line break
 * Management (drop down menu, GM only)
 	* Set New (drop down menu)
@@ -189,7 +194,7 @@ ___
 * All info is specific to the current calendar date
 * Only show information if the subsystem is active.
 ##### Minical
-* The weather minical is a bit different than the 
+* The weather minical is a bit different than the others
 * Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a fill color from the events
 ##### Text Info
@@ -205,102 +210,8 @@ ___
 	* Insert other event management?
 
 #### Planes
-* agent task: can you update this section to basically exactly match the 
----
+* agent task: can you update this section to basically exactly match the moons section, but with Coterminous and Remote replacing New and Full, and with the Planes names replacing the moons names?
 
-### Default Views Redesign
-
-**Design principle:** The minical is the gold standard entry to every view. Always current month. Compact info below. Tight buttons.
-
-#### Dashboard (`!cal` / `!cal show`)
-
-```
-┌──────────────────────────────────┐
-│  « Month Year               ☼ » │
-│  [  Current Month Minical     ] │
-│                                  │
-│  Weekday, Day Month Year — Era   │
-│  Season · Time of Day            │
-│  (today summary — TBD)           │
-│                                  │
-│  ◄ Retreat          Advance ►    │
-│  Send to Players                 │
-│  Weather          (if enabled)   │
-│  Moons            (if enabled)   │
-│  Planes           (if enabled)   │
-│  Admin                           │
-└──────────────────────────────────┘
-```
-
-- Buttons 3–5 open their subsystem view (which also starts with current-month minical)
-- Rows hidden when subsystem not enabled for this world (capabilities-driven)
-- Today summary line format TBD — keep it to 1–2 tight lines max
-
-#### Events View
-
-Done. Current-month minical with event markers in cells, compact event list below.
-
-#### Moons View (`!cal moon`)
-
-Done. Current-month minical with phase markers, moon list rows below. GM controls in separate message. Needs minor reformatting pass only.
-
-#### Weather View (`!cal weather`)
-
-```
-┌──────────────────────────────────┐
-│  « Month Year               ☼ » │
-│  [  Current Month Minical     ] │
-│  emoji + temp color in cells     │
-│                                  │
-│  Today: 🌤 72°F  Light wind     │
-│  Location: Sharn (urban)         │
-│                                  │
-│  Send  |  Reveal Forecast        │
-│  Mechanics                       │
-│  Management                      │
-└──────────────────────────────────┘
-```
-
-- **Minical cells:** weather emoji + temperature number in scale-colored font (red→hot, blue→cold)
-- **Below minical:** one tight line for today's narrative + location
-- **Row 1:** `Send` (sends currently known forecast) | `Reveal Forecast`
-- **Row 2:** `Mechanics`
-- **Row 3:** `Management`
-- **Reveal Forecast** expands: two rows (Medium / High tier), each with `1 3 6 10` day buttons
-- **Management** expands:
-  - `Reroll Today` | `Reroll All`
-  - `History` — uses the same minical forecast display, not a text list
-  - `Set Location`
-  - `Set Manifest Zone`
-- **Mechanics** panel:
-  - General summary line above table ("Cold and snowy", etc.)
-  - Table: 7 rows (header + 6 periods), 4 columns: Time | Temp | Prec. | Wind
-  - Number scale values
-  - Time cells are clickable buttons — hover shows bullet-point mechanics for that period
-  - Night buckets include lighting: moonlight sourcing (top 3 sources with %, cloud reduction)
-  - Shadow info as prominent as "Bright Moonlight"
-
-#### Planes View (`!cal planes`)
-
-```
-┌──────────────────────────────────┐
-│  « Month Year               ☼ » │
-│  [  Current Month Minical     ] │
-│  phase transition markers        │
-│                                  │
-│  🔴 Kythri — Coterminous        │
-│  🔵 Risia — Remote (waxing 3mo) │
-│                                  │
-│  Send  |  Lore                   │
-│  Display Mode | Custom Date      │
-└──────────────────────────────────┘
-```
-
-- **Minical cells:** plane phase transition indicators (coterminous / remote / waxing / waning colors)
-- **Below minical:** compact list of currently notable planes only — coterminous, remote, or approaching transition. Not all 13.
-- **Row 1:** `Send` (with tier presets Medium/High) | `Lore`
-- **Row 2:** Display mode toggle | Custom date prompt
-- GM controls in separate message (same whisperParts pattern)
 
 ---
 
