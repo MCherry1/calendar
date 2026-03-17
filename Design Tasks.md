@@ -165,7 +165,8 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Cells are numbered, with a black dot for a least 1 new and a yellow dot for at least 1 full
 * Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
 * Buttons below are:
-	* Previous | Next (months)
+	* Previous | Next (month steps)
+	* 
 	* Send (send current view to players, GM only)
 	* Management (GM only)
 		* Source Controls
