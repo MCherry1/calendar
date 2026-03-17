@@ -6,19 +6,19 @@ This document tracks ideas that are still being held outside the implementation 
 
 ## Implementation Status Summary
 
-| # | Recommendation | Status |
-| --- | --- | --- |
-| 1 | Ephemeral UI path with `noarchive` | Implemented |
-| 2 | Macro pack / `!cal macros` | Moved to README only |
-| 3 | Today/root clutter reduction | Implemented |
-| 4 | Guided prompt buttons for typed commands | Implemented |
-| 5 | Named saved weather locations | Open — see below |
-| 6 | `/direct` audit for public interactive panels | Implemented |
-| 7 | Typo recovery / "did you mean" guidance | Declined |
-| 8 | Split monolith into subsystem files | Implemented |
-| 9 | Repo-specific CI cleanup | Implemented |
-| 10 | Behavior-oriented automated tests | Implemented |
-| 11 | Keep the upload workflow explicit and manual-paste friendly | Implemented |
+| #   | Recommendation                                              | Status               |
+| --- | ----------------------------------------------------------- | -------------------- |
+| 1   | Ephemeral UI path with `noarchive`                          | Implemented          |
+| 2   | Macro pack / `!cal macros`                                  | Moved to README only |
+| 3   | Today/root clutter reduction                                | Implemented          |
+| 4   | Guided prompt buttons for typed commands                    | Implemented          |
+| 5   | Named saved weather locations                               | Open — see below     |
+| 6   | `/direct` audit for public interactive panels               | Implemented          |
+| 7   | Typo recovery / "did you mean" guidance                     | Declined             |
+| 8   | Split monolith into subsystem files                         | Implemented          |
+| 9   | Repo-specific CI cleanup                                    | Implemented          |
+| 10  | Behavior-oriented automated tests                           | Implemented          |
+| 11  | Keep the upload workflow explicit and manual-paste friendly | Implemented          |
 
 ## Open Ideas
 

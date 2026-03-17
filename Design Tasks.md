@@ -70,9 +70,11 @@ None currently.
 ---
 
 ## Agent Ready
+---
 
 user-defined fixes
 * planes forecast says days in the readme. it should be months - behaving the same as moons. make sure the code reflects this.
+* we lost our initialization message on api boot
 * change labeling of the different calendars to Setting (Eberron, Forgotten Realms, etc.), rather than world. The heirarchy would be Setting, World, Continent, Calendar. If there is only one choice, don't bother giving a chance to select. Just select and provide the info. Like, {Forgotten Realms} > ~~Toril~~, ~~Faerun~~, ~~Harptos Calendar~~, (all skipped), then it just outputs a message like:
 
 
@@ -83,7 +85,7 @@ then it lists our initialization message that happens when the API loads.
 >blah blah current date etc.
 
 * The README needs some refactoring as well. The Moons: Modeling the Sky section can remain, but all the setting specific info should be stuck into the setting specific sections. links hsould be provided however. same for planes
-* Minical cells are weirdly rectangular. Too tall. Why? especially the highlighted current day cell's row. Shorten it, and center the number vertically within the cell.
+* Minical cells are weirdly rectangular. Too tall. Why? especially the highlighted current day cell's row. Shorten it, and center the number vertically within the cell. Was this a problem with the dots? I thought maybe 3 wide by 4 tall ratio would look nice. you tell me. they look like mahjong tiles now too tall.
 * Moons lore tab should just not list the analog info but should show the moon's color, period, qualitative albedo (bright, dim, average brightness, etc.) as well as how big it is in the sky compared to Luna's average associated planes and dragonmark. % for less than size, integer x for more than, including 0.5 steps for less than 5x.
 * !cal and !cal show should show the current minical, with buttons below. buttons are simple
 	* row 1 is retreat and advance side by side
@@ -95,7 +97,10 @@ then it lists our initialization message that happens when the API loads.
 * rows are not shown if the system is not enabled. admin can enable systems.
 * when you click the button for 3-5 it shows the minical for the current month.
 * ALSO MAJOR BUG ON MOONS AND PLANES DETAIL VIEW. cell builder is all broken.
-* Weather view should show forecast by default.
+* Moons should default to the current month's Minical, with adjacent week strips when current week is within 1 week of end/begin of month. I can't even see the cals for more input
+* Same for planes. Cant even evaluate functionality.
+* Weather view should show forecast view by default.
+	* What emojis do we have available to us? Can we also list the temperature number, in a font color that matches to the temperature scale? (hot end red, cold end blue)
 	* buttons underneath should be row 1) Send | Reveal Forecast, row 2) mechanics, row 3) management
 	* Management should be
 		* Reroll Today | Reroll All
@@ -112,12 +117,18 @@ then it lists our initialization message that happens when the API loads.
 		* Use number scale.
 		* "Hover Time to Show"
 		* Hovering time of day field lists bullet point mechanics active during that bucket.
-		* Hovering over nighttiume bucket includes the lighting active.
+		* Hovering over a nighttiume bucket includes the lighting active.
 			* Lighting is okay, but the in shadow part should be as prominent as the "Bright Moonlight" part.
 			* Love the sourcing. Does the percentages refer to the % of light coming from each source? They should. Just top 3 needed.
 				* Primary Sources: Zarantyr (45%), Olarune (35%), Therendor (10%)
 				* Reduced by Clouds (x15%)
-* 
+Error message: solve it
+[**Test & Build**](https://github.com/MCherry1/calendar/actions/runs/23168766586/job/67315443176#step:19:2)
+
+Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@v4, actions/setup-node@v4, actions/upload-artifact@v4. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: [https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/)
+
+---
+
 ### Many-Worlds Platform Refactor — Phase 1: World Definition Types
 
 Create the world-definition type layer and migrate existing worlds (Eberron, Faerun, Gregorian) into it. See `Additional Calendars for Implementation.md` for full architecture. Key deliverables:
