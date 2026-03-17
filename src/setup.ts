@@ -183,8 +183,18 @@ function _setupCalendarSelectionNotice(sysKey, variantKey){
   var sys = _setupSystem(sysKey) || {};
   var variant = (sys.variants && sys.variants[variantKey]) || {};
   var calendarLabel = variant.label || titleCase(variantKey || sys.defaultVariant || 'standard');
-  var detail = variant.description || sys.description || '';
+  var settingLabel = sys.label || titleCase(sysKey || '');
+  var worldLabel = sys.worldLabel || '';
+  var continentLabel = sys.continentLabel || '';
+  var hierarchy = '';
+  if (continentLabel && worldLabel && settingLabel){
+    hierarchy = ' The default calendar of ' + esc(continentLabel) + ', on ' + esc(worldLabel) + ', set in the ' + esc(settingLabel) + '.';
+  } else if (worldLabel && settingLabel){
+    hierarchy = ' The default calendar of ' + esc(worldLabel) + ' (' + esc(settingLabel) + ').';
+  }
+  var detail = variant.description || '';
   return '<b>' + esc(calendarLabel) + '</b> selected.' +
+    hierarchy +
     (detail ? ' ' + esc(detail) : '') +
     ' Use <code>!cal setup restart</code> to choose a different setting.';
 }
