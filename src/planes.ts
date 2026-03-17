@@ -1178,10 +1178,14 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       return button(p.label + ' (' + p.dc + ')', 'planes send high ' + (p.token || (p.days + 'd')));
     }).join(' ');
 
+    var planeQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    var planeDropdown = button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}');
+
     gmControls =
       '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
         '<div style="font-size:.82em;margin-bottom:2px;">Send Medium: '+pSendBtns+'</div>'+
         '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
+        '<div style="font-size:.82em;margin-bottom:4px;margin-top:4px;">'+planeDropdown+'</div>'+
         '<div style="font-size:.82em;margin-bottom:2px;">'+button('Prompt !cal planes on','planes on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
         button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
         '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
@@ -1485,6 +1489,69 @@ export function handlePlanesCommand(m, args){
     warnGM('Sent '+titleCase(effectiveTier)+' planar forecast to players ('+rangeNote+').');
     whisperParts(m.who, planesPanelHtml(true));
     return;
+  }
+
+  // !cal planes view <PlaneName>  — single-plane detail view
+  if (sub === 'view'){
+    var viewNameRaw = String(args[2] || '').trim();
+    var allPlanes = _getAllPlaneData();
+    if (!viewNameRaw){
+      // Show dropdown picker for plane selection
+      var viewQueryOpts = allPlanes.map(function(p){ return p.name; }).join('|');
+      return whisper(m.who, _menuBox('🌀 Plane Detail',
+        '<div style="margin-bottom:4px;">'+button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + viewQueryOpts + '}')+'</div>' +
+        '<div style="margin-top:6px;">'+button('⬅ Back','planes')+'</div>'
+      ));
+    }
+    var viewPlane = _getPlaneData(viewNameRaw);
+    if (!viewPlane) return whisper(m.who, 'Unknown plane: <b>'+esc(viewNameRaw)+'</b>. Try <code>!cal planes view</code> for a list.');
+
+    var viewToday = todaySerial();
+    var viewPs = getPlanarState(viewPlane.name, viewToday);
+    var viewEmoji = PLANE_PHASE_EMOJI[viewPs.phase] || '⚪';
+    var viewLabel = PLANE_PHASE_LABELS[viewPs.phase] || viewPs.phase;
+
+    var viewHtml = '<div style="margin:4px 0;">';
+    // Phase
+    viewHtml += '<div style="margin:3px 0;font-size:1.05em;">'+viewEmoji+' Currently: <b>'+esc(viewLabel)+'</b></div>';
+    // Next transition
+    if (viewPs.daysUntilNextPhase != null && viewPs.nextPhase){
+      viewHtml += '<div style="margin:2px 0;font-size:.88em;opacity:.7;">Next: '+
+        esc(PLANE_PHASE_LABELS[viewPs.nextPhase] || viewPs.nextPhase)+' in '+viewPs.daysUntilNextPhase+'d</div>';
+    }
+    // Override indicator
+    if (viewPs.overridden){
+      viewHtml += '<div style="margin:2px 0;font-size:.82em;color:#E65100;">[GM override active]</div>';
+    }
+    // Effects for current phase
+    if (viewPlane.effects && viewPlane.effects[viewPs.phase]){
+      viewHtml += '<div style="margin:4px 0;font-size:.85em;padding:3px 6px;background:rgba(255,255,255,.06);border-radius:3px;">'+
+        '<b>Effects:</b> '+esc(viewPlane.effects[viewPs.phase])+'</div>';
+    }
+    // Title
+    if (viewPlane.title){
+      viewHtml += '<div style="margin:3px 0;font-size:.85em;opacity:.6;font-style:italic;">'+esc(viewPlane.title)+'</div>';
+    }
+    // Associated moon
+    if (viewPlane.associatedMoon){
+      viewHtml += '<div style="margin:2px 0;font-size:.82em;opacity:.55;">Associated moon: <b>'+esc(viewPlane.associatedMoon)+'</b></div>';
+    }
+    // Cycle info
+    if (viewPlane.type === 'cyclic' && viewPlane.orbitYears){
+      viewHtml += '<div style="margin:2px 0;font-size:.82em;opacity:.55;">Orbit: '+viewPlane.orbitYears+' years</div>';
+    } else if (viewPlane.type === 'fixed'){
+      viewHtml += '<div style="margin:2px 0;font-size:.82em;opacity:.55;">Fixed phase (no natural orbit)</div>';
+    }
+    // GM-only lore note
+    if (isGM && viewPlane.note){
+      viewHtml += '<div style="margin:4px 0;font-size:.78em;opacity:.45;font-style:italic;">'+esc(viewPlane.note)+'</div>';
+    }
+    viewHtml += '</div>';
+
+    return whisper(m.who, _menuBox('🌀 '+esc(viewPlane.name),
+      viewHtml +
+      '<div style="margin-top:6px;">'+button('⬅ All Planes','planes')+'</div>'
+    ));
   }
 
   // !cal planes suppress <name> [dateSpec]

@@ -1750,14 +1750,13 @@ export function moonPanelParts(serialOverride?){
     return button(p.label, 'moon send high ' + p.days + 'd');
   }).join(' ');
 
-  var moonViewBtns = sys.moons.map(function(moon){
-    return button(moon.name, 'moon view ' + moon.name);
-  }).join(' ');
+  var moonQueryOpts = sys.moons.map(function(moon){ return moon.name; }).join('|');
+  var moonDropdown = button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + moonQueryOpts + '}');
 
   var gmControls = '<div style="font-size:.82em;opacity:.7;">'+
     '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
     '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
-    '<div style="margin-bottom:4px;margin-top:4px;">Individual: '+moonViewBtns+'</div>'+
+    '<div style="margin-bottom:4px;margin-top:4px;">'+moonDropdown+'</div>'+
     '<div style="margin-bottom:4px;">'+button('Prompt !cal moon on','moon on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
     button('📖 Lore','moon lore')+' '+
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
@@ -3812,13 +3811,10 @@ export function handleMoonCommand(m, args){
     var viewNameRaw = String(args[2] || '').trim();
     var viewSys = _getMoonSys();
     if (!viewNameRaw){
-      // Show picker buttons for each moon
-      var viewBtns = viewSys.moons.map(function(moon){
-        return button(moon.name, 'moon view ' + moon.name);
-      });
+      // Show dropdown picker for moon selection
+      var viewQueryOpts = viewSys.moons.map(function(moon){ return moon.name; }).join('|');
       return whisper(m.who, _menuBox('🌙 Moon Calendar',
-        '<div style="margin-bottom:4px;">Select a moon:</div>' +
-        viewBtns.join(' ') +
+        '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>' +
         '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
       ));
     }
