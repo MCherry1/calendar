@@ -189,6 +189,7 @@ ___
 * All info is specific to the current calendar date
 * Only show information if the subsystem is active.
 ##### Minical
+* The weather minical is a bit different than the 
 * Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a fill color from the events
 ##### Text Info
@@ -204,23 +205,7 @@ ___
 	* Insert other event management?
 
 #### Planes
-* All info is specific to the current calendar date
-* Only show information if the subsystem is active.
-##### Minical
-* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
-* Cells are numbered, with a fill color from the events
-##### Text Info
-* Current Date
-* Coterminous Planes: List
-* Remote Planes: List
-##### Buttons
-* Previous | Next (months)
-* Send (send current view to players, GM only)
-* Management (GM only)
-	* Source Controls
-	* Add Custom Events
-		* Add Single Event, Add Yearly, etc with prompted syntaxes
-	* Insert other event management?
+* agent task: can you update this section to basically exactly match the 
 ---
 
 ### Default Views Redesign
