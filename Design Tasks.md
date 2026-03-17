@@ -182,10 +182,12 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 		* Specific Year (query yy)
 	* Send (send current month view to players, GM only)
 	* Management (GM only)
-		* Source Controls
+		* Add New
+			* button for each moon ("Set New Zarantyr"), opens query for dd, mm dd, mm dd yyyy
+		* Add Full
+			 * button for each moon ("Set Full Olarune"), opens query for dd, mm dd, mm dd yyyy
 		* Add Custom Events
 			* Add Single Event, Add Yearly, etc with prompted syntaxes
-		* Insert other event management?
 
 #### Weather
 * The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
