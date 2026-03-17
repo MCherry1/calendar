@@ -150,13 +150,50 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Cells are numbered, with a fill color from the events
 * Buttons below are:
 	* Previous | Next (months)
-	* Management
+	* Send (send current view to players, GM only)
+	* Management (GM only)
 		* Source Controls
 		* Add Custom Events
 			* Add Single Event, Add Yearly, etc with prompted syntaxes
-		* 
+		* Insert other event management?
+	* 
 
+#### Moons
+* The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Cells are numbered, with a black dot for a least 1 new and a yellow dot for at least 1 full
+* Buttons below are:
+	* Previous | Next (months)
+	* Send (send current view to players, GM only)
+	* Management (GM only)
+		* Source Controls
+		* Add Custom Events
+			* Add Single Event, Add Yearly, etc with prompted syntaxes
+		* Insert other event management?
 
+#### Weather
+* The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Cells are numbered, with a fill color from the events
+* Buttons below are:
+	* Previous | Next (months)
+	* Send (send current view to players, GM only)
+	* Management (GM only)
+		* Source Controls
+		* Add Custom Events
+			* Add Single Event, Add Yearly, etc with prompted syntaxes
+		* Insert other event management?
+
+#### Planes
+* The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Cells are numbered, with a fill color from the events
+* Buttons below are:
+	* Previous | Next (months)
+	* Send (send current view to players, GM only)
+	* Management (GM only)
+		* Source Controls
+		* Add Custom Events
+			* Add Single Event, Add Yearly, etc with prompted syntaxes
+		* Insert other event management?
+	* 
 ---
 
 ### Named Saved Weather Location Presets
