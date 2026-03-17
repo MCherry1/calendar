@@ -146,7 +146,8 @@ There are 5 core commands:
 Aside from !cal, each these is the default entry point to their subsystem. ALL of them will output a system-specific minical. I will now define their minical display, player view variation, and buttons.
 
 #### Events
-* The default calendar view. The minical is the current month, full display, including shoulder week logic.
+* The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Event cells are numbered, with a fill color from the events
 
 
 ---
