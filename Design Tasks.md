@@ -157,8 +157,8 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 			* (no buttons)
 		* Upcoming (#n of months in calendar year) months (current month plus n-1)
 			* (no buttons)
-		* Specific Month (query mm or mm yyyy)
-		* Specific Year (query yy)
+		* List Commands
+			* Output commands for specific months or years
 	* Send (send current month view to players, GM only)
 	* Management (GM only)
 		* Source Controls
