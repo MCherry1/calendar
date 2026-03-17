@@ -135,18 +135,22 @@ ___
 ##### Buttons
 * Previous | Next (months)
 	* Shows the requested month, Current Date below, and same button set
+* Send to Players (send month view to players, GM only. this one is specific. its not necessarily the ACTIVE CURRENT month, but the month that was most recently displayed to the GM, which many be differnt via the previous and next buttons)
+* small line break
 * Additional Views (opens drop down menu)
-	* Current Year (numerical calendar year of months)
-	* Upcoming (#n of months in calendar year) Months (current month plus n-1)
-	* Specific Month (opens query, mm or mm yyyy)
-	* Specific Year (yyyy)
+	* Current Year
+	* Upcoming (#n of months in calendar year) months (current month plus n-1)
+	* Specific Month (query mm or mm yyyy)
+	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
+* small line break
 * Management (creates drop-down menu, GM only)
 	* Add Custom Events (drop down menu)
 		* Add Single Event (query, dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
 		* Add Monthly Event (query, dd only)
 		* Add Yearly Event (query, mm dd only)
 		* After event date is captured, drop down menu of colors
+		* After event is created, whisper details to GM (color swatch "so and so created (annually/monthly) on insert date format)
 	* Source Controls (I think these might be okay as-is, if cluttered. will address later)
 	* Agent task are there other event managements needed?
 
@@ -164,19 +168,22 @@ ___
 * Full Moons: List
 ##### Buttons
 * Previous | Next (month steps)
+	* Shows the requested month, Current Date below, and same button set
+* Send to Players (send month view to players, GM only. this one is specific. its not necessarily the ACTIVE CURRENT month, but the month that was most recently displayed to the GM, which many be differnt via the previous and next buttons)
+* small line break
 * Additional Views (no additional buttons after these are displayed)
 	* Current Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
-* Send (send current month view to players, GM only)
-* Management (GM only)
-	* Add New
-		* button for each moon ("Set New Zarantyr"), opens query for dd, mm dd, mm dd yyyy
-	* Add Full
-		* button for each moon ("Set Full Olarune"), opens query for dd, mm dd, mm dd yyyy
-	* Add Custom Events
-		* Add Single Event, Add Yearly, etc with prompted syntaxes
+	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
+* small line break
+* Management (drop down menu, GM only)
+	* Set New (drop down menu)
+		* query for dd, mm dd, mm dd yyyy
+	* Set Full (drop down menu)
+		* query for dd, mm dd, mm dd yyyy
+	* agent task: I am pretty sure we never *add* a phase, we just shift existing phases to accomodate. Can you check on this? And when we smoothly move phases to acommodate, we also just drop right back into the regular cycle once we're past the set phase, right? that's the way it should work. setting a full or new should as non-invasively as possible just mutate the whole system for that moon 
 
 #### Weather
 * All info is specific to the current calendar date
