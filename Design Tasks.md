@@ -152,7 +152,14 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Tooltip event titles on hover (sources in parentheses)
 * Buttons below are:
 	* Previous | Next (months)
-	* Send (send current view to players, GM only)
+	* Additional Views
+		* Current Year
+			* (no buttons)
+		* Upcoming (#n of months in calendar year) months (current month plus n-1)
+			* (no buttons)
+		* Specific Month (query mm or mm yyyy)
+		* Specific Year (query yy)
+	* Send (send current month view to players, GM only)
 	* Management (GM only)
 		* Source Controls
 		* Add Custom Events
@@ -168,8 +175,12 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* Previous | Next (month steps)
 	* Additional Views
 		* Current Year
+			* (no buttons)
 		* Upcoming (#n of months in calendar year) months (current month plus n-1)
-	* Send (send current view to players, GM only)
+			* (no buttons)
+		* Specific Month (query mm or mm yyyy)
+		* Specific Year (query yy)
+	* Send (send current month view to players, GM only)
 	* Management (GM only)
 		* Source Controls
 		* Add Custom Events
