@@ -108,7 +108,13 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Remote Planes: List
 ##### Buttons
 * Back arrow "Date" | "Date" forward arrow (use the arrow emojis here)
-* Send 
+* Send (send *current month view* to players, GM only. not necessarily the "active" month, but the one who's minical was shown above this button block)
+* Additional Options (Drop down menu)
+	* Events
+	* Moons
+	* Weather
+	* Planes
+	* Admin
 ___
 
 #### Events (!cal events)
@@ -127,7 +133,7 @@ ___
 * If and only if the displayed month is the same as the current month:
 	* Bulleted list of Active Events/Holidays on the current date
 ##### Buttons
-* Show Previous | Show Next (months)
+* Previous | Next (months)
 	* Shows the requested month, Current Date below, and same button set
 * Additional Views (opens drop down menu)
 	* Current Year (numerical calendar year of months)
@@ -135,14 +141,13 @@ ___
 	* Specific Month (opens query, mm or mm yyyy)
 	* Specific Year (yyyy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* Send (send *current month view* to players, GM only. not necessarily the "active" month, but the one who's minical was shown above this button block)
 * Management (creates drop-down menu, GM only)
-	* Source Controls
 	* Add Custom Events (drop down menu)
-		* Add Single Event (dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
-		* Add Monthly Event (dd only)
-		* Add Yearly Event (mm dd only)
+		* Add Single Event (query, dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
+		* Add Monthly Event (query, dd only)
+		* Add Yearly Event (query, mm dd only)
 		* After event date is captured, drop down menu of colors
+	* Source Controls (I think these might be okay as-is, if cluttered. will address later)
 	* Agent task are there other event managements needed?
 
 #### Moons
