@@ -260,6 +260,81 @@ export var MOON_SYSTEMS = {
         epochSeed:{ defaultSeed:'luna', referenceDate:{year:2021,month:1,day:28} },
         loreNote:'Earth\'s natural satellite. Synodic period 29.53 days. Governs tides and has inspired mythology across all human cultures.' }
     ]
+  },
+
+  // =========================================================================
+  // GREYHAWK — Luna and Celene (moons of Oerth)
+  // =========================================================================
+  greyhawk: {
+    id: 'greyhawk',
+    name: 'Oerth',
+    description: "Luna (28-day cycle) and Celene (91-day cycle), the two moons of Oerth.",
+    moons: [
+      { name:'Luna', title:'The Great Moon', color:'#F5F5DC', associatedMonth:null,
+        synodicPeriod:28, loreNote:'Oerth\'s larger moon. Its 28-day cycle aligns perfectly with the calendar months.' },
+      { name:'Celene', title:'The Handmaiden', color:'#B0E0E6', associatedMonth:null,
+        synodicPeriod:91, loreNote:'Oerth\'s smaller, aquamarine-hued moon. Its 91-day cycle is watched by druids and astrologers.' }
+    ]
+  },
+
+  // =========================================================================
+  // DRAGONLANCE — Three moons of Krynn
+  // =========================================================================
+  dragonlance: {
+    id: 'dragonlance',
+    name: 'Krynn',
+    description: "Solinari, Lunitari, and Nuitari — the three moons of Krynn that govern magic.",
+    moons: [
+      { name:'Solinari', title:'The Silver Moon', color:'#E8E8E8', associatedMonth:null,
+        synodicPeriod:36, loreNote:'Solinari governs Good magic on Krynn. Its 36-day cycle determines the power of White Robed wizards.' },
+      { name:'Lunitari', title:'The Red Moon', color:'#CD5C5C', associatedMonth:null,
+        synodicPeriod:28, loreNote:'Lunitari governs Neutral magic on Krynn. Its 28-day cycle matches the calendar months.' },
+      { name:'Nuitari', title:'The Black Moon', color:'#1A1A2E', associatedMonth:null,
+        synodicPeriod:8, loreNote:'Nuitari governs Evil magic on Krynn. Its rapid 8-day cycle is invisible to all but those who serve darkness.' }
+    ]
+  },
+
+  // =========================================================================
+  // EXANDRIA — Catha and Ruidus
+  // =========================================================================
+  exandria: {
+    id: 'exandria',
+    name: 'Exandria',
+    description: "Catha (the guiding light) and Ruidus (the bloody eye) — the moons of Exandria.",
+    moons: [
+      { name:'Catha', title:'The Guiding Light', color:'#F0E6D6', associatedMonth:null,
+        synodicPeriod:29, loreNote:'Catha is Exandria\'s primary moon, associated with the Moonweaver, Sehanine.' },
+      { name:'Ruidus', title:'The Bloody Eye', color:'#8B0000', associatedMonth:null,
+        synodicPeriod:164, loreNote:'Ruidus is a small reddish-purple moon shrouded in mystery. It appears full when visible and is considered an ill omen.' }
+    ]
+  },
+
+  // =========================================================================
+  // MYSTARA — Matera and Patera
+  // =========================================================================
+  mystara: {
+    id: 'mystara',
+    name: 'Mystara',
+    description: "Matera (visible) and Patera (invisible) — the moons of Mystara.",
+    moons: [
+      { name:'Matera', title:'The Visible Moon', color:'#F5F5DC', associatedMonth:null,
+        synodicPeriod:28, loreNote:'Matera is the primary visible moon of Mystara. Its 28-day cycle governs tides and is the basis of the common month.' },
+      { name:'Patera', title:'The Invisible Moon', color:'#4A4A6A', associatedMonth:null,
+        synodicPeriod:32, loreNote:'Patera is the invisible moon of Mystara, home to the Ee\'aar. Only visible to those with special sight or powerful magic.' }
+    ]
+  },
+
+  // =========================================================================
+  // BIRTHRIGHT — Aelies (single moon of Aebrynis)
+  // =========================================================================
+  birthright: {
+    id: 'birthright',
+    name: 'Aebrynis',
+    description: "Aelies, the silver moon of Aebrynis. 32-day cycle matching the Cerilian months.",
+    moons: [
+      { name:'Aelies', title:'The Silver Moon', color:'#C0C0C0', associatedMonth:null,
+        synodicPeriod:32, loreNote:'Aelies is the single moon of Aebrynis. Its 32-day cycle matches the regular months of the Cerilian calendar.' }
+    ]
   }
 };
 

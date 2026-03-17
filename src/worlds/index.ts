@@ -11,6 +11,11 @@ import type { WorldDefinition } from './types.js';
 import { eberron } from './eberron.js';
 import { faerun } from './faerun.js';
 import { gregorian } from './gregorian.js';
+import { greyhawk } from './greyhawk.js';
+import { dragonlance } from './dragonlance.js';
+import { exandria } from './exandria.js';
+import { mystara } from './mystara.js';
+import { birthright } from './birthright.js';
 
 export type { WorldDefinition } from './types.js';
 export * from './types.js';
@@ -20,10 +25,18 @@ export const WORLDS: Record<string, WorldDefinition> = {
   eberron,
   faerunian: faerun,
   gregorian,
+  greyhawk,
+  dragonlance,
+  exandria,
+  mystara,
+  birthright,
 };
 
 /** Display-order list of world keys for menus and setup. */
-export const WORLD_ORDER: string[] = ['eberron', 'faerunian', 'gregorian'];
+export const WORLD_ORDER: string[] = [
+  'eberron', 'faerunian', 'gregorian',
+  'greyhawk', 'dragonlance', 'exandria', 'mystara', 'birthright',
+];
 
 /** Look up a world by key. Returns undefined if not found. */
 export function getWorld(key: string): WorldDefinition | undefined {
