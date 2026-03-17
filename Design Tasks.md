@@ -130,6 +130,10 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 On initialization, the script asks for a starting date. The prompt is in the display syntax, but that is NOT the same as the script input syntax. Remedy this. Prompt with the correct syntax pre-entered, and explicitly called for (MM DD YYYY)
 
 ---
+### Default Views Redesign and System Entry Points
+This 
+
+---
 
 ### Named Saved Weather Location Presets
 
