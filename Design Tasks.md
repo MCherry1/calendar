@@ -152,13 +152,10 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Tooltip event titles on hover (sources in parentheses)
 * Buttons below are:
 	* Previous | Next (months)
-	* Additional Views
-		* Current Year
-			* (no buttons)
-		* Upcoming (#n of months in calendar year) months (current month plus n-1)
-			* (no buttons)
+	* Current Year | Upcoming (#n of months in calendar year) months (current month plus n-1)
+
 		* List Commands
-			* Output commands for specific months or years
+			* Output commands for seeing specific months or years
 	* Send (send current month view to players, GM only)
 	* Management (GM only)
 		* Source Controls
