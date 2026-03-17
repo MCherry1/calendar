@@ -111,75 +111,99 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Send 
 
 #### Events
-* The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* The default calendar view.
+* Only show information if the subsystem is active.
+##### Minical
+* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a fill color from the events
 * Dots provided for additional events
 * Tooltip event titles on hover (sources in parentheses)
-* Text below 
-* 
-* Buttons below are:
-	* Show Previous | Show Next (months)
-		* Shows the requested month, same button set
-	* Additional Views (opens drop down menu)
-		* Current Year (numerical calendar year of months)
-		* Upcoming (#n of months in calendar year) Months (current month plus n-1)
-		* Specific Month (opens query, mm or mm yyyy)
-		* Specific Year (yyyy)
-		* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-	* Send (send *current month view* to players, GM only. not necessarily the "active" month, but the one who's minical was shown above this button block)
-	* Management (creates drop-down menu, GM only)
-		* Source Controls
-		* Add Custom Events (drop down menu)
-			* Add Single Event (dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
-			* Add Monthly Event (dd only)
-			* Add Yearly Event (mm dd only)
-			* After event date is captured, drop down menu of colors
-		* Agent task are there other event managements needed?
+##### Text Info
+* Current Date
+* Events/Holidays
+##### Buttons
+* Show Previous | Show Next (months)
+	* Shows the requested month, same button set
+* Additional Views (opens drop down menu)
+	* Current Year (numerical calendar year of months)
+	* Upcoming (#n of months in calendar year) Months (current month plus n-1)
+	* Specific Month (opens query, mm or mm yyyy)
+	* Specific Year (yyyy)
+	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
+* Send (send *current month view* to players, GM only. not necessarily the "active" month, but the one who's minical was shown above this button block)
+* Management (creates drop-down menu, GM only)
+	* Source Controls
+	* Add Custom Events (drop down menu)
+		* Add Single Event (dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
+		* Add Monthly Event (dd only)
+		* Add Yearly Event (mm dd only)
+		* After event date is captured, drop down menu of colors
+	* Agent task are there other event managements needed?
 
 #### Moons
-* The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
-* Cells are numbered, with a black dot for a least 1 new and a yellow dot for at least 1 full
+* All info is specific to the current calendar date
+* Only show information if the subsystem is active.
+* Show New and/or Full moons
+##### Minical
+* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Cells are numbered, with a black dot for at least 1 new and a yellow dot for at least 1 full
 * Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
-* Buttons below are:
-	* Previous | Next (month steps)
-	* Additional Views (no additional buttons after these are displayed)
-		* Current Year
-		* Upcoming (#n of months in calendar year) months (current month plus n-1)
-		* Specific Month (query mm or mm yyyy)
-		* Specific Year (query yy)
-	* Send (send current month view to players, GM only)
-	* Management (GM only)
-		* Add New
-			* button for each moon ("Set New Zarantyr"), opens query for dd, mm dd, mm dd yyyy
-		* Add Full
-			 * button for each moon ("Set Full Olarune"), opens query for dd, mm dd, mm dd yyyy
-		* Add Custom Events
-			* Add Single Event, Add Yearly, etc with prompted syntaxes
+##### Text Info
+* Current Date
+* New Moons: List
+* Full Moons: List
+##### Buttons
+* Previous | Next (month steps)
+* Additional Views (no additional buttons after these are displayed)
+	* Current Year
+	* Upcoming (#n of months in calendar year) months (current month plus n-1)
+	* Specific Month (query mm or mm yyyy)
+	* Specific Year (query yy)
+* Send (send current month view to players, GM only)
+* Management (GM only)
+	* Add New
+		* button for each moon ("Set New Zarantyr"), opens query for dd, mm dd, mm dd yyyy
+	* Add Full
+		* button for each moon ("Set Full Olarune"), opens query for dd, mm dd, mm dd yyyy
+	* Add Custom Events
+		* Add Single Event, Add Yearly, etc with prompted syntaxes
 
 #### Weather
-* The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* All info is specific to the current calendar date
+* Only show information if the subsystem is active.
+##### Minical
+* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a fill color from the events
-* Buttons below are:
-	* Previous | Next (months)
-	* Send (send current view to players, GM only)
-	* Management (GM only)
-		* Source Controls
-		* Add Custom Events
-			* Add Single Event, Add Yearly, etc with prompted syntaxes
-		* Insert other event management?
+##### Text Info
+* Current Date
+* Current Weather
+##### Buttons
+* Previous | Next (months)
+* Send (send current view to players, GM only)
+* Management (GM only)
+	* Source Controls
+	* Add Custom Events
+		* Add Single Event, Add Yearly, etc with prompted syntaxes
+	* Insert other event management?
 
 #### Planes
-* The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* All info is specific to the current calendar date
+* Only show information if the subsystem is active.
+##### Minical
+* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Cells are numbered, with a fill color from the events
-* Buttons below are:
-	* Previous | Next (months)
-	* Send (send current view to players, GM only)
-	* Management (GM only)
-		* Source Controls
-		* Add Custom Events
-			* Add Single Event, Add Yearly, etc with prompted syntaxes
-		* Insert other event management?
-	* 
+##### Text Info
+* Current Date
+* Coterminous Planes: List
+* Remote Planes: List
+##### Buttons
+* Previous | Next (months)
+* Send (send current view to players, GM only)
+* Management (GM only)
+	* Source Controls
+	* Add Custom Events
+		* Add Single Event, Add Yearly, etc with prompted syntaxes
+	* Insert other event management?
 ---
 
 ### Default Views Redesign
