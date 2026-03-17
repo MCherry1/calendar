@@ -129,40 +129,6 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ---
 
-### Many-Worlds Platform Refactor — Phase 1: World Definition Types
-
-Create the world-definition type layer and migrate existing worlds (Eberron, Faerun, Gregorian) into it. See `Additional Calendars for Implementation.md` for full architecture. Key deliverables:
-
-- `src/worlds/types.ts` with all type definitions (WorldDefinition, CalendarDefinition, MoonSystemDefinition, etc.)
-- `src/worlds/eberron.ts`, `src/worlds/faerun.ts`, `src/worlds/gregorian.ts` world packages
-- `src/worlds/index.ts` registry replacing parallel lookups in `CALENDAR_SYSTEMS`, `SEASON_SETS`, `MOON_SYSTEMS`
-- Wire existing code to read from world packages
-- All existing behavior must remain identical — tests must continue to pass
-
-### Many-Worlds Platform Refactor — Phase 2: Extract Calendar Strategies
-
-Remove hard-coded Faerunian and Gregorian checks from `src/date-math.ts`, `src/rendering.ts`, and `src/ui.ts`. Introduce strategy dispatch driven by `CalendarDefinition` properties: `weekdayProgressionMode`, `intercalaryRenderMode`, `dateFormatStyle`. See `Additional Calendars for Implementation.md`.
-
-### Many-Worlds Platform Refactor — Phase 3: Extract Moon Strategies
-
-Split `src/moon.ts` into generic cycle engine, world moon data, and behavior modes. Introduce anchor strategies and visibility modes. Support standard, hidden, and visibility-window moons. See `Additional Calendars for Implementation.md`.
-
-### Many-Worlds Platform Refactor — Phase 4: Refactor Setup
-
-Replace fixed wizard in `src/setup.ts` with a generic step engine. Allow world-defined setup questions. Use Roll20 query syntax for user-entered text. See `Additional Calendars for Implementation.md`.
-
-### Many-Worlds Platform Refactor — Phase 5: Move Eberron Behind Capabilities
-
-Planes become Eberron-only behind `capabilities.planes`. Eberron-specific moon/weather hooks move into named world hooks. Eliminate all `calendarSystem === 'eberron'` checks from generic engine modules. See `Additional Calendars for Implementation.md`.
-
-### Many-Worlds Platform Refactor — Phase 6: Add First-Wave Worlds
-
-Add Greyhawk, Dragonlance, Exandria, Mystara, and Birthright. Each includes: world package, event pack with canon sources, tests, and README documentation. See `Additional Calendars for Implementation.md` for world data.
-
-### Many-Worlds Platform Refactor — Phase 7: README Refactor
-
-Add "Supported Settings" section to README with per-world subsections covering calendar structure, moons, default events, and world-specific mechanics.
-
 ### Named Saved Weather Location Presets
 
 Add a "Save Current Location As..." button to the weather location wizard. Opens a Roll20 query for a user-entered preset name. Saved presets appear before recent entries in the wizard. No predefined presets.
