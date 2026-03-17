@@ -163,7 +163,7 @@ export function _calendarCellInnerHtml(content, extraStyle?){
 export function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var style = styleForDayCell(baseStyle, ctx.events, ctx.isToday, monthColor, ctx.isPast, ctx.isFuture);
   var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'" aria-label="'+esc(ctx.title)+'"' : '';
-  var numStyle = 'display:flex;align-items:center;justify-content:center;min-height:1.05em;line-height:1;';
+  var numStyle = 'display:flex;align-items:center;justify-content:center;min-height:1em;line-height:1;';
   if (numeralStyle) numStyle += numeralStyle;
   var numWrap = '<div style="'+numStyle+'">'+ctx.d+'</div>';
   var dots = _eventDotsHtml(ctx.events);

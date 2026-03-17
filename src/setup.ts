@@ -515,7 +515,14 @@ function _handleSetupWeatherStep(m, args){
 }
 
 export function notifySetupStatusOnReady(){
-  if (setupIsComplete()) return;
+  if (setupIsComplete()){
+    var st = ensureSettings();
+    var sys = CALENDAR_SYSTEMS[st.calendarSystem] || {};
+    var variant = ((sys.variants || {})[st.calendarVariant]) || {};
+    var calLabel = String(variant.label || sys.label || 'Calendar');
+    sendUiToGM(_menuBox(calLabel + ' Initialized', _bootSummaryHtml(calLabel, sys)));
+    return;
+  }
   var setup = getSetupState();
   if (setup.status === 'dismissed') return;
   if (setup.status === 'in_progress'){
@@ -523,6 +530,17 @@ export function notifySetupStatusOnReady(){
     return;
   }
   sendUiToGM(_setupWelcomeHtml());
+}
+
+function _bootSummaryHtml(calLabel, sys){
+  var cal = getCal();
+  var cur = cal.current;
+  var parts = _displayMonthDayParts(cur.month, cur.day_of_the_month);
+  var dateLine = parts.label + ', ' + cur.year + ' ' + (ensureSettings().eraLabel || CONFIG_DEFAULTS.eraLabel || '');
+  var html = '<div style="margin-bottom:4px;">' + esc(calLabel) + ' is ready.</div>';
+  html += '<div style="opacity:.85;">Current date: <b>' + esc(dateLine) + '</b></div>';
+  html += '<div style="margin-top:6px;">' + button('Show', 'show') + ' ' + button('Help', 'help') + '</div>';
+  return html;
 }
 
 export function maybeHandleSetupGate(msg, args){
