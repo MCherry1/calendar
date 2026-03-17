@@ -89,6 +89,8 @@ There are 5 core commands:
 
 Aside from !cal, each these is the default entry point to their subsystem. ALL of them will output a system-specific minical. I will now define their minical display, player view variation, and buttons.
 
+Agent task can you template this Today section for me to use for the others? I am working on it.
+___
 #### Today
 * All info is specific to the current calendar date
 * Only show information if the subsystem is active.
@@ -109,6 +111,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 ##### Buttons
 * Back arrow "Date" | "Date" forward arrow (use the arrow emojis here)
 * Send 
+___
 
 #### Events
 * The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
