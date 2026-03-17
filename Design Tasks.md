@@ -98,7 +98,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* Previous | Next (months)
 	* Current Year | Upcoming (#n of months in calendar year) months (current month plus n-1)
 
-		* List Commands
+	* List Commands
 			* Output commands for seeing specific months or years
 	* Send (send current month view to players, GM only)
 	* Management (GM only)
