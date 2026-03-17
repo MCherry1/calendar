@@ -147,7 +147,10 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 
 #### Events
 * The default calendar view. The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
-* Event cells are numbered, with a fill color from the events
+* Cells are numbered, with a fill color from the events
+* Buttons below are:
+	* Previous | Next (months)
+	* 
 
 
 ---
