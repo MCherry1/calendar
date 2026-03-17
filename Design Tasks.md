@@ -95,18 +95,23 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Dots provided for additional events
 * Tooltip event titles on hover (sources in parentheses)
 * Buttons below are:
-	* Previous | Next (months)
-	* Current Year | Upcoming (#n of months in calendar year) months (current month plus n-1)
-
-	* List Commands
-			* Output commands for seeing specific months or years
-	* Send (send current month view to players, GM only)
-	* Management (GM only)
+	* Show Previous | Show Next (months)
+		* Shows the requested month, same button set
+	* Additional Views (opens drop down menu)
+		* Current Year
+		* Upcoming (#n of months in calendar year) Months (current month plus n-1)
+		* Specific Month (opens query, mm or mm yyyy)
+		* Specific Year (yyyy)
+		* None of these include the button sets when shown. Just the calendars requested. Calendars have typical tooltip behavior.
+	* Send (send *current month view* to players, GM only. not necessarily the "active" month, but the one who's minical was shown above this button block)
+	* Management (creates drop-down menu, GM only)
 		* Source Controls
-		* Add Custom Events
-			* Add Single Event, Add Yearly, etc with prompted syntaxes
-		* Insert other event management?
-	* 
+		* Add Custom Events (drop down menu)
+			* Add Single Event (dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
+			* Add Monthly Event (dd only)
+			* Add Yearly Event (mm dd only)
+			* After event date is captured, drop down menu of colors
+		* Agent task are there other event managements needed?
 
 #### Moons
 * The minical is the current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
