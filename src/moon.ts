@@ -263,6 +263,16 @@ export var MOON_SYSTEMS = {
   }
 };
 
+/**
+ * Central moon-system accessor.
+ * Returns the moon system for the active calendarSystem, or null if the world
+ * has no moons defined. Eliminates the old Eberron-fallback pattern.
+ */
+export function _getMoonSys(sysKeyOverride?){
+  var key = sysKeyOverride || ensureSettings().calendarSystem;
+  return MOON_SYSTEMS[key] || null;
+}
+
 // ---------------------------------------------------------------------------
 // 20a-ii) Moon lore — short blurbs for player reference
 // ---------------------------------------------------------------------------
@@ -312,7 +322,7 @@ export function _moonLoreHtml(moonName){
   var lore = MOON_LORE[moonName];
   if (!lore) return null;
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   var moon = null;
   if (sys && sys.moons){
     for (var i = 0; i < sys.moons.length; i++){
@@ -927,7 +937,7 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
   var priorFrom = (isFinite(ms.generatedFrom) && ms.generatedFrom > 0) ? ms.generatedFrom : null;
   if (priorFrom != null && ms.generatedThru >= needThru && priorFrom <= wantFrom) return;
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys) return;
 
   var genFrom = (priorFrom != null) ? Math.min(priorFrom, wantFrom) : wantFrom;
@@ -1054,7 +1064,7 @@ export function _longShadowsClaimedMoons(year){
   if (_longShadowsCache[year]) return _longShadowsCache[year];
 
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons){ _longShadowsCache[year] = []; return []; }
   moonEnsureSequences();
 
@@ -1376,7 +1386,7 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
 
 export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays?){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   var out = [];
   if (!sys || !sys.moons || !sys.moons.length) return out;
   var start = startSerial|0;
@@ -1468,7 +1478,7 @@ export function _singleMoonMiniCalEvents(moonName, startSerial, endSerial){
 
 export function _singleMoonMiniCalHtml(moonName, serial){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return '';
   var moonDef = null;
   for (var i = 0; i < sys.moons.length; i++){
@@ -1499,7 +1509,7 @@ function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
   }
 
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return '';
   var moonDef = null;
   for (var i = 0; i < sys.moons.length; i++){
@@ -1532,7 +1542,7 @@ function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
 
 export function _moonTodaySummaryHtml(today, tier, horizonDays){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons || !sys.moons.length) return '';
   tier = _normalizeMoonRevealTier(tier);
   var horizon = parseInt(horizonDays, 10);
@@ -1599,7 +1609,7 @@ export function moonPanelParts(serialOverride?){
   moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
   var dateLabel = dateLabelFromSerial(today);
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys){
     return [_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>')];
   }
@@ -1709,7 +1719,7 @@ export function moonPlayerPanelHtml(serialOverride?){
   moonEnsureSequences(today, horizon + 30);
   var dateLabel = dateLabelFromSerial(today);
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys){
     return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
   }
@@ -1910,7 +1920,7 @@ export var NIGHTLIGHT_OVERHEAD_FRACTION = 0.50;
 
 export function nighttimeLux(serial, precipStage){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons || !sys.moons.length) return { total: NIGHTLIGHT_AMBIENT_LUX, moons: [], ambient: NIGHTLIGHT_AMBIENT_LUX };
 
   var moonContributions = [];
@@ -2292,7 +2302,7 @@ export var MOON_VIS_LABELS = {
 export function _moonVisibilityAll(serial, timeFrac){
   if (timeFrac == null) timeFrac = 0;  // default midnight
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
   var results = [];
   for (var i = 0; i < sys.moons.length; i++){
@@ -2539,7 +2549,7 @@ export function _eclipseSentenceType(typeLabel){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
 
   serial = serial|0;
@@ -2624,7 +2634,7 @@ export function _eclipseSentenceType(typeLabel){
 // Legacy notable-text formatter retained for reference during review.
 // function _eclipseNotableTodayLegacy(serial){
   var st = ensureSettings();
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   var ecl = _getEclipsesLegacy(serial);
   var notes = [];
   for (var i = 0; i < ecl.length; i++){
@@ -2651,7 +2661,7 @@ export function getEclipses(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
 
   serial = serial|0;
@@ -2745,7 +2755,7 @@ export function _eclipseNotableToday(serial){
 export function getTidalIndex(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return 5; // neutral
-  var sys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+  var sys = _getMoonSys();
   if (!sys || !sys.moons) return 5;
   moonEnsureSequences();
 
@@ -3477,7 +3487,7 @@ export function handleMoonCommand(m, args){
 
   // !cal moon lore [name] — available to everyone, whispered to querier
   if (sub === 'lore' || sub === 'info'){
-    var loreSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var loreSys = _getMoonSys();
     if (!loreSys || !loreSys.moons) return whisper(m.who, 'No moon data available.');
     var loreName = String(args[2] || '').trim();
     if (!loreName){
@@ -3549,7 +3559,7 @@ export function handleMoonCommand(m, args){
     }
     if (sub === 'view' || sub === 'cal'){
       var pViewName = String(args[2] || '').trim();
-      var pViewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+      var pViewSys = _getMoonSys();
       var pTier = _normalizeMoonRevealTier(getMoonState().revealTier || 'medium');
       var pHorizonView = parseInt(getMoonState().revealHorizonDays, 10) || 7;
       if (!pViewName){
@@ -3630,7 +3640,7 @@ export function handleMoonCommand(m, args){
     }
     var effectiveHorizon = parseInt(ms0.revealHorizonDays, 10) || reqHorizon;
 
-    var sys0 = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var sys0 = _getMoonSys();
     if (!sys0) return whisper(m.who, 'No moon data for this calendar system.');
 
     var rows0 = sys0.moons.map(function(moon){
@@ -3693,7 +3703,7 @@ export function handleMoonCommand(m, args){
         '— dateSpec: <code>14</code> or <code>Rhaan 14</code> or <code>Rhaan 14 999</code>'
       );
 
-    var sys2  = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var sys2  = _getMoonSys();
     var mName = _moonParseMoonName(moonNameRaw, sys2);
     if (!mName) return whisper(m.who, 'Unknown moon: <b>'+esc(moonNameRaw)+'</b>');
 
@@ -3725,7 +3735,7 @@ export function handleMoonCommand(m, args){
   // !cal moon view <MoonName> [dateSpec]  — single-moon mini-calendar
   if (sub === 'view' || sub === 'cal'){
     var viewNameRaw = String(args[2] || '').trim();
-    var viewSys = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var viewSys = _getMoonSys();
     if (!viewNameRaw){
       // Show picker buttons for each moon
       var viewBtns = viewSys.moons.map(function(moon){
@@ -3763,7 +3773,7 @@ export function handleMoonCommand(m, args){
   // !cal moon reset [<MoonName>]  — remove GM phase overrides
   if (sub === 'reset'){
     var clearName = String(args[2] || '').trim();
-    var sys3 = MOON_SYSTEMS[st.calendarSystem] || MOON_SYSTEMS.eberron;
+    var sys3 = _getMoonSys();
     var mName3 = clearName ? _moonParseMoonName(clearName, sys3) : null;
     var ms3 = getMoonState();
     if (mName3){

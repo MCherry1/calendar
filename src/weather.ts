@@ -55,6 +55,7 @@ import {
 import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messaging';
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
+import { weekdayProgressionFor } from './worlds/index';
 
 import { _isFullMoonIllum, moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel } from './moon';
 import { getActivePlanarEffects } from './planes';
@@ -906,7 +907,8 @@ export function _weatherRecordForDisplay(rec: any){
 }
 
 function _isArythFull(serial: any){
-  if (ensureSettings().calendarSystem !== 'eberron') return false;
+  // Aryth is an Eberron moon — this check naturally returns false for
+  // any world that lacks it, so no world-name guard is needed.
   try {
     moonEnsureSequences(serial, 60);
     var ph = moonPhaseAt('Aryth', serial);
@@ -2193,7 +2195,7 @@ export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLa
   if (!rec) return '';
   var d        = fromSerial(rec.serial);
   var dateLabel: any;
-  if (isToday && ensureSettings().calendarSystem !== 'faerunian'){
+  if (isToday && weekdayProgressionFor(ensureSettings().calendarSystem) !== 'month_reset'){
     dateLabel = esc(getCal().weekdays[getCal().current.day_of_the_week]) + ', ' + esc(_displayMonthDayParts(d.mi, d.day).label);
   } else {
     dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);

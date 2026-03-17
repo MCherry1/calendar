@@ -221,9 +221,8 @@ export function getPlanesState(){
 
 // Get the plane definition by name (case-insensitive).
 export function _getPlaneData(name){
-  var st = ensureSettings();
-  var planes = PLANE_DATA[st.calendarSystem] || PLANE_DATA.eberron;
-  if (!planes) return null;
+  var planes = _getAllPlaneData();
+  if (!planes || !planes.length) return null;
   var lc = name.toLowerCase();
   for (var i = 0; i < planes.length; i++){
     if (planes[i].name.toLowerCase() === lc) return planes[i];
@@ -232,9 +231,10 @@ export function _getPlaneData(name){
 }
 
 // Get all plane definitions for the current calendar system.
+// Returns empty array for worlds without planar data.
 export function _getAllPlaneData(){
   var st = ensureSettings();
-  return PLANE_DATA[st.calendarSystem] || PLANE_DATA.eberron || [];
+  return PLANE_DATA[st.calendarSystem] || [];
 }
 
 // Convert years to days using the calendar's year length.
