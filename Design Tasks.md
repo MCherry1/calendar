@@ -152,6 +152,9 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* Previous | Next (months)
 	* Management
 		* Source Controls
+		* Add Custom Events
+			* Add Single Event, Add Yearly, etc with prompted syntaxes
+		* 
 
 
 ---
