@@ -236,9 +236,20 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
 ##### Text Info
 * Current Date
-* Ascendant Moons: List
-* New Moons: List
-* Full Moons: List
+* small spacer
+* New Moons: 
+	* List
+* Full Moons:
+	* List
+* small spacer
+* Eclipses:
+	* X transiting Y, nn% coverage, low in the sky (use afternoon time of day bucket for position in the sky, but use maximum coverage for the nn%, regardless of time of day)
+* small spacer
+* Ascendant Moons:
+	* List (eberron only)
+* Dim Moons:
+	* List (eberron only)
+
 ##### Buttons
 * Previous | Next (month steps)
 	* Shows the requested month, Current Date below, Ascendant Moons below (for the named month), and regenerates the prev/next buttons and the send button, but NOT the Additional Views, Current Phases, or Management.
