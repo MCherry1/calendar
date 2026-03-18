@@ -60,7 +60,7 @@ assertMatch(String.raw`if \(!playerIsGM\(m\.playerid\)\)\s*\{`, 'Weather command
 assertMatch(String.raw`Shorter off-cycle shifts are tied to Aryth full/new moons through the moontied generator\.`, 'Dolurrh notes should describe the implemented Aryth-linked generator.');
 assertMatch(String.raw`!cal settings \(group\|labels\|events\|moons\|weather\|weathermechanics\|wxmechanics\|planes\|offcycle\|buttons\)`, 'Settings usage text should include wxmechanics and offcycle.');
 assertMatch(String.raw`!cal moon send \(low\|medium\|high\) \[1w\|1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Moon help text should advertise the supported week/day range tokens.');
-assertMatch(String.raw`!cal planes send \[low\|medium\|high\] \[1d\|3d\|6d\|10d\|1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Plane help text should advertise the supported day/week/month range tokens.');
+assertMatch(String.raw`!cal planes send \[low\|medium\|high\] \[1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Plane help text should advertise the supported month range tokens.');
 assertNotMatch(String.raw`moons-system-design\.md`, 'Stale moon design-file references should be removed from calendar.js.');
 assertNotMatch(String.raw`Generated events should be tied to Aryth full/new moons rather than independent dice rolls`, 'Outdated Dolurrh TODO text should be removed from calendar.js.');
 

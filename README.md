@@ -49,6 +49,7 @@ Create these as Roll20 macros for quick-bar access:
   - [Precipitation](#precipitation)
   - [Location](#location)
   - [Forecasting](#forecasting)
+- [Time of Day](#time-of-day)
 - [Planes](#planes)
 - [Command Reference](#command-reference)
 - [Development](#development)
@@ -153,24 +154,18 @@ Setup prompts, help panels, and admin confirmations use Roll20's `noarchive` pat
 <details>
 <summary>Show navigation layout and button meanings</summary>
 
-The default `!cal` and `!cal today` views now open a compact Today dashboard instead of dropping straight into the full month stack.
+The default `!cal` and `!cal today` views open a compact Today panel instead of dropping straight into the full month stack.
 
-GM dashboard cards:
-- Date
-- Events Today
-- Weather
-- Moons
-- Planes
-- GM Controls
+The GM panel shows:
+- Current date (bold), time of day and location (if active)
+- One-line weather narrative (if weather is enabled)
+- Nighttime lighting (if time of day is active and it's not daytime)
+- Today's events/holidays
+- Notable moon phases (ascendant, new, full)
+- Notable planar states (coterminous, remote)
+- Step buttons (⬅ / ➡), Send Today View to Players, and an Additional Options menu for subsystem detail views and admin
 
-Player dashboard cards:
-- Date
-- Events Today
-- Weather
-- Moons
-- Planes
-
-Each card starts with a one-sentence summary and keeps deeper views behind focused actions such as `Detail`, `Forecast`, `Mechanics`, `Sky`, `Lore`, `Send`, and `Admin`.
+Players see the same informational sections (filtered by their knowledge tier) without step/admin controls.
 
 Use `!cal show ...` or `!cal send ...` when you want the traditional month/year calendar render. The root help menu (`!cal help`) is also task-focused and includes prompt buttons for `!cal set`, `!cal add`, `!cal addmonthly`, `!cal addyearly`, `!cal moon on`, `!cal planes on`, and `!cal send`.
 
@@ -391,7 +386,7 @@ Weather is generated for a specific location profile. Set the profile with `!cal
 | **Geography** | coastal, plains, hills, mountain, …  | Modifies temperature and precipitation patterns          |
 | **Terrain**   | forest, city, open, swamp, …         | Fine-tunes local conditions; affects fog frequency       |
 
-The location wizard also keeps the **last three locations** as quick-switch buttons. That makes it practical to jump to "mountains in six weeks," reveal a divined forecast there, and then jump back to the current region without rebuilding the location by hand.
+The location wizard keeps the **last three locations** as quick-switch buttons and supports **named saved presets** via `!cal weather location save <name>`. Saved presets appear before recent locations in the wizard. That makes it practical to jump to "mountains in six weeks," reveal a divined forecast there, and then jump back to the current region without rebuilding the location by hand.
 
 ### Manifest Zones
 
@@ -411,6 +406,37 @@ Run `!cal weather manifest` in chat for the chooser, or use the weather panel's 
 ### Planar Effects
 
 Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather. The specific planar weather overlays are setting-dependent — see [Supported Settings](#supported-settings) for the full table.
+
+</details>
+
+[Return to Table of Contents](#table-of-contents)
+
+---
+<a id="time-of-day"></a>
+## Time of Day
+
+<details>
+<summary>Show time-of-day buckets and lighting</summary>
+
+The time-of-day subsystem divides each day into six four-hour buckets:
+
+| Bucket | Hours | Key |
+| --- | --- | --- |
+| Middle of the Night | 0:00–4:00 | `middle_of_night` |
+| Early Morning | 4:00–8:00 | `early_morning` |
+| Morning | 8:00–12:00 | `morning` |
+| Afternoon | 12:00–16:00 | `afternoon` |
+| Evening | 16:00–20:00 | `evening` |
+| Nighttime | 20:00–24:00 | `nighttime` |
+
+Activate time tracking with `!cal time start <bucket>` (default: `afternoon`). Once active, `!cal time next` advances to the next bucket, rolling the date forward when it wraps past nighttime.
+
+Time of day affects:
+- **Moon visibility** — `!cal moon sky` uses the active bucket to determine which moons are above the horizon.
+- **Nighttime lighting** — The Today panel shows a lighting snapshot during non-daytime buckets, combining moonlight, ring light (Eberron), and starlight.
+- **Weather period** — The weather narrative adjusts to match the active time bucket rather than always showing the afternoon primary.
+
+Use `!cal time clear` to deactivate time tracking for the current date.
 
 </details>
 
@@ -628,9 +654,13 @@ Before setup is complete, GM `!cal` starts or resumes onboarding and players get
 !cal weather generate [1-20]
 !cal weather reroll [serial]
 !cal weather lock [serial]
+!cal weather reseed
+!cal weather reset
 !cal weather event trigger <key>
 !cal weather event roll <key>
 ```
+
+`!cal weather reseed` clears the entire forecast and history, then regenerates from scratch. `!cal weather reset` clears all weather state.
 
 #### Weather location and manifest zones
 
@@ -640,6 +670,8 @@ Before setup is complete, GM `!cal` starts or resumes onboarding and players get
 !cal weather location geography <key>
 !cal weather location terrain <key>
 !cal weather location recent <1-3>
+!cal weather location save <name>
+!cal weather location preset <1-N>
 
 !cal weather manifest
 !cal weather manifest toggle <planeKey>
@@ -728,8 +760,8 @@ Examples:
 
 ```text
 !cal planes send low
-!cal planes send medium [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
-!cal planes send high [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
+!cal planes send medium [1m|3m|6m|10m|Nd|Nw]
+!cal planes send high [1m|3m|6m|10m|Nd|Nw]
 ```
 
 Examples:
