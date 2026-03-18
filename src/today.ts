@@ -197,7 +197,7 @@ export function _todayAllHtml(){
   if (isTimeOfDayActive()){
     btns.push(button('⏩ Time of Day ⏩','time next'));
   } else if (st.weatherEnabled !== false){
-    btns.push(button('Enable Time of Day','time start afternoon'));
+    btns.push(button('Enable Time of Day','time start middle_of_night'));
   }
   btns.push('</div>');
 

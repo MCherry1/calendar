@@ -35,11 +35,19 @@ function _setupNeedsVariant(sysKey){
 function _seasonOptionsForSystem(sysKey){
   var world = getWorld(String(sysKey || '').toLowerCase());
   var defaultKey = world ? world.defaultSeasonKey : 'eberron';
-  // World's own season set first, then generic options (faerun = generic geographic, tropical)
+  // Eberron seasons are fixed by planar movements — no user choice needed.
+  if (defaultKey === 'eberron') return ['eberron'];
+  // World's own season set first, then generic geographic options.
   var opts = [defaultKey];
   if (opts.indexOf('faerun') < 0) opts.push('faerun');
   opts.push('tropical');
   return opts;
+}
+
+function _seasonSetLabel(key){
+  var set = SEASON_SETS[key];
+  if (set && set.label) return set.label;
+  return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 function _setupWeatherModeLabel(mode){
@@ -132,7 +140,12 @@ function _setupCurrentStep(draft){
   if (!sys) return 'calendar';
   if (Object.keys(sys.variants || {}).length > 1 && !draft.calendarVariant) return 'variant';
   if (!draft.date) return 'date';
-  if (!draft.seasonVariant) return 'season';
+  if (!draft.seasonVariant){
+    // Eberron seasons are fixed — auto-assign and skip the step.
+    var _seasonOpts = _seasonOptionsForSystem(sysKey);
+    if (_seasonOpts.length === 1){ draft.seasonVariant = _seasonOpts[0]; }
+    else return 'season';
+  }
   var seasonEntry = SEASON_SETS[String(draft.seasonVariant || '').toLowerCase()] || {};
   if (seasonEntry.hemisphereAware && !draft.hemisphere) return 'hemisphere';
   if (draft.colorTheme === undefined) return 'theme';
@@ -254,7 +267,7 @@ function _setupDateStepHtml(draft){
 function _setupSeasonStepHtml(draft){
   var options = _seasonOptionsForSystem(draft.calendarSystem);
   var rows = options.map(function(key){
-    return _setupPromptButton(key, 'setup season ' + key, '');
+    return _setupPromptButton(_seasonSetLabel(key), 'setup season ' + key, '');
   }).join('');
   return _menuBox('Calendar Setup - Step 4: Season Model',
     '<div style="margin-bottom:6px;">Choose the season model that best matches the campaign world.</div>' + rows

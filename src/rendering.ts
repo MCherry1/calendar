@@ -130,7 +130,7 @@ export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEv
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  var label = events.length ? events.map(eventDisplayName).filter(Boolean).join('\n') : '';
+  var label = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
   return {
     y:y, mi:mi, d:d, serial:ser,
     isToday:  (ser === tSer),
@@ -180,7 +180,7 @@ export function _renderHarptosFestivalStrip(y, mi, mobj, dimActive, extraEventsF
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  var title = events.length ? events.map(eventDisplayName).filter(Boolean).join('\n') : String(mobj.name || '');
+  var title = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : String(mobj.name || '');
   var ctx = {
     y:y, mi:mi, d:1, serial:ser,
     isToday: ser === tSer,
@@ -238,7 +238,7 @@ export function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, i
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  var title  = events.length ? events.map(eventDisplayName).filter(Boolean).join('\n') : '';
+  var title  = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
   var ctx = { y:y, mi:mi, d:1, serial:ser,
     isToday: ser === tSer,
     isPast:  !!dimActive && ser < tSer,
@@ -329,7 +329,7 @@ export function renderMonthTable(opts){
             if (Array.isArray(leapAdd)) leapExtraEvents = leapAdd;
           }
           var leapEvents = sortEventsByPriority((leapBaseEvents || []).concat(leapExtraEvents || []));
-          var leapTitle = leapEvents.length ? leapEvents.map(eventDisplayName).filter(Boolean).join('\n') : '';
+          var leapTitle = leapEvents.length ? leapEvents.map(eventDisplayName).filter(Boolean).join(', ') : '';
           var leapCtx = {
             y:y, mi:mi, d:29, serial:leapSer,
             isToday: (leapSer === todaySerial()),
@@ -370,7 +370,7 @@ export function renderMonthTable(opts){
         if (Array.isArray(leapAdd2)) leapExtraEvents2 = leapAdd2;
       }
       var leapEvents2 = sortEventsByPriority((leapBaseEvents2 || []).concat(leapExtraEvents2 || []));
-      var leapTitle2 = leapEvents2.length ? leapEvents2.map(eventDisplayName).filter(Boolean).join('\n') : '';
+      var leapTitle2 = leapEvents2.length ? leapEvents2.map(eventDisplayName).filter(Boolean).join(', ') : '';
       var leapCtx2 = {
         y:y, mi:mi, d:29, serial:leapSer2,
         isToday: (leapSer2 === todaySerial()),

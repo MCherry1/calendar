@@ -1070,19 +1070,21 @@ export function helpRootMenu(m){
     'Typed forms: <code>!cal show month</code>, <code>!cal show year</code>, <code>!cal set &lt;dateSpec&gt;</code>.'
   ));
 
-  rowsNew.push(taskCardHtml(
-    'Weather',
-    stNew.weatherEnabled === false ? 'Weather is currently off.' : 'Open current conditions, forecast access, and location management from one place.',
-    [
-      mbP(m,'Weather','weather'),
-      mbP(m,'Forecast','forecast'),
-      isGMNew ? mbP(m,'Set Location','weather location') : '',
-      isGMNew ? mbP(m,'Mechanics','weather mechanics') : ''
-    ],
-    isGMNew
-      ? 'Typed forms: <code>!cal weather</code>, <code>!cal weather location</code>.'
-      : 'Typed forms: <code>!cal weather</code>, <code>!cal forecast</code>.'
-  ));
+  if (isGMNew){
+    rowsNew.push(taskCardHtml(
+      'Events',
+      'Add one-off, monthly, and yearly events with prompts or typed commands, then manage source packs separately.',
+      [
+        mbP(m,'List','list'),
+        mbP(m,'Sources','source list'),
+        navP(m,'Colors','eventcolors'),
+        promptAdd,
+        promptMonthly,
+        promptYearly
+      ],
+      'Typed forms: <code>!cal add</code>, <code>!cal addmonthly</code>, <code>!cal addyearly</code>.'
+    ));
+  }
 
   if (stNew.moonsEnabled !== false){
     rowsNew.push(taskCardHtml(
@@ -1097,6 +1099,20 @@ export function helpRootMenu(m){
       'Typed forms: <code>!cal moon</code>, <code>!cal moon on &lt;dateSpec&gt;</code>.'
     ));
   }
+
+  rowsNew.push(taskCardHtml(
+    'Weather',
+    stNew.weatherEnabled === false ? 'Weather is currently off.' : 'Open current conditions, forecast access, and location management from one place.',
+    [
+      mbP(m,'Weather','weather'),
+      mbP(m,'Forecast','forecast'),
+      isGMNew ? mbP(m,'Set Location','weather location') : '',
+      isGMNew ? mbP(m,'Mechanics','weather mechanics') : ''
+    ],
+    isGMNew
+      ? 'Typed forms: <code>!cal weather</code>, <code>!cal weather location</code>.'
+      : 'Typed forms: <code>!cal weather</code>, <code>!cal forecast</code>.'
+  ));
 
   if (stNew.planesEnabled !== false){
     rowsNew.push(taskCardHtml(
@@ -1117,19 +1133,6 @@ export function helpRootMenu(m){
     var plModeNew = _normalizeDisplayMode(stNew.planesDisplayMode);
     var wxDaysNew = _weatherViewDays(stNew.weatherForecastViewDays);
     var verbNew = _subsystemVerbosityValue();
-    rowsNew.push(taskCardHtml(
-      'Events',
-      'Add one-off, monthly, and yearly events with prompts or typed commands, then manage source packs separately.',
-      [
-        mbP(m,'List','list'),
-        mbP(m,'Sources','source list'),
-        navP(m,'Colors','eventcolors'),
-        promptAdd,
-        promptMonthly,
-        promptYearly
-      ],
-      'Typed forms: <code>!cal add</code>, <code>!cal addmonthly</code>, <code>!cal addyearly</code>.'
-    ));
     rowsNew.push(taskCardHtml(
       'GM Admin',
       'Reach the high-churn admin tools here and keep deeper configuration inside the existing drill-down menus.',

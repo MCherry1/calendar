@@ -34,8 +34,9 @@ export const WORLDS: Record<string, WorldDefinition> = {
 
 /** Display-order list of world keys for menus and setup. */
 export const WORLD_ORDER: string[] = [
-  'eberron', 'faerunian', 'gregorian',
+  'eberron', 'faerunian',
   'greyhawk', 'dragonlance', 'exandria', 'mystara', 'birthright',
+  'gregorian',
 ];
 
 /** Look up a world by key. Returns undefined if not found. */

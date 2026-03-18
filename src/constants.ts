@@ -36,6 +36,7 @@ export var SEASON_SETS = {
   // Faerunian / generic geographic seasons — plain four-season names at month boundaries.
   // Hemisphere-aware: hemisphere south shifts all names by 6 months.
   faerun: {
+    label: 'Northern Hemisphere',
     names: ['Winter','Winter','Spring','Spring','Spring',
             'Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'],
     hemisphereAware: true
@@ -63,6 +64,7 @@ export var SEASON_SETS = {
   // Tropical monsoon — three-phase cycle: cool → hot → rainy, 4 months each.
   // Not hemisphere-aware: equatorial climates don't have meaningful hemispheres.
   tropical: {
+    label: 'Tropical',
     names: [
       'Early Cool Season','Early-Mid Cool Season','Mid-Late Cool Season','Late Cool Season',
       'Early Hot Season','Early-Mid Hot Season','Mid-Late Hot Season','Late Hot Season',

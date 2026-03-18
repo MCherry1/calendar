@@ -59,6 +59,7 @@ import { _isFullMoonIllum, moonPhaseAt, moonEnsureSequences, nighttimeLightHtml,
 import { getActivePlanarEffects } from './planes';
 import { _activePlanarWeatherShiftLines, _weatherInfluenceTexts, _weatherInfluenceHtml, _planarWeatherInfluenceText } from './ui';
 import { colorForMonth } from './state';
+import { isTimeOfDayActive, currentTimeBucket } from './time-of-day';
 
 function _seededRand(seed){
   var s = ((seed * 2654435769) >>> 0) / 4294967296;
@@ -1815,7 +1816,9 @@ function weatherTodayMechanicsHtml(){
 
   var sections: any[] = [];
 
-  // Period breakdown across the full day model.
+  // Period breakdown: show mechanics only for the active time bucket,
+  // or afternoon if time of day is not active.
+  var activeBucket = isTimeOfDayActive() ? currentTimeBucket() : 'afternoon';
   var periods = WEATHER_DAY_PERIODS;
   for (var pi = 0; pi < periods.length; pi++){
     var period = periods[pi];
@@ -1823,10 +1826,12 @@ function weatherTodayMechanicsHtml(){
     var fogForPeriod = rec.fog && rec.fog[period];
     var cond = _deriveConditions(periodVals, loc, period, rec.snowAccumulated, fogForPeriod);
     var narr = _conditionsNarrative(periodVals, cond, period);
-    var mechBlock = _conditionsMechHtml(cond);
+    var isActive = (period === activeBucket);
+    var mechBlock = isActive ? _conditionsMechHtml(cond) : '';
+    var activeMarker = isActive ? ' ★' : '';
     sections.push(
-      '<div style="margin-top:6px;">'+
-      '<b>' + _weatherPeriodIcon(period) + ' ' + esc(_weatherPeriodLabel(period)) + ':</b> ' + esc(narr) +
+      '<div style="margin-top:6px;' + (isActive ? 'border-left:3px solid #FFD700;padding-left:6px;' : '') + '">'+
+      '<b>' + _weatherPeriodIcon(period) + ' ' + esc(_weatherPeriodLabel(period)) + activeMarker + ':</b> ' + esc(narr) +
       (mechBlock || '') +
       '</div>'
     );
