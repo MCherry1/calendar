@@ -513,7 +513,7 @@ export var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisperUi(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
@@ -560,7 +560,7 @@ export var commands = {
       refreshAndSend();
       return whisperUi(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
-    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|extremehazards|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
     }
     if (key==='group')    st.groupEventsBySource = (val==='on');
@@ -569,6 +569,7 @@ export var commands = {
     if (key==='moons'){    st.moonsEnabled  = (val==='on'); st._moonsAutoToggle = false; }
     if (key==='weather')  st.weatherEnabled      = (val==='on');
     if (key==='weathermechanics' || key==='wxmechanics') st.weatherMechanicsEnabled = (val==='on');
+    if (key==='hazards' || key==='weatherhazards' || key==='wxhazards' || key==='extremehazards') st.weatherHazardsEnabled = (val==='on');
     if (key==='planes'){  st.planesEnabled = (val==='on'); st._planesAutoToggle = false; }
     if (key==='offcycle') st.offCyclePlanes      = (val==='on');
     if (key==='buttons')  st.autoButtons         = (val==='on');

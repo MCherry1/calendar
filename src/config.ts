@@ -41,6 +41,7 @@ export var CONFIG_DEFAULTS: Record<string, any> = {
   moonsEnabled:    true,        // false = moon system fully disabled
   weatherEnabled:  true,        // false = weather system fully disabled
   weatherMechanicsEnabled: true, // false = keep narrative weather, suppress D&D mechanics text
+  weatherHazardsEnabled: true, // false = suppress extreme weather hazard evaluation and controls
   planesEnabled:   true,        // false = planar system disabled
   offCyclePlanes:  true,        // false = disable off-cycle generated planar movement
   moonDisplayMode: 'calendar',  // 'calendar' | 'list' | 'both'

@@ -68,7 +68,7 @@ describe("Redesigned panel routing", () => {
 });
 
 describe("Weather management routing", () => {
-  it("emits supported weather management actions and drops the dead hazards toggle", () => {
+  it("emits supported weather management actions including the hazards toggle", () => {
     freshInstall();
     const ws = getWeatherState();
     ws.location = { name: "Test Town", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate-inland-open" } as any;
@@ -77,9 +77,8 @@ describe("Weather management routing", () => {
     handleWeatherCommand(gmUser(), ["weather"]);
 
     const msg = String(lastChat().msg);
-    assert(msg.includes("weather manage ?{Action|Toggle Weather On/Off,toggleweather|Toggle Mechanics,togglemechanics"));
+    assert(msg.includes("weather manage ?{Action|Toggle Weather On/Off,toggleweather|Toggle Extreme Hazards,togglehazards|Toggle Mechanics,togglemechanics"));
     assert(msg.includes("Reseed Weather,reseed"));
-    assert(!msg.includes("settings hazards toggle"));
   });
 
   it("toggles weather from the management dispatcher", () => {
@@ -89,6 +88,27 @@ describe("Weather management routing", () => {
     handleWeatherCommand(gmUser(), ["weather", "manage", "toggleweather"]);
 
     assertEquals(ensureSettings().weatherEnabled, !before);
+  });
+
+  it("supports hazards on/off via settings and the weather management dispatcher", () => {
+    freshInstall();
+    completeSetup();
+
+    handleInput(gmMessage("!cal settings hazards off"));
+    assertEquals(ensureSettings().weatherHazardsEnabled, false);
+
+    handleWeatherCommand(gmUser(), ["weather", "manage", "togglehazards"]);
+    assertEquals(ensureSettings().weatherHazardsEnabled, true);
+  });
+
+  it("blocks direct extreme-event actions while hazards are disabled", () => {
+    freshInstall();
+    ensureSettings().weatherHazardsEnabled = false;
+
+    handleWeatherCommand(gmUser(), ["weather", "event", "trigger", "flash_flood"]);
+
+    const msg = String(lastChat().msg);
+    assert(msg.includes("Extreme hazards are disabled"));
   });
 });
 

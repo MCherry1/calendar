@@ -65,6 +65,10 @@ function _seededRand(seed){
   var s = ((seed * 2654435769) >>> 0) / 4294967296;
   return function(){ s = ((s * 1103515245 + 12345) % 2147483648) / 2147483648; return s; };
 }
+
+function _weatherHazardsEnabled(){
+  return ensureSettings().weatherHazardsEnabled !== false;
+}
 // ---------------------------------------------------------------------------
 // Temperature band helpers
 // ---------------------------------------------------------------------------
@@ -1568,6 +1572,7 @@ var EXTREME_EVENTS: any = {
 // Returns array of { key, event, probability } for events that qualify.
 // Probability > 0 means conditions are met. Events with p=0 are excluded.
 export function _evaluateExtremeEvents(rec: any){
+  if (!_weatherHazardsEnabled()) return [];
   rec = _weatherRecordForDisplay(rec);
   if (!rec) return [];
   var f   = rec.final;
@@ -1597,6 +1602,7 @@ export function _evaluateExtremeEvents(rec: any){
 
 // Roll the dice for a single event. Returns true if event fires.
 function _rollExtremeEvent(key: any, rec: any){
+  if (!_weatherHazardsEnabled()) return false;
   var evt = EXTREME_EVENTS[key];
   if (!evt) return false;
   rec = _weatherRecordForDisplay(rec);
@@ -2606,6 +2612,7 @@ function weatherTodayGmHtml(){
     '<div style="margin:4px 0;">' +
     button('Management','weather manage ?{Action|' +
       'Toggle Weather On/Off,toggleweather|' +
+      'Toggle Extreme Hazards,togglehazards|' +
       'Toggle Mechanics,togglemechanics|' +
       'Reseed Weather,reseed|' +
       'History,history|' +
@@ -3295,6 +3302,11 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'event': {
+      if (!_weatherHazardsEnabled()){
+        warnGM('Extreme hazards are disabled. Re-enable them with !cal settings hazards on.');
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
       var evtSub = String(args[2]||'').toLowerCase();
       var evtKey = String(args[3]||'').toLowerCase();
       var evtRec = _forecastRecord(todaySerial());
@@ -3438,6 +3450,11 @@ export function handleWeatherCommand(m, args){
       }
       if (manageAction === 'toggleweather'){
         ensureSettings().weatherEnabled = (ensureSettings().weatherEnabled === false);
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      if (manageAction === 'togglehazards'){
+        ensureSettings().weatherHazardsEnabled = (ensureSettings().weatherHazardsEnabled === false);
         whisper(m.who, weatherTodayGmHtml());
         break;
       }

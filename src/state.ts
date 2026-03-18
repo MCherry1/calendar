@@ -217,6 +217,7 @@ export function ensureSettings(){
   if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
   if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
   if (s.weatherMechanicsEnabled === undefined) s.weatherMechanicsEnabled = CONFIG_DEFAULTS.weatherMechanicsEnabled;
+  if (s.weatherHazardsEnabled === undefined) s.weatherHazardsEnabled = CONFIG_DEFAULTS.weatherHazardsEnabled;
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
   if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
 
@@ -682,6 +683,5 @@ export function resetToDefaults(){
   };
   sendChat(script_name, '/w gm Calendar state wiped. Use <code>!cal</code> to begin setup.', null, { noarchive: true });
 }
-
 
 
