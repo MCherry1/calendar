@@ -247,6 +247,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 			* For events lasting longer then 1 month: "Coterminous/Remote for Y years and X months Starting in YYY, ending in Y years X months
 				* Use your imagination on how to phrase that. we don't need to know specific date if more than a few months old. "Daanvi went coterminous on Zarantyr 1 85 years ago". 85 years ago is enough.
 			* For events less than a month: ending in X days.
+	* current phases isn't really needed for planes. but specific plane cals ARE. they should use the same logic as the moons. show the whole year. for players (for moons too), only include as far as they have forecast knowledge for. which might be more for planes cause they always know the annual events
 	* Hopefully this is enough
 
 
