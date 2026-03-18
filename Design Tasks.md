@@ -107,12 +107,12 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Current Location
 * Current Weather (deg F, wind, rain) (if active)
 * Current Lighting (if time of day active and currently before sunrise or after sunset)
-* Spacing break
+* small spacer
 * Events/Holidays
-* Spacing Line Break
+* small spacer
 * New Moons: List
 * Full Moons: List
-* Spacing Line Break
+* small spacer
 * Coterminous Planes: List
 * Remote Planes: List
 ##### Buttons
@@ -120,20 +120,22 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Enable Time of Day (if weather is active)
 * ⬅ Date | Date ➡ (date step arrows)
 * Send Today View to Players
+* small spacer line
 * Additional Options (drop down menu)
 	* Events
 	* Moons
 	* Weather
 	* Planes
-	* Admin (drop down menu, GM only)
-		* Enable/Disable Moons
-		* Enable/Disable Weather
-		* Enable/Disable Planes
-		* Theme
-		* Calendar System
-		* Hemisphere
-		* Season Set
-		* Reset Calendar
+* small spacer line
+* Management (drop down menu, GM only)
+	* Enable/Disable Moons
+	* Enable/Disable Weather
+	* Enable/Disable Planes
+	* Theme
+	* Calendar System
+	* Hemisphere
+	* Season Set
+	* Reset Calendar
 
 #### Events (!cal events)
 * This system is for managing events.
@@ -152,16 +154,16 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 	* Bulleted list of Active Events/Holidays on the current date
 ##### Buttons
 * Previous | Next (months)
-	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Additional Ranges or Management.
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button only; it does not regenerate Additional Ranges or Management.
 * Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
-* small line break
-* Additional Ranges (opens drop down menu)
+* small spacer line
+* Additional Ranges (drop down menu; no additional buttons after these are displayed)
 	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* small line break
+* small spacer line
 * Management (drop down menu, GM only)
 	* Add Custom Events (drop down menu)
 		* Add Single Event (query: dd or mm dd or mm dd yyyy, next matching occurrence that fits the date provided)
@@ -217,31 +219,30 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 
 ##### Buttons
 * Previous | Next (month steps)
-	* Shows the requested month, Current Date below, Ascendant Moons below (for the named month), and regenerates the prev/next buttons and the send button, but NOT the Additional Views, Sky, Current Phases, or Management.
+	* Shows the requested month, Current Date below, Ascendant Moons below (for the named month), and regenerates the prev/next buttons and the send button only; it does not regenerate Sky, Current Phases, Specific Moons, forecast controls, Additional Ranges, or Management.
 * Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
-* small line break
+* small spacer line
 * Sky
 	* Position of moon(s) in the nighttime bucket, if no ToD active, or current ToD if buckets are active.
 * Current Phases
 	* Whispers a clean bulleted list with swatch + moon name, subbullets current phase (waning crescent, etc.) and upcoming "New/Full in X days on insert-month-and-day-date-format"
-* small line break
-* * Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
-* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
-* small break
 * Specific Moons (named drop down list)
 	* Displays current plus n-1 upcoming months
 	* Displays Single Bar with Moon Name, colored with moon color, then outputs a year's worth of minicals
 	* Current date cell is still emphasized
 	* Replaces the numbered date in a cell with a full or new moon emoji, when appropriate
 	* Tooltip hover should say phase (waxing gibbous, etc.)
-* small line break
-* Additional Ranges (no additional buttons after these are displayed)
+* small spacer line
+* Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* small spacer line
+* Additional Ranges (drop down menu; no additional buttons after these are displayed)
 	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* small line break
+* small spacer line
 * Management (drop down menu, GM only)
 	* Toggle Moons On/Off
 	* Reseed Moons
@@ -350,25 +351,26 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 	* Same duration info and (Generated) tag format as coterminous
 ##### Buttons
 * Previous | Next (month steps)
-	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Specific Planes, Additional Ranges, or Management.
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button only; it does not regenerate Specific Planes, forecast controls, Additional Ranges, or Management.
+* Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
 * small spacer line
-* Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
-* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
-* Reveal Custom Range (query for date or date range)
-* small line break
 * Specific Planes (named drop down list of all planes)
 	* Displays a single bar with the Plane Name, colored with the plane's color, then outputs a year's worth of minicals.
 	* Current date cell is still emphasized.
 	* Cell shading follows the same coterminous/remote rules as the main minical.
 	* For players, only include as far as their reveal knowledge horizon extends. Players always know canonical/annual events.
-* small line break
-* Additional Ranges (no additional buttons after these are displayed)
+* small spacer line
+* Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* Reveal Custom Range (query for date or date range)
+* small spacer line
+* Additional Ranges (drop down menu; no additional buttons after these are displayed)
 	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* small line break
+* small spacer line
 * Management (drop down menu, GM only)
 	* Toggle Planes On/Off
 	* Toggle Generated Events On/Off (system-wide, not per-event)
