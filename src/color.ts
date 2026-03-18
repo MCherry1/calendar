@@ -64,12 +64,15 @@ export function _stableHash(str){
   return Math.abs(h);
 }
 
-// Render small colored dots for secondary events on a multi-event day.
-// First event owns the cell background; events 2 and 3 appear as dots below
-// the numeral. Each dot's color is set explicitly to override cell text color.
-export function _eventDotsHtml(events){
-  if (!events || events.length <= 1) return '';
-  var dots = events.slice(1, 3).map(function(e){
+// Render small colored dots for events on a calendar day.
+// In normal mode: first event owns the cell background; events 2-3 as dots.
+// In dot-only mode (moon multi-system): all events rendered as dots, no bg fill.
+export function _eventDotsHtml(events, dotOnly?){
+  if (!events || !events.length) return '';
+  var startIdx = dotOnly ? 0 : 1;
+  var slice = events.slice(startIdx, startIdx + 3);
+  if (!slice.length) return '';
+  var dots = slice.map(function(e){
     var col = getEventColor(e);
     return '<span style="color:'+col+';line-height:1;">&#9679;</span>';
   });

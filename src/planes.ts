@@ -856,29 +856,34 @@ export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSeri
   }
 
   for (var ser = start; ser <= end; ser++){
+    // Collect per-day summaries: transition events, active coterminous/remote,
+    // and generated shifts.  Then emit at most a few dot-only indicators per day
+    // instead of one fill event per plane per day.
+    var transitionNames = [];
+    var cotNames = [];
+    var remoteNames = [];
+    var genNames = [];
+
     for (var j = 0; j < planes.length; j++){
       var name = planes[j].name;
 
-      // Canonical phase — highlight every day during coterminous/remote
+      // Canonical phase
       var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
       var prvCanon = prevCanon[name];
       var isTransition = curCanon && prvCanon && curCanon.phase !== prvCanon.phase;
       if (isTransition){
-        var emoji = PLANE_PHASE_EMOJI[curCanon.phase] || '⚪';
+        var emoji = PLANE_PHASE_EMOJI[curCanon.phase] || '\u26AA';
         var label = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
         if (curCanon.phase === 'coterminous' || curCanon.phase === 'remote'){
-          out.push({ serial: ser, name: emoji + ' ' + name + ': ' + label + ' begins', color: '#80CBC4' });
+          transitionNames.push(emoji + ' ' + name + ': ' + label + ' begins');
         } else {
-          // Waxing/waning transitions (ending an active phase)
           var endedPhase = PLANE_PHASE_LABELS[prvCanon.phase] || prvCanon.phase;
-          out.push({ serial: ser, name: emoji + ' ' + name + ': ' + endedPhase + ' ends', color: '#80CBC4' });
+          transitionNames.push(emoji + ' ' + name + ': ' + endedPhase + ' ends');
         }
-      } else if (curCanon && (curCanon.phase === 'coterminous' || curCanon.phase === 'remote')){
-        // Fill all intermediate days with a lighter highlight
-        var fillEmoji = PLANE_PHASE_EMOJI[curCanon.phase] || '⚪';
-        var fillLabel = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
-        var fillColor = curCanon.phase === 'coterminous' ? '#B2DFDB' : '#FFCDD2';
-        out.push({ serial: ser, name: fillEmoji + ' ' + name + ': ' + fillLabel, color: fillColor });
+      } else if (curCanon && curCanon.phase === 'coterminous'){
+        cotNames.push(name);
+      } else if (curCanon && curCanon.phase === 'remote'){
+        remoteNames.push(name);
       }
       prevCanon[name] = curCanon;
 
@@ -891,41 +896,52 @@ export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSeri
 
         if (curIsGen){
           var gPhase = curActual.phase || 'waning';
-          var gEmoji = PLANE_PHASE_EMOJI[gPhase] || '🟣';
           var gLabel = (PLANE_PHASE_LABELS[gPhase] || gPhase).toLowerCase();
-          var gColor = (gPhase === 'coterminous' || gPhase === 'remote') ? '#CE93D8' : '#E1BEE7';
-
-          var nextActual = getPlanarState(name, ser + 1);
-          var nextIsGen = !!(nextActual && _isGeneratedNote(nextActual.note));
-          var nextPhase = nextActual ? nextActual.phase : null;
-
           var startsHere = (!prevWasGen || prevEntry.phase !== gPhase);
-          var endsHere = (!nextIsGen || nextPhase !== gPhase);
-
           if (startsHere){
-            out.push({
-              serial: ser,
-              name: gEmoji + '✨ ' + name + ': Generated ' + gLabel + ' begins',
-              color: '#BA68C8'
-            });
+            genNames.push(name + ': ' + gLabel + ' begins');
           } else {
-            out.push({
-              serial: ser,
-              name: gEmoji + '✨ ' + name + ': Generated ' + gLabel,
-              color: gColor
-            });
-          }
-
-          if (endsHere){
-            out.push({
-              serial: ser,
-              name: gEmoji + '✨ ' + name + ': Generated ' + gLabel + ' ends',
-              color: '#CE93D8'
-            });
+            genNames.push(name + ': ' + gLabel);
           }
         }
         prevGen[name] = { phase: curActual ? curActual.phase : null, gen: curIsGen };
       }
+    }
+
+    // Emit dot-only indicators: one per category so cells aren't flooded
+    // with fill colours.  Transitions get their own teal dot; ongoing
+    // coterminous/remote get lighter dots; generated shifts get purple.
+    if (transitionNames.length){
+      out.push({
+        serial: ser,
+        name: transitionNames.join(', '),
+        color: '#80CBC4',
+        dotOnly: true
+      });
+    }
+    if (cotNames.length){
+      out.push({
+        serial: ser,
+        name: 'Coterminous: ' + cotNames.join(', '),
+        color: '#B2DFDB',
+        dotOnly: true
+      });
+    }
+    if (remoteNames.length){
+      out.push({
+        serial: ser,
+        name: 'Remote: ' + remoteNames.join(', '),
+        color: '#FFCDD2',
+        dotOnly: true
+      });
+    }
+    if (genNames.length){
+      out.push({
+        serial: ser,
+        name: 'Generated: ' + genNames.join(', '),
+        color: '#CE93D8',
+        dotOnly: true
+      });
     }
   }
 

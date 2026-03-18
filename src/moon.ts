@@ -1450,6 +1450,22 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
   return result;
 }
 
+// Returns true when the moon system has only one moon that should drive cell
+// fills (single-moon mini-cal style).  Exandria has two moons but Ruidus uses
+// a visibility window and shouldn't control cell colours — only Catha should.
+export function _isSingleFillMoon(sys){
+  if (!sys || !sys.moons) return true;
+  // Count moons whose lore doesn't mark them as visibility-window-only.
+  // The inline MOON_SYSTEMS data doesn't carry visibilityMode, so we match
+  // by name against known visibility-window moons.
+  var VISIBILITY_WINDOW_MOONS = { Ruidus: true };
+  var fillCount = 0;
+  for (var i = 0; i < sys.moons.length; i++){
+    if (!VISIBILITY_WINDOW_MOONS[sys.moons[i].name]) fillCount++;
+  }
+  return fillCount <= 1;
+}
+
 export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays?){
   var st = ensureSettings();
   var sys = _getMoonSys();
@@ -1460,6 +1476,7 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
   if (end < start){ var tmp = start; start = end; end = tmp; }
   var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
   var today = todaySerial();
+  var singleFill = _isSingleFillMoon(sys);
 
   for (var ser = start; ser <= end; ser++){
     var fullMoons = [];
@@ -1480,29 +1497,67 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
       }
     }
 
-    // Yellow dot if any moon is full
-    if (fullMoons.length){
-      out.push({
-        serial: ser,
-        name: fullMoons.map(function(n){ return '● ' + n + ' Full'; }).join('\n'),
-        color: '#FFD700'
-      });
-    }
-    // Black dot if any moon is new
-    if (newMoons.length){
-      out.push({
-        serial: ser,
-        name: newMoons.map(function(n){ return '● ' + n + ' New'; }).join('\n'),
-        color: '#222222'
-      });
-    }
-
+    // Collect eclipse notes for high tier
+    var eclipseNames = [];
     if (isHighTier){
       var eNotes = _eclipseNotableToday(ser);
       for (var ei = 0; ei < eNotes.length; ei++){
+        eclipseNames.push(_stripHtmlTags(eNotes[ei]).split('.').slice(0, 2).join('.'));
+      }
+    }
+
+    // Multi-moon systems: dot-only indicators (no cell fill).
+    // Single-fill systems: cell fill + emoji numeral replacement on peak days.
+    if (!singleFill){
+      // One event per category, max 3.  All flagged dotOnly so the renderer
+      // skips the cell background and renders all as dots.
+      if (fullMoons.length){
         out.push({
           serial: ser,
-          name: '🌘 ' + _stripHtmlTags(eNotes[ei]).split('.').slice(0, 2).join('.'),
+          name: 'Full: ' + fullMoons.join(', '),
+          color: '#FFD700',
+          dotOnly: true
+        });
+      }
+      if (newMoons.length){
+        out.push({
+          serial: ser,
+          name: 'New: ' + newMoons.join(', '),
+          color: '#222222',
+          dotOnly: true
+        });
+      }
+      if (eclipseNames.length){
+        out.push({
+          serial: ser,
+          name: 'Eclipses: ' + eclipseNames.join(', '),
+          color: '#9575CD',
+          dotOnly: true
+        });
+      }
+    } else {
+      // Single-fill: use cell background colour.  Replace numeral with emoji
+      // on peak full/new days for the primary moon.
+      if (fullMoons.length){
+        out.push({
+          serial: ser,
+          name: 'Full: ' + fullMoons.join(', '),
+          color: '#FFD700',
+          replaceNumeral: '\uD83C\uDF15'  // 🌕
+        });
+      }
+      if (newMoons.length){
+        out.push({
+          serial: ser,
+          name: 'New: ' + newMoons.join(', '),
+          color: '#222222',
+          replaceNumeral: '\uD83C\uDF11'  // 🌑
+        });
+      }
+      if (eclipseNames.length){
+        out.push({
+          serial: ser,
+          name: 'Eclipses: ' + eclipseNames.join(', '),
           color: '#9575CD'
         });
       }
@@ -2043,13 +2098,26 @@ export function nighttimeLux(serial, precipStage){
     // Apply overhead fraction: not all moons are up all night
     var effectiveLux = rawLux * NIGHTLIGHT_OVERHEAD_FRACTION;
 
+    // Planar brightness modifier: +25% when associated plane is coterminous
+    // (ascendant), -25% when remote (dim).
+    var planarMod = 1.0;
+    if (moon.plane && st.planesEnabled !== false){
+      try {
+        var _plSt = getPlanarState(moon.plane, serial);
+        if (_plSt && _plSt.phase === 'coterminous') planarMod = 1.25;
+        else if (_plSt && _plSt.phase === 'remote') planarMod = 0.75;
+      } catch(e){ /* planar system not ready */ }
+    }
+    effectiveLux *= planarMod;
+
     if (effectiveLux >= 0.001){ // only track meaningful contributors
       moonContributions.push({
         name: moon.name,
         illum: ph.illum,
         lux: effectiveLux,
         angularSize: orb.angularSizeVsSun,
-        albedo: alb
+        albedo: alb,
+        planarMod: planarMod
       });
       totalMoonLux += effectiveLux;
     }

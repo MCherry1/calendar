@@ -10,7 +10,7 @@ import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
 import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
-import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
+import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getActivePlanarEffects, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
@@ -305,14 +305,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
             _thisNotable = true;
           }
 
-          // Ascendant: moon's plane is coterminous (skip if already notable for phase)
-          if (audienceIsGM && !_thisNotable && moon.plane && ensureSettings().planesEnabled !== false){
-            try {
-              var _aPs = getPlanarState(moon.plane, todaySer);
-              if (_aPs && _aPs.phase === 'coterminous')
-                _notable.push('\u2728 <b>' + esc(moon.name) + '</b>' + titleTag + ' ascendant');
-            } catch(e2){}
-          }
+          // Ascendant moons are shown in the Moons view, not the Today view.
         });
 
         if (_notable.length){
@@ -362,6 +355,20 @@ export function sendCurrentDate(to, gmOnly, opts?){
     } catch(e){ /* weather not ready — skip silently */ }
   }
 
+  // Lighting — only when time of day is active and it's not daytime
+  var lightingLine = '';
+  if (isTimeOfDayActive()){
+    try {
+      var _lightSnap = currentLightSnapshot(todaySer);
+      if (_lightSnap && _lightSnap.mode !== 'day'){
+        lightingLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
+          '\uD83D\uDCA1 ' + esc(_lightSnap.label || 'Unknown') +
+          (_lightSnap.note ? ' \u2014 ' + esc(_lightSnap.note) : '') +
+          '</div>';
+      }
+    } catch(e){ /* light snapshot not ready */ }
+  }
+
   // Planar highlights — only show planes with notable current state
   var planesLine = '';
   if (audienceIsGM && ensureSettings().planesEnabled !== false){
@@ -399,13 +406,13 @@ export function sendCurrentDate(to, gmOnly, opts?){
 
   var msgCore;
   if (dashboard){
-    msgCore = calHtml + dateLine + timeLine + todayEventsLine + moonLine + weatherLine + planesLine;
+    msgCore = calHtml + dateLine + timeLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
   } else if (compact){
     msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
-      dateLine + timeLine + todayEventsLine + moonLine + weatherLine + planesLine +
+      dateLine + timeLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
       '</div>';
   } else {
-    msgCore = calHtml + dateLine + timeLine + moonLine + weatherLine + planesLine + eventsBlock;
+    msgCore = calHtml + dateLine + timeLine + moonLine + weatherLine + lightingLine + planesLine + eventsBlock;
   }
 
   var controls = '';
@@ -805,7 +812,7 @@ export function gmButtonsHtml(){
   if (isTimeOfDayActive()){
     rows.push('<div>'+mb('⏩ Time of Day ⏩','time next')+'</div>');
   } else if (st.weatherEnabled !== false){
-    rows.push('<div>'+mb('Enable Time of Day','time start afternoon')+'</div>');
+    rows.push('<div>'+mb('Enable Time of Day','time start middle_of_night')+'</div>');
   }
 
   // Date step arrows
