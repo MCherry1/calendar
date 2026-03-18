@@ -760,8 +760,8 @@ Examples:
 
 ```text
 !cal planes send low
-!cal planes send medium [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
-!cal planes send high [1d|3d|6d|10d|1m|3m|6m|10m|Nd|Nw]
+!cal planes send medium [1m|3m|6m|10m|Nd|Nw]
+!cal planes send high [1m|3m|6m|10m|Nd|Nw]
 ```
 
 Examples:
