@@ -97,10 +97,12 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Events minical
 ##### Text Info
 * Current Date
-* Events/Holidays
-* Spacing Line Break
-* Time of Day
+* Time of Day (if active)
+* Current Location
 * Current Weather
+* Current Lighting
+* Spacing break
+* Events/Holidays
 * Spacing Line Break
 * Ascendant Moons: List
 * New Moons: List
@@ -109,8 +111,10 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Coterminous Planes: List
 * Remote Planes: List
 ##### Buttons
-* Back arrow "Date" | "Date" forward arrow (use the arrow emojis here)
-* Send (send *current month view* to players, GM only. not necessarily the "active" month, but the one who's minical was shown above this button block)
+* forward arrow Time of Day forward-arrow if already active, otherwise bullet below (if weather is active only)
+* Enable Time of Day (if weather is active)
+* Back arrow Date | Date forward arrow (use the arrow emojis here)
+* Send Today View to players
 * Additional Options (Drop down menu)
 	* Events
 	* Moons
