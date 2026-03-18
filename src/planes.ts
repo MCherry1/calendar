@@ -1195,6 +1195,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     }).join(' ');
 
     var planeQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    var seedPlaneQueryOpts = planes.filter(function(p){ return !!p.seedAnchor; }).map(function(p){ return p.name; }).join('|');
     var planeDropdown = button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}');
 
     // Send buttons
@@ -1231,7 +1232,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Management dropdown
     gmControls += '<div style="margin:4px 0;">' +
-      button('Management','planes manage ?{Action|Toggle Planes On/Off,settings planes toggle|Toggle Generated Events,settings generated toggle|Reseed Planes,planes reseed|Set Phase Override,planes override ?\\{Plane\\} ?\\{Phase cot/remote/off\\}|Clear Override,planes clearoverride ?\\{Plane\\}|Set Anchor,planes anchor ?\\{Plane\\} ?\\{Date\\}|Seed Override,planes seed ?\\{Seed word\\}}') +
+      button('Management','planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|waning|remote|waxing\\} ?\\{Days (blank = indefinite)|\\}|Clear Override,clear ?\\{Plane|All|' + planeQueryOpts + '\\}|Set Anchor,anchor ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|waning|remote|waxing\\} ?\\{Date|Lharvion 1 996\\}|Seed Override,seed ?\\{Plane|' + seedPlaneQueryOpts + '\\} ?\\{Year or clear|998\\}}') +
       '</div>';
 
     // Utility buttons
@@ -1361,6 +1362,26 @@ export function handlePlanesCommand(m, args){
     );
   }
 
+  if (sub === 'manage'){
+    var manageAction = String(args[2] || '').toLowerCase();
+    if (!manageAction){
+      return whisper(m.who, 'Planes management: use the dropdown to select an action.');
+    }
+    return handlePlanesCommand(m, ['planes', manageAction].concat(args.slice(3)));
+  }
+
+  if (sub === 'toggle'){
+    var st = ensureSettings();
+    st.planesEnabled = (st.planesEnabled === false);
+    st._planesAutoToggle = false;
+    return whisperParts(m.who, planesPanelHtml(true));
+  }
+
+  if (sub === 'generated'){
+    ensureSettings().offCyclePlanes = (ensureSettings().offCyclePlanes === false);
+    return whisperParts(m.who, planesPanelHtml(true));
+  }
+
   // !cal planes on <dateSpec>  — inspect planar states on a specific day
   if (sub === 'on' || sub === 'date'){
     var dateToksOn = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
@@ -1408,6 +1429,7 @@ export function handlePlanesCommand(m, args){
   // !cal planes clear <name>  — remove override for a plane
   if (sub === 'clear'){
     var clearName = String(args[2] || '').trim();
+    if (/^all$/i.test(clearName)) clearName = '';
     var psC = getPlanesState();
     if (!clearName){
       psC.overrides = {};

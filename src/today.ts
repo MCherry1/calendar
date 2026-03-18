@@ -229,7 +229,7 @@ export function usage(key, m){ whisper(m.who, USAGE[key]); }
 
 export function invokeEventSub(m, sub, args){
   var cfg = EVENT_SUB[sub];
-  if (!cfg) return whisper(m.who, 'Unknown events subcommand. Try: add | remove | restore | list');
+  if (!cfg) return whisper(m.who, 'Unknown events subcommand. Try: add | addmonthly | addyearly | remove | restore | list');
   if (cfg.usage && (!args || args.length === 0)) return usage(cfg.usage, m);
   return cfg.run(m, args || []);
 }
@@ -238,6 +238,14 @@ export var EVENT_SUB = {
   add: {
     usage: 'events.add',
     run: function(m, args){ addEventSmart(args); }
+  },
+  addmonthly: {
+    usage: null,
+    run: function(m, args){ addMonthlySmart(args); }
+  },
+  addyearly: {
+    usage: null,
+    run: function(m, args){ addYearlySmart(args); }
   },
   remove: {
     usage: 'events.remove',
@@ -265,6 +273,14 @@ export var EVENT_SUB = {
   list: {
     usage: null,
     run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
+  },
+  source: {
+    usage: null,
+    run: function(m){ return commands.source.run(m, ['!cal', 'source', 'list']); }
+  },
+  removeflow: {
+    usage: null,
+    run: function(m){ whisper(m.who, _eventsRemoveRestoreHtml()); }
   },
   panel: {
     usage: null,
@@ -352,7 +368,7 @@ function _eventsPanelHtml(serialArg){
   btns.push(button('◀ Previous','events panel ' + prevSer) + ' ');
   btns.push(button('Next ▶','events panel ' + nextSer));
   btns.push('</div>');
-  btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ?{Calendar range|this month}') + '</div>');
+  btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ' + mobj.name + ' ' + dd.year) + '</div>');
 
   // Additional Ranges
   var monthCount = cal.months.length;
@@ -365,11 +381,25 @@ function _eventsPanelHtml(serialArg){
   // Management (GM only)
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Management','events manage ?{Action|Add Single Event,add ?\\{Date DD or MM DD or MM DD YYYY\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Monthly Event,addmonthly ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Yearly Event,addyearly ?\\{Month MM\\} ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Source Controls,source list|Remove/Restore,events list}') +
+    button('Management','events manage ?{Action|Add Single Event,add ?\\{Date DD or MM DD or MM DD YYYY\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Monthly Event,addmonthly ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Yearly Event,addyearly ?\\{Month MM\\} ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Source Controls,source|Remove/Restore,removeflow}') +
     '</div>');
 
   return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
     calHtml + lines.join('') + btns.join(''));
+}
+
+function _eventsRemoveRestoreHtml(){
+  return _menuBox('Remove / Restore Events',
+    '<div style="opacity:.8;margin-bottom:6px;">Open the matching workflow for custom-event removal or suppressed-default restoration.</div>' +
+    '<div style="margin-bottom:6px;">' +
+      button('Remove Custom Events', 'events remove list') + ' ' +
+      button('Restore Default Events', 'events restore list') +
+    '</div>' +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+    removeListHtml() +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+    suppressedDefaultsListHtml()
+  );
 }
 
 export var commands = {
@@ -403,7 +433,7 @@ export var commands = {
     // !cal today options <choice> — redirect from Additional Options dropdown
     if (sub === 'options'){
       var choice = (a[3] || '').toLowerCase();
-      if (choice === 'events') return commands.events.run(m, a);
+      if (choice === 'events') return invokeEventSub(m, 'panel', []);
       if (choice === 'moon')   return handleMoonCommand(m, ['moon']);
       if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
       if (choice === 'planes') return handlePlanesCommand(m, ['planes']);

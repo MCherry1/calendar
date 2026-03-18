@@ -2605,14 +2605,13 @@ function weatherTodayGmHtml(){
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
     '<div style="margin:4px 0;">' +
     button('Management','weather manage ?{Action|' +
-      'Toggle Weather On/Off,settings weather toggle|' +
-      'Toggle Extreme Hazards,settings hazards toggle|' +
-      'Toggle Mechanics,settings mechanics toggle|' +
-      'Reseed Weather,weather reseed|' +
-      'History,weather history|' +
-      'Reset Weather,weather reset|' +
-      'Reroll Today,weather reroll|' +
-      'Lock Day,weather lock ?\\{Day serial\\}' +
+      'Toggle Weather On/Off,toggleweather|' +
+      'Toggle Mechanics,togglemechanics|' +
+      'Reseed Weather,reseed|' +
+      'History,history|' +
+      'Reset Weather,reset|' +
+      'Reroll Today,reroll|' +
+      'Lock Day,lock ?\\{Day serial|' + ser + '\\}' +
       '}') +
     '</div>';
 
@@ -3432,12 +3431,22 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'manage': {
-      // Route management dropdown choices — they route to existing commands
       var manageAction = String(args[2]||'').toLowerCase();
-      if (!manageAction) break;
-      // Redirect to the appropriate handler by re-dispatching
-      args[1] = manageAction;
-      return handleWeatherCommand(m, args);
+      if (!manageAction){
+        warnGM('Management: use the dropdown to select an action.');
+        break;
+      }
+      if (manageAction === 'toggleweather'){
+        ensureSettings().weatherEnabled = (ensureSettings().weatherEnabled === false);
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      if (manageAction === 'togglemechanics'){
+        ensureSettings().weatherMechanicsEnabled = (ensureSettings().weatherMechanicsEnabled === false);
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      return handleWeatherCommand(m, ['weather', manageAction].concat(args.slice(3)));
     }
 
     case 'location': {

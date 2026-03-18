@@ -1840,7 +1840,7 @@ export function moonPanelParts(serialOverride?){
 
   // Management dropdown
   gmControls += '<div style="margin:4px 0;">' +
-    button('Management','moon manage ?{Action|Toggle Moons On/Off,settings moons toggle|Reseed Moons,moon reseed|Set New,moon setnew ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,moon setfull ?\\{Date dd or mm dd or mm dd yyyy\\}}') +
+    button('Management','moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}}') +
     '</div>';
 
   // Utility buttons
@@ -3706,6 +3706,37 @@ export function handleMoonCommand(m, args){
       'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon view &lt;name&gt;</code>'
     );
   }
+
+  if (sub === 'manage'){
+    var manageAction = String(args[2] || '').toLowerCase();
+    if (!manageAction){
+      return whisper(m.who, 'Moon management: use the dropdown to select an action.');
+    }
+    return handleMoonCommand(m, ['moon', manageAction].concat(args.slice(3)));
+  }
+
+  if (sub === 'toggle'){
+    st.moonsEnabled = (st.moonsEnabled === false);
+    st._moonsAutoToggle = false;
+    return whisperParts(m.who, moonPanelParts());
+  }
+
+  if (sub === 'reseed'){
+    var msReseed = getMoonState();
+    var prevSeed = (msReseed.systemSeed != null && String(msReseed.systemSeed).trim() !== '')
+      ? String(msReseed.systemSeed).trim()
+      : 'auto';
+    var nextSeed = 'moon-' + todaySerial() + '-' + Math.round(_moonHashStr(prevSeed + '|' + todaySerial() + '|' + (msReseed.generatedThru || 0)) * 1000000);
+    msReseed.systemSeed = nextSeed;
+    msReseed.generatedFrom = null;
+    msReseed.generatedThru = 0;
+    moonEnsureSequences();
+    whisper(m.who, 'Moon sequences reseeded to <b>'+esc(nextSeed)+'</b>.');
+    return whisperParts(m.who, moonPanelParts());
+  }
+
+  if (sub === 'setnew') sub = 'new';
+  if (sub === 'setfull') sub = 'full';
 
   // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m|Nd|Nw]
   if (sub === 'send'){
