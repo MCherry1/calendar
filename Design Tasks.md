@@ -65,7 +65,10 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-None currently.
+- **Default Views Redesign — hazards toggle completion and regression coverage**
+  - Completed by: GPT-5 Codex
+  - Date: 2026-03-18
+  - Scope: implemented the required `!cal weather` Extreme Hazards toggle as a real command path and persisted setting, kept `Set Anchor` as the planes-management command surface, removed the nonexistent `Reseed Planes` spec item, and expanded regression coverage for panel command strings and management dispatch paths.
 
 ---
 
@@ -78,13 +81,6 @@ Already implemented — "Save Current Location As..." button, preset storage, an
 ### Default Views Redesign — Remaining Work
 
 The structural redesign (consolidated layouts, dropdowns, new commands) is implemented. Remaining work is behavioral polish and spec compliance verification:
-
-#### Follow-Up (2026-03-18)
-
-The routing and management wiring corrections are in place, but one required weather-management capability still needs implementation before this redesign work can return to review:
-
-* `!cal weather`: Management must support `Toggle Extreme Hazards On/Off` as a real command path, not just a spec item.
-* Add regression coverage for the hazards toggle alongside the existing panel-routing coverage.
 
 This script has gotten badly mangled in its presentation through various unguided fixes. Here is the overall picture.
 

@@ -107,8 +107,8 @@ describe("Weather management routing", () => {
 
     handleWeatherCommand(gmUser(), ["weather", "event", "trigger", "flash_flood"]);
 
-    const msg = String(lastChat().msg);
-    assert(msg.includes("Extreme hazards are disabled"));
+    const log = (globalThis as any)._chatLog;
+    assert(log.some((entry: any) => String(entry.msg).includes("Extreme hazards are disabled")));
   });
 });
 
