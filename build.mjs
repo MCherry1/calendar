@@ -17,11 +17,10 @@ await build({
   // Add the header comment
   banner: {
     js: [
-      '// Eberron Calendar (Clean Unified Edition)',
+      '// Calendar',
       '// By Matthew Cherry (github.com/mcherry1/calendar)',
       '// Roll20 API script',
-      '// Call `!cal` to start. Add macro for easy access.',
-      '// Version: 3.0',
+      '// Call `!cal` to start.',
       '//',
       '// ⚠ AUTO-GENERATED — do not edit directly.',
       '// Edit TypeScript source in src/ and run: npm run build',
