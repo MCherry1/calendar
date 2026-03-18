@@ -259,6 +259,9 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Current Phases
 	* Whispers a clean bulleted list with swatch + moon name, subbullets current phase (waning crescent, etc.) and upcoming "New/Full in X days on insert-month-and-day-date-format"
 * small line break
+* * Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* small break
 * Specific Moons (named drop down list)
 	* Displays current plus n-1 upcoming months
 	* Displays Single Bar with Moon Name, colored with moon color, then outputs a year's worth of minicals
@@ -382,7 +385,10 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 ##### Buttons
 * Previous | Next (month steps)
 	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Specific Planes, Additional Ranges, or Management.
-* Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
+* small spacer line
+* Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* Reveal Custom Range (query for date or date range)
 * small line break
 * Specific Planes (named drop down list of all planes)
 	* Displays a single bar with the Plane Name, colored with the plane's color, then outputs a year's worth of minicals.
