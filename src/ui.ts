@@ -799,14 +799,24 @@ export function taskCardHtml(title, summary, actions?, detail?){
 
 export function gmButtonsHtml(){
   var st = ensureSettings();
-  var rows = [
-    '<div>'+mb('⏮ Retreat','retreat 1')+' '+mb('⏭ Advance','advance 1')+'</div>',
-    '<div>'+mb('📣 Send To Players','send')+'</div>'
-  ];
-  if (st.weatherEnabled !== false) rows.push('<div>'+mb('🌤 Weather','weather')+'</div>');
-  if (st.moonsEnabled   !== false) rows.push('<div>'+mb('🌙 Moons','moon')+'</div>');
-  if (st.planesEnabled  !== false) rows.push('<div>'+mb('🌀 Planes','planes')+'</div>');
-  rows.push('<div>'+nav('⚙ Admin','root')+'</div>');
+  var rows = [];
+
+  // Time of Day: advance if active, enable if weather is active
+  if (isTimeOfDayActive()){
+    rows.push('<div>'+mb('⏩ Time of Day ⏩','time next')+'</div>');
+  } else if (st.weatherEnabled !== false){
+    rows.push('<div>'+mb('Enable Time of Day','time start afternoon')+'</div>');
+  }
+
+  // Date step arrows
+  rows.push('<div>'+mb('⬅','retreat 1')+' '+mb('➡','advance 1')+'</div>');
+
+  // Send Today View to Players
+  rows.push('<div>'+mb('📣 Send To Players','send')+'</div>');
+
+  // Additional Options dropdown
+  rows.push('<div>'+mb('Additional Options','today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,help root}')+'</div>');
+
   return rows.join('');
 }
 

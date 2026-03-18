@@ -2623,13 +2623,32 @@ function weatherTodayGmHtml(){
     } catch(e){}
   }
 
+  // Management dropdown
+  var managementBtn =
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
+    '<div style="margin:4px 0;">' +
+    button('Management','weather manage ?{Action|' +
+      'Toggle Weather On/Off,settings weather toggle|' +
+      'Toggle Extreme Hazards,settings hazards toggle|' +
+      'Toggle Mechanics,settings mechanics toggle|' +
+      'Reseed Weather,weather reseed|' +
+      'History,weather history|' +
+      'Reset Weather,weather reset|' +
+      'Reroll Today,weather reroll|' +
+      'Lock Day,weather lock ?\\{Day serial\\}' +
+      '}') +
+    '</div>';
+
   return _menuBox("Today's Weather",
     locLine + manifestLine + arythLine + body +
     tidalLine +
     extremeHtml +
-    '<div style="margin-top:6px;">'+ topButtons +'</div>'+
-    zoneButtons +
-    mediumRow + highRow + specificRow
+    '<div style="margin-top:6px;">'+ button('📣 Send Revealed','weather send') +'</div>'+
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
+    mediumRow + highRow + specificRow +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
+    '<div style="margin:4px 0;">' + button('Set Location','weather location') + ' ' + button('Set Manifest Zone','weather manifest') + '</div>' +
+    managementBtn
   );
 }
 
@@ -3410,6 +3429,38 @@ export function handleWeatherCommand(m, args){
       warnGM('Forecast for day '+lockSer+' locked.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
+    }
+
+    case 'reseed': {
+      var wsReseed = getWeatherState();
+      wsReseed.forecast = [];
+      wsReseed.history = [];
+      weatherEnsureForecast();
+      warnGM('Weather reseeded. Forecast and history cleared, new forecast generated.');
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+    }
+
+    case 'reset': {
+      var wsReset = getWeatherState();
+      // Preserve revealed forecast levels for known dates at current location
+      var preservedReveal = wsReset.playerReveal;
+      wsReset.forecast = [];
+      wsReset.history = [];
+      wsReset.playerReveal = preservedReveal;
+      weatherEnsureForecast();
+      warnGM('Weather reset. Forecast regenerated for current location. Player reveal tags preserved.');
+      whisper(m.who, weatherTodayGmHtml());
+      break;
+    }
+
+    case 'manage': {
+      // Route management dropdown choices — they route to existing commands
+      var manageAction = String(args[2]||'').toLowerCase();
+      if (!manageAction) break;
+      // Redirect to the appropriate handler by re-dispatching
+      args[1] = manageAction;
+      return handleWeatherCommand(m, args);
     }
 
     case 'location': {

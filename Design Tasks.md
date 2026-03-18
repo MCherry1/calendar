@@ -95,6 +95,15 @@ None currently. Add new items here only when the desired implementation behavior
 - Added `mechanics` and `mech` as top-level command aliases routing to `!cal weather mechanics`.
 - **File:** `src/today.ts`
 
+### Default Views Redesign and System Entry Points
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- **Today view**: Replaced 6 task cards with consolidated layout per spec: organized text info (date, time of day, location, weather, lighting, events, moons by phase, planes by state), Time of Day advance/enable button, date step arrows, Send Today View, Additional Options dropdown routing to subsystem panels and Admin.
+- **Events view**: Built new `_eventsPanelHtml()` with month minical, prev/next navigation, bulleted events for current month, Send to Players, Additional Ranges dropdown, Management dropdown (Add events, Source Controls, Remove/Restore). Default `!cal events` now opens panel instead of plain table.
+- **Moons view**: Added Current Phases command (`!cal moon phases`) with per-moon phase, color swatch, and upcoming new/full dates. Added Additional Ranges dropdown, Management dropdown (Toggle, Reseed, Set New, Set Full). Restructured GM controls with spacer sections.
+- **Planes view**: Added Additional Ranges dropdown, Management dropdown (Toggle Planes, Toggle Generated, Reseed, Phase Override, Clear Override, Set Anchor, Seed Override). Restructured GM controls with spacer sections.
+- **Weather view**: Restructured buttons with spacer sections. Added Management dropdown (Toggle Weather/Hazards/Mechanics, Reseed, History, Reset, Reroll, Lock). Added `reseed` and `reset` command handlers. Moved Set Location and Set Manifest Zone into grouped section.
+- **Files:** `src/today.ts`, `src/moon.ts`, `src/planes.ts`, `src/weather.ts`, `src/ui.ts`
+
 ---
 
 ## Agent Ready
@@ -103,7 +112,9 @@ None currently. Add new items here only when the desired implementation behavior
 Already implemented — "Save Current Location As..." button, preset storage, and preset quick-switch all exist in the weather location wizard. No further work needed. Removing from task list.
 
 ---
-### Default Views Redesign and System Entry Points
+### Default Views Redesign — Remaining Work
+
+The structural redesign (consolidated layouts, dropdowns, new commands) is implemented. Remaining work is behavioral polish and spec compliance verification:
 
 This script has gotten badly mangled in its presentation through various unguided fixes. Here is the overall picture.
 
