@@ -11,13 +11,8 @@ import {
   CONFIG_WEATHER_LABELS,
   CONFIG_WEATHER_FLAVOR,
   CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS,
-  WEATHER_TEMPERATURE_BANDS_F,
-  WEATHER_TEMPERATURE_BAND_INDEX,
   WEATHER_TEMP_BAND_MIN,
   WEATHER_TEMP_BAND_MAX,
-  WEATHER_LEGACY_TEMP_TO_BAND,
-  WEATHER_HEAT_ARMOR_RULES,
-  WEATHER_COLD_CLOTHING_TIERS,
   CALENDAR_SYSTEMS,
 } from './config';
 
@@ -67,7 +62,7 @@ function _seededRand(seed){
   return function(){ s = ((s * 1103515245 + 12345) % 2147483648) / 2147483648; return s; };
 }
 // ---------------------------------------------------------------------------
-// Temperature band helpers (originally in config section, depend on state/constants)
+// Temperature band helpers
 // ---------------------------------------------------------------------------
 
 export function _clampWeatherTempBand(band){
@@ -76,36 +71,8 @@ export function _clampWeatherTempBand(band){
   return Math.max(WEATHER_TEMP_BAND_MIN, Math.min(WEATHER_TEMP_BAND_MAX, band));
 }
 
-export function _legacyTempStageToBand(stage){
-  stage = parseInt(stage, 10);
-  if (!isFinite(stage)) return 0;
-  if (WEATHER_LEGACY_TEMP_TO_BAND[stage] != null) return WEATHER_LEGACY_TEMP_TO_BAND[stage];
-  return _clampWeatherTempBand(stage);
-}
-
-export function _weatherTempInfo(band){
-  return WEATHER_TEMPERATURE_BAND_INDEX[_clampWeatherTempBand(band)] || WEATHER_TEMPERATURE_BANDS_F[0];
-}
-
 export function _weatherTempLabel(band){
-  return titleCase(_weatherTempInfo(band).label || String(band));
-}
-
-export function _weatherTempMechanics(band){
-  var info = _weatherTempInfo(band);
-  var parts = [];
-  if (info.nominalDC != null){
-    parts.push('DC ' + info.nominalDC + ' Con save or exhaustion.');
-  }
-  if (info.coldRequirement && info.coldRequirement !== 'none'){
-    if (info.coldRequirement === 'special') parts.push(info.coldRequirementLabel + '.');
-    else parts.push('Disadvantage without ' + String(info.coldRequirementLabel || '').toLowerCase() + '.');
-  }
-  if (info.heatArmorDisadvantage && info.heatArmorDisadvantage !== 'none'){
-    var heatRule = WEATHER_HEAT_ARMOR_RULES[info.heatArmorDisadvantage];
-    if (heatRule && heatRule.description) parts.push(heatRule.description);
-  }
-  return parts.length ? parts.join(' ') : null;
+  return CONFIG_WEATHER_LABELS.temp[String(_clampWeatherTempBand(band))] || String(band);
 }
 
 export function _isZarantyrFull(serial){
@@ -224,145 +191,126 @@ var WEATHER_TOD_ARC: any = {
 // Climate base tables — climates × 12 months (index 0=mid-winter … 11=early-winter)
 // Each entry: { temp, wind, precip } each { base, die, min, max }
 // Geography and terrain modifiers shift base/min/max uniformly. die is unchanged.
-// Temperature entries below are legacy stage values and are converted at load
-// time into direct WEATHER_TEMPERATURE_BANDS_F indices (-5..15).
+// Temperature values use the -5..15 band scale directly.
 // Wind scale: 0=calm … 5=storm     Precip scale: 0=clear … 5=extreme
 // ---------------------------------------------------------------------------
 var WEATHER_CLIMATE_BASE: any = {
 
   // Frostfell, Demon Wastes — perpetually cold, windswept, low moisture
   polar: [
-    /*0  mid-win */ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*1  late-win*/ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*2  early-sp*/ {temp:{base:0,die:2,min:-2,max:2},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*3  mid-sp  */ {temp:{base:2,die:2,min:0,max:3},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*4  late-sp */ {temp:{base:2,die:2,min:0,max:3},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*5  early-su*/ {temp:{base:3,die:2,min:2,max:5},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*6  mid-su  */ {temp:{base:3,die:2,min:2,max:5},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*7  late-su */ {temp:{base:2,die:2,min:0,max:3},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8  early-au*/ {temp:{base:0,die:2,min:-2,max:2},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*10 late-au */ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*11 early-wn*/ {temp:{base:-2,die:2,min:-3,max:0}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
+    /*0  mid-win */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1  late-win*/ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2  early-sp*/ {temp:{base:-3,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*3  mid-sp  */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*4  late-sp */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*5  early-su*/ {temp:{base:1,die:2,min:0,max:4},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6  mid-su  */ {temp:{base:1,die:2,min:0,max:4},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7  late-su */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8  early-au*/ {temp:{base:-3,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10 late-au */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Karrnath, Mror Holds interior — wide seasonal swing, harsh winters
   continental: [
-    /*0 */ {temp:{base:0,die:3,min:-2,max:2},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*1 */ {temp:{base:2,die:3,min:-2,max:3},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*2 */ {temp:{base:3,die:3,min:2,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*3 */ {temp:{base:5,die:2,min:3,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*4 */ {temp:{base:6,die:2,min:5,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*5 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*6 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*7 */ {temp:{base:6,die:2,min:5,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:5,die:3,min:2,max:8},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
-    /*9 */ {temp:{base:3,die:2,min:2,max:5},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*10*/ {temp:{base:2,die:2,min:0,max:3},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:0,die:3,min:-2,max:2},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*0 */ {temp:{base:-3,die:3,min:-2,max:0},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*1 */ {temp:{base:0,die:3,min:-2,max:1},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*2 */ {temp:{base:1,die:3,min:0,max:6},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:4,die:2,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:6,die:2,min:4,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*5 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:6,die:2,min:4,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:4,die:3,min:0,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*9 */ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*10*/ {temp:{base:0,die:2,min:-3,max:1},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*11*/ {temp:{base:-3,die:3,min:-2,max:0},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Breland, Shadow Marches, most of Khorvaire — moderate, maritime-influenced
   temperate: [
-    /*0 */ {temp:{base:2,die:2,min:0,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*1 */ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*2 */ {temp:{base:5,die:2,min:3,max:6},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*3 */ {temp:{base:5,die:2,min:3,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*4 */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*5 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*6 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*7 */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:6,die:3,min:3,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
-    /*9 */ {temp:{base:5,die:2,min:3,max:6},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*10*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:2,die:2,min:0,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*0 */ {temp:{base:0,die:2,min:-3,max:4},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*1 */ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*2 */ {temp:{base:4,die:2,min:1,max:6},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:4,die:2,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:6,die:2,min:4,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*5 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:6,die:2,min:4,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:6,die:3,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*9 */ {temp:{base:4,die:2,min:1,max:6},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*10*/ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*11*/ {temp:{base:0,die:2,min:-3,max:4},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Blade Desert, Valenar interior — heat-dominated, wide daily swings, very low precip
   dry: [
-    /*0 */ {temp:{base:5,die:3,min:2,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*1 */ {temp:{base:5,die:3,min:3,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*2 */ {temp:{base:6,die:3,min:5,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:1}},
-    /*3 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*4 */ {temp:{base:9,die:2,min:8,max:11},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*5 */ {temp:{base:9,die:2,min:8,max:11},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*6 */ {temp:{base:11,die:2,min:9,max:12}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
-    /*7 */ {temp:{base:9,die:2,min:8,max:11},  wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
-    /*8 */ {temp:{base:8,die:2,min:6,max:9},   wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
-    /*9 */ {temp:{base:6,die:3,min:5,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*10*/ {temp:{base:6,die:3,min:3,max:8},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*11*/ {temp:{base:5,die:3,min:2,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}}
+    /*0 */ {temp:{base:4,die:3,min:0,max:6},    wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1 */ {temp:{base:4,die:3,min:1,max:9},    wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2 */ {temp:{base:6,die:3,min:4,max:9},    wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:1}},
+    /*3 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*4 */ {temp:{base:10,die:2,min:9,max:11},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*5 */ {temp:{base:10,die:2,min:9,max:11},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*6 */ {temp:{base:11,die:2,min:10,max:12}, wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*7 */ {temp:{base:10,die:2,min:9,max:11},  wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*8 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:2,die:2,min:0,max:3}, precip:{base:0,die:2,min:0,max:1}},
+    /*9 */ {temp:{base:6,die:3,min:4,max:9},    wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10*/ {temp:{base:6,die:3,min:1,max:9},    wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11*/ {temp:{base:4,die:3,min:0,max:6},    wind:{base:2,die:2,min:0,max:3}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Sharn, Q'barra, Xen'drik coast — narrow temp swing, seasonal rains
   tropical: [
-    /*0 */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*1 */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*2 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*3 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*4 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:2}},
-    /*5 */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*6 */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*7 */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*9 */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*10*/ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*11*/ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}}
+    /*0 */ {temp:{base:6,die:2,min:4,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*1 */ {temp:{base:6,die:2,min:4,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*2 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*4 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:2}},
+    /*5 */ {temp:{base:10,die:2,min:9,max:11},  wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*6 */ {temp:{base:10,die:2,min:9,max:11},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*7 */ {temp:{base:10,die:2,min:9,max:11},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*8 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*9 */ {temp:{base:9,die:2,min:6,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*10*/ {temp:{base:6,die:2,min:4,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*11*/ {temp:{base:6,die:2,min:4,max:10},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Q'barra interior monsoon, Xen'drik seasonal — dramatic wet/dry season flip
   // Dry season (winter–early spring): clear skies, low precip
   // Wet season (summer–autumn): torrential, daily downpours, high wind
   monsoon: [
-    /*0  mid-win */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*1  late-win*/ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*2  early-sp*/ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*3  mid-sp  */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*4  late-sp */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*5  early-su*/ {temp:{base:9,die:2,min:8,max:11}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
-    /*6  mid-su  */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
-    /*7  late-su */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
-    /*8  early-au*/ {temp:{base:8,die:2,min:6,max:9},  wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*9  mid-au  */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*10 late-au */ {temp:{base:6,die:2,min:5,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*11 early-wn*/ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}}
+    /*0  mid-win */ {temp:{base:6,die:2,min:4,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*1  late-win*/ {temp:{base:6,die:2,min:4,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*2  early-sp*/ {temp:{base:9,die:2,min:6,max:10},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*3  mid-sp  */ {temp:{base:10,die:2,min:9,max:11}, wind:{base:1,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*4  late-sp */ {temp:{base:10,die:2,min:9,max:11}, wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*5  early-su*/ {temp:{base:10,die:2,min:9,max:11}, wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*6  mid-su  */ {temp:{base:9,die:2,min:6,max:10},  wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*7  late-su */ {temp:{base:9,die:2,min:6,max:10},  wind:{base:2,die:2,min:1,max:4}, precip:{base:3,die:3,min:2,max:5}},
+    /*8  early-au*/ {temp:{base:9,die:2,min:6,max:10},  wind:{base:2,die:2,min:1,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*9  mid-au  */ {temp:{base:9,die:2,min:6,max:10},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*10 late-au */ {temp:{base:6,die:2,min:4,max:10},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:6,die:2,min:4,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}}
   ],
 
   // Valenar coast, southern Breland — hot dry summers, mild wet winters
   // Inverted precip curve: winters wetter than summers
   mediterranean: [
-    /*0  mid-win */ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*1  late-win*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:1,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*2  early-sp*/ {temp:{base:5,die:2,min:3,max:6},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*3  mid-sp  */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*4  late-sp */ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:1}},
-    /*5  early-su*/ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*6  mid-su  */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*7  late-su */ {temp:{base:9,die:2,min:8,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
-    /*8  early-au*/ {temp:{base:8,die:2,min:6,max:9},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
-    /*9  mid-au  */ {temp:{base:6,die:2,min:5,max:8},  wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*10 late-au */ {temp:{base:5,die:2,min:3,max:6},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
-    /*11 early-wn*/ {temp:{base:3,die:2,min:2,max:5},  wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
+    /*0  mid-win */ {temp:{base:1,die:2,min:0,max:4},   wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*1  late-win*/ {temp:{base:1,die:2,min:0,max:4},   wind:{base:1,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*2  early-sp*/ {temp:{base:4,die:2,min:1,max:6},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*3  mid-sp  */ {temp:{base:6,die:2,min:4,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*4  late-sp */ {temp:{base:9,die:2,min:6,max:10},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:1}},
+    /*5  early-su*/ {temp:{base:10,die:2,min:9,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*6  mid-su  */ {temp:{base:10,die:2,min:9,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*7  late-su */ {temp:{base:10,die:2,min:9,max:11}, wind:{base:1,die:2,min:0,max:2}, precip:{base:0,die:2,min:0,max:1}},
+    /*8  early-au*/ {temp:{base:9,die:2,min:6,max:10},  wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:6,die:2,min:4,max:9},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
+    /*10 late-au */ {temp:{base:4,die:2,min:1,max:6},   wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}},
+    /*11 early-wn*/ {temp:{base:1,die:2,min:0,max:4},   wind:{base:2,die:2,min:0,max:3}, precip:{base:3,die:2,min:2,max:4}}
   ]
 };
-
-function _upgradeWeatherClimateBaseTemps(){
-  Object.keys(WEATHER_CLIMATE_BASE).forEach(function(climate: any){
-    WEATHER_CLIMATE_BASE[climate] = (WEATHER_CLIMATE_BASE[climate] || []).map(function(entry: any){
-      return {
-        temp: {
-          base: _legacyTempStageToBand(entry.temp && entry.temp.base),
-          die:  entry.temp && entry.temp.die,
-          min:  _legacyTempStageToBand(entry.temp && entry.temp.min),
-          max:  _legacyTempStageToBand(entry.temp && entry.temp.max)
-        },
-        wind: entry.wind,
-        precip: entry.precip
-      };
-    });
-  });
-}
-_upgradeWeatherClimateBaseTemps();
 
 // ---------------------------------------------------------------------------
 // Geography modifier tables — 10 geographies × 12 months (or constant object)
@@ -1762,10 +1710,6 @@ export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulate
 
   // -- Mechanics strings --
   var mechLines: any[] = [];
-
-  // Temperature
-  var tm = _weatherTempMechanics(temp);
-  if (tm) mechLines.push('<b>Temperature:</b> ' + esc(tm));
 
   // Wind
   var wm = CONFIG_WEATHER_MECHANICS.wind[wind];

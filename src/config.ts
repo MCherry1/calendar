@@ -265,89 +265,11 @@ export var CONFIG_WEATHER_HISTORY_DAYS = 60;
 export var CONFIG_WEATHER_SEED_STRENGTH = 1;
 
 /* --- Weather Mechanics ----------------------------------------------------*/
-// Script-ready thermal reference tables (expanded Fahrenheit band model).
-// The live generator and display layers now use these -5..15 bands directly.
-export var WEATHER_TEMPERATURE_BANDS_F = [
-  { band:-5, minF:null as number|null, maxF:-46, label:'unholy cold', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'none', notes:['mundane clothing insufficient','planar or supernatural cold','wind, wetness, immersion, and no shelter sharply worsen exposure'] },
-  { band:-4, minF:-45, maxF:-36, label:'soul-freezing', nominalDC:25, coldRequirement:'heavy_cwc', coldRequirementLabel:'Heavy cold-weather clothing required', heatArmorDisadvantage:'none', notes:['strong wind and exposed skin are major escalators','fire and shelter strongly mitigate'] },
-  { band:-3, minF:-35, maxF:-26, label:'brutal cold', nominalDC:25, coldRequirement:'heavy_cwc', coldRequirementLabel:'Heavy cold-weather clothing required', heatArmorDisadvantage:'none', notes:['wind chill, snow, wetness, and hard travel worsen risk'] },
-  { band:-2, minF:-25, maxF:-16, label:'bitter cold', nominalDC:20, coldRequirement:'medium_cwc', coldRequirementLabel:'Medium cold-weather clothing required', heatArmorDisadvantage:'none', notes:['wind, sleet, dampness, and poor shelter worsen risk'] },
-  { band:-1, minF:-15, maxF:-6, label:'biting cold', nominalDC:20, coldRequirement:'medium_cwc', coldRequirementLabel:'Medium cold-weather clothing required', heatArmorDisadvantage:'none', notes:['wind, inactivity, and wet extremities worsen risk'] },
-  { band:0, minF:-5, maxF:4, label:'hard freeze', nominalDC:15, coldRequirement:'light_cwc', coldRequirementLabel:'Light cold-weather clothing required', heatArmorDisadvantage:'none', notes:['wet clothing, freezing rain, and long exposure can increase effective DC'] },
-  { band:1, minF:5, maxF:14, label:'frigid', nominalDC:15, coldRequirement:'light_cwc', coldRequirementLabel:'Light cold-weather clothing required', heatArmorDisadvantage:'none', notes:['wind, altitude, and wetness worsen exposure'] },
-  { band:2, minF:15, maxF:24, label:'very cold', nominalDC:10, coldRequirement:'warm', coldRequirementLabel:'Warm clothing required', heatArmorDisadvantage:'none', notes:['snow, sleet, and long exposure may raise effective DC'] },
-  { band:3, minF:25, maxF:34, label:'freezing', nominalDC:10, coldRequirement:'warm', coldRequirementLabel:'Warm clothing required', heatArmorDisadvantage:'none', notes:['ice, slush, rain plus wind, and wet feet or hands can raise effective DC'] },
-  { band:4, minF:35, maxF:44, label:'chilly', nominalDC:null as number|null, coldRequirement:'none', coldRequirementLabel:'None normally', heatArmorDisadvantage:'none', notes:['rain plus wind may create situational cold checks'] },
-  { band:5, minF:45, maxF:54, label:'cool', nominalDC:null as number|null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
-  { band:6, minF:55, maxF:64, label:'mild', nominalDC:null as number|null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
-  { band:7, minF:65, maxF:74, label:'temperate', nominalDC:null as number|null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
-  { band:8, minF:75, maxF:84, label:'warm', nominalDC:null as number|null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['usually no thermal hazard'] },
-  { band:9, minF:85, maxF:94, label:'hot', nominalDC:null as number|null, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['humidity, dehydration, forced march, and radiant terrain may warrant situational checks'] },
-  { band:10, minF:95, maxF:104, label:'sweltering', nominalDC:10, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'none', notes:['sun, humidity, radiant stone or sand, and forced pace can increase effective DC'] },
-  { band:11, minF:105, maxF:114, label:'brutal heat', nominalDC:15, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'heavy', heatArmorDisadvantageLabel:'Disadvantage if wearing heavy armor', notes:['labor, poor hydration, hot wind, and no shade strongly worsen risk'] },
-  { band:12, minF:115, maxF:124, label:'scorching', nominalDC:20, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'medium_or_heavy', heatArmorDisadvantageLabel:'Disadvantage if wearing medium or heavy armor', notes:['reflective terrain, no airflow, and hot surfaces worsen risk'] },
-  { band:13, minF:125, maxF:134, label:'searing', nominalDC:25, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['light, loose clothing only','furnace winds, exposed stone, smoke, and no shade worsen risk'] },
-  { band:14, minF:135, maxF:144, label:'hellish', nominalDC:25, coldRequirement:'none', coldRequirementLabel:'None', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['light, loose clothing only','special cooling, magic, shelter, and shade become critical'] },
-  { band:15, minF:145, maxF:null as number|null, label:'infernal', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'any_armor', heatArmorDisadvantageLabel:'Disadvantage if wearing any armor at all', notes:['planar heat, lava fields, magical fire, and radiant exposure','ordinary gear no longer solves the problem'] }
-];
-
-export var WEATHER_COLD_CLOTHING_TIERS: Record<string, any> = {
-  none:      { label:'None', description:'No special cold gear required.' },
-  warm:      { label:'Warm clothing', description:'Ordinary seasonal gear; no special armor-style proficiency required.' },
-  light_cwc: { label:'Light cold-weather clothing', description:'Specialized cold-weather gear conceptually aligned with light armor.' },
-  medium_cwc:{ label:'Medium cold-weather clothing', description:'Specialized bulky cold-weather gear conceptually aligned with medium armor.' },
-  heavy_cwc: { label:'Heavy cold-weather clothing', description:'Expedition-grade cold-weather gear conceptually aligned with heavy armor.' },
-  special:   { label:'Special protection', description:'Magic, planar gear, enclosed transport, or equivalent extraordinary protection.' }
-};
-
-export var WEATHER_HEAT_ARMOR_RULES: Record<string, any> = {
-  none:            { label:'No armor penalty', description:'Armor alone does not impose disadvantage from heat at this band.' },
-  heavy:           { label:'Heavy armor penalized', description:'Disadvantage on the save if wearing heavy armor.' },
-  medium_or_heavy: { label:'Medium or heavy armor penalized', description:'Disadvantage on the save if wearing medium or heavy armor.' },
-  any_armor:       { label:'Any armor penalized', description:'Disadvantage on the save if wearing any armor at all.' },
-  special_only:    { label:'Mundane gear insufficient', description:'Ordinary armor and clothing are not enough; special protection is required.' }
-};
-
-export var WEATHER_TEMPERATURE_SYSTEM_RULES: Record<string, any> = {
-  baseline: {
-    dcLadder: [10, 15, 20, 25, 30],
-    note: 'Uses the standard 5e difficulty ladder as nominal baseline DCs.'
-  },
-  cold: {
-    rule: 'If a creature wears less than the required cold-weather clothing tier, it has disadvantage on the save.',
-    tiers: { warm:[2,3], light_cwc:[0,1], medium_cwc:[-2,-1], heavy_cwc:[-4,-3], special:[-5] }
-  },
-  heat: {
-    rule: 'If a creature wears armor forbidden by the current heat band, it has disadvantage on the save.',
-    tiers: { heavy:[11], medium_or_heavy:[12], any_armor:[13,14,15] }
-  }
-};
 
 export var WEATHER_TEMP_BAND_MIN = -5;
 export var WEATHER_TEMP_BAND_MAX = 15;
-export var WEATHER_LEGACY_TEMP_TO_BAND: Record<number, number> = {
-  0: -3,
-  1: -2,
-  2: 0,
-  3: 1,
-  4: 3,
-  5: 4,
-  6: 6,
-  7: 7,
-  8: 9,
-  9: 10,
-  10: 12
-};
-export var WEATHER_TEMPERATURE_BAND_INDEX: Record<number, any> = {};
-for (var _wtbi = 0; _wtbi < WEATHER_TEMPERATURE_BANDS_F.length; _wtbi++){
-  WEATHER_TEMPERATURE_BAND_INDEX[WEATHER_TEMPERATURE_BANDS_F[_wtbi].band] = WEATHER_TEMPERATURE_BANDS_F[_wtbi];
-}
 
-// Wind still uses the fixed stage table below. Temperature mechanics are now
-// derived from WEATHER_TEMPERATURE_BANDS_F so the live generator and rules
-// share the same -5..15 band scale.
-// Temperature mechanics now derived from WEATHER_TEMPERATURE_BANDS_F via _weatherTempMechanics().
-// Wind mechanics still use this lookup table.
+// Wind mechanics lookup table.
 export var CONFIG_WEATHER_MECHANICS: Record<string, any> = {
   wind: {
     0: null,
