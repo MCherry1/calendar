@@ -65,10 +65,7 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-- **Default Views Redesign — routing follow-up verification and regression coverage**
-  - Completed by: GPT-5 Codex
-  - Date: 2026-03-18
-  - Scope: verified that the reviewed Today/Events/Moon/Weather/Planes routing fixes are now present in code, added regression coverage for emitted panel command strings and management dispatch paths, and cleared the stale follow-up block from `Agent Ready`.
+None currently.
 
 ---
 
@@ -81,6 +78,13 @@ Already implemented — "Save Current Location As..." button, preset storage, an
 ### Default Views Redesign — Remaining Work
 
 The structural redesign (consolidated layouts, dropdowns, new commands) is implemented. Remaining work is behavioral polish and spec compliance verification:
+
+#### Follow-Up (2026-03-18)
+
+The routing and management wiring corrections are in place, but one required weather-management capability still needs implementation before this redesign work can return to review:
+
+* `!cal weather`: Management must support `Toggle Extreme Hazards On/Off` as a real command path, not just a spec item.
+* Add regression coverage for the hazards toggle alongside the existing panel-routing coverage.
 
 This script has gotten badly mangled in its presentation through various unguided fixes. Here is the overall picture.
 
@@ -372,7 +376,6 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Management (drop down menu, GM only)
 	* Toggle Planes On/Off
 	* Toggle Generated Events On/Off (system-wide, not per-event)
-	* Reseed Planes
 	* Set Phase Override (force a plane to a specific phase, optionally for a duration)
 	* Clear Override (remove a phase override)
 	* Set Anchor (set a cycle anchor date for a plane)
