@@ -139,24 +139,16 @@ export function _todayAllHtml(){
       moonEnsureSequences();
       var moonSys = _getMoonSys();
       if (moonSys && moonSys.moons){
-        var ascendant = [], newMoons = [], fullMoons = [];
+        var newMoons = [], fullMoons = [];
         moonSys.moons.forEach(function(moon){
           var ph = moonPhaseAt(moon.name, today);
           if (!ph) return;
           if (_isFullMoonIllum(ph.illum)) fullMoons.push(moon.name);
           else if (_isNewMoonIllum(ph.illum)) newMoons.push(moon.name);
-          // Ascendant: moon's associated plane is coterminous
-          if (moon.plane && st.planesEnabled !== false){
-            try {
-              var ps = getPlanarState(moon.plane, today);
-              if (ps && ps.phase === 'coterminous') ascendant.push(moon.name);
-            } catch(e4){}
-          }
         });
         var moonLines = [];
-        if (ascendant.length) moonLines.push('✨ <b>Ascendant:</b> ' + ascendant.map(esc).join(', '));
-        if (newMoons.length) moonLines.push('🌑 <b>New:</b> ' + newMoons.map(esc).join(', '));
-        if (fullMoons.length) moonLines.push('🌕 <b>Full:</b> ' + fullMoons.map(esc).join(', '));
+        if (newMoons.length) moonLines.push('\uD83C\uDF11 <b>New:</b> ' + newMoons.map(esc).join(', '));
+        if (fullMoons.length) moonLines.push('\uD83C\uDF15 <b>Full:</b> ' + fullMoons.map(esc).join(', '));
         if (moonLines.length){
           lines.push('<div style="font-size:.82em;opacity:.8;line-height:1.5;">' + moonLines.join('<br>') + '</div>');
         }
@@ -418,15 +410,9 @@ export var commands = {
       // default: fall through to admin root
       return whisper(m.who, helpRootMenu(m));
     }
-    if (playerIsGM(m.playerid)){
-      weatherEnsureForecast();
-      moonEnsureSequences();
-      whisper(m.who, _todayAllHtml());
-    } else {
-      weatherEnsureForecast();
-      moonEnsureSequences();
-      whisper(m.who, _playerTodayHtml(m.playerid));
-    }
+    // Both GMs and players get the consolidated Today view.
+    // sendCurrentDate handles audience-appropriate output internally.
+    _showDefaultCalView(m);
   },
 
   // FIX: top-level !cal list now works
