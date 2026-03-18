@@ -65,44 +65,7 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-### Init Prompt Syntax Fix
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Changed setup wizard Step 3 to use `MM DD YYYY` format in both prompt label and pre-entered default value. Shows both display name and numeric format.
-- **File:** `src/setup.ts:236-248`
-
-### Minical Cell Proportions
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Adjusted cell height from `1.4em` to `1.5em`, reduced today-highlight box-shadow spread and outline-offset to `0px` to reduce visual bulk.
-- **Files:** `src/constants.ts:403-408`
-
-### Moon Lore: Remove Analog Info, Add Qualitative Stats
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Removed hex color code text line. Removed numeric albedo value from parentheses, kept qualitative label only. Simplified albedo tiers to Bright/Average/Dim. Renamed "Period" to "Synodic Period", "Surface Brightness" to "Brightness".
-- **File:** `src/moon.ts:396-462`
-
-### README: Migrate Setting-Specific Info to Per-Setting Sections
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Moved Eberron-specific Cosmology, Ring of Siberys, Moons of Eberron table, reference moon data, individual moon lore, planar weather effects table, manifest zone examples, and generated planar event profiles from general Moons/Weather/Planes sections into the Eberron per-setting section. General sections now have cross-links.
-- **File:** `README.md`
-
-### README: Planes Forecast Days → Months
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Fixed Knowledge Tiers DC ladder table: Planes row changed from "1 day / 3 days / 6 days / 10 days" to "1 month / 3 months / 6 months / 10 months" to match code.
-- **File:** `README.md:210`
-
-### Add !cal mechanics / !cal mech Aliases
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Added `mechanics` and `mech` as top-level command aliases routing to `!cal weather mechanics`.
-- **File:** `src/today.ts`
-
-### Default Views Redesign and System Entry Points
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- **Today view**: Replaced 6 task cards with consolidated layout per spec: organized text info (date, time of day, location, weather, lighting, events, moons by phase, planes by state), Time of Day advance/enable button, date step arrows, Send Today View, Additional Options dropdown routing to subsystem panels and Admin.
-- **Events view**: Built new `_eventsPanelHtml()` with month minical, prev/next navigation, bulleted events for current month, Send to Players, Additional Ranges dropdown, Management dropdown (Add events, Source Controls, Remove/Restore). Default `!cal events` now opens panel instead of plain table.
-- **Moons view**: Added Current Phases command (`!cal moon phases`) with per-moon phase, color swatch, and upcoming new/full dates. Added Additional Ranges dropdown, Management dropdown (Toggle, Reseed, Set New, Set Full). Restructured GM controls with spacer sections.
-- **Planes view**: Added Additional Ranges dropdown, Management dropdown (Toggle Planes, Toggle Generated, Reseed, Phase Override, Clear Override, Set Anchor, Seed Override). Restructured GM controls with spacer sections.
-- **Weather view**: Restructured buttons with spacer sections. Added Management dropdown (Toggle Weather/Hazards/Mechanics, Reseed, History, Reset, Reroll, Lock). Added `reseed` and `reset` command handlers. Moved Set Location and Set Manifest Zone into grouped section.
-- **Files:** `src/today.ts`, `src/moon.ts`, `src/planes.ts`, `src/weather.ts`, `src/ui.ts`
+None currently.
 
 ---
 
@@ -115,6 +78,28 @@ Already implemented — "Save Current Location As..." button, preset storage, an
 ### Default Views Redesign — Remaining Work
 
 The structural redesign (consolidated layouts, dropdowns, new commands) is implemented. Remaining work is behavioral polish and spec compliance verification:
+
+#### Review Follow-Up (2026-03-18)
+
+Independent review returned the redesign task from `Needs Review` to active work. The consolidated layouts are in place, but several button/dropdown wiring paths do not currently match the implemented command surface and must be corrected before this task can be considered done.
+
+##### Implementation Corrections
+* `!cal today`: Additional Options → Events currently routes incorrectly and must open `!cal events`.
+* `!cal events`: Send to Players must send the currently displayed month after Previous/Next navigation, not default back to the current month.
+* `!cal events`: Management → Source Controls and Management → Remove/Restore are currently misrouted and must open their intended workflows.
+* `!cal moon`: the Management dropdown is wired to non-existent or incorrect commands. Align it with the actual moon command surface, including valid `new` / `full` flows and whatever reseed/reset behavior is actually supported.
+* `!cal weather`: the Management dropdown re-dispatch is broken for nested actions. Wire each menu entry to accepted `!cal weather ...` or `!cal settings ...` commands.
+* `!cal weather`: Toggle Extreme Hazards currently points at a settings path with no matching implementation. Either implement the supporting setting/handler or remove the dead action from the redesign.
+* `!cal planes`: the Management dropdown is wired to non-existent or mismatched commands. Align it with the real planes command surface, including the actual `set` / `clear` / `anchor` / `seed` commands and the generated-events toggle.
+
+##### Regression Coverage
+* Add at least one regression test that validates the literal command strings emitted by redesigned panels/dropdowns, not just the underlying command handlers.
+* Cover `!cal today` Additional Options → Events opening `!cal events`.
+* Cover `!cal events` preserving the browsed month for Send to Players.
+* Cover `!cal events` Management opening working Source Controls and Remove/Restore flows.
+* Cover `!cal moon` Management entries mapping to real moon commands and collecting all required inputs.
+* Cover `!cal weather` Management entries invoking supported weather/settings commands.
+* Cover `!cal planes` Management entries invoking supported planes/settings commands.
 
 This script has gotten badly mangled in its presentation through various unguided fixes. Here is the overall picture.
 
