@@ -228,6 +228,7 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 		* query for dd, mm dd, mm dd yyyy
 	* Set Full (drop down menu)
 		* query for dd, mm dd, mm dd yyyy
+	* **Design note:** Setting a new/full *shifts* the existing cycle — it does not add an extra phase. The moon drops back into its regular cycle once past the manually set phase. This is intentional: shifting is cleaner than adding.
 
 #### Weather (!cal weather)
 * All info is specific to the current calendar date.
@@ -263,22 +264,42 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * High Forecast (4 buttons: 1 day / 3 days / 6 days / 10 days)
 * Reveal Custom Range (query for date or date range)
 * small spacer line
-* Extreme Events (if any triggered for the current day)
-	* Trigger (named dropdown of all 6 hazards → confirm → whisper result to GM)
-	* Roll (named dropdown → dice probability check → whisper outcome)
-	* Send to Players (sends the triggered hazard's player message)
+* Extreme Events (shown below mechanics section when conditions qualify for any event)
+	* For each qualifying event, display: "Conditions are right for a [Event Name]"
+	* Three buttons per event (two if mechanics are disabled):
+		* Let's Do It (activates the event immediately)
+		* Roll For It (X%) (rolls against the calculated probability, including all conditional modifiers)
+		* Show Me The Mechanics (omitted if mechanics toggle is off; whispers a framed details box with duration, mechanics, aftermath, and player message; then regenerates the Let's Do It and Roll For It buttons below the details box)
+	* Once activated (by either button), the event follows weather logic:
+		* Uses the same time-of-day system — if time of day is active, event mechanics apply to the current bucket; if not, afternoon default.
+		* Duration is tracked: the event has a start and an estimated end. While active, it contributes mechanics to the weather output.
+	* After activation or roll result, whisper confirmation to GM with outcome.
 * small spacer line
 * Set Location (wizard: Climate → Geography → Terrain)
 * Set Manifest Zone (zone toggle chooser, Eberron only)
 * small spacer line
 * Management (drop down menu, GM only)
 	* Toggle Weather On/Off
+	* Toggle Extreme Hazards On/Off
+	* Toggle Mechanics On/Off
 	* Reseed Weather
 	* History (shows as many rows as needed for current location's history; option to wipe history past 20 days)
 	* Reset Weather (resets and regenerates weather for current location; preserves revealed-forecast-level tags for known dates at that location)
 	* Reroll Today (regenerates today's weather, unless locked)
 	* Lock Day (locks a forecast day so it cannot be rerolled)
 	* Whisper confirmations on all location, zone, or weather changes
+
+##### Quick Reference: Weather Mechanics (!cal weather mechanics)
+* Aliases: !cal mechanics, !cal mech
+* Whispers to GM only — a quick macro-friendly reference for current conditions.
+* Outputs a framed box with:
+	* Current Date
+	* Current Location
+	* Current Weather narrative (for the active time-of-day bucket, or afternoon if time of day is inactive)
+	* Active Mechanics (for the active bucket, or afternoon default)
+	* Extreme event status (if any are active)
+* Does NOT include: forecast grid, buttons, brightness/lighting info (unless time of day is active), or any management controls.
+* This is the "what's happening right now that's relevant to gameplay" quick whisper.
 
 #### Planes (!cal planes)
 * All info is specific to the current calendar date.
@@ -338,8 +359,7 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 
 These are unresolved design questions extracted from the subsystem specs above.
 
-1. **Moon phase mutation**: Confirm that setting a new/full shifts existing phases non-invasively and drops back into the regular cycle once past the set phase. We never *add* a phase, we just shift. Is that correct?
-2. **Weather hazard completeness**: The 6 implemented hazards are Flash Flood, Whiteout, Ground Blizzard, Dust Storm (Haboob), Avalanche, Severe Thunderstorm. Are there other hazard types needed (e.g., Tornado, Heatwave, Ice Storm)?
+1. **Weather hazard completeness**: The 14 planned hazards are: Flash Flood, Whiteout, Ground Blizzard, Dust Storm (Haboob), Avalanche, Severe Thunderstorm, Clear-Sky Lightning, Flash Freeze, Tropical Storm, Hurricane, Tornado/Waterspout, Heatwave, Ice Storm, Wildfire. Are there other hazard types needed?
 
 
 ---
