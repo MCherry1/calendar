@@ -65,7 +65,10 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-None currently.
+- **Default Views Redesign — routing and management wiring corrections**
+  - Completed by: GPT-5 Codex
+  - Date: 2026-03-18
+  - Scope: fixed `!cal today` → Events routing, preserved displayed month in `!cal events` send actions, repaired Events management routing, aligned Moon/Weather/Planes management dropdowns to real commands, removed the dead Weather hazards toggle, and added regression coverage for emitted panel command strings.
 
 ---
 
@@ -78,28 +81,6 @@ Already implemented — "Save Current Location As..." button, preset storage, an
 ### Default Views Redesign — Remaining Work
 
 The structural redesign (consolidated layouts, dropdowns, new commands) is implemented. Remaining work is behavioral polish and spec compliance verification:
-
-#### Review Follow-Up (2026-03-18)
-
-Independent review returned the redesign task from `Needs Review` to active work. The consolidated layouts are in place, but several button/dropdown wiring paths do not currently match the implemented command surface and must be corrected before this task can be considered done.
-
-##### Implementation Corrections
-* `!cal today`: Additional Options → Events currently routes incorrectly and must open `!cal events`.
-* `!cal events`: Send to Players must send the currently displayed month after Previous/Next navigation, not default back to the current month.
-* `!cal events`: Management → Source Controls and Management → Remove/Restore are currently misrouted and must open their intended workflows.
-* `!cal moon`: the Management dropdown is wired to non-existent or incorrect commands. Align it with the actual moon command surface, including valid `new` / `full` flows and whatever reseed/reset behavior is actually supported.
-* `!cal weather`: the Management dropdown re-dispatch is broken for nested actions. Wire each menu entry to accepted `!cal weather ...` or `!cal settings ...` commands.
-* `!cal weather`: Toggle Extreme Hazards currently points at a settings path with no matching implementation. Either implement the supporting setting/handler or remove the dead action from the redesign.
-* `!cal planes`: the Management dropdown is wired to non-existent or mismatched commands. Align it with the real planes command surface, including the actual `set` / `clear` / `anchor` / `seed` commands and the generated-events toggle.
-
-##### Regression Coverage
-* Add at least one regression test that validates the literal command strings emitted by redesigned panels/dropdowns, not just the underlying command handlers.
-* Cover `!cal today` Additional Options → Events opening `!cal events`.
-* Cover `!cal events` preserving the browsed month for Send to Players.
-* Cover `!cal events` Management opening working Source Controls and Remove/Restore flows.
-* Cover `!cal moon` Management entries mapping to real moon commands and collecting all required inputs.
-* Cover `!cal weather` Management entries invoking supported weather/settings commands.
-* Cover `!cal planes` Management entries invoking supported planes/settings commands.
 
 This script has gotten badly mangled in its presentation through various unguided fixes. Here is the overall picture.
 
