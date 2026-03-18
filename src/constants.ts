@@ -400,12 +400,12 @@ export var STYLES = {
   table:           'border-collapse:collapse;margin:4px;margin-bottom:14px;',
   th:              'border:1px solid #444;padding:2px;width:2em;text-align:center;',
   head:            'border:1px solid #444;padding:0;',
-  td:              'border:1px solid #444;width:2em;height:1.4em;text-align:center;vertical-align:middle;',
-  calTd:           'border:1px solid #444;width:2em;height:1.4em;padding:0;text-align:center;vertical-align:middle;',
-  calCellInner:    'min-height:1.4em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0px;line-height:1;padding:0;box-sizing:border-box;',
+  td:              'border:1px solid #444;width:2em;height:1.5em;text-align:center;vertical-align:middle;',
+  calTd:           'border:1px solid #444;width:2em;height:1.5em;padding:0;text-align:center;vertical-align:middle;',
+  calCellInner:    'min-height:1.5em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0px;line-height:1;padding:0;box-sizing:border-box;',
   monthHeaderBase: 'padding:6px;text-align:left;',
   gmbuttonWrap:    'display:inline-block;margin:2px 4px 2px 0;',
-  today:  'position:relative;z-index:10;border-radius:2px;box-shadow:0 2px 6px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.16);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;box-sizing:border-box;overflow:visible;font-weight:bold;',
+  today:  'position:relative;z-index:10;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.16);outline:2px solid rgba(0,0,0,.35);outline-offset:0px;box-sizing:border-box;overflow:visible;font-weight:bold;',
   past:   'opacity:0.65;',
   future: 'opacity:0.95;'
 };

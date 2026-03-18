@@ -65,13 +65,42 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-None currently.
+### Init Prompt Syntax Fix
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- Changed setup wizard Step 3 to use `MM DD YYYY` format in both prompt label and pre-entered default value. Shows both display name and numeric format.
+- **File:** `src/setup.ts:236-248`
+
+### Minical Cell Proportions
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- Adjusted cell height from `1.4em` to `1.5em`, reduced today-highlight box-shadow spread and outline-offset to `0px` to reduce visual bulk.
+- **Files:** `src/constants.ts:403-408`
+
+### Moon Lore: Remove Analog Info, Add Qualitative Stats
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- Removed hex color code text line. Removed numeric albedo value from parentheses, kept qualitative label only. Simplified albedo tiers to Bright/Average/Dim. Renamed "Period" to "Synodic Period", "Surface Brightness" to "Brightness".
+- **File:** `src/moon.ts:396-462`
+
+### README: Migrate Setting-Specific Info to Per-Setting Sections
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- Moved Eberron-specific Cosmology, Ring of Siberys, Moons of Eberron table, reference moon data, individual moon lore, planar weather effects table, manifest zone examples, and generated planar event profiles from general Moons/Weather/Planes sections into the Eberron per-setting section. General sections now have cross-links.
+- **File:** `README.md`
+
+### README: Planes Forecast Days → Months
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- Fixed Knowledge Tiers DC ladder table: Planes row changed from "1 day / 3 days / 6 days / 10 days" to "1 month / 3 months / 6 months / 10 months" to match code.
+- **File:** `README.md:210`
+
+### Add !cal mechanics / !cal mech Aliases
+- **Completed by:** Claude Opus 4.6 (2026-03-18)
+- Added `mechanics` and `mech` as top-level command aliases routing to `!cal weather mechanics`.
+- **File:** `src/today.ts`
 
 ---
 
 ## Agent Ready
 
-On initialization, the script asks for a starting date. The prompt is in the display syntax, but that is NOT the same as the script input syntax. Remedy this. Prompt with the correct syntax pre-entered, and explicitly called for (MM DD YYYY)
+### Named Saved Weather Location Presets
+Already implemented — "Save Current Location As..." button, preset storage, and preset quick-switch all exist in the weather location wizard. No further work needed. Removing from task list.
 
 ---
 ### Default Views Redesign and System Entry Points
@@ -364,34 +393,6 @@ These are unresolved design questions extracted from the subsystem specs above.
 
 ---
 
-### Minical Cell Proportions
-
-Cells are currently `width:2em; height:1.4em` — wider than tall. User reports they look too tall visually, especially the highlighted today row. Investigate whether the today-highlight styles (`box-shadow`, `outline`, `outline-offset`) or `calCellInner` min-height are adding visual bulk. Target: approximately 3:4 width-to-height ratio, number vertically centered.
-
-**File:** `src/constants.ts:403-408`
-
-### Moon Lore: Remove Analog Info, Add Qualitative Stats
-
-`_moonLoreHtml()` still shows reference-moon analog data. Replace with:
-- Color swatch
-- Synodic period
-- Qualitative albedo: bright / dim / average
-- Apparent sky size vs Luna: `%` for smaller, integer `×` for larger (0.5× steps below 5×)
-- Associated plane and dragonmark
-
-**File:** `src/moon.ts` — `_moonLoreHtml()` function
-
-### README: Migrate Setting-Specific Info to Per-Setting Sections
-
-The general "Moons: Modeling the Sky" and "Planes" sections still contain Eberron-specific data (12 moon names, 13 plane names). Move setting-specific details into the per-setting subsections under "Supported Settings" (added in Phase 7). Keep the general sections setting-agnostic with cross-links. Same treatment for any Eberron-specific content in Weather section.
-
-### Planes Forecast: Days → Months in README
-
-Verify all README references to planes/moons forecast increments say "months" not "days." The code already forecasts in month increments for moons and planes.
-
-### Named Saved Weather Location Presets
-
-Add a "Save Current Location As..." button to the weather location wizard. Opens a Roll20 query for a user-entered preset name. Saved presets appear before recent entries in the wizard. No predefined presets.
 
 ---
 

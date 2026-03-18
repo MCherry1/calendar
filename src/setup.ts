@@ -237,12 +237,16 @@ function _setupDateStepHtml(draft){
   var sysKey = String(draft.calendarSystem || '').toLowerCase();
   var variantKey = _setupVariantKey(sysKey, draft.calendarVariant);
   var defaultDate = _setupDefaultDate(sysKey, variantKey);
+  var mm = String(defaultDate.month + 1);
+  var dd = String(defaultDate.day);
+  var yyyy = String(defaultDate.year);
+  var promptDefault = mm + ' ' + dd + ' ' + yyyy;
   return _menuBox('Calendar Setup - Step 3: Current In-Game Date',
-    '<div style="margin-bottom:6px;">Pick a starting date using the same syntax as <code>!cal set</code>.</div>' +
-    '<div style="margin-bottom:6px;">Default start: <b>' + esc(defaultDate.label) + '</b></div>' +
+    '<div style="margin-bottom:6px;">Enter a starting date as <code>MM DD YYYY</code>.</div>' +
+    '<div style="margin-bottom:6px;">Default start: <b>' + esc(defaultDate.label) + '</b> (' + esc(promptDefault) + ')</div>' +
     '<div>' +
       button('Use Default Start', 'setup date default') + ' ' +
-      button('Prompt !cal set syntax', 'setup date use ?{Date|' + defaultDate.label + '}') +
+      button('Enter Date (MM DD YYYY)', 'setup date use ?{MM DD YYYY|' + promptDefault + '}') +
     '</div>'
   );
 }

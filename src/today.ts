@@ -717,6 +717,10 @@ export var commands = {
     handleWeatherCommand(m, a.slice(1));
   },
 
+  // Weather mechanics quick reference
+  mechanics: function(m){ handleWeatherCommand(m, ['weather','mechanics']); }, // alias
+  mech:      function(m){ handleWeatherCommand(m, ['weather','mechanics']); }, // alias
+
   // Planar system — parallel to moons/weather
   planar: function(m, a){ handlePlanesCommand(m, ['planes'].concat(a.slice(2))); }, // alias
   planes:  function(m, a){ handlePlanesCommand(m, a.slice(1)); }

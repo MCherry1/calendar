@@ -413,9 +413,8 @@ export function _moonLoreHtml(moonName){
   var html = dot + '<b style="font-size:1.1em;">' + esc(moon.name) + '</b>';
   if (moon.title) html += ' <span style="opacity:.72;">' + esc(moon.title) + '</span>';
   html += '<br><br>' + esc(lore.blurb);
-  html += '<br><br><b>Color:</b> ' + esc(String(moon.color || '#AAAAAA').toUpperCase());
-  html += '<br><b>Period:</b> ' + _moonLorePeriodLabel(moon.synodicPeriod);
-  html += '<br><b>Surface Brightness:</b> ' + esc(_moonLoreAlbedoLabel(moon.albedo)) + ' (albedo ' + _moonLoreAlbedoValue(moon.albedo) + ')';
+  html += '<br><br><b>Synodic Period:</b> ' + _moonLorePeriodLabel(moon.synodicPeriod);
+  html += '<br><b>Brightness:</b> ' + esc(_moonLoreAlbedoLabel(moon.albedo));
   html += '<br><b>Apparent Size:</b> ' + esc(_moonLoreSizeLabel(moon));
   if (moon.plane) html += '<br><b>Associated Plane:</b> ' + esc(moon.plane);
   if (moon.dragonmark) html += '<br><b>Dragonmark:</b> ' + esc(moon.dragonmark);
@@ -438,13 +437,10 @@ function _moonLoreAlbedoValue(albedo){
 
 function _moonLoreAlbedoLabel(albedo){
   var n = parseFloat(albedo);
-  if (!isFinite(n)) return 'Unknown brightness';
-  if (n >= 1) return 'Exceptionally bright';
-  if (n >= 0.7) return 'Bright';
-  if (n >= 0.4) return 'Above-average brightness';
-  if (n >= 0.18) return 'Average brightness';
-  if (n >= 0.1) return 'Dim';
-  return 'Very dim';
+  if (!isFinite(n)) return 'Unknown';
+  if (n >= 0.4) return 'Bright';
+  if (n >= 0.15) return 'Average';
+  return 'Dim';
 }
 
 function _moonLoreSizeRatio(moon){
