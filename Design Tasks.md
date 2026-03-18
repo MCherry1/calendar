@@ -65,10 +65,10 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-- **Default Views Redesign — routing and management wiring corrections**
+- **Default Views Redesign — routing follow-up verification and regression coverage**
   - Completed by: GPT-5 Codex
   - Date: 2026-03-18
-  - Scope: fixed `!cal today` → Events routing, preserved displayed month in `!cal events` send actions, repaired Events management routing, aligned Moon/Weather/Planes management dropdowns to real commands, removed the dead Weather hazards toggle, and added regression coverage for emitted panel command strings.
+  - Scope: verified that the reviewed Today/Events/Moon/Weather/Planes routing fixes are now present in code, added regression coverage for emitted panel command strings and management dispatch paths, and cleared the stale follow-up block from `Agent Ready`.
 
 ---
 
