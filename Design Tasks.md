@@ -164,7 +164,22 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 		* Add Yearly Event (query: mm dd only)
 		* After event date is captured, drop down menu of colors
 		* After event is created, whisper details to GM (color swatch, name, recurrence, date)
-	* Source Controls (cluttered — will address later)
+	* Source Controls
+		* Outputs a chat display box titled **Sources**
+		* Two clearly labeled sections: **Active Sources** (list) and **Suppressed Sources** (list)
+		* Two buttons:
+			* Turn Off Active Source → opens dropdown of active sources. If no active sources exist, generate error message instead.
+			* Turn On Suppressed Source → opens dropdown of suppressed sources. If no suppressed sources exist, generate error message instead.
+		* After a source is toggled, whisper confirmation to GM (e.g., "Source 'Holidays of Khorvaire' disabled.")
+	* Remove/Restore
+		* Outputs a clean, compact table of all events (active and suppressed), numbered chronologically from the preset date.
+		* Columns: #, Event Name, Month, Day, Year (Month or Year may say "All" for recurring events).
+		* Active events: standard dark text. Suppressed events: fainter/dimmed text.
+		* Two buttons at the bottom:
+			* Remove → opens query accepting the # from the table
+			* Restore → opens query accepting the # from the table
+		* Numbers are ephemeral — generated when the table is rendered, not persisted.
+		* After a remove or restore action, whisper confirmation to GM (e.g., "Removed event #3: Midwinter's Day" or "Restored event #7: Wildnight").
 
 #### Moons (!cal moons)
 * All info is specific to the current calendar date.
@@ -323,9 +338,8 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 
 These are unresolved design questions extracted from the subsystem specs above.
 
-1. **Events Management completeness**: Are there other event management options needed beyond Add Single/Monthly/Yearly, Source Controls, and the existing Remove commands?
-2. **Moon phase mutation**: Confirm that setting a new/full shifts existing phases non-invasively and drops back into the regular cycle once past the set phase. We never *add* a phase, we just shift. Is that correct?
-3. **Weather hazard completeness**: The 6 implemented hazards are Flash Flood, Whiteout, Ground Blizzard, Dust Storm (Haboob), Avalanche, Severe Thunderstorm. Are there other hazard types needed (e.g., Tornado, Heatwave, Ice Storm)?
+1. **Moon phase mutation**: Confirm that setting a new/full shifts existing phases non-invasively and drops back into the regular cycle once past the set phase. We never *add* a phase, we just shift. Is that correct?
+2. **Weather hazard completeness**: The 6 implemented hazards are Flash Flood, Whiteout, Ground Blizzard, Dust Storm (Haboob), Avalanche, Severe Thunderstorm. Are there other hazard types needed (e.g., Tornado, Heatwave, Ice Storm)?
 
 
 ---
