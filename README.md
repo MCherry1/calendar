@@ -207,7 +207,7 @@ Recommended medium-tier DC ladder:
 | --- | --- | --- | --- | --- |
 | Weather | 1 day | 3 days | 6 days | 10 days |
 | Moons | 1 month | 3 months | 6 months | 10 months |
-| Planes | 1 day | 3 days | 6 days | 10 days |
+| Planes | 1 month | 3 months | 6 months | 10 months |
 
 Use that table as the default "skilled forecast" pacing for Survival, Nature, navigator's tools, almanacs, observatory records, or planar scholarship. The script's reveal buttons already line up with those windows even when your campaign fiction explains them differently.
 
@@ -274,113 +274,11 @@ Moon phases are intentionally flexible as a narrative tool. GMs can anchor any m
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | Earth | Luna | 29.53 days | 2,159 mi | 238,855 mi | 5.14° | 0.0549 | 0.12 | 2021-01-28 (full moon) |
 | Faerûn | Selûne | 30.44 days | 2,000 mi | 183,000 mi | 5.1° | 0.054 | 0.25 | 1372-01-01 (full at midnight Hammer 1, 1372 DR) |
-| Eberron | 12 moons (see below) | Mixed | Mixed | Mixed | Mixed | Mixed | Mixed | 998-01-01 default seed anchor |
+| Eberron | 12 moons | Mixed | Mixed | Mixed | Mixed | Mixed | Mixed | 998-01-01 default seed anchor |
 
 - **Faerûn tilt note:** Selûne's inclination is retained for consistent sky geometry and future-proofing, even in a one-moon system.
-- **Eberron approach:** Each moon keeps canonical flavor (name/color/role) while borrowing orbital-shape values from selected real-world reference moons.
 
-### Eberron-Specific Cosmology
-
-Eberron is modeled as Earth-like for baseline astronomical geometry (including axial tilt assumptions for daylight-length variation across the year). In this script, however, **temperature is not driven by axial/solar-season physics**. Seasonal weather pressure is handled through the campaign's planar/weather system instead.
-
-That means axial tilt mostly shows up as broad seasonal daylight framing: longer summer days, shorter winter days, and corresponding shifts in the script's coarse time-of-day buckets. Because the script does not track latitude, it intentionally stops short of city-by-city sunrise tables or exact numeric day-length curves.
-
-### Ring of Siberys
-
-- Single equatorial ring at **0° inclination**
-- Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
-- Extends roughly **370 to 3,480 miles (600 to 5,600 km)** above the surface
-- **Albedo 0.50**, chosen from a Saturn-ring-inspired analog and tuned to preserve the setting goal that the ring is visibly bright even by day
-- Contributes about **0.008 lux** of nighttime illumination by itself, forming most of the script's ~0.010 lux ambient clear-night baseline with starlight
-- Serves as a constant visual feature of the sky, distinct from the moving moons and planar effects
-- The outer edge still sits about **2,300 km / 1,430 mi inside Zarantyr's mean orbit**, so the Ring never overlaps the nearest moon's track in the model
-- Angular-size note: Earth's Moon is the script's `1.0x` apparent-diameter baseline; Zarantyr is about `9.08x`, Olarune `5.73x`, Therendor `2.91x`, Dravago `2.66x`, and Eyre `2.38x`. The Ring is not a disk at all, but a sky-spanning band that dwarfs any moon as a visual structure
-- Saturn-rings reference note: the real rings are mostly water ice with dust/rock contamination, with particles ranging from dust grains to mountain-scale chunks. Their brightness varies by ring, from darker dirty sections to bright B-ring ice; the script's `0.50` uses a bright-average analog rather than claiming every ringlet is equally reflective
-### Moons of Eberron
-
-The Eberron implementation uses fixed synodic periods on a 336-day year scaffold to keep moon cycles readable in play while preserving distinct rhythms. Exact full/new peaks only move when an external force does so deliberately.
-
-Those external pulls currently come from festival nudges to local noon, canonical associated-plane windows that pull an exact full/new peak onto the nearest edge-day noon when a window would otherwise miss it, Long Shadows gobbling that centers claimed new moons on noon of Vult 27, GM anchors, and the Therendor/Barrakas anti-phase coupling.
-
-Day labels for `Full` and `New` are calibrated to the 12-moon Eberron sky: `Full` means at least `98.004%` illumination and `New` means at most `1.996%` illumination. That keeps the system at an average of 19 days per 28-day month with at least one full moon.
-
-| Eberron Moon | Title             | Plane     | Dragonmark          | Synodic Period (days) | Approx. Diameter (mi) | Mean Distance (mi) | Apparent Diameter vs Earth's Moon | Inclination (°) | Eccentricity | Albedo |
-| ------------ | ----------------- | --------- | ------------------- | --------------------: | --------------------: | -----------------: | --------------------------------: | --------------: | -----------: | -----: |
-| Zarantyr     | The Storm Moon    | Kythri    | Mark of Storm       |               27.3200 |                  1250 |             14,300 |                             9.08x |           5.145 |       0.0549 |   0.12 |
-| Olarune      | The Sentinel Moon | Lamannia  | Mark of Sentinel    |               30.8052 |                  1000 |             18,000 |                             5.73x |            0.33 |       0.0288 |   0.22 |
-| Therendor    | The Healer's Moon | Syrania   | Mark of Healing     |               34.7350 |                  1100 |             39,000 |                             2.91x |            0.03 |       0.0022 |   0.99 |
-| Eyre         | The Anvil         | Fernia    | Mark of Making      |               39.1661 |                  1200 |             52,000 |                             2.38x |            1.53 |       0.0196 |   0.96 |
-| Dravago      | The Herder's Moon | Risia     | Mark of Handling    |               44.1625 |                  2000 |             77,500 |                             2.66x | 156.8 (retrograde) |     0.000016 |   0.76 |
-| Nymm         | The Crown         | Daanvi    | Mark of Hospitality |               49.7962 |                   900 |             95,000 |                             0.98x |            0.20 |       0.0013 |   0.43 |
-| Lharvion     | The Eye           | Xoriat    | Mark of Detection   |               56.1487 |                  1350 |            125,000 |                             1.11x |            0.43 |       0.1230 |   0.30 |
-| Barrakas     | The Lantern       | Irian     | Mark of Finding     |               63.3115 |                  1500 |            144,000 |                             1.07x |            0.02 |       0.0047 |  1.375 |
-| Rhaan        | The Book          | Thelanis  | Mark of Scribing    |               71.3881 |                   800 |            168,000 |                             0.49x |            4.34 |       0.0013 |   0.32 |
-| Sypheros     | The Shadow        | Mabar     | Mark of Shadow      |               80.4950 |                  1100 |            183,000 |                             0.62x |            1.08 |       0.0151 |  0.071 |
-| Aryth        | The Gateway       | Dolurrh   | Mark of Passage     |               90.7637 |                  1300 |            195,000 |                             0.69x |            7.57 |       0.0283 |  0.275 |
-| Vult         | The Warding Moon  | Shavarath | Mark of Warding     |              102.3424 |                  1800 |            252,000 |                             0.74x |            0.07 |       0.0014 |   0.23 |
-
-#### Why these reference moons
-
-The resolved selection goal was not "pick moons with matching names." It was "pick real reference bodies whose orbital behavior supports the in-setting story."
-
-- Therendor and Barrakas were chosen as a near-coplanar pair: Dione and Enceladus sit at `0.03` and `0.02` inclination, which supports frequent crossings and the lore that those two moons closely track one another.
-- Eyre ended on Mimas because the mythic and visual fit beat the earlier high-inclination candidates: bright, scarred, forge-flavored, and still mechanically distinct without needing to stay the wildest orbit in the sky.
-- Dravago ended on retrograde Triton because "keeps its distance from other moons" reads best as behavioral separation. It moves opposite every other moon, which sells the Herder's outsider character more strongly than a prograde shepherd moon would.
-- Sypheros ended on Phobos because the doomed inward spiral fits Mabar's entropy better than a purely retrograde option. It feels like a moon already being consumed.
-- Barrakas keeps Enceladus's base albedo at `1.375` rather than the old amplified-lantern variants. That leaves it unmistakably bright without making it dominate the whole sky over Zarantyr.
-
-The result is a moon set that keeps the orbital math grounded while still privileging Eberron flavor when a pure "best-fit spreadsheet" answer would miss the point.
-
-#### Eberron Moon Reference Inspirations
-Name notes below are interpretive flavor cues, not confirmed in-setting etymologies.
-
-##### Zarantyr
-**Reference body:** Luna (Earth). **Name note:** The hard, storm-cut sound fits Kythri's violence.
-The sky's dominant moon: huge, pale, and close enough to feel like a threat when the weather turns.
-
-##### Olarune
-**Reference body:** Titan (Saturn). **Name note:** The rounded syllables feel older and steadier than Zarantyr's bite.
-Amber and watchful, Olarune reads as a patient guardian hanging over the wild.
-
-##### Therendor
-**Reference body:** Dione (Saturn). **Name note:** Its gentler cadence suits a moon tied to healing and mercy.
-Small but brilliant, Therendor is the clean silver lamp of the upper sky.
-
-##### Eyre
-**Reference body:** Mimas (Saturn). **Name note:** The name feels clipped and forge-hot, matching Fernia better than a softer lunar name.
-Eyre is the smith's moon: bright, battered, and marked by one overwhelming scar like a forge-struck face.
-
-##### Dravago
-**Reference body:** Triton (Neptune). **Name note:** The heavier consonants give it a hulking, winter-beast feel.
-Big in truth but distant in the sky, Dravago feels cold, remote, and stubbornly separate from the others.
-
-##### Nymm
-**Reference body:** Ganymede (Jupiter). **Name note:** The short, ceremonial sound suits a moon of feasts and order.
-Nymm is the courtly moon: balanced, golden, and almost Earth-Moon-sized to the eye.
-
-##### Lharvion
-**Reference body:** Hyperion (Saturn). **Name note:** The stretched vowels make it sound unstable and slightly wrong.
-Lharvion is the unsettling one, swelling and shrinking more dramatically than any moon that should be trusted.
-
-##### Barrakas
-**Reference body:** Enceladus (Saturn). **Name note:** The name lands like a struck bell or a lantern being hooked into place.
-Barrakas is the traveler's moon: steady, near-equatorial, and implausibly bright.
-
-##### Rhaan
-**Reference body:** Miranda (Uranus). **Name note:** The breathy opening makes it feel like a spoken word or half-remembered story.
-Rhaan is a little blue-white page in the sky, more literary than majestic.
-
-##### Sypheros
-**Reference body:** Phobos (Mars). **Name note:** The whispering sibilants fit secrecy and decay.
-Dim even at its best, Sypheros looks like a moon already half-lost to darkness.
-
-##### Aryth
-**Reference body:** Iapetus (Saturn). **Name note:** The abrupt ending gives it a gate-like finality.
-Aryth is the threshold moon: half dark, half burning, with a dividing line that feels deliberate.
-
-##### Vult
-**Reference body:** Oberon (Uranus). **Name note:** Short and blunt, like a fortress command barked across a wall.
-Far out and slow-moving, Vult feels like the last watchfire on the edge of the world.
+Setting-specific moon data (orbital parameters, lore, and cosmological features) is documented under each setting in [Supported Settings](#supported-settings).
 
 </details>
 
@@ -504,12 +402,7 @@ Manifest zones layer magical influences on top of the active location profile. T
 - Changing the weather location clears all active manifest zones.
 - Manifest zones affect **today's** local weather only; future forecast rows stay tied to the base location profile.
 
-Typical examples include:
-- **Fernia** warming conditions
-- **Risia** cooling conditions
-- **Lamannia** increasing precipitation pressure
-- **Syrania** making skies milder and less storm-prone
-- **Kythri** adding chaotic swings
+The available manifest zones and their effects are setting-dependent. For example, in Eberron, Fernia warms conditions, Risia cools them, and Syrania calms winds. See [Supported Settings](#supported-settings) for full details.
 
 Clear manifest zones without changing the location when leaving the area.
 
@@ -517,25 +410,7 @@ Run `!cal weather manifest` in chat for the chooser, or use the weather panel's 
 
 ### Planar Effects
 
-Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather.
-
-| Plane | Coterminous | Remote | Direct Weather Overlay |
-| --- | --- | --- | --- |
-| Daanvi | Civilization and ritual order may strengthen, but no obvious global effect is expected. | Century-long remote period with no obvious global effect. | None |
-| Dal Quor | Not applicable in normal play. | Only reachable through dreaming; no natural manifest zones. | None |
-| Dolurrh | Ghosts slip through more easily and resurrection becomes risky. | Traditional resurrection fails without retrieving the spirit. | None |
-| Fernia | Extreme heat, empowered fire, and burning-bright conditions spread. | Intense heat loses more of its bite. | `+3` temperature / `-2` temperature |
-| Irian | Life, fertility, and radiant vitality surge. | The world feels faded and healing is weaker. | `+1` temperature / none |
-| Kythri | No stable global effect. | No stable global effect. | None |
-| Lamannia | Natural and manifest-zone effects are enhanced. | Nature feels weaker and beast/elemental magic shortens. | `+1` precipitation / none |
-| Mabar | Long Shadows and necrotic darkness intensify at night. | Necrotic influence recedes and undead are easier to turn. | `-1` temperature during coterminous nights / none |
-| Risia | Extreme cold, empowered ice, and frozen stillness spread. | Intense cold loses more of its bite. | `-3` temperature / `+2` temperature |
-| Shavarath | Anger, conflict, and war magic intensify. | Mostly suppresses Shavarath's own spike events. | None |
-| Syrania | Goodwill spreads and the day's weather is forced clear and calm. | Skies turn gray and social friction rises. | wind `0`, precipitation `0` / `+1` precipitation |
-| Thelanis | New gateways and fey crossings become easier. | Fey influence and manifest-zone effects are suppressed. | None |
-| Xoriat | Not normally reachable through canonical cycles. | Remote madness has no known global weather effect. | None |
-
-Syrania remains the strongest direct weather override in the model. Its **coterminous** state forces calm, clear conditions for the day, while **remote** Syrania adds precipitation pressure. Syranian manifest zones stay the lighter local modifier of `-1` wind and `-1` precipitation.
+Planes can also alter weather while they are **coterminous** or **remote**. These are campaign-wide overlays rather than local manifest-zone effects. Current weather views annotate when a moon, plane, or manifest zone is actively influencing the weather. The specific planar weather overlays are setting-dependent — see [Supported Settings](#supported-settings) for the full table.
 
 </details>
 
@@ -547,7 +422,7 @@ Syrania remains the strongest direct weather override in the model. Its **coterm
 <details>
 <summary>Show planar alignment model and generated-event tables</summary>
 
-The planar subsystem is Eberron-specific and tracks the Planes of Existence. These 13 planes exist alongside the Material Plane where Eberron sits, influencing it in many ways. One of those ways is through alignments. In this system, a Plane of Existence can be **coterminous**, **remote**, or **neither**.
+The planar subsystem tracks Planes of Existence and their alignment cycles. In this system, a plane can be **coterminous**, **remote**, or **neither**. The specific planes, cycle structures, and generated-event profiles are setting-dependent — see [Supported Settings](#supported-settings) for details.
 
 **Coterminous** planes strengthen their associated traits.
 
@@ -555,36 +430,15 @@ The planar subsystem is Eberron-specific and tracks the Planes of Existence. The
 
 ### Sources
 
-There are three types of events in this system:
-#### Traditional
-- Use the cycle structure published in *Exploring Eberron*.
-- **Anchor dates** for the multi-year cycles are needed where canon leaves them unspecified.
-	- GMs can provide their own anchor date for each plane, setting the traditional cycle of the planes to suit their campaign.
-	- In the absence of a GM-defined anchor, the script generates it's own anchor date from the world seed. (This seed is used throughout the script. Using the same seed in different API sandboxes or campaigns will always generate the same world state.)
-#### GM Defined
-- **GM controls** can force any plane **coterminous**, **remote**, or **neither** (*off*), regardless of pre-existing schedules, for any duration desired.
+There are three types of planar events:
 
-#### Generated
-- **Generated** events add non-traditional coterminous/remote events using plane-specific dice profiles and durations.
-- Generated events can be toggled on or off independent of the rest of the system.
-- The script prevents generated events from overriding active canonical or GM-defined planar periods.
-- When a GM uses `!cal planes send ...`, players receive an archived non-interactive summary and the GM receives the full interactive panel back as a whisper.
+- **Traditional** — Canonical cycle structures from published setting material. Anchor dates for multi-year cycles can be GM-defined or auto-generated from the world seed.
+- **GM Defined** — Force any plane coterminous, remote, or neither, for any duration desired.
+- **Generated** — Non-traditional coterminous/remote events using plane-specific dice profiles and durations. Can be toggled on/off independently. Never override active canonical or GM-defined periods.
 
-| Plane | Expected Events / Year | Cot / Remote Split | Duration | Dice / Trigger |
-| --- | ---: | --- | --- | --- |
-| Daanvi | ~16.8 | 50 / 50, with post-event alternation pressure | 10 days | `d20 (1)` then `d10` (`1-5` remote, `6-10` coterminous) |
-| Dal Quor | 0 | None | None | Sealed; no generated events |
-| Dolurrh | ~7.0 | Aryth full -> coterminous, Aryth new -> remote | 1 day | Aryth full/new plus `d20 (11-20)` |
-| Fernia | ~3.4 | `d10` decides phase after selector hit | `d3` days | Linked pair: `d20 (20)` selects Fernia, then `d10 (10 cot / 1 remote)` |
-| Irian | ~2.1 | 50 / 50 | `d3` days | `d4 (4)` + `d4 (4)` + `d20 (20 cot / 1 remote)` |
-| Kythri | ~6.7 | Mostly coterminous | `d12` days | `d100 (100 cot / 1 remote)` |
-| Lamannia | ~4.2 | Moon- and dice-driven | `d3` days | Olarune-qualified rolls plus fallback `d100` checks |
-| Mabar | ~4.2 | 75% coterminous, 25% remote | 1 day | `d20 (1)` + `d4 (1)` |
-| Risia | ~3.4 | `d10` decides phase after selector hit | `d3` days | Linked pair: `d20 (1)` selects Risia, then `d10 (10 cot / 1 remote)` |
-| Shavarath | ~9.8 | 100% coterminous | 1 day | `d20 (14-20)` + `d12 (12)` |
-| Syrania | ~0.21 | Mostly coterminous | 1 day | `d100 (100)` + `d4 (4)` + `d8 (8 cot / 1 remote)` |
-| Thelanis | ~2.8 | Mostly coterminous | `3` or `7` days | `d20 (20)` + `d12 (12 cot / 1 remote)` |
-| Xoriat | ~0.84 | 100% remote | `d20` days | `d100 (1)` + `d4 (1)` |
+When a GM uses `!cal planes send ...`, players receive an archived non-interactive summary and the GM receives the full interactive panel back as a whisper.
+
+Setting-specific plane lists, cycle structures, and generated-event profiles are in [Supported Settings](#supported-settings).
 
 </details>
 
@@ -1032,6 +886,88 @@ Switch settings via the setup wizard (`!cal setup`) or Admin panel (`!cal` → A
 - **Weather:** Full location-based weather with temperature, wind, precipitation, and D&D 5e mechanics
 - **Planes:** 13 transitive/outer planes with coterminous/remote cycles, manifest zones, and timed overrides
 - **Events:** Sharn, Khorvaire, Sovereign Host, Dark Six, Silver Flame, and Stormreach event packs
+
+#### Cosmology
+
+Eberron is modeled as Earth-like for baseline astronomical geometry (including axial tilt assumptions for daylight-length variation across the year). **Temperature is not driven by axial/solar-season physics** — seasonal weather pressure is handled through the planar/weather system instead. Axial tilt mostly shows up as broad seasonal daylight framing: longer summer days, shorter winter days, and corresponding shifts in the coarse time-of-day buckets.
+
+#### Ring of Siberys
+
+- Single equatorial ring at **0° inclination**
+- Uses **Saturn's rings** as the physical analog, scaled to fit inside Zarantyr's orbit
+- Extends roughly **370 to 3,480 miles (600 to 5,600 km)** above the surface
+- **Albedo 0.50**, tuned to preserve the setting goal that the ring is visibly bright even by day
+- Contributes about **0.008 lux** of nighttime illumination, forming most of the ~0.010 lux ambient clear-night baseline with starlight
+- The outer edge sits about **2,300 km / 1,430 mi inside Zarantyr's mean orbit**, so the Ring never overlaps the nearest moon's track
+
+#### Moons of Eberron
+
+The Eberron implementation uses fixed synodic periods on a 336-day year scaffold. Exact full/new peaks only move when an external force does so deliberately: festival nudges, canonical associated-plane windows, Long Shadows gobbling, GM anchors, or the Therendor/Barrakas anti-phase coupling.
+
+`Full` means at least `98.004%` illumination; `New` means at most `1.996%` illumination.
+
+| Moon | Title | Plane | Dragonmark | Synodic Period | Apparent Size | Albedo |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| Zarantyr | The Storm Moon | Kythri | Mark of Storm | 27.32 days | 9.08x | 0.12 |
+| Olarune | The Sentinel Moon | Lamannia | Mark of Sentinel | 30.81 days | 5.73x | 0.22 |
+| Therendor | The Healer's Moon | Syrania | Mark of Healing | 34.74 days | 2.91x | 0.99 |
+| Eyre | The Anvil | Fernia | Mark of Making | 39.17 days | 2.38x | 0.96 |
+| Dravago | The Herder's Moon | Risia | Mark of Handling | 44.16 days | 2.66x | 0.76 |
+| Nymm | The Crown | Daanvi | Mark of Hospitality | 49.80 days | 0.98x | 0.43 |
+| Lharvion | The Eye | Xoriat | Mark of Detection | 56.15 days | 1.11x | 0.30 |
+| Barrakas | The Lantern | Irian | Mark of Finding | 63.31 days | 1.07x | 1.375 |
+| Rhaan | The Book | Thelanis | Mark of Scribing | 71.39 days | 0.49x | 0.32 |
+| Sypheros | The Shadow | Mabar | Mark of Shadow | 80.50 days | 0.62x | 0.071 |
+| Aryth | The Gateway | Dolurrh | Mark of Passage | 90.76 days | 0.69x | 0.275 |
+| Vult | The Warding Moon | Shavarath | Mark of Warding | 102.34 days | 0.74x | 0.23 |
+
+Apparent size is relative to Earth's Moon (Luna). Each moon borrows orbital-shape values from a selected real-world reference body chosen for behavioral fit with its in-setting story.
+
+#### Planar Weather Effects
+
+| Plane | Coterminous | Remote | Weather Overlay |
+| --- | --- | --- | --- |
+| Daanvi | Order strengthens | Century-long remote | None |
+| Dal Quor | N/A | Only reachable through dreaming | None |
+| Dolurrh | Ghosts slip through | Resurrection fails without retrieval | None |
+| Fernia | Extreme heat, empowered fire | Heat loses its bite | `+3` / `-2` temp |
+| Irian | Radiant vitality surges | World feels faded | `+1` temp / none |
+| Kythri | No stable global effect | No stable global effect | None |
+| Lamannia | Nature enhanced | Nature weakened | `+1` precip / none |
+| Mabar | Necrotic darkness at night | Undead easier to turn | `-1` temp (nights) / none |
+| Risia | Extreme cold, frozen stillness | Cold loses its bite | `-3` / `+2` temp |
+| Shavarath | War magic intensifies | Suppresses own events | None |
+| Syrania | Clear, calm weather forced | Gray skies, friction | wind/precip `0` / `+1` precip |
+| Thelanis | Fey crossings easier | Fey influence suppressed | None |
+| Xoriat | Not normally reachable | No weather effect | None |
+
+#### Manifest Zones
+
+- **Fernia** — warming conditions
+- **Risia** — cooling conditions
+- **Lamannia** — increased precipitation pressure
+- **Syrania** — milder, less storm-prone skies
+- **Kythri** — chaotic weather swings
+
+#### Generated Planar Events
+
+Traditional cycles use the structure from *Exploring Eberron*. Generated events use these dice profiles:
+
+| Plane | Events/Year | Cot/Remote Split | Duration | Dice/Trigger |
+| --- | ---: | --- | --- | --- |
+| Daanvi | ~16.8 | 50/50 with alternation pressure | 10 days | `d20 (1)` then `d10` |
+| Dal Quor | 0 | Sealed | None | No generated events |
+| Dolurrh | ~7.0 | Aryth full→cot, new→remote | 1 day | Aryth phase + `d20 (11-20)` |
+| Fernia | ~3.4 | `d10` decides | `d3` days | Linked: `d20 (20)` then `d10` |
+| Irian | ~2.1 | 50/50 | `d3` days | `d4 (4)` + `d4 (4)` + `d20` |
+| Kythri | ~6.7 | Mostly cot | `d12` days | `d100 (100 cot / 1 remote)` |
+| Lamannia | ~4.2 | Moon/dice-driven | `d3` days | Olarune-qualified + `d100` |
+| Mabar | ~4.2 | 75% cot | 1 day | `d20 (1)` + `d4 (1)` |
+| Risia | ~3.4 | `d10` decides | `d3` days | Linked: `d20 (1)` then `d10` |
+| Shavarath | ~9.8 | 100% cot | 1 day | `d20 (14-20)` + `d12 (12)` |
+| Syrania | ~0.21 | Mostly cot | 1 day | `d100 (100)` + `d4 (4)` + `d8` |
+| Thelanis | ~2.8 | Mostly cot | 3 or 7 days | `d20 (20)` + `d12` |
+| Xoriat | ~0.84 | 100% remote | `d20` days | `d100 (1)` + `d4 (1)` |
 
 </details>
 
