@@ -76,7 +76,7 @@ On initialization, the script asks for a starting date. The prompt is in the dis
 ---
 ### Default Views Redesign and System Entry Points
 
-This script has gotten badly mangled in it's presentation through various unguided fixes. Here is the overall picture.
+This script has gotten badly mangled in its presentation through various unguided fixes. Here is the overall picture.
 
 There are 5 core commands:
 * !cal
@@ -87,12 +87,12 @@ There are 5 core commands:
 * !cal weather
 * !cal planes
 
-Aside from !cal, each these is the default entry point to their subsystem. ALL of them will output a system-specific minical. I will now define their minical display, player view variation, and buttons.
+Aside from !cal, each of these is the default entry point to their subsystem. ALL of them will output a system-specific minical. Below: minical display, text info, and buttons for each.
 
 #### Today (!cal or !cal today)
-* All info is specific to the current calendar date
+* All info is specific to the current calendar date.
 * Only show information if the subsystem is active.
-* Show New and/or Full moons 
+* Show New and/or Full moons.
 ##### Minical
 * Events minical
 ##### Text Info
@@ -111,28 +111,36 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 * Coterminous Planes: List
 * Remote Planes: List
 ##### Buttons
-* forward arrow Time of Day forward-arrow if already active, otherwise bullet below (if weather is active only)
+* ⏩ Time of Day ⏩ if already active, otherwise the Enable button below (weather must be active)
 * Enable Time of Day (if weather is active)
-* Back arrow Date | Date forward arrow (use the arrow emojis here)
-* Send Today View to players
-* Additional Options (Drop down menu)
+* ⬅ Date | Date ➡ (date step arrows)
+* Send Today View to Players
+* Additional Options (drop down menu)
 	* Events
 	* Moons
 	* Weather
 	* Planes
-	* Admin
+	* Admin (drop down menu, GM only)
+		* Enable/Disable Moons
+		* Enable/Disable Weather
+		* Enable/Disable Planes
+		* Theme
+		* Calendar System
+		* Hemisphere
+		* Season Set
+		* Reset Calendar
 
 #### Events (!cal events)
 * This system is for managing events.
 * Only show information if the relevant subsystem is active.
 ##### Minical
-* Default to Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
-* Header bar is based on the color scheme, and consists of the current month and year
-* Subheader bar is the days of the week
-* Cells are numbered, with a fill color from the events
-* Colored dots shown on multi-event days
-* Tooltip event titles on hover (sources in parentheses)
-* If the show previous/next buttons are used, obviously, show those months.
+* Default to current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Header bar is based on the color scheme, and consists of the current month and year.
+* Subheader bar is the days of the week.
+* Cells are numbered, with a fill color from the events.
+* Colored dots shown on multi-event days.
+* Tooltip event titles on hover (sources in parentheses).
+* If the previous/next buttons are used, show those months.
 ##### Text Info
 * Current Date
 * If and only if the displayed month is the same as the current month:
@@ -140,7 +148,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 ##### Buttons
 * Previous | Next (months)
 	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Additional Ranges or Management.
-* Send to Players (send month view to players, GM only. this one is specific. its not necessarily the ACTIVE CURRENT month, but the month that was most recently displayed to the GM, which many be differnt via the previous and next buttons)
+* Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
 * small line break
 * Additional Ranges (opens drop down menu)
 	* Full Year
@@ -149,28 +157,27 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
 * small line break
-* Management (creates drop-down menu, GM only)
+* Management (drop down menu, GM only)
 	* Add Custom Events (drop down menu)
-		* Add Single Event (query, dd or mm dd or mm dd yyyy, next matching occurance that fits the date provided)
-		* Add Monthly Event (query, dd only)
-		* Add Yearly Event (query, mm dd only)
+		* Add Single Event (query: dd or mm dd or mm dd yyyy, next matching occurrence that fits the date provided)
+		* Add Monthly Event (query: dd only)
+		* Add Yearly Event (query: mm dd only)
 		* After event date is captured, drop down menu of colors
-		* After event is created, whisper details to GM (color swatch "so and so created (annually/monthly) on insert date format)
-	* Source Controls (I think these are super cluttered but will address later)
-	* Agent task are there other event managements needed?
+		* After event is created, whisper details to GM (color swatch, name, recurrence, date)
+	* Source Controls (cluttered — will address later)
 
-#### Moons
-* All info is specific to the current calendar date
+#### Moons (!cal moons)
+* All info is specific to the current calendar date.
 * Only show information if the subsystem is active.
-* Show New and/or Full moons
+* Show New and/or Full moons.
 ##### Minical
 * Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
-* Header bar is based on the color scheme, and consists of the current month and year
-* Subheader bar is the days of the week
-* Cells are numbered, with a black dot for at least 1 new and a yellow dot for at least 1 full
-	* These dots should be a good size. not small. should be clear
+* Header bar is based on the color scheme, and consists of the current month and year.
+* Subheader bar is the days of the week.
+* Cells are numbered, with a black dot for at least 1 new and a yellow dot for at least 1 full.
+	* These dots should be a good size — not small, should be clear.
 	* For systems with only one moon, replace the numbered date with a full or new moon emoji as appropriate.
-	* For systems with only one moon, tooltip hover should say phase (waxing gibbous, etc.)
+	* For systems with only one moon, tooltip hover should say phase (waxing gibbous, etc.).
 * Tooltip on hover with an indented bulleted list under New: and another under Full:, listing all moons either new or full.
 ##### Text Info
 * Current Date
@@ -180,7 +187,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 ##### Buttons
 * Previous | Next (month steps)
 	* Shows the requested month, Current Date below, Ascendant Moons below (for the named month), and regenerates the prev/next buttons and the send button, but NOT the Additional Views, Current Phases, or Management.
-* Send to Players (send month view to players, GM only. this one is specific. its not necessarily the ACTIVE CURRENT month, but the month that was most recently displayed to the GM, which many be differnt via the previous and next buttons)
+* Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
 * small line break
 * Current Phases
 	* Whispers a clean bulleted list with swatch + moon name, subbullets current phase (waning crescent, etc.) and upcoming "New/Full in X days on insert-month-and-day-date-format"
@@ -190,7 +197,7 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* Displays Single Bar with Moon Name, colored with moon color, then outputs a year's worth of minicals
 	* Current date cell is still emphasized
 	* Replaces the numbered date in a cell with a full or new moon emoji, when appropriate
-	* tooltip hover should say phase (waxing gibbous, etc.)
+	* Tooltip hover should say phase (waxing gibbous, etc.)
 * small line break
 * Additional Ranges (no additional buttons after these are displayed)
 	* Full Year
@@ -200,59 +207,125 @@ Aside from !cal, each these is the default entry point to their subsystem. ALL o
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
 * small line break
 * Management (drop down menu, GM only)
+	* Toggle Moons On/Off
+	* Reseed Moons
 	* Set New (drop down menu)
 		* query for dd, mm dd, mm dd yyyy
 	* Set Full (drop down menu)
 		* query for dd, mm dd, mm dd yyyy
-	* agent task: I am pretty sure we never *add* a phase, we just shift existing phases to accomodate. Can you check on this? And when we smoothly move phases to acommodate, we also just drop right back into the regular cycle once we're past the set phase, right? that's the way it should work. setting a full or new should as non-invasively as possible just mutate the whole system for that moon 
 
-#### Weather (agent task this weather section isn't quite as detailed but you can take instruction from it and inspiration from the other sections above)
-* All info is specific to the current calendar date
+#### Weather (!cal weather)
+* All info is specific to the current calendar date.
 * Only show information if the subsystem is active.
+* Weather is range-based (showing generated forecast days), not month-based like the other views.
+* We calculate all time-of-day variation behind the scenes, but only *present* afternoon weather, mechanics, and lighting UNLESS time of day is active.
 ##### Minical
-* The weather minical is a bit different than the others
-* it only needs the fully generated range
-* if there are previous days to the left of the current day (as in its not the first day of the week, show those days' weather slightly faded)
-* only show last weeks weather if its the first day of the week, and you need a whole extra row for "yesterday"
-* shuld have header bar, weekday headers, but then the cell should be unique. the weatehr cell should have a small vertical gap fro mthe weekday name bar.
-* emoji weather primary, but below it a L / H for the day. no numbered date is required, but we should use today style for that bit of obviousness
-* if more than one row is required to show the known informatio, rows below should be similarly gapped
-* lets refactor the weather a bit here. we're going to calculate the time of day stuff and all the variation, but we're only going to "use" afternoon weather UNLESS time of day is active
-* the lows and highs should be in Farenheit, which is easy, because well just add 1d10 randomly from the bottom end of the band range. the mechanics only care about the band so this specifics is just flavor. the only gotcha is making sure low is lower than high when the temp band is the same the whole day.
-* we'll have the Low and High band from all of our time of day stuff
-* when we present mechanics, we ONLY present afternoon mechanics, UNLESS time of day is active. We will still use all the nuance behind the scenes, but when we present mechanics or emojis, we aren't going to clutter the whole system with the whole day. this includes lighting 
-* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
-* Cells are numbered, with a fill color from the events
+* The weather minical differs from others: it only shows the generated forecast range, not full months.
+* Header bar is based on the color scheme, and consists of the current month and year.
+* Subheader bar is the days of the week.
+* Weather cells have a small vertical gap from the weekday header bar.
+* Each cell shows an emoji weather icon as the primary display, with L / H temperature (Fahrenheit) below it.
+	* Fahrenheit values are flavor: add 1d10 randomly from the bottom of the band range. Mechanics only care about the band. Ensure Low is lower than High when the temperature band is the same all day.
+* No numbered date is required, but the current day cell uses the "today" emphasis style.
+* Previous days to the left of the current day (if it's not the first day of the week) show their weather slightly faded.
+* Only show a prior week row if the current day is the first day of the week and you need an extra row for "yesterday."
+* If more than one row is needed to show the known forecast range, subsequent rows are similarly gapped from the row above.
+* We'll have the Low and High band from all of our time-of-day calculations.
+* Tooltip on hover shows a weather narrative for that day.
 ##### Text Info
 * Current Date
-* Time of Day
-* Current Location
-* Current Weather
+* Time of Day (if active)
+* Current Location (climate + geography + terrain label)
+* Manifest Zones (if any active, with names)
+* Current Weather (narrative description)
 * Current Light Level (if before sunrise or after sunset)
-* Active Mechanics
+* Active Mechanics (mechanical effects from weather conditions)
+* Extreme Weather Hazards (if triggered — hazard name, probability, mechanics summary)
 ##### Buttons
-* Send (send forecast to players, GM only, renders enough cells to cover the range)
+* Send to Players (send forecast to players, GM only, renders enough cells to cover the revealed range)
 * small spacer line
-* Medium Forecast (4 buttons)
-* High Forecast (4 buttons)
+* Medium Forecast (4 buttons: 1 day / 3 days / 6 days / 10 days)
+* High Forecast (4 buttons: 1 day / 3 days / 6 days / 10 days)
+* Reveal Custom Range (query for date or date range)
 * small spacer line
-* Set Location | Set Manifest Zone (if in Eberron)
+* Extreme Events (if any triggered for the current day)
+	* Trigger (named dropdown of all 6 hazards → confirm → whisper result to GM)
+	* Roll (named dropdown → dice probability check → whisper outcome)
+	* Send to Players (sends the triggered hazard's player message)
 * small spacer line
-* Reveal Additional Range (drop down menu for Medium or High, then a drop down menu for single or multiple days, then a query for start date, then a query for end date. if single day then just says which date)
-* make sure to whisper when location or zone or weather is generated
-#### Planes
-* agent task:
-	* can you update this section to basically match the moons section, but with Coterminous and Remote replacing New and Full, and with the Planes names replacing the moons names? and skipping any phase descriptor line (waxing, waning, etc.).
-	* however, we also want to sort of use the events minical style of cell shading for specific periods. each plane needs a color. when coterminous, will use that color, when remote, will use that color with a bit of fading and some very subtly black diagonal lines shading. make sure that you are shading / cell filling the whole range of the event, not just beginning or end.
-		* an exception is going to be for really long periods - like greater than a month. those wont be shaded
-	* mouse hover tooltip will show Coterminous: List and Remote: List as bulleted lists with plane names, indented below the cot/rem.
-	* text below will be current date, coterminous and remote lists (only covering the current date), but those lists include more info than moons would
-		* After the name of the plane, include in parentheses
-			* For events lasting longer then 1 month: "Coterminous/Remote for Y years and X months Starting in YYY, ending in Y years X months
-				* Use your imagination on how to phrase that. we don't need to know specific date if more than a few months old. "Daanvi went coterminous on Zarantyr 1 85 years ago". 85 years ago is enough.
-			* For events less than a month: ending in X days.
-	* current phases isn't really needed for planes. but specific plane cals ARE. they should use the same logic as the moons. show the whole year. for players (for moons too), only include as far as they have forecast knowledge for. which might be more for planes cause they always know the annual events
-	* Hopefully this is enough
+* Set Location (wizard: Climate → Geography → Terrain)
+* Set Manifest Zone (zone toggle chooser, Eberron only)
+* small spacer line
+* Management (drop down menu, GM only)
+	* Toggle Weather On/Off
+	* Reseed Weather
+	* History (shows as many rows as needed for current location's history; option to wipe history past 20 days)
+	* Reset Weather (resets and regenerates weather for current location; preserves revealed-forecast-level tags for known dates at that location)
+	* Reroll Today (regenerates today's weather, unless locked)
+	* Lock Day (locks a forecast day so it cannot be rerolled)
+	* Whisper confirmations on all location, zone, or weather changes
+
+#### Planes (!cal planes)
+* All info is specific to the current calendar date.
+* Only show information if the subsystem is active.
+* 13 planes with cyclic phases: coterminous, waning, remote, waxing. Some planes are fixed (e.g., Dal Quor permanently remote).
+##### Minical
+* Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
+* Header bar is based on the color scheme, and consists of the current month and year.
+* Subheader bar is the days of the week.
+* Cells are numbered.
+* Cell shading for planar events: each plane has an assigned color.
+	* Coterminous: fill the cell with that plane's color for the entire duration of the event.
+	* Remote: fill the cell with that plane's color, faded, with subtle black diagonal line shading, for the entire duration.
+	* Shade the whole range of the event, not just the start or end day.
+	* Exception: periods longer than one month are not shaded (too long to be visually useful).
+* Tooltip on hover: bulleted list with Coterminous: (list of plane names) and Remote: (list of plane names), indented below headers.
+##### Text Info
+* Current Date
+* Coterminous Planes: List (current date only)
+	* After the plane name, include duration info in parentheses.
+	* Generated events get a `(Generated)` tag at the start of the parenthetical.
+		* Canonical example: "Daanvi (coterminous 85 years ago, ending in 15 years)"
+		* Generated example: "Kythri (Generated, coterminous, ending in 3 days)"
+		* Events lasting longer than 1 month: natural language with approximate duration.
+		* Events less than 1 month: "ending in X days"
+* Remote Planes: List (current date only)
+	* Same duration info and (Generated) tag format as coterminous
+##### Buttons
+* Previous | Next (month steps)
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Specific Planes, Additional Ranges, or Management.
+* Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
+* small line break
+* Specific Planes (named drop down list of all planes)
+	* Displays a single bar with the Plane Name, colored with the plane's color, then outputs a year's worth of minicals.
+	* Current date cell is still emphasized.
+	* Cell shading follows the same coterminous/remote rules as the main minical.
+	* For players, only include as far as their reveal knowledge horizon extends. Players always know canonical/annual events.
+* small line break
+* Additional Ranges (no additional buttons after these are displayed)
+	* Full Year
+	* Upcoming (#n of months in calendar year) months (current month plus n-1)
+	* Specific Month (query mm or mm yyyy)
+	* Specific Year (query yy)
+	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
+* small line break
+* Management (drop down menu, GM only)
+	* Toggle Planes On/Off
+	* Toggle Generated Events On/Off (system-wide, not per-event)
+	* Reseed Planes
+	* Set Phase Override (force a plane to a specific phase, optionally for a duration)
+	* Clear Override (remove a phase override)
+	* Set Anchor (set a cycle anchor date for a plane)
+	* Seed Override (override the seed-derived anchor year)
+	* Whisper confirmations on all changes
+
+#### Open Questions
+
+These are unresolved design questions extracted from the subsystem specs above.
+
+1. **Events Management completeness**: Are there other event management options needed beyond Add Single/Monthly/Yearly, Source Controls, and the existing Remove commands?
+2. **Moon phase mutation**: Confirm that setting a new/full shifts existing phases non-invasively and drops back into the regular cycle once past the set phase. We never *add* a phase, we just shift. Is that correct?
+3. **Weather hazard completeness**: The 6 implemented hazards are Flash Flood, Whiteout, Ground Blizzard, Dust Storm (Haboob), Avalanche, Severe Thunderstorm. Are there other hazard types needed (e.g., Tornado, Heatwave, Ice Storm)?
 
 
 ---
