@@ -42,22 +42,22 @@ import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState,
 // NOTE: This section intentionally excludes the longer moon-selection rationale;
 // keep that in README.md / DESIGN.md instead of runtime data.
 export var EBERRON_MOON_CORE_DATA = {
-  Zarantyr:  { referenceMoon:'Luna (Earth)',      color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
-  Olarune:   { referenceMoon:'Titan (Saturn)',    color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
-  Therendor: { referenceMoon:'Dione (Saturn)',     color:'#D3D3D3', diameter:1100, avgOrbitalDistance:39000 },
-  Eyre:      { referenceMoon:'Mimas (Saturn)',     color:'#C0C0C0', diameter:1200, avgOrbitalDistance:52000 },
-  Dravago:   { referenceMoon:'Triton (Neptune)',   color:'#E6E6FA', diameter:2000, avgOrbitalDistance:77500 },
-  Nymm:      { referenceMoon:'Ganymede (Jupiter)',color:'#FFD96B', diameter:900,  avgOrbitalDistance:95000 },
-  Lharvion:  { referenceMoon:'Hyperion (Saturn)', color:'#F5F5F5', diameter:1350, avgOrbitalDistance:125000 },
-  Barrakas:  { referenceMoon:'Enceladus (Saturn)',color:'#F0F8FF', diameter:1500, avgOrbitalDistance:144000 },
-  Rhaan:     { referenceMoon:'Miranda (Uranus)',  color:'#9AC0FF', diameter:800,  avgOrbitalDistance:168000 },
-  Sypheros:  { referenceMoon:'Phobos (Mars)',     color:'#696969', diameter:1100, avgOrbitalDistance:183000 },
-  Aryth:     { referenceMoon:'Iapetus (Saturn)',  color:'#FF4500', diameter:1300, avgOrbitalDistance:195000 },
-  Vult:      { referenceMoon:'Oberon (Uranus)',   color:'#A9A9A9', diameter:1800, avgOrbitalDistance:252000 }
+  Zarantyr:  { color:'#F5F5FA', diameter:1250, avgOrbitalDistance:14300 },
+  Olarune:   { color:'#FFC68A', diameter:1000, avgOrbitalDistance:18000 },
+  Therendor: { color:'#D3D3D3', diameter:1100, avgOrbitalDistance:39000 },
+  Eyre:      { color:'#C0C0C0', diameter:1200, avgOrbitalDistance:52000 },
+  Dravago:   { color:'#E6E6FA', diameter:2000, avgOrbitalDistance:77500 },
+  Nymm:      { color:'#FFD96B', diameter:900,  avgOrbitalDistance:95000 },
+  Lharvion:  { color:'#F5F5F5', diameter:1350, avgOrbitalDistance:125000 },
+  Barrakas:  { color:'#F0F8FF', diameter:1500, avgOrbitalDistance:144000 },
+  Rhaan:     { color:'#9AC0FF', diameter:800,  avgOrbitalDistance:168000 },
+  Sypheros:  { color:'#696969', diameter:1100, avgOrbitalDistance:183000 },
+  Aryth:     { color:'#FF4500', diameter:1300, avgOrbitalDistance:195000 },
+  Vult:      { color:'#A9A9A9', diameter:1800, avgOrbitalDistance:252000 }
 };
 
 export function _eberronMoonCore(moonName){
-  return EBERRON_MOON_CORE_DATA[moonName] || { referenceMoon:'Unknown', color:'#CCCCCC', diameter:1000, avgOrbitalDistance:100000 };
+  return EBERRON_MOON_CORE_DATA[moonName] || { color:'#CCCCCC', diameter:1000, avgOrbitalDistance:100000 };
 }
 
 export var MOON_SYSTEMS = {
@@ -69,7 +69,7 @@ export var MOON_SYSTEMS = {
       // moderate eccentricity, wide inclination sweep. Closest and most
       // influential on tides. Kythri = chaos; storms rage when full.
       // Real Luna: ecc 0.0549, inc 5.145°, albedo 0.12.
-      { name:'Zarantyr', referenceMoon:_eberronMoonCore('Zarantyr').referenceMoon,  title:'The Storm Moon',    color:_eberronMoonCore('Zarantyr').color, associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
+      { name:'Zarantyr', title:'The Storm Moon',    color:_eberronMoonCore('Zarantyr').color, associatedMonth:1,  plane:'Kythri',   dragonmark:'Mark of Storm',
         synodicPeriod:27.32, diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,
         inclination:5.145, eccentricity:0.0549, albedo:0.12,
         epochSeed:{ defaultSeed:'kythri', referenceDate:{year:998,month:1,day:1} } },
@@ -79,7 +79,7 @@ export var MOON_SYSTEMS = {
       // methane rain, seasons, lakes. Orange haze hides the surface from
       // view: the sentinel who watches unseen. Low inclination, steady.
       // Real Titan: ecc 0.0288, inc 0.33°, albedo 0.22.
-      { name:'Olarune', referenceMoon:_eberronMoonCore('Olarune').referenceMoon,   title:'The Sentinel Moon', color:_eberronMoonCore('Olarune').color, associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
+      { name:'Olarune', title:'The Sentinel Moon', color:_eberronMoonCore('Olarune').color, associatedMonth:2,  plane:'Lamannia', dragonmark:'Mark of Sentinel',
         synodicPeriod:30.8052, diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,
         inclination:0.33, eccentricity:0.0288, albedo:0.22,
         epochSeed:{ defaultSeed:'lamannia', referenceDate:{year:998,month:1,day:1} } },
@@ -91,7 +91,7 @@ export var MOON_SYSTEMS = {
       // (healing). In 1:2:4 resonance with Ganymede/Nymm → connected
       // to order. Bright reflective ice = gentle healing light.
       // Real Dione: ecc 0.0022, inc 0.03°, albedo 0.99.
-      { name:'Therendor', referenceMoon:_eberronMoonCore('Therendor').referenceMoon, title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
+      { name:'Therendor',title:"The Healer's Moon", color:_eberronMoonCore('Therendor').color, associatedMonth:3,  plane:'Syrania',  dragonmark:'Mark of Healing',
         synodicPeriod:34.7350, diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,
         inclination:0.03, eccentricity:0.0022, albedo:0.99,
         epochSeed:{ defaultSeed:'syrania', referenceDate:{year:998,month:1,day:1} } },
@@ -102,7 +102,7 @@ export var MOON_SYSTEMS = {
       // (albedo 0.96) reflects Fernia's fire. In 4:3 resonance with
       // Titan/Olarune → nature feeds the forge.
       // Real Mimas: ecc 0.0196, inc 1.53°, albedo 0.96.
-      { name:'Eyre', referenceMoon:_eberronMoonCore('Eyre').referenceMoon,      title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
+      { name:'Eyre',title:'The Anvil',         color:_eberronMoonCore('Eyre').color, associatedMonth:4,  plane:'Fernia',   dragonmark:'Mark of Making',
         synodicPeriod:39.1661, diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,
         inclination:1.53, eccentricity:0.0196, albedo:0.96,
         epochSeed:{ defaultSeed:'fernia', referenceDate:{year:998,month:1,day:1} } },
@@ -115,7 +115,7 @@ export var MOON_SYSTEMS = {
       // a crystalline vantage, circling in eternal counter-motion.
       // Largest moon by diameter. Lavender = planar tint over ice.
       // Real Triton: ecc 0.000016, inc 156.8°, albedo 0.76.
-      { name:'Dravago', referenceMoon:_eberronMoonCore('Dravago').referenceMoon,   title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
+      { name:'Dravago',title:"The Herder's Moon", color:_eberronMoonCore('Dravago').color, associatedMonth:5,  plane:'Risia',    dragonmark:'Mark of Handling',
         synodicPeriod:44.1625, diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,
         inclination:156.8, eccentricity:0.000016, albedo:0.76,
         epochSeed:{ defaultSeed:'risia', referenceDate:{year:998,month:1,day:1} } },
@@ -128,7 +128,7 @@ export var MOON_SYSTEMS = {
       // perfection = Daanvi. Near-circular orbit, near-equatorial.
       // Gold = Daanvi's planar influence, not geology.
       // Real Ganymede: ecc 0.0013, inc 0.20°, albedo 0.43.
-      { name:'Nymm', referenceMoon:_eberronMoonCore('Nymm').referenceMoon,      title:'The Crown',         color:_eberronMoonCore('Nymm').color, associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
+      { name:'Nymm',title:'The Crown',         color:_eberronMoonCore('Nymm').color, associatedMonth:6,  plane:'Daanvi',   dragonmark:'Mark of Hospitality',
         synodicPeriod:49.7962, diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance,
         inclination:0.20, eccentricity:0.0013, albedo:0.43,
         epochSeed:{ defaultSeed:'daanvi', referenceDate:{year:998,month:1,day:1} },
@@ -142,7 +142,7 @@ export var MOON_SYSTEMS = {
       // noticeable brightness variation. Dark, low albedo.
       // Dull white with 750-mile black chasm → the Eye.
       // Real Hyperion: ecc 0.1230, inc 0.43°, albedo 0.30.
-      { name:'Lharvion', referenceMoon:_eberronMoonCore('Lharvion').referenceMoon,  title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
+      { name:'Lharvion',title:'The Eye',           color:_eberronMoonCore('Lharvion').color, associatedMonth:7,  plane:'Xoriat',   dragonmark:'Mark of Detection',
         synodicPeriod:56.1487, diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance,
         inclination:0.43, eccentricity:0.1230, albedo:0.30,
         epochSeed:{ defaultSeed:'xoriat', referenceDate:{year:998,month:1,day:1} } },
@@ -155,7 +155,7 @@ export var MOON_SYSTEMS = {
       // of Irian needs no magical amplification: real physics already
       // gives it supernatural brightness. Slight ecc for gentle pulsing.
       // Real Enceladus: ecc 0.0047, inc 0.02°, albedo 1.375.
-      { name:'Barrakas', referenceMoon:_eberronMoonCore('Barrakas').referenceMoon,  title:'The Lantern',       color:_eberronMoonCore('Barrakas').color, associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
+      { name:'Barrakas',title:'The Lantern',       color:_eberronMoonCore('Barrakas').color, associatedMonth:8,  plane:'Irian',    dragonmark:'Mark of Finding',
         synodicPeriod:63.3115, diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance,
         inclination:0.02, eccentricity:0.0047, albedo:1.375,
         epochSeed:{ defaultSeed:'irian', referenceDate:{year:998,month:1,day:1} } },
@@ -173,7 +173,7 @@ export var MOON_SYSTEMS = {
       // Smallest Eberron moon. Blue = Thelanis fey light through
       // ancient stone. The Book carries every story on its skin.
       // Real Miranda: ecc 0.0013, inc 4.34°, albedo 0.32.
-      { name:'Rhaan', referenceMoon:_eberronMoonCore('Rhaan').referenceMoon,     title:'The Book',          color:_eberronMoonCore('Rhaan').color, associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
+      { name:'Rhaan',title:'The Book',          color:_eberronMoonCore('Rhaan').color, associatedMonth:9,  plane:'Thelanis', dragonmark:'Mark of Scribing',
         synodicPeriod:71.3881, diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance,
         inclination:4.34, eccentricity:0.0013, albedo:0.32,
         epochSeed:{ defaultSeed:'thelanis', referenceDate:{year:998,month:1,day:1} } },
@@ -185,7 +185,7 @@ export var MOON_SYSTEMS = {
       // entropy. Low-inclination prograde orbit, modest eccentricity,
       // and very dark albedo keep it ominous without making it backward.
       // Real Phobos: ecc 0.0151, inc 1.08°, albedo 0.071.
-      { name:'Sypheros', referenceMoon:_eberronMoonCore('Sypheros').referenceMoon,  title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
+      { name:'Sypheros',title:'The Shadow',        color:_eberronMoonCore('Sypheros').color, associatedMonth:10, plane:'Mabar',     dragonmark:'Mark of Shadow',
         synodicPeriod:80.4950, diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance,
         inclination:1.08, eccentricity:0.0151, albedo:0.071 },
 
@@ -199,7 +199,7 @@ export var MOON_SYSTEMS = {
       // side matches #FF4500 burnt orange-red. Coated in dark material
       // shed by Sypheros: the Shadow marks the Gateway.
       // Real Iapetus: ecc 0.0283, inc 7.57°, albedo 0.275 (averaged; not tidally locked, both faces visible).
-      { name:'Aryth', referenceMoon:_eberronMoonCore('Aryth').referenceMoon,     title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
+      { name:'Aryth',title:'The Gateway',       color:_eberronMoonCore('Aryth').color, associatedMonth:11, plane:'Dolurrh',   dragonmark:'Mark of Passage',
         synodicPeriod:90.7637, diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance,
         inclination:7.57, eccentricity:0.0283, albedo:0.275,
         epochSeed:{ defaultSeed:'dolurrh', referenceDate:{year:998,month:1,day:1} } },
@@ -213,7 +213,7 @@ export var MOON_SYSTEMS = {
       // warrior-king who holds the line. Near-circular, near-equatorial
       // = disciplined, unwavering patrol. Gray with reddish tint.
       // Real Oberon: ecc 0.0014, inc 0.07°, albedo 0.23.
-      { name:'Vult', referenceMoon:_eberronMoonCore('Vult').referenceMoon,      title:'The Warding Moon',  color:_eberronMoonCore('Vult').color, associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
+      { name:'Vult',title:'The Warding Moon',  color:_eberronMoonCore('Vult').color, associatedMonth:12, plane:'Shavarath', dragonmark:'Mark of Warding',
         synodicPeriod:102.3424, diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance,
         inclination:0.07, eccentricity:0.0014, albedo:0.23,
         epochSeed:{ defaultSeed:'shavarath', referenceDate:{year:998,month:1,day:1} } }
@@ -500,7 +500,6 @@ export function getMoonState(){
   var root = state[state_name];
   if (!root.moons) root.moons = {
     sequences: {},     // moonName -> array of { serial, type, retro }
-    seeds: {},         // legacy moonName -> override seed string
     systemSeed: null,  // single global seed word for the entire lunar system
     gmAnchors: {},     // moonName -> [{ serial, type }]  GM-forced phase events
     generatedFrom: null,  // serial day from which sequences were generated
@@ -585,7 +584,7 @@ export var MOON_REVEAL_PRESETS = [
   { label:'10m', days:280, dc:'DC 25' }
 ];
 
-// Legacy range options (still parsed for CLI input)
+// Named range options for CLI input
 export var MOON_REVEAL_RANGE_OPTIONS = {
   '1w': 7, '2w': 14, '4w': 28, '1m': 28,
   '3m': 84, '6m': 168, '10m': 280
@@ -639,9 +638,6 @@ export function _rangeLabel(days){
 export function _moonYearDays(){
   return getCal().months.reduce(function(s, m){ return s + (m.days|0); }, 0);
 }
-
-// _moonAnchorBaseSerial and _nearestAnchorSerial removed — all moons now use
-// epochSeed. GM hard anchors use gmAnchors path in moonEnsureSequences.
 
 // ---------------------------------------------------------------------------
 // 20d) Phase helper serials
@@ -1016,8 +1012,7 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
     ? String(ms.systemSeed).trim()
     : null;
   sys.moons.forEach(function(moon){
-    var moonSeedOverride = ms.seeds[moon.name] || null; // legacy compatibility
-    var seed = moonSeedOverride || (globalSeed ? (globalSeed + '::' + moon.name) : null);
+    var seed = globalSeed ? (globalSeed + '::' + moon.name) : null;
     var seq = _generateStandardSequence(moon, genFrom, needThru, seed);
 
     // Apply GM anchor overrides with multi-cycle smoothing so the exact peak
@@ -1808,11 +1803,6 @@ export function moonPanelParts(serialOverride?){
   parts.push(_menuBox('\uD83C\uDF19 GM Controls', gmControls));
 
   return parts;
-}
-
-// Legacy single-string wrapper (for contexts where a single HTML return is needed)
-export function moonPanelHtml(serialOverride?){
-  return moonPanelParts(serialOverride).join('');
 }
 
 // Player panel -- calendar grid is the primary view, minimal list
@@ -2656,118 +2646,7 @@ export function _eclipseSentenceType(typeLabel){
   return (typeLabel === 'Transit') ? 'Transit' : typeLabel.replace(' Eclipse', ' eclipse');
 }
 
-/* Legacy eclipse review path removed; see git history if older heuristics are needed.
-// function _getEclipsesLegacy(serial){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false) return [];
-
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return [];
-
-  serial = serial|0;
-  moonEnsureSequences(serial, 3);
-
-  var cacheKey = _eclipseCacheKey(serial);
-  if (_eclipseDayCache[cacheKey]) return _eclipseDayCache[cacheKey];
-
-  var moons = sys.moons;
-  var eclipses = [];
-
-  // Solar eclipses: moon near new phase AND ecliptic latitude near 0
-  for (var i = 0; i < moons.length; i++){
-    var ph = moonPhaseAt(moons[i].name, serial);
-    if (ph.illum > 0.08) continue; // must be very near new
-
-    var lat = _moonEclipticLat(moons[i], serial);
-    if (Math.abs(lat) < 1.5){ // within 1.5° of ecliptic — solar eclipse
-      var depth = 1 - (Math.abs(lat) / 1.5); // 0–1, 1 = perfect alignment
-      var op = _moonOrbitalParams(moons[i].name, serial);
-      // A moon can only produce a total eclipse if its apparent size >= the sun's (1.0)
-      var type;
-      if (op.apparentSize >= 1.0 && depth > 0.85)
-        type = 'total solar';
-      else if (op.apparentSize >= 0.7 && depth > 0.5)
-        type = 'partial solar';
-      else
-        type = 'transit'; // small moon crossing the sun — visible but not dramatic
-      eclipses.push({
-        type: type,
-        moon: moons[i].name,
-        depth: depth,
-        apparentSize: op.apparentSize,
-        description: esc(moons[i].name) + ' ' + type + ' eclipse' +
-          (type === 'total solar' ? ' \u2014 the sky darkens!' : '')
-      });
-    }
-  }
-
-  // Moon-moon eclipses: two moons at similar sky longitude AND similar ecliptic latitude
-  for (var a = 0; a < moons.length; a++){
-    for (var b = a + 1; b < moons.length; b++){
-      var longA = _moonSkyLong(moons[a], serial);
-      var longB = _moonSkyLong(moons[b], serial);
-      var dLong = Math.abs(longA - longB);
-      if (dLong > 180) dLong = 360 - dLong;
-      if (dLong > 8) continue; // must be within 8° of each other
-
-      var latA = _moonEclipticLat(moons[a], serial);
-      var latB = _moonEclipticLat(moons[b], serial);
-      var dLat = Math.abs(latA - latB);
-      if (dLat > 3) continue; // must be within 3° ecliptic latitude
-
-      // Which moon is in front? Use modeled orbital distance for this day.
-      // In this setting, synodic cadence is magical and not a proxy for distance.
-      var phA = moonPhaseAt(moons[a].name, serial);
-      var phB = moonPhaseAt(moons[b].name, serial);
-      var distA = _moonDistanceAt(moons[a], serial);
-      var distB = _moonDistanceAt(moons[b], serial);
-      var closer = (distA <= distB) ? moons[a] : moons[b];
-      var farther = (closer === moons[a]) ? moons[b] : moons[a];
-      var fartherPh = (closer === moons[a]) ? phB : phA;
-
-      // Only visually notable if the farther moon is bright enough to see the occultation
-      if (fartherPh.illum < 0.3) continue;
-
-      var conjDepth = 1 - (Math.max(dLong, dLat) / 8);
-      eclipses.push({
-        type: 'lunar conjunction',
-        moon: closer.name,
-        occultedMoon: farther.name,
-        depth: conjDepth,
-        description: esc(closer.name) + ' occults ' + esc(farther.name) +
-          (conjDepth > 0.7 ? ' — dramatic alignment!' : ' — close conjunction')
-      });
-    }
-  }
-
-  return eclipses;
-}
-
-// Legacy notable-text formatter retained for reference during review.
-// function _eclipseNotableTodayLegacy(serial){
-  var st = ensureSettings();
-  var sys = _getMoonSys();
-  var ecl = _getEclipsesLegacy(serial);
-  var notes = [];
-  for (var i = 0; i < ecl.length; i++){
-    var ti = _estimateEclipseTiming(serial, ecl[i], sys);
-    var dur = ti ? (Math.round(ti.durationHours * 10) / 10) : null;
-    var tInfo = ti
-      ? ' <span style="opacity:.75;">(' + esc(ti.startBlock) + '→' + esc(ti.endBlock) +
-        ', peaks ' + esc(ti.peakBlock) + ', ~' + dur + 'h, ~' + ti.peakCoveragePct + '% cover)</span>'
-      : '';
-    if (ecl[i].type === 'total solar')
-      notes.push('\uD83C\uDF11\u2600\uFE0F <b>Total eclipse!</b> ' + ecl[i].description + tInfo);
-    else if (ecl[i].type === 'partial solar')
-      notes.push('\uD83C\uDF11 ' + ecl[i].description + tInfo);
-    else if (ecl[i].type === 'lunar conjunction' && ecl[i].depth > 0.5)
-      notes.push('\uD83C\uDF15 ' + ecl[i].description + tInfo);
-  }
-  return notes;
-}
-
-*/
-// Replacement eclipse engine: groups physical overlap windows across midnight
+// Eclipse engine: groups physical overlap windows across midnight
 // and reports only true disk overlaps that peak above the horizon.
 export function getEclipses(serial){
   var st = ensureSettings();
@@ -3830,10 +3709,7 @@ export function handleMoonCommand(m, args){
     var word = String(args[2] || '').trim();
     if (!word) return whisper(m.who, 'Usage: <code>!cal moon seed &lt;word&gt;</code>');
     var ms = getMoonState();
-    // Global lunar seed: one word deterministically drives all moons.
     ms.systemSeed = word;
-    // Clear legacy per-moon overrides so the global seed fully controls generation.
-    ms.seeds = {};
     ms.generatedFrom = null;
     ms.generatedThru = 0;
     moonEnsureSequences();

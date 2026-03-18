@@ -266,7 +266,7 @@ export var CONFIG_WEATHER_SEED_STRENGTH = 1;
 
 /* --- Weather Mechanics ----------------------------------------------------*/
 // Script-ready thermal reference tables (expanded Fahrenheit band model).
-// The live generator and display layers now use these -5..15 bands directly.
+// The live generator and display layers use these -5..15 bands directly.
 export var WEATHER_TEMPERATURE_BANDS_F = [
   { band:-5, minF:null as number|null, maxF:-46, label:'unholy cold', nominalDC:30, coldRequirement:'special', coldRequirementLabel:'Special protection required', heatArmorDisadvantage:'none', notes:['mundane clothing insufficient','planar or supernatural cold','wind, wetness, immersion, and no shelter sharply worsen exposure'] },
   { band:-4, minF:-45, maxF:-36, label:'soul-freezing', nominalDC:25, coldRequirement:'heavy_cwc', coldRequirementLabel:'Heavy cold-weather clothing required', heatArmorDisadvantage:'none', notes:['strong wind and exposed skin are major escalators','fire and shelter strongly mitigate'] },
@@ -325,29 +325,12 @@ export var WEATHER_TEMPERATURE_SYSTEM_RULES: Record<string, any> = {
 
 export var WEATHER_TEMP_BAND_MIN = -5;
 export var WEATHER_TEMP_BAND_MAX = 15;
-export var WEATHER_LEGACY_TEMP_TO_BAND: Record<number, number> = {
-  0: -3,
-  1: -2,
-  2: 0,
-  3: 1,
-  4: 3,
-  5: 4,
-  6: 6,
-  7: 7,
-  8: 9,
-  9: 10,
-  10: 12
-};
 export var WEATHER_TEMPERATURE_BAND_INDEX: Record<number, any> = {};
 for (var _wtbi = 0; _wtbi < WEATHER_TEMPERATURE_BANDS_F.length; _wtbi++){
   WEATHER_TEMPERATURE_BAND_INDEX[WEATHER_TEMPERATURE_BANDS_F[_wtbi].band] = WEATHER_TEMPERATURE_BANDS_F[_wtbi];
 }
 
-// Wind still uses the fixed stage table below. Temperature mechanics are now
-// derived from WEATHER_TEMPERATURE_BANDS_F so the live generator and rules
-// share the same -5..15 band scale.
-// Temperature mechanics now derived from WEATHER_TEMPERATURE_BANDS_F via _weatherTempMechanics().
-// Wind mechanics still use this lookup table.
+// Wind mechanics lookup table.
 export var CONFIG_WEATHER_MECHANICS: Record<string, any> = {
   wind: {
     0: null,
