@@ -78,21 +78,21 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
       },
       druidic: {
         label:      'Druidic Calendar',
-        description:'A druidic month-name tradition used across Eberron.',
+        description:'A druidic month-name variant.',
         monthNames: ['Frostmantle','Thornrise','Treeborn','Rainsong','Arrowfar','Sunstride',
                      'Glitterstream','Havenwild','Stormborn','Harrowfall','Silvermoon','Windwhisper'],
         colorTheme: 'druidic'
       },
       halfling: {
         label:      'Halfling Calendar',
-        description:'A halfling month-name tradition used across Eberron.',
+        description:'A halfling month-name variant.',
         monthNames: ['Fang','Wind','Ash','Hunt','Song','Dust',
                      'Claw','Blood','Horn','Heart','Spirit','Smoke'],
         colorTheme: 'halfling'
       },
       dwarven: {
         label:      'Dwarven Calendar',
-        description:'A dwarven month-name tradition used across Eberron.',
+        description:'A dwarven month-name variant.',
         monthNames: ['Aruk','Lurn','Ulbar','Kharn','Ziir','Dwarhuun',
                      'Jond','Sylar','Razagul','Thazm','Drakhadur','Uarth'],
         colorTheme: 'dwarven'
@@ -245,7 +245,7 @@ export var CALENDAR_SYSTEMS: Record<string, any> = {
     }
   }
 };
-export var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','gregorian','greyhawk','dragonlance','exandria','mystara','birthright'];
+export var CALENDAR_SYSTEM_ORDER = ['eberron','faerunian','greyhawk','dragonlance','exandria','mystara','birthright','gregorian'];
 
 /* --- Display tuning -------------------------------------------------------*/
 // How many days before/after the displayed month boundary trigger an adjacent

@@ -1502,7 +1502,7 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
       for (var ei = 0; ei < eNotes.length; ei++){
         out.push({
           serial: ser,
-          name: '🌘 ' + _stripHtmlTags(eNotes[ei]),
+          name: '🌘 ' + _stripHtmlTags(eNotes[ei]).split('.').slice(0, 2).join('.'),
           color: '#9575CD'
         });
       }
