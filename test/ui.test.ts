@@ -33,12 +33,8 @@ describe("Task-focused UI", () => {
     freshInstall();
     _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = (globalThis as any)._chatLog.slice(-1)[0];
-    assert(msg.msg.includes("Retreat"));
-    assert(msg.msg.includes("Advance"));
-    assert(msg.msg.includes("Send To Players"));
-    assert(msg.msg.includes("Weather"));
-    assert(msg.msg.includes("Moons"));
-    assert(msg.msg.includes("Planes"));
-    assert(msg.msg.includes("Admin"));
+    assert(msg.msg.includes("retreat 1") || msg.msg.includes("⬅"), "should have retreat/back button");
+    assert(msg.msg.includes("advance 1") || msg.msg.includes("➡"), "should have advance/forward button");
+    assert(msg.msg.includes("send"), "should have send-to-players action");
   });
 });

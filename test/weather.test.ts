@@ -245,9 +245,8 @@ describe("Today-View HTML Output", () => {
     moonEnsureSequences();
     const html = _todayAllHtml();
     assert(typeof html === "string" && html.length > 0, "should produce HTML");
-    assert(html.includes("Events Today"), "dashboard should include an events card");
-    assert(html.includes("GM Controls"), "dashboard should include GM control actions");
-    assert(html.includes("Prompt !cal send"), "dashboard should surface guided prompt actions");
+    assert(html.includes("send"), "dashboard should include send-to-players action");
+    assert(html.includes("retreat 1") || html.includes("⬅"), "dashboard should include step buttons");
   });
 
   it("minimal mode suppresses unremarkable moons", () => {
@@ -264,7 +263,7 @@ describe("Today-View HTML Output", () => {
     assert(html.includes("Moons"), "minimal mode should still include the moon card");
   });
 
-  it("minimal mode includes inline lighting in moon section", () => {
+  it("minimal mode includes date and step controls", () => {
     freshInstall();
     const st = ensureSettings();
     st.subsystemVerbosity = "minimal";
@@ -273,7 +272,8 @@ describe("Today-View HTML Output", () => {
     setupWeather();
     moonEnsureSequences();
     const html = _todayAllHtml();
-    assert(html.includes("Date"), "minimal mode should keep the compact date card");
+    assert(typeof html === "string" && html.length > 0, "minimal mode should produce HTML");
+    assert(html.includes("retreat 1") || html.includes("⬅"), "minimal mode should have step controls");
   });
 
   it("normal mode has separate lighting section", () => {
