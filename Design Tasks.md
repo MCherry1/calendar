@@ -139,12 +139,11 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Current Date
 * Time of Day (if active)
 * Current Location
-* Current Weather
-* Current Lighting
+* Current Weather (deg F, wind, rain) (if active)
+* Current Lighting (if time of day active and currently before sunrise or after sunset)
 * Spacing break
 * Events/Holidays
 * Spacing Line Break
-* Ascendant Moons: List
 * New Moons: List
 * Full Moons: List
 * Spacing Line Break
