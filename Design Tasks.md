@@ -65,10 +65,10 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-- **Default Views Redesign — hazards toggle completion and regression coverage**
+- **Default Views Redesign — hazards toggle, planes anchor wizard, and regression coverage**
   - Completed by: GPT-5 Codex
   - Date: 2026-03-18
-  - Scope: implemented the required `!cal weather` Extreme Hazards toggle as a real command path and persisted setting, kept `Set Anchor` as the planes-management command surface, removed the nonexistent `Reseed Planes` spec item, and expanded regression coverage for panel command strings and management dispatch paths.
+  - Scope: implemented the required `!cal weather` Extreme Hazards toggle as a real command path and persisted setting, reworked `Set Anchor` into a plane-specific coterminous anchor wizard while keeping `!cal planes anchor` as the advanced command surface, removed the nonexistent `Reseed Planes` spec item, and expanded regression coverage for panel command strings and management dispatch paths.
 
 ---
 
@@ -374,7 +374,7 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 	* Toggle Generated Events On/Off (system-wide, not per-event)
 	* Set Phase Override (force a plane to a specific phase, optionally for a duration)
 	* Clear Override (remove a phase override)
-	* Set Anchor (set a cycle anchor date for a plane)
+	* Set Anchor (choose a plane from a dropdown, then show that plane's default cycle clearly and prompt for when its first coterminous phase should begin, defining the cycle from that point forward)
 	* Seed Override (override the seed-derived anchor year)
 	* Whisper confirmations on all changes
 

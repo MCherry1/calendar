@@ -148,7 +148,7 @@ describe("Planes management routing", () => {
     const msg = String(lastChat().msg);
     assert(msg.includes("planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set"));
     assert(msg.includes("Clear Override,clear"));
-    assert(msg.includes("Set Anchor,anchor"));
+    assert(msg.includes("Set Anchor,anchorwizard"));
     assert(msg.includes("Seed Override,seed"));
 
     const before = ensureSettings().offCyclePlanes !== false;
@@ -164,5 +164,19 @@ describe("Planes management routing", () => {
     handlePlanesCommand(gmUser(), ["planes", "manage", "clear", "All"]);
 
     assertEquals(Object.keys(getPlanesState().overrides).length, 0);
+  });
+
+  it("opens a plane-specific anchor wizard that anchors coterminous starts", () => {
+    freshInstall();
+
+    handlePlanesCommand(gmUser(), ["planes", "anchorwizard", "Fernia"]);
+
+    const msg = String(lastChat().msg);
+    assert(msg.includes("Set Anchor - Fernia"));
+    assert(msg.includes("Traditional cycle"));
+    assert(msg.includes("Default coterminous start"));
+    assert(msg.includes("Set First Coterminous Start"));
+    assert(msg.includes("!cal planes anchor Fernia coterminous ?{Fernia cycle: coterminous 28 days every 5 years."));
+    assert(msg.includes("When should the first coterminous phase begin? This defines the cycle for all time."));
   });
 });
