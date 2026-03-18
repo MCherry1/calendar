@@ -144,8 +144,9 @@ export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEv
 export function styleForDayCell(baseStyle, events, isToday, monthColor, isPast, isFuture){
   // Primary event (or today) sets the solid background color.
   // Secondary events are rendered as dots by _eventDotsHtml — not styled here.
+  // Events flagged dotOnly skip the background fill (multi-moon mini-cal).
   var style = baseStyle;
-  if (events.length >= 1){
+  if (events.length >= 1 && !(events[0] as any).dotOnly){
     style = applyBg(style, getEventColor(events[0]), CONTRAST_MIN_CELL);
   } else if (isToday){
     style = applyBg(style, monthColor, CONTRAST_MIN_CELL);
@@ -165,8 +166,14 @@ export function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var titleAttr = ctx.title ? ' title="'+esc(ctx.title)+'"' : '';
   var numStyle = 'display:flex;align-items:center;justify-content:center;min-height:1em;line-height:1;';
   if (numeralStyle) numStyle += numeralStyle;
-  var numWrap = '<div style="'+numStyle+'">'+ctx.d+'</div>';
-  var dots = _eventDotsHtml(ctx.events);
+  // Single-fill moon systems: replace day numeral with emoji on peak days
+  var numeral = ctx.d;
+  if (ctx.events.length && (ctx.events[0] as any).replaceNumeral){
+    numeral = (ctx.events[0] as any).replaceNumeral;
+  }
+  var numWrap = '<div style="'+numStyle+'">'+numeral+'</div>';
+  var isDotOnly = ctx.events.length > 0 && (ctx.events[0] as any).dotOnly;
+  var dots = _eventDotsHtml(ctx.events, isDotOnly);
   return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(numWrap+dots)+'</td>';
 }
 
