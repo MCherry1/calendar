@@ -1749,15 +1749,57 @@ export function moonPanelParts(serialOverride?){
   var moonQueryOpts = sys.moons.map(function(moon){ return moon.name; }).join('|');
   var moonDropdown = button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + moonQueryOpts + '}');
 
+  // Send buttons
   var gmControls = '<div style="font-size:.82em;opacity:.7;">'+
     '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
     '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
-    '<div style="margin-bottom:4px;margin-top:4px;">'+moonDropdown+'</div>'+
-    '<div style="margin-bottom:4px;">'+button('Prompt !cal moon on','moon on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
+    '</div>';
+
+  // Send to Players
+  gmControls += '<div style="margin:4px 0;">' +
+    button('Send to Players','moon send medium ?{Horizon|1m|3m|6m|10m}') +
+    '</div>';
+
+  // Spacer
+  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+  // Specific Moons dropdown
+  gmControls += '<div style="margin:4px 0;">' + moonDropdown + '</div>';
+
+  // Spacer
+  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+  // Current Phases
+  gmControls += '<div style="margin:4px 0;">' +
+    button('Current Phases','moon phases') +
+    '</div>';
+
+  // Spacer
+  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+  // Additional Ranges
+  var monthCount = getCal().months.length;
+  var curMi = getCal().current.month;
+  var remaining = monthCount - curMi;
+  gmControls += '<div style="margin:4px 0;">' +
+    button('Additional Ranges','moon ranges ?{Range|Full Year,year|Upcoming ' + remaining + ' months,upcoming|Specific Month,specific ?\\{MM or MM YYYY\\}|Specific Year,year ?\\{YYYY\\}}') +
+    '</div>';
+
+  // Spacer
+  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+  // Management dropdown
+  gmControls += '<div style="margin:4px 0;">' +
+    button('Management','moon manage ?{Action|Toggle Moons On/Off,settings moons toggle|Reseed Moons,moon reseed|Set New,moon setnew ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,moon setfull ?\\{Date dd or mm dd or mm dd yyyy\\}}') +
+    '</div>';
+
+  // Utility buttons
+  gmControls += '<div style="margin:4px 0;">'+
     button('📖 Lore','moon lore')+' '+
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
-    '</div>'+
-    '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
+    '</div>';
+
+  gmControls += '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
     'Player tier: '+esc(tierLabel)+
     '</div>'+
     seedLine+
@@ -3580,6 +3622,45 @@ export function handleMoonCommand(m, args){
     var loreHtml = _moonLoreHtml(resolvedLore);
     if (!loreHtml) return whisper(m.who, 'No lore available for <b>'+esc(resolvedLore)+'</b>.');
     return whisper(m.who, loreHtml);
+  }
+
+  // !cal moon phases — whispers current phase of each moon + upcoming new/full
+  if (sub === 'phases'){
+    moonEnsureSequences();
+    var phSys = _getMoonSys();
+    if (!phSys || !phSys.moons) return whisper(m.who, 'No moon data available.');
+    var phToday = todaySerial();
+    var phLines = [];
+    phSys.moons.forEach(function(moon){
+      var ph = moonPhaseAt(moon.name, phToday);
+      if (!ph) return;
+      var phLabel = _moonPhaseLabel(ph.illum, ph.waxing);
+      var dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'+
+        'background:'+esc(moon.color||'#aaa')+';border:1px solid rgba(0,0,0,.3);'+
+        'vertical-align:middle;margin-right:4px;"></span>';
+      var line = dot + '<b>' + esc(moon.name) + '</b>';
+      line += '<br>&nbsp;&nbsp;&nbsp;Phase: ' + esc(phLabel);
+      // Find next full and new
+      var nFull = _moonNextEvent(moon.name, phToday, 'full');
+      var nNew = _moonNextEvent(moon.name, phToday, 'new');
+      if (nFull){
+        var dFull = Math.ceil(nFull - phToday);
+        var fDate = fromSerial(Math.round(nFull));
+        var fLabel = _displayMonthDayParts(fDate.mi, fDate.day).label;
+        line += '<br>&nbsp;&nbsp;&nbsp;Full in ' + dFull + ' days (' + esc(fLabel) + ')';
+      }
+      if (nNew){
+        var dNew = Math.ceil(nNew - phToday);
+        var nDate = fromSerial(Math.round(nNew));
+        var nLabel = _displayMonthDayParts(nDate.mi, nDate.day).label;
+        line += '<br>&nbsp;&nbsp;&nbsp;New in ' + dNew + ' days (' + esc(nLabel) + ')';
+      }
+      phLines.push('<div style="margin-bottom:6px;font-size:.85em;">' + line + '</div>');
+    });
+    return whisper(m.who, _menuBox('🌙 Current Phases — ' + esc(dateLabelFromSerial(phToday)),
+      phLines.join('') +
+      '<div style="margin-top:6px;">' + button('⬅ Back', 'moon') + '</div>'
+    ));
   }
 
   // !cal moon sky [time] — available to everyone, shows which moons are visible

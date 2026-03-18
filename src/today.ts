@@ -3,16 +3,16 @@ import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS } from 
 import { COLOR_THEMES, SEASON_SETS, STYLES, script_name, state_name } from './constants.js';
 import { applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, getManualSuppressedSources, refreshAndSend, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
 import { colorsAPI } from './color.js';
-import { _invalidateSerialCache, _isLeapMonth, todaySerial } from './date-math.js';
+import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
-import { _deliverTopLevelCalendarRange, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
+import { _deliverTopLevelCalendarRange, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, listAllEventsTableHtml, removeListHtml, removeMatchesListHtml, restoreDefaultEvents, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
-import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
+import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
-import { _planarNotableToday, handlePlanesCommand } from './planes.js';
+import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
 
 
 // ── Today — Combined detail from all subsystems ────────────────────────
@@ -67,144 +67,163 @@ export function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
   var cal = getCal(), c = cal.current;
-  var sections = [];
-  var promptDate = String(cal.months[c.month].name || '') + ' ' + c.day_of_the_month + ' ' + c.year;
-  var occNow = [];
-  try { occNow = occurrencesInRange(today, today); } catch(e0){}
-  var eventNames = [];
-  var eventSeen = {};
-  for (var oi0 = 0; oi0 < occNow.length; oi0++){
-    var nm0 = eventDisplayName(occNow[oi0].e);
-    var key0 = String(nm0 || '').toLowerCase();
-    if (!eventSeen[key0]){
-      eventSeen[key0] = 1;
-      eventNames.push(nm0);
-    }
+  var lines = [];
+  var sp = '<div style="height:6px;"></div>';
+
+  // ── Text Info ──────────────────────────────────────────────────────────
+  // Current Date
+  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+
+  // Time of Day (if active)
+  if (isTimeOfDayActive()){
+    lines.push(_timeOfDayStatusHtml('font-size:.85em;opacity:.72;margin:0 0 2px 0;'));
   }
 
-  var dateSummary = '<b>' + esc(currentDateLabel()) + '</b>';
-  if (isTimeOfDayActive()) dateSummary += '<div style="margin-top:3px;">' + _timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin:0;') + '</div>';
-  sections.push(taskCardHtml(
-    'Date',
-    dateSummary,
-    [
-      button('Calendar','show month'),
-      button('Show Year','show year'),
-      button('Prompt !cal set','set ?{Date|' + promptDate + '}')
-    ],
-    'Use <code>!cal show</code> for the month grid or <code>!cal set &lt;dateSpec&gt;</code> to move the campaign clock.'
-  ));
+  // Current Location (if weather active and location set)
+  if (st.weatherEnabled !== false){
+    try {
+      var ws = getWeatherState();
+      if (ws.location){
+        lines.push('<div style="font-size:.82em;opacity:.7;margin:1px 0;">📍 ' + esc(_weatherLocationLabel(ws.location)) + '</div>');
+      }
+    } catch(e0){}
+  }
 
-  sections.push(taskCardHtml(
-    'Events Today',
-    eventNames.length
-      ? 'Today includes <b>' + eventNames.slice(0, 3).map(esc).join(', ') + '</b>' + (eventNames.length > 3 ? ' <span style="opacity:.7;">+' + (eventNames.length - 3) + ' more</span>' : '') + '.'
-      : 'No calendar events are scheduled for today.',
-    [
-      button('List','list'),
-      button('Prompt !cal add','add ?{Date|' + promptDate + '} ?{Event name|New Event} ?{Color|#50C878}'),
-      button('Prompt !cal addmonthly','addmonthly ?{Day spec|first Sul} ?{Event name|Monthly Event} ?{Color|#50C878}'),
-      button('Prompt !cal addyearly','addyearly ?{Month|Zarantyr} ?{Day|1} ?{Event name|Annual Event} ?{Color|#50C878}'),
-      button('Sources','source list')
-    ],
-    'Typed forms: <code>!cal add</code>, <code>!cal addmonthly</code>, <code>!cal addyearly</code>.'
-  ));
-
-  var weatherSummary = 'Weather is currently off.';
+  // Current Weather
   if (st.weatherEnabled !== false){
     try {
       weatherEnsureForecast();
       var wxCard = _weatherRecordForDisplay(_forecastRecord(today));
-      if (!wxCard || !wxCard.final){
-        weatherSummary = 'No weather has been generated for today yet.';
-      } else {
+      if (wxCard && wxCard.final){
         var wxVals = _weatherPrimaryValues(wxCard) || wxCard.final;
         var wxCond = _deriveConditions(wxVals, wxCard.location || {}, WEATHER_PRIMARY_PERIOD, wxCard.snowAccumulated, _weatherPrimaryFog(wxCard));
-        weatherSummary = esc(_conditionsNarrative(wxVals, wxCond, WEATHER_PRIMARY_PERIOD)) + '.';
+        lines.push('<div style="font-size:.82em;opacity:.7;margin:1px 0;">☁️ ' + esc(_conditionsNarrative(wxVals, wxCond, WEATHER_PRIMARY_PERIOD)) + '</div>');
       }
-    } catch(e1){
-      weatherSummary = 'Weather data is currently unavailable.';
-    }
+    } catch(e1){}
   }
-  sections.push(taskCardHtml(
-    'Weather',
-    weatherSummary,
-    [
-      button('Detail','weather'),
-      button('Forecast','weather forecast'),
-      button('Mechanics','weather mechanics'),
-      button('Set Location','weather location')
-    ],
-    st.weatherEnabled === false ? 'Enable weather from settings when you want narrative or mechanical forecasts.' : ''
-  ));
 
-  var moonSummary = 'Lunar tracking is currently off.';
+  // Current Lighting (if time of day is active)
+  if (isTimeOfDayActive()){
+    try {
+      var lightSnap = currentLightSnapshot(today);
+      if (lightSnap){
+        var lightLabel = lightSnap.label || 'Unknown';
+        if (lightSnap.mode !== 'day'){
+          lines.push('<div style="font-size:.82em;opacity:.7;margin:1px 0;">💡 ' + esc(lightLabel) + (lightSnap.note ? ' — ' + esc(lightSnap.note) : '') + '</div>');
+        }
+      }
+    } catch(e2){}
+  }
+
+  lines.push(sp);
+
+  // Events/Holidays
+  var occNow = [];
+  try { occNow = occurrencesInRange(today, today); } catch(e3){}
+  var eventNames = [];
+  var eventSeen = {};
+  for (var oi = 0; oi < occNow.length; oi++){
+    var nm = eventDisplayName(occNow[oi].e);
+    var key = String(nm || '').toLowerCase();
+    if (!eventSeen[key]){ eventSeen[key] = 1; eventNames.push(nm); }
+  }
+  if (eventNames.length){
+    lines.push('<div style="font-size:.85em;margin:1px 0;">🎉 ' + eventNames.map(esc).join(', ') + '</div>');
+  }
+
+  lines.push(sp);
+
+  // Moons: Ascendant, New, Full
   if (st.moonsEnabled !== false){
     try {
       moonEnsureSequences();
-      var moonNow = [];
       var moonSys = _getMoonSys();
-      ((moonSys && moonSys.moons) || []).forEach(function(moon){
-        var peak = moonPhaseAt(moon.name, today);
-        if (!peak) return;
-        var label = _moonPhaseLabel(peak.illum, peak.waxing);
-        if (_isFullMoonIllum(peak.illum)) moonNow.push(moon.name + ' full');
-        else if (_isNewMoonIllum(peak.illum)) moonNow.push(moon.name + ' new');
-        else if (moonNow.length < 1) moonNow.push(moon.name + ' ' + label.toLowerCase());
-      });
-      moonSummary = moonNow.length ? esc(moonNow.slice(0, 2).join(' · ')) + '.' : 'No notable lunar peaks today.';
-    } catch(e2){
-      moonSummary = 'Moon data is currently unavailable.';
-    }
+      if (moonSys && moonSys.moons){
+        var ascendant = [], newMoons = [], fullMoons = [];
+        moonSys.moons.forEach(function(moon){
+          var ph = moonPhaseAt(moon.name, today);
+          if (!ph) return;
+          if (_isFullMoonIllum(ph.illum)) fullMoons.push(moon.name);
+          else if (_isNewMoonIllum(ph.illum)) newMoons.push(moon.name);
+          // Ascendant: moon's associated plane is coterminous
+          if (moon.plane && st.planesEnabled !== false){
+            try {
+              var ps = getPlanarState(moon.plane, today);
+              if (ps && ps.phase === 'coterminous') ascendant.push(moon.name);
+            } catch(e4){}
+          }
+        });
+        var moonLines = [];
+        if (ascendant.length) moonLines.push('✨ <b>Ascendant:</b> ' + ascendant.map(esc).join(', '));
+        if (newMoons.length) moonLines.push('🌑 <b>New:</b> ' + newMoons.map(esc).join(', '));
+        if (fullMoons.length) moonLines.push('🌕 <b>Full:</b> ' + fullMoons.map(esc).join(', '));
+        if (moonLines.length){
+          lines.push('<div style="font-size:.82em;opacity:.8;line-height:1.5;">' + moonLines.join('<br>') + '</div>');
+        }
+      }
+    } catch(e5){}
   }
-  sections.push(taskCardHtml(
-    'Moons',
-    moonSummary,
-    [
-      button('Detail','moon'),
-      button('Sky','moon sky'),
-      button('Lore','moon lore'),
-      button('Prompt !cal moon on','moon on ?{Date|' + promptDate + '}')
-    ],
-    'Players can keep using <code>!cal moon</code> and <code>!cal moon on &lt;dateSpec&gt;</code>.'
-  ));
 
-  var planeSummary = 'Planar tracking is currently off.';
+  lines.push(sp);
+
+  // Planes: Coterminous, Remote
   if (st.planesEnabled !== false){
     try {
-      var planeNotes = _planarNotableToday(today);
-      planeSummary = planeNotes.length
-        ? 'There are <b>' + planeNotes.length + '</b> notable planar effects today.'
-        : 'No active planar extremes today.';
-    } catch(e3){
-      planeSummary = 'Planar data is currently unavailable.';
-    }
+      var allPlanes = _getAllPlaneData();
+      var ypd = 336; // typical year days
+      var coterminous = [], remote = [];
+      for (var pi = 0; pi < allPlanes.length; pi++){
+        if (allPlanes[pi].type === 'fixed') continue;
+        var ps2 = getPlanarState(allPlanes[pi].name, today);
+        if (!ps2) continue;
+        if (ps2.phaseDuration != null && ps2.phaseDuration > ypd) continue;
+        if (ps2.phase === 'coterminous') coterminous.push(ps2.plane.name);
+        else if (ps2.phase === 'remote') remote.push(ps2.plane.name);
+      }
+      var planeLines = [];
+      if (coterminous.length) planeLines.push('🔴 <b>Coterminous:</b> ' + coterminous.map(esc).join(', '));
+      if (remote.length) planeLines.push('🔵 <b>Remote:</b> ' + remote.map(esc).join(', '));
+      if (planeLines.length){
+        lines.push('<div style="font-size:.82em;opacity:.8;line-height:1.5;">' + planeLines.join('<br>') + '</div>');
+      }
+    } catch(e6){}
   }
-  sections.push(taskCardHtml(
-    'Planes',
-    planeSummary,
-    [
-      button('Detail','planes'),
-      button('Effects','effects'),
-      button('Prompt !cal planes on','planes on ?{Date|' + promptDate + '}')
-    ],
-    'Use <code>!cal planes</code> for the detailed almanac and <code>!cal effects</code> for the current mechanical snapshot.'
-  ));
 
-  sections.push(taskCardHtml(
-    'GM Controls',
-    'Advance or retreat the day, broadcast the current calendar, or open the task-focused admin menu.',
-    [
-      button('Advance','advance 1'),
-      button('Retreat','retreat 1'),
-      button('Send','send'),
-      button('Prompt !cal send','send ?{Calendar range|this month}'),
-      button('Admin','help root')
-    ]
-  ));
+  // ── Buttons ────────────────────────────────────────────────────────────
+  var btns = [];
+  btns.push('<div style="margin-top:6px;">');
 
-  return _menuBox('Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label), sections.join(''));
+  // Time of Day: advance if active, enable if weather is active
+  if (isTimeOfDayActive()){
+    btns.push(button('⏩ Time of Day ⏩','time next'));
+  } else if (st.weatherEnabled !== false){
+    btns.push(button('Enable Time of Day','time start afternoon'));
+  }
+  btns.push('</div>');
 
+  // Date step arrows
+  btns.push('<div style="margin:3px 0;">' + button('⬅','retreat 1') + ' ' + button('➡','advance 1') + '</div>');
+
+  // Send Today View to Players
+  btns.push('<div style="margin:3px 0;">' + button('Send Today View to Players','send') + '</div>');
+
+  // Additional Options dropdown
+  var adminMenu = '|Enable/Disable Moons,moon toggle' +
+    '|Enable/Disable Weather,weather toggle' +
+    '|Enable/Disable Planes,planes toggle' +
+    '|Theme,help themes' +
+    '|Calendar System,help calendarsystems' +
+    '|Hemisphere,help hemisphere' +
+    '|Season Set,help seasons' +
+    '|Reset Calendar,help resetconfirm';
+  btns.push('<div style="margin:3px 0;">' +
+    button('Additional Options', 'today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,help root}') +
+    '</div>');
+
+  btns.push('');
+
+  return _menuBox('Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label),
+    lines.join('') + btns.join(''));
 }
 
 export var USAGE = {
@@ -254,8 +273,112 @@ export var EVENT_SUB = {
   list: {
     usage: null,
     run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
+  },
+  panel: {
+    usage: null,
+    run: function(m, args){
+      whisper(m.who, _eventsPanelHtml(args[0] || null));
+    }
+  },
+  ranges: {
+    usage: null,
+    run: function(m, args){
+      // Route to deliverTopLevelCalendarRange for Additional Ranges
+      _deliverTopLevelCalendarRange({ who: m.who, args: args, dest: 'whisper' });
+    }
+  },
+  manage: {
+    usage: null,
+    run: function(m, args){
+      // Route management sub-actions
+      var action = (args[0] || '').toLowerCase();
+      if (!action) return whisper(m.who, 'Management: use the dropdown to select an action.');
+      // The dropdown routes to existing commands, so this is a fallback
+      return invokeEventSub(m, action, args.slice(1));
+    }
   }
 };
+
+// ── Events Panel ──────────────────────────────────────────────────────────
+function _eventsPanelHtml(serialArg){
+  var cal = getCal(), c = cal.current;
+  var today = todaySerial();
+
+  // Determine which month to display
+  var displaySerial = today;
+  if (serialArg){
+    var parsed = parseInt(serialArg, 10);
+    if (isFinite(parsed)) displaySerial = parsed;
+  }
+  var dd = fromSerial(displaySerial);
+  var mobj = cal.months[dd.mi];
+  if (!mobj) return '';
+
+  var monthStart = toSerial(dd.year, dd.mi, 1);
+  var monthEnd = toSerial(dd.year, dd.mi, mobj.days | 0);
+
+  // Minical
+  var spec = {
+    start: monthStart,
+    end: monthEnd,
+    months: [{ y: dd.year, mi: dd.mi }],
+    title: mobj.name + ' ' + dd.year
+  };
+  var calHtml = buildCalendarsHtmlForSpec(spec);
+
+  // Text Info
+  var lines = [];
+  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+
+  // Bulleted events only if displayed month is the current month
+  if (dd.year === c.year && dd.mi === c.month){
+    try {
+      var occ = occurrencesInRange(today, today);
+      if (occ.length){
+        var seen = {};
+        var evList = [];
+        for (var i = 0; i < occ.length; i++){
+          var nm = eventDisplayName(occ[i].e);
+          var k = String(nm || '').toLowerCase();
+          if (!seen[k]){ seen[k] = 1; evList.push(nm); }
+        }
+        lines.push('<ul style="margin:4px 0;padding-left:18px;">');
+        for (var j = 0; j < evList.length; j++){
+          lines.push('<li style="font-size:.85em;">' + esc(evList[j]) + '</li>');
+        }
+        lines.push('</ul>');
+      }
+    } catch(e0){}
+  }
+
+  // Buttons
+  var prevSer = _shiftSerialByMonth(displaySerial, -1);
+  var nextSer = _shiftSerialByMonth(displaySerial, 1);
+
+  var btns = [];
+  btns.push('<div style="margin:6px 0 3px 0;">');
+  btns.push(button('◀ Previous','events panel ' + prevSer) + ' ');
+  btns.push(button('Next ▶','events panel ' + nextSer));
+  btns.push('</div>');
+  btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ?{Calendar range|this month}') + '</div>');
+
+  // Additional Ranges
+  var monthCount = cal.months.length;
+  var remaining = monthCount - dd.mi;
+  btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Additional Ranges','events ranges ?{Range|Full Year,year|Upcoming ' + remaining + ' months,upcoming|Specific Month,month ?\\{MM or MM YYYY\\}|Specific Year,year ?\\{YYYY\\}}') +
+    '</div>');
+
+  // Management (GM only)
+  btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Management','events manage ?{Action|Add Single Event,add ?\\{Date DD or MM DD or MM DD YYYY\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Monthly Event,addmonthly ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Yearly Event,addyearly ?\\{Month MM\\} ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Source Controls,source list|Remove/Restore,events list}') +
+    '</div>');
+
+  return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
+    calHtml + lines.join('') + btns.join(''));
+}
 
 export var commands = {
 
@@ -283,7 +406,18 @@ export var commands = {
     sendCurrentDate(m.who, false, { playerid:m.playerid, compact:true, includeButtons:false });
   },
 
-  today: function(m){
+  today: function(m, a){
+    var sub = (a[2] || '').toLowerCase();
+    // !cal today options <choice> — redirect from Additional Options dropdown
+    if (sub === 'options'){
+      var choice = (a[3] || '').toLowerCase();
+      if (choice === 'events') return commands.events.run(m, a);
+      if (choice === 'moon')   return handleMoonCommand(m, ['moon']);
+      if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
+      if (choice === 'planes') return handlePlanesCommand(m, ['planes']);
+      // default: fall through to admin root
+      return whisper(m.who, helpRootMenu(m));
+    }
     if (playerIsGM(m.playerid)){
       weatherEnsureForecast();
       moonEnsureSequences();
@@ -428,7 +562,7 @@ export var commands = {
 
   events: { gm:true, run:function(m, a){
     var args = a.slice(2);
-    var sub  = (args.shift() || 'list').toLowerCase();
+    var sub  = (args.shift() || 'panel').toLowerCase();
     return invokeEventSub(m, sub, args);
   }},
 

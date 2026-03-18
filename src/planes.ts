@@ -1181,16 +1181,50 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var planeQueryOpts = planes.map(function(p){ return p.name; }).join('|');
     var planeDropdown = button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}');
 
+    // Send buttons
     gmControls =
       '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
         '<div style="font-size:.82em;margin-bottom:2px;">Send Medium: '+pSendBtns+'</div>'+
         '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
-        '<div style="font-size:.82em;margin-bottom:4px;margin-top:4px;">'+planeDropdown+'</div>'+
-        '<div style="font-size:.82em;margin-bottom:2px;">'+button('Prompt !cal planes on','planes on ?{Date|'+_serialToDateSpec(today)+'}')+'</div>'+
-        button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
-        '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
-          'CLI: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>'+
-        '</div>'+
+      '</div>';
+
+    // Send to Players
+    gmControls += '<div style="margin:4px 0;">' +
+      button('Send to Players','planes send medium ?{Horizon|1m|3m|6m|10m}') +
+      '</div>';
+
+    // Spacer
+    gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+    // Specific Planes dropdown
+    gmControls += '<div style="margin:4px 0;">' + planeDropdown + '</div>';
+
+    // Spacer
+    gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+    // Additional Ranges
+    var plMonthCount = getCal().months.length;
+    var plCurMi = getCal().current.month;
+    var plRemaining = plMonthCount - plCurMi;
+    gmControls += '<div style="margin:4px 0;">' +
+      button('Additional Ranges','planes ranges ?{Range|Full Year,year|Upcoming ' + plRemaining + ' months,upcoming|Specific Month,specific ?\\{MM or MM YYYY\\}|Specific Year,year ?\\{YYYY\\}}') +
+      '</div>';
+
+    // Spacer
+    gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+    // Management dropdown
+    gmControls += '<div style="margin:4px 0;">' +
+      button('Management','planes manage ?{Action|Toggle Planes On/Off,settings planes toggle|Toggle Generated Events,settings generated toggle|Reseed Planes,planes reseed|Set Phase Override,planes override ?\\{Plane\\} ?\\{Phase cot/remote/off\\}|Clear Override,planes clearoverride ?\\{Plane\\}|Set Anchor,planes anchor ?\\{Plane\\} ?\\{Date\\}|Seed Override,planes seed ?\\{Seed word\\}}') +
+      '</div>';
+
+    // Utility buttons
+    gmControls += '<div style="margin:4px 0;">'+
+      button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
+      '</div>';
+
+    gmControls += '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
+      'CLI: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>'+
       '</div>';
   }
 
