@@ -10,7 +10,7 @@ import { _ordinal, clamp, esc, formatDateLabel } from './rendering.js';
 import { _displayMonthDayParts, _subsystemIsVerbose, _subsystemVerbosityValue, addEventSmart, currentDateLabel, removeEvent, setDate, stepDays } from './ui.js';
 import { _todayAllHtml, _todayWeatherIsStable } from './today.js';
 import { notifySetupStatusOnReady } from './setup.js';
-import { WEATHER_CLIMATES, WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _bestTier, _clampWeatherTempBand, _composeFormula, _forecastRecord, _grantCommonWeatherReveals, _locSig, _parseWeatherRevealDateSpec, _parseWeatherRevealDayToken, _recordReveal, _rollTrait, _weatherRecordForDisplay, _weatherRevealBucket, _weatherRevealForSerial, _weatherTempLabel, getWeatherState, weatherEnsureForecast } from './weather.js';
+import { WEATHER_CLIMATES, WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _bestTier, _clampWeatherTempBand, _composeFormula, _forecastRecord, _grantCommonWeatherReveals, _locSig, _parseWeatherRevealDateSpec, _parseWeatherRevealDayToken, _recordReveal, _rollTrait, _weatherRecordForDisplay, _weatherRevealBucket, _weatherRevealForSerial, _weatherTempInfo, _weatherTempLabel, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { register } from './boot-register.js';
 import { MOON_SYSTEMS, _diskOverlapFraction, _eberronMoonCore, _eclipseLifecycleText, _eclipseMetricsAt, _eclipseNotableToday, _eclipseTimeBlock, _finalizeEclipseEvent, _moonHashStr, getEclipses, getMoonState, moonEnsureSequences, moonPhaseAt, nighttimeLightCondition, nighttimeLux } from './moon.js';
 
@@ -104,6 +104,7 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
     _rollTrait:          _rollTrait,
     _clampWeatherTempBand: _clampWeatherTempBand,
     _weatherTempLabel:   _weatherTempLabel,
+    _weatherTempInfo:    _weatherTempInfo,
 
     // moons
     getMoonState:        getMoonState,

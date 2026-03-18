@@ -11,8 +11,11 @@ import {
   CONFIG_WEATHER_LABELS,
   CONFIG_WEATHER_FLAVOR,
   CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS,
+  WEATHER_TEMPERATURE_BANDS_F,
+  WEATHER_TEMPERATURE_BAND_INDEX,
   WEATHER_TEMP_BAND_MIN,
   WEATHER_TEMP_BAND_MAX,
+  WEATHER_HEAT_ARMOR_RULES,
   CALENDAR_SYSTEMS,
 } from './config';
 
@@ -71,8 +74,29 @@ export function _clampWeatherTempBand(band){
   return Math.max(WEATHER_TEMP_BAND_MIN, Math.min(WEATHER_TEMP_BAND_MAX, band));
 }
 
+export function _weatherTempInfo(band){
+  return WEATHER_TEMPERATURE_BAND_INDEX[_clampWeatherTempBand(band)] || WEATHER_TEMPERATURE_BANDS_F[0];
+}
+
 export function _weatherTempLabel(band){
-  return CONFIG_WEATHER_LABELS.temp[String(_clampWeatherTempBand(band))] || String(band);
+  return titleCase(_weatherTempInfo(band).label || String(band));
+}
+
+export function _weatherTempMechanics(band){
+  var info = _weatherTempInfo(band);
+  var parts = [];
+  if (info.nominalDC != null){
+    parts.push('DC ' + info.nominalDC + ' Con save or exhaustion.');
+  }
+  if (info.coldRequirement && info.coldRequirement !== 'none'){
+    if (info.coldRequirement === 'special') parts.push(info.coldRequirementLabel + '.');
+    else parts.push('Disadvantage without ' + String(info.coldRequirementLabel || '').toLowerCase() + '.');
+  }
+  if (info.heatArmorDisadvantage && info.heatArmorDisadvantage !== 'none'){
+    var heatRule = WEATHER_HEAT_ARMOR_RULES[info.heatArmorDisadvantage];
+    if (heatRule && heatRule.description) parts.push(heatRule.description);
+  }
+  return parts.length ? parts.join(' ') : null;
 }
 
 export function _isZarantyrFull(serial){
@@ -1710,6 +1734,10 @@ export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulate
 
   // -- Mechanics strings --
   var mechLines: any[] = [];
+
+  // Temperature
+  var tm = _weatherTempMechanics(temp);
+  if (tm) mechLines.push('<b>Temperature:</b> ' + esc(tm));
 
   // Wind
   var wm = CONFIG_WEATHER_MECHANICS.wind[wind];
