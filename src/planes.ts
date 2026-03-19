@@ -2347,8 +2347,10 @@ export function handlePlanesCommand(m, args){
       psC.overrides = {};
       psC.anchors = {};
       psC.gmCustomEvents = {};
+      psC.seedOverrides = {};
+      psC.ferniaRisiaLinkMode = 'seed';
       _refreshPlanesHandout();
-      whisper(m.who, 'All planar overrides and anchor overrides cleared.');
+      whisper(m.who, 'All planar overrides, anchors, seed overrides, and Fernia/Risia link settings cleared.');
       return whisperParts(m.who, planesPanelHtml(true));
     }
     var planeC = _getPlaneData(clearName);
@@ -2356,8 +2358,9 @@ export function handlePlanesCommand(m, args){
     delete psC.overrides[planeC.name];
     delete psC.anchors[planeC.name];
     delete psC.gmCustomEvents[planeC.name];
+    if (psC.seedOverrides) delete psC.seedOverrides[planeC.name];
     _refreshPlanesHandout();
-    whisper(m.who, 'Override cleared for <b>'+esc(planeC.name)+'</b>.');
+    whisper(m.who, 'Override state cleared for <b>'+esc(planeC.name)+'</b>.');
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
@@ -2586,8 +2589,14 @@ export function handlePlanesCommand(m, args){
     }
     var psLink = getPlanesState();
     psLink.ferniaRisiaLinkMode = _normalizeFerniaRisiaLinkModeSetting(linkMode);
+    var linkNote = '';
+    if (linkMode === 'linked' && psLink.seedOverrides && psLink.seedOverrides.Risia != null){
+      delete psLink.seedOverrides.Risia;
+      linkNote = 'Existing <b>Risia</b> seed override cleared so the pair truly shares Fernia\'s cycle.<br>';
+    }
     _refreshPlanesHandout();
     whisper(m.who,
+      linkNote +
       '<b>Fernia/Risia</b> link mode set to <b>' + esc(titleCase(linkMode === 'seed' ? 'seeded roll' : linkMode)) + '</b>.<br>' +
       'Current effective mode: <b>' + esc(titleCase(getFerniaRisiaLinkMode(psLink))) + '</b>.<br>' +
       'Use <code>!cal planes link fernia-risia seed</code> to return to the campaign-seeded result.'
@@ -2615,13 +2624,15 @@ export function handlePlanesCommand(m, args){
       return whisper(m.who, 'Please provide a year. Example: <code>!cal planes seed '+esc(seedPlane.name)+' 998</code>');
     }
     var psSeed = getPlanesState();
+    var risiaWasLinked = seedPlane.name === 'Risia' && getFerniaRisiaLinkMode(psSeed) === 'linked';
     if (!psSeed.seedOverrides) psSeed.seedOverrides = {};
     psSeed.seedOverrides[seedPlane.name] = seedYear;
     var seedLinkNote = '';
     if (seedPlane.name === 'Fernia' && getFerniaRisiaLinkMode(psSeed) === 'linked'){
       seedLinkNote = '<i>Risia follows Fernia while the pair is linked.</i><br>';
-    } else if (seedPlane.name === 'Risia' && getFerniaRisiaLinkMode(psSeed) === 'linked'){
-      seedLinkNote = '<i>Risia is currently linked to Fernia, but this explicit Risia seed override takes precedence.</i><br>';
+    } else if (risiaWasLinked){
+      psSeed.ferniaRisiaLinkMode = 'independent';
+      seedLinkNote = '<i>Risia now uses its own seed. Fernia/Risia link mode switched to Independent.</i><br>';
     }
     _refreshPlanesHandout();
     whisper(m.who,

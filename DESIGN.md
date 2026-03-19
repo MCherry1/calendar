@@ -766,6 +766,8 @@ Deterministic, seed-based generated events checked per plane/day.
 !cal planes suppress <name> [dateSpec]
 ```
 
+`!cal planes clear <name>` removes that plane's direct override state, anchor, GM custom event, and seed override. `!cal planes clear all` also resets the Fernia/Risia link mode to its seeded default.
+
 Preset send ranges:
 - **Medium:** 1d (DC 10), 3d (DC 15), 6d (DC 20), 10d (DC 25)
 - **High:** 1m/28d (DC 10), 3m/84d (DC 15), 6m/168d (DC 20), 10m/280d (DC 25)

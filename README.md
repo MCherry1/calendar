@@ -799,6 +799,8 @@ Examples:
 !cal planes suppress <PlaneName> [dateSpec]
 ```
 
+`!cal planes clear <PlaneName>` clears that plane's direct override, anchor, GM custom event, and seed override. `!cal planes clear all` also resets the Fernia/Risia link mode to the campaign-seeded default.
+
 Examples:
 
 ```text

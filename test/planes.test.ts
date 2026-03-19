@@ -109,4 +109,68 @@ describe("Planes regressions", () => {
     assert(independentRisiaCoterminous != null, "expected an independent Risia coterminous day in range");
     assert(linkedRisiaCoterminous !== independentRisiaCoterminous, "Risia should stop following Fernia when the pair is independent");
   });
+
+  it("clears planar seed overrides and the Fernia/Risia link mode on clear all", () => {
+    freshInstall();
+    const ps = getPlanesState();
+    ps.overrides.Fernia = { phase: "remote", note: "GM override" } as any;
+    ps.anchors.Fernia = { year: 998, month: 0, day: 1, phase: "coterminous" } as any;
+    ps.seedOverrides.Fernia = 998;
+    ps.seedOverrides.Daanvi = 1001;
+    ps.ferniaRisiaLinkMode = "linked";
+
+    handlePlanesCommand(gmArgs([]), ["planes", "clear", "all"]);
+
+    assertEquals(Object.keys(ps.overrides).length, 0);
+    assertEquals(Object.keys(ps.anchors).length, 0);
+    assertEquals(Object.keys(ps.seedOverrides).length, 0);
+    assertEquals(ps.ferniaRisiaLinkMode, "seed");
+  });
+
+  it("clears a plane seed override when clearing that plane", () => {
+    freshInstall();
+    const ps = getPlanesState();
+    ps.seedOverrides.Fernia = 998;
+    ps.seedOverrides.Daanvi = 1001;
+
+    handlePlanesCommand(gmArgs([]), ["planes", "clear", "Fernia"]);
+
+    assertEquals(ps.seedOverrides.Fernia, undefined);
+    assertEquals(ps.seedOverrides.Daanvi, 1001);
+  });
+
+  it("relinks Risia by clearing its direct seed override", () => {
+    freshInstall();
+    const ps = getPlanesState();
+    const start = toSerial(998, 0, 1);
+
+    ps.seedOverrides.Fernia = 998;
+    ps.ferniaRisiaLinkMode = "linked";
+    delete ps.seedOverrides.Risia;
+    const expectedLinked = firstPhaseDay("Risia", "coterminous", start, 2200);
+
+    ps.ferniaRisiaLinkMode = "independent";
+    ps.seedOverrides.Risia = 996;
+    const overrideDriven = firstPhaseDay("Risia", "coterminous", start, 2200);
+
+    handlePlanesCommand(gmArgs([]), ["planes", "link", "fernia-risia", "linked"]);
+    const relinked = firstPhaseDay("Risia", "coterminous", start, 2200);
+
+    assert(expectedLinked != null, "expected a linked Risia coterminous day in range");
+    assert(overrideDriven != null, "expected a direct-override Risia coterminous day in range");
+    assert(expectedLinked !== overrideDriven, "test needs the override to change Risia's cycle");
+    assertEquals(ps.seedOverrides.Risia, undefined);
+    assertEquals(relinked, expectedLinked);
+  });
+
+  it("switches Fernia/Risia to independent when Risia gets an explicit seed override", () => {
+    freshInstall();
+    const ps = getPlanesState();
+    ps.ferniaRisiaLinkMode = "linked";
+
+    handlePlanesCommand(gmArgs([]), ["planes", "seed", "Risia", "996"]);
+
+    assertEquals(ps.seedOverrides.Risia, 996);
+    assertEquals(ps.ferniaRisiaLinkMode, "independent");
+  });
 });
