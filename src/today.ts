@@ -6,7 +6,7 @@ import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { _deliverTopLevelCalendarRange, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
-import { button, clamp, esc, listAllEventsTableHtml, removeListHtml, removeMatchesListHtml, restoreDefaultEvents, suppressedDefaultsListHtml } from './rendering.js';
+import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
@@ -393,50 +393,48 @@ export function eventsHandoutHtml(serialArg?){
   var cal = getCal();
   var c = cal.current;
   var today = todaySerial();
-  var displaySerial = isFinite(parseInt(serialArg, 10))
-    ? (parseInt(serialArg, 10) | 0)
-    : today;
-  var dd = fromSerial(displaySerial);
-  var mobj = cal.months[dd.mi];
-  if (!mobj){
+  if (!cal.months || !cal.months.length){
     return _menuBox('Events', '<div style="opacity:.7;">No event calendar is available.</div>');
   }
 
-  var monthStart = toSerial(dd.year, dd.mi, 1);
-  var monthEnd = toSerial(dd.year, dd.mi, mobj.days | 0);
-  var calHtml = buildCalendarsHtmlForSpec({
-    start: monthStart,
-    end: monthEnd,
-    months: [{ y: dd.year, mi: dd.mi }],
-    title: mobj.name + ' ' + dd.year
-  });
+  // Rolling 12-month window: previous month, current month, N-2 following
+  var totalMonths = cal.months.filter(function(m){ return !m.leapEvery; }).length;
+  var followCount = Math.max(0, totalMonths - 2);
+  var window = rollingMonthWindow(today, 1, followCount);
+
+  var calParts = [];
+  for (var k = 0; k < window.length; k++){
+    var wm = window[k];
+    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
+      renderMonthTable({ year: wm.y, mi: wm.mi, mode: 'full', dimPast: true }) +
+      '</div>');
+  }
+  var calHtml = handoutWrap(calParts.join(''));
 
   var lines = [];
   lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
-  if (dd.year === c.year && dd.mi === c.month){
-    try {
-      var occ = occurrencesInRange(today, today);
-      if (occ.length){
-        var seen = {};
-        var evList = [];
-        for (var i = 0; i < occ.length; i++){
-          var nm = eventDisplayName(occ[i].e);
-          var key = String(nm || '').toLowerCase();
-          if (!seen[key]){ seen[key] = 1; evList.push(nm); }
-        }
-        if (evList.length){
-          lines.push('<div style="font-size:.85em;opacity:.8;margin:6px 0 3px 0;"><b>Today\'s events</b></div>');
-          lines.push('<ul style="margin:4px 0;padding-left:18px;">');
-          for (var j = 0; j < evList.length; j++){
-            lines.push('<li style="font-size:.85em;">' + esc(evList[j]) + '</li>');
-          }
-          lines.push('</ul>');
-        }
+  try {
+    var occ = occurrencesInRange(today, today);
+    if (occ.length){
+      var seen = {};
+      var evList = [];
+      for (var i = 0; i < occ.length; i++){
+        var nm = eventDisplayName(occ[i].e);
+        var key = String(nm || '').toLowerCase();
+        if (!seen[key]){ seen[key] = 1; evList.push(nm); }
       }
-    } catch(e0){}
-  }
+      if (evList.length){
+        lines.push('<div style="font-size:.85em;opacity:.8;margin:6px 0 3px 0;"><b>Today\'s events</b></div>');
+        lines.push('<ul style="margin:4px 0;padding-left:18px;">');
+        for (var j = 0; j < evList.length; j++){
+          lines.push('<li style="font-size:.85em;">' + esc(evList[j]) + '</li>');
+        }
+        lines.push('</ul>');
+      }
+    }
+  } catch(e0){}
 
-  return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year), calHtml + lines.join(''));
+  return _menuBox('Events — ' + esc(currentDateLabel()), lines.join('') + calHtml);
 }
 
 function _eventsRemoveRestoreHtml(){

@@ -639,11 +639,67 @@ export function _monthRangeFromSerial(serial){
   };
 }
 
+// Returns an array of {y, mi, start, end} for a rolling window of months.
+// prevCount months before the current month, the current month, and nextCount months after.
+// Skips inactive leap months. Uses calendar month order with year wrapping.
+export function rollingMonthWindow(serial, prevCount, nextCount){
+  var cal = getCal();
+  var d = fromSerial(serial|0);
+  var months = cal.months;
+  var result = [];
+
+  // Helper: step month index forward or backward, respecting leap months
+  function stepMonth(y, mi, direction){
+    var limit = months.length * 3; // safety
+    while (limit-- > 0){
+      mi += direction;
+      if (mi >= months.length){ mi = 0; y++; }
+      else if (mi < 0){ mi = months.length - 1; y--; }
+      var m = months[mi];
+      if (m && m.leapEvery && !_isLeapMonth(m, y)) continue;
+      return { y: y, mi: mi };
+    }
+    return { y: y, mi: mi };
+  }
+
+  function monthRange(y, mi){
+    var m = months[mi] || {};
+    var days = Math.max(1, m.days|0);
+    return { y: y, mi: mi, start: toSerial(y, mi, 1), end: toSerial(y, mi, days) };
+  }
+
+  // Collect previous months (in reverse, then reverse the array)
+  var prev = [];
+  var cy = d.year, cmi = d.mi;
+  for (var p = 0; p < prevCount; p++){
+    var pp = stepMonth(cy, cmi, -1);
+    cy = pp.y; cmi = pp.mi;
+    prev.push(monthRange(cy, cmi));
+  }
+  prev.reverse();
+
+  // Current month
+  result = prev.concat([monthRange(d.year, d.mi)]);
+
+  // Collect following months
+  cy = d.year; cmi = d.mi;
+  for (var n = 0; n < nextCount; n++){
+    var nn = stepMonth(cy, cmi, 1);
+    cy = nn.y; cmi = nn.mi;
+    result.push(monthRange(cy, cmi));
+  }
+
+  return result;
+}
+
 export function _stripHtmlTags(s){
   return String(s || '').replace(/<[^>]*>/g, '').trim();
 }
 
-
+// Wraps handout body HTML in a responsive flex container for multi-month grids.
+export function handoutWrap(innerHtml){
+  return '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start;">' + innerHtml + '</div>';
+}
 
 /* ============================================================================
  * 14) BUTTONED TABLES / LISTS
