@@ -21,27 +21,29 @@ Journal (manual folders)
 │   ├── Calendar - Events                          (rolling year of event calendars)
 │   ├── Lunar/
 │   │   ├── Calendar - Lunar - 0 Unified           (dot-based multi-moon overlay)
+│   │   ├── Calendar - Lunar - Mechanics           (moon lore, orbital periods, eclipse rules, phase tables)
 │   │   ├── Calendar - Lunar - Olarune             (cell-fill: yellow=full, black=new, purple=eclipse)
 │   │   ├── Calendar - Lunar - Therendor
 │   │   └── ... (one per moon)
 │   ├── Planar/
 │   │   ├── Calendar - Planar - 0 Unified          (current planes overlay approach)
+│   │   ├── Calendar - Planar - Mechanics          (orbit years, phase effects, canonical vs generated)
 │   │   ├── Calendar - Planar - Daanvi
 │   │   ├── Calendar - Planar - Fernia
 │   │   └── ... (one per plane)
 │   ├── Weather/
-│   │   └── Calendar - Weather                     (prev 10 days + next 10 days)
-│   └── Mechanics/
-│       ├── Calendar - Mech - Weather              (weather mechanics reference)
-│       ├── Calendar - Mech - Moons                (moon lore reference)
-│       ├── Calendar - Mech - Planes               (planar cycle reference)
-│       └── Calendar - Mech - Events               (event system guide)
+│   │   ├── Calendar - Weather                     (prev 10 days + next 10 days)
+│   │   └── Calendar - Weather - Mechanics         (temp/wind/precip scales, extreme events, fog, tides)
+│   └── Events/
+│       ├── Calendar - Events                      (rolling year calendar)
+│       └── Calendar - Events - Mechanics          (full event list, add/remove/restore, source priority, colors)
 ```
 
 Naming rules:
 - All start with `Calendar - ` prefix for easy identification
-- Subsystem prefix: `Lunar -`, `Planar -`, `Mech -`
+- Subsystem prefix: `Lunar -`, `Planar -`, `Weather -`, `Events -`
 - Unified calendars use `0 Unified` to sort first alphabetically
+- Mechanics handouts live in each subsystem's folder, not a separate folder
 - Individual entity handouts use the entity's canonical name
 
 ## Handout Content Specs
@@ -103,12 +105,12 @@ No changes needed — current implementation already matches spec.
 
 ### Mechanics Handouts
 
-**Content:** Static reference text, regenerated only on calendar system change.
+**Content:** Full reference tables and rules. Regenerated only on calendar system change (or event list modification for Events - Mechanics).
 
-- **Weather:** Temperature/wind/precip scales, extreme event types, fog/visibility rules
-- **Moons:** Moon lore blurbs, orbital periods, Long Shadows explanation
-- **Planes:** Planar cycle explanation, phase effects, canonical vs generated
-- **Events:** How to add/remove/restore events, source priority, color system
+- **Calendar - Lunar - Mechanics:** All 12 moons with orbital periods, diameters, associated planes/months, color bands, lore blurbs. Long Shadows rules. Eclipse mechanics (solar/lunar, conditions, frequency). Phase duration tables. Illumination-to-phase-label mapping.
+- **Calendar - Planar - Mechanics:** All 13 planes with orbit years, coterminous/remote/waning/waxing effects text. Generated event rules (profile, suppression radius, duration). Canonical vs generated explanation. Seed/anchor system. Override mechanics.
+- **Calendar - Weather - Mechanics:** Temperature band table (1-10 with Fahrenheit ranges). Wind band table (1-10 with descriptions). Precipitation band table (1-10 with types). Extreme event catalog (triggers, probabilities, durations, aftermath, mechanics). Fog derivation rules. Visibility tiers (lightly/heavily obscured, zero). Difficult terrain conditions. Snow accumulation. Tidal mechanics for coastal locations.
+- **Calendar - Events - Mechanics:** Full event list table (all current events with month, day, year, color, source). How to add single/monthly/yearly events. Remove and restore workflow. Source priority system. Color system and auto-color. Ordinal weekday spec format (e.g., "2nd Mol").
 
 ## Performance: Stale Detection
 
