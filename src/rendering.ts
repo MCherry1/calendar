@@ -1,7 +1,7 @@
 // Sections 8+11+14: Rendering + Show/Send + Buttoned Tables
 import { CONTRAST_MIN_CELL, LABELS, STYLES, script_name, state_name } from './constants.js';
 import { colorForMonth, ensureSettings, getCal, refreshAndSend, titleCase, weekLength } from './state.js';
-import { _eventDotsHtml, applyBg, colorsAPI, resolveColor } from './color.js';
+import { _eventDotsHtml, applyBg, applyPlaneFill, colorsAPI, resolveColor } from './color.js';
 import { _isGregorianLeapSlotMonthObj, _isLeapMonth, daysPerYear, fromSerial, toSerial, todaySerial, weekStartSerial, weekdayIndex } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { _firstWeekdayOfMonth, _tokenizeRangeArgs, autoColorForEvent, buildCalendarsHtmlForSpec, dayFromOrdinalWeekday, eventDisplayName, eventKey, eventsListHTMLForRange, getEventColor, getEventsFor, mergeInNewDefaultEvents, parseUnifiedRange, sortEventsByPriority, stripRangeExtensionDynamic } from './events.js';
@@ -120,6 +120,29 @@ export function openMonthTable(mi, yearLabel, abbrHeaders?){
 
 export function closeMonthTable(){ return '</table>'; }
 
+// Render header bars for long planar events.  Each bar is a narrow colored
+// strip attached flush below the month header, showing "PlaneName Phase".
+export function planesHeaderBarsHtml(bars, weekdayCount){
+  if (!bars || !bars.length) return '';
+  var cols = weekdayCount || 7;
+  var rows = [];
+  for (var i = 0; i < bars.length; i++){
+    var b = bars[i];
+    var isRem = (b.phase === 'remote');
+    var bgStyle = isRem
+      ? 'background:' + b.color + ';opacity:.4;'
+      : 'background:' + b.color + ';';
+    var tc = isRem ? '#000' : '';  // will compute below
+    rows.push(
+      '<tr><td colspan="'+cols+'" style="border:1px solid #444;padding:0;" title="'+esc(b.tooltip || '')+'">' +
+      '<div style="padding:2px 6px;font-size:.75em;font-weight:bold;line-height:1.3;' + bgStyle + '">' +
+        esc(b.label || '') +
+      '</div></td></tr>'
+    );
+  }
+  return rows.join('');
+}
+
 export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEvents){
   var ser = toSerial(y, mi, d);
   var tSer = todaySerial();
@@ -145,9 +168,13 @@ export function styleForDayCell(baseStyle, events, isToday, monthColor, isPast, 
   // Primary event (or today) sets the solid background color.
   // Secondary events are rendered as dots by _eventDotsHtml — not styled here.
   // Events flagged dotOnly skip the background fill (multi-moon mini-cal).
+  // Events flagged planeFill use special planar rendering (remote hatching, diagonal split).
   var style = baseStyle;
-  if (events.length >= 1 && !(events[0] as any).dotOnly){
-    style = applyBg(style, getEventColor(events[0]), CONTRAST_MIN_CELL);
+  var e0 = events.length >= 1 ? events[0] : null;
+  if (e0 && (e0 as any).planeFill){
+    style = applyPlaneFill(style, e0, CONTRAST_MIN_CELL);
+  } else if (e0 && !(e0 as any).dotOnly){
+    style = applyBg(style, getEventColor(e0), CONTRAST_MIN_CELL);
   } else if (isToday){
     style = applyBg(style, monthColor, CONTRAST_MIN_CELL);
   }
@@ -314,6 +341,8 @@ export function renderMonthTable(opts){
   }
   var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false));
   var html  = [parts.html];
+  // Optional header bars (e.g. long planar events) injected between header and cells
+  if (opts && opts.headerBarsHtml) html.push(opts.headerBarsHtml);
   var wdCnt = weekLength()|0;
 
   if (mode === 'full'){
@@ -545,17 +574,26 @@ export function _buildSyntheticEventsLookup(syntheticEvents, fallbackTitle){
     if (!se || !isFinite(se.serial)) continue;
     var key = String(se.serial|0);
     if (!bySerial[key]) bySerial[key] = [];
-    bySerial[key].push({
+    var entry: any = {
       name: String(se.name || fallbackTitle || 'Highlight'),
       color: resolveColor(se.color) || '#607D8B',
       source: null
-    });
+    };
+    // Preserve subsystem flags for specialized rendering
+    if ((se as any).dotOnly)       entry.dotOnly = true;
+    if ((se as any).planeFill)     entry.planeFill = true;
+    if ((se as any).isRemote)      entry.isRemote = true;
+    if ((se as any).splitColor)    entry.splitColor = resolveColor((se as any).splitColor) || '#607D8B';
+    if ((se as any).splitIsRemote) entry.splitIsRemote = true;
+    if ((se as any).replaceNumeral) entry.replaceNumeral = (se as any).replaceNumeral;
+    bySerial[key].push(entry);
   }
   return bySerial;
 }
 
-export function _renderSyntheticMiniCal(title, startSerial, endSerial, syntheticEvents){
+export function _renderSyntheticMiniCal(title, startSerial, endSerial, syntheticEvents, headerBars?){
   var bySerial = _buildSyntheticEventsLookup(syntheticEvents, title);
+  var hbHtml = planesHeaderBarsHtml(headerBars, weekLength());
   var startDate = fromSerial(startSerial|0);
   var endDate = fromSerial(endSerial|0);
   if (startDate.year === endDate.year && startDate.mi === endDate.mi && startDate.day === 1){
@@ -567,6 +605,7 @@ export function _renderSyntheticMiniCal(title, startSerial, endSerial, synthetic
         mi: startDate.mi,
         mode: 'full',
         includeCalendarEvents: false,
+        headerBarsHtml: hbHtml || undefined,
         extraEventsFn: function(serial){
           return bySerial[String(serial)] || [];
         }
@@ -578,6 +617,7 @@ export function _renderSyntheticMiniCal(title, startSerial, endSerial, synthetic
     start: startSerial,
     end: endSerial,
     includeCalendarEvents: false,
+    headerBarsHtml: hbHtml || undefined,
     extraEventsFn: function(serial){
       return bySerial[String(serial)] || [];
     }

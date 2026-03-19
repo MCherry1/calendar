@@ -832,6 +832,10 @@ export function _canonicalPhaseKnowledgeSummary(planeName, serial, horizonDays){
   return 'Cycle: C ' + cTxt + ' \u00B7 R ' + rTxt;
 }
 
+// Threshold for "short" vs "long" planar events.
+// Events ≤ this many days get cell fills; longer events get header bars.
+var PLANE_SHORT_EVENT_THRESHOLD = 28;
+
 export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSerial?){
   var out = [];
   var planes = _getAllPlaneData();
@@ -840,109 +844,169 @@ export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSeri
   var start = startSerial|0;
   var end = endSerial|0;
   if (end < start){ var t = start; start = end; end = t; }
-  var prevCanon = {};
-  var prevGen = {};
-
-  for (var i = 0; i < planes.length; i++){
-    var pname = planes[i].name;
-    prevCanon[pname] = getPlanarState(pname, start - 1, { ignoreGenerated: true });
-    if (generatedCutoffSerial != null && (start - 1) <= generatedCutoffSerial){
-      var prevActual = getPlanarState(pname, start - 1);
-      prevGen[pname] = prevActual ? { phase: prevActual.phase, gen: !!_isGeneratedNote(prevActual.note) } : null;
-    }
-  }
 
   for (var ser = start; ser <= end; ser++){
-    // Collect per-day summaries: transition events, active coterminous/remote,
-    // and generated shifts.  Then emit at most a few dot-only indicators per day
-    // instead of one fill event per plane per day.
-    var transitionNames = [];
-    var cotNames = [];
-    var remoteNames = [];
-    var genNames = [];
+    // Collect per-day: short canonical fills, generated dots, tooltip info.
+    var fills = [];   // short canonical events → cell fills
+    var dots  = [];   // generated events → dots
+    var tipCot  = [];
+    var tipRem  = [];
 
     for (var j = 0; j < planes.length; j++){
-      var name = planes[j].name;
+      var plane = planes[j];
+      var name = plane.name;
+      var planeColor = plane.color || '#607D8B';
 
-      // Canonical phase
-      var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
-      var prvCanon = prevCanon[name];
-      var isTransition = curCanon && prvCanon && curCanon.phase !== prvCanon.phase;
-      if (isTransition){
-        var emoji = PLANE_PHASE_EMOJI[curCanon.phase] || '\u26AA';
-        var label = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
-        if (curCanon.phase === 'coterminous' || curCanon.phase === 'remote'){
-          transitionNames.push(emoji + ' ' + name + ': ' + label + ' begins');
-        } else {
-          var endedPhase = PLANE_PHASE_LABELS[prvCanon.phase] || prvCanon.phase;
-          transitionNames.push(emoji + ' ' + name + ': ' + endedPhase + ' ends');
+      // Canonical state (ignoring generated shifts)
+      var canon = getPlanarState(name, ser, { ignoreGenerated: true });
+      if (canon && (canon.phase === 'coterminous' || canon.phase === 'remote')){
+        var dur = canon.phaseDuration || 999;
+        if (dur <= PLANE_SHORT_EVENT_THRESHOLD){
+          fills.push({
+            planeName: name,
+            color: planeColor,
+            phase: canon.phase,
+            duration: dur
+          });
         }
-      } else if (curCanon && curCanon.phase === 'coterminous'){
-        cotNames.push(name);
-      } else if (curCanon && curCanon.phase === 'remote'){
-        remoteNames.push(name);
+        // Tooltip always includes active planes
+        if (canon.phase === 'coterminous') tipCot.push(name);
+        else tipRem.push(name);
       }
-      prevCanon[name] = curCanon;
 
-      // Generated (off-cycle) event spans
+      // Generated events → always dots
       if (generatedCutoffSerial != null && ser <= generatedCutoffSerial){
-        var curActual = getPlanarState(name, ser);
-        var curIsGen = !!(curActual && _isGeneratedNote(curActual.note));
-        var prevEntry = prevGen[name] || { phase: null, gen: false };
-        var prevWasGen = !!prevEntry.gen;
-
-        if (curIsGen){
-          var gPhase = curActual.phase || 'neutral';
-          var gLabel = (PLANE_PHASE_LABELS[gPhase] || gPhase).toLowerCase();
-          var startsHere = (!prevWasGen || prevEntry.phase !== gPhase);
-          if (startsHere){
-            genNames.push(name + ': ' + gLabel + ' begins');
-          } else {
-            genNames.push(name + ': ' + gLabel);
+        var actual = getPlanarState(name, ser);
+        if (actual && _isGeneratedNote(actual.note)){
+          var gPhase = actual.phase || 'neutral';
+          if (gPhase === 'coterminous' || gPhase === 'remote'){
+            dots.push({
+              planeName: name,
+              color: planeColor,
+              phase: gPhase
+            });
+            // Also add to tooltip
+            if (gPhase === 'coterminous' && tipCot.indexOf(name) < 0) tipCot.push(name);
+            if (gPhase === 'remote' && tipRem.indexOf(name) < 0) tipRem.push(name);
           }
         }
-        prevGen[name] = { phase: curActual ? curActual.phase : null, gen: curIsGen };
       }
     }
 
-    // Emit dot-only indicators: one per category so cells aren't flooded
-    // with fill colours.  Transitions get their own teal dot; ongoing
-    // coterminous/remote get lighter dots; generated shifts get purple.
-    if (transitionNames.length){
+    // Sort fills by duration ascending (shortest first = primary fill)
+    fills.sort(function(a, b){ return a.duration - b.duration; });
+
+    // Build tooltip
+    var tipParts = [];
+    if (tipCot.length) tipParts.push('Coterminous: ' + tipCot.join(', '));
+    if (tipRem.length) tipParts.push('Remote: ' + tipRem.join(', '));
+    var tooltip = tipParts.join(' | ');
+
+    // Emit fill events (max 2 for diagonal split)
+    if (fills.length === 1){
       out.push({
         serial: ser,
-        name: transitionNames.join(', '),
-        color: '#80CBC4',
-        dotOnly: true
+        name: tooltip || (fills[0].planeName + ' ' + fills[0].phase),
+        color: fills[0].color,
+        isRemote: fills[0].phase === 'remote',
+        planeFill: true
+      });
+    } else if (fills.length >= 2){
+      // Diagonal split: two fills
+      out.push({
+        serial: ser,
+        name: tooltip || (fills[0].planeName + ' / ' + fills[1].planeName),
+        color: fills[0].color,
+        planeFill: true,
+        isRemote: fills[0].phase === 'remote',
+        splitColor: fills[1].color,
+        splitIsRemote: fills[1].phase === 'remote'
       });
     }
-    if (cotNames.length){
+
+    // Emit generated dots — always include "Generated" in name for test/filter compatibility
+    for (var g = 0; g < dots.length; g++){
+      var gLabel = (PLANE_PHASE_LABELS[dots[g].phase] || dots[g].phase).toLowerCase();
+      var genName = 'Generated: ' + dots[g].planeName + ' ' + gLabel;
       out.push({
         serial: ser,
-        name: 'Coterminous: ' + cotNames.join(', '),
-        color: '#B2DFDB',
-        dotOnly: true
-      });
-    }
-    if (remoteNames.length){
-      out.push({
-        serial: ser,
-        name: 'Remote: ' + remoteNames.join(', '),
-        color: '#FFCDD2',
-        dotOnly: true
-      });
-    }
-    if (genNames.length){
-      out.push({
-        serial: ser,
-        name: 'Generated: ' + genNames.join(', '),
-        color: '#CE93D8',
+        name: genName + (tooltip ? ' | ' + tooltip : ''),
+        color: dots[g].color,
         dotOnly: true
       });
     }
   }
 
   return out;
+}
+
+// Compute header bars for long (>1 month) canonical planar events active
+// during a given month range.  Returns array of { planeName, color, phase,
+// tooltip } for rendering above the month header.
+export function _planesHeaderBars(startSerial, endSerial){
+  var bars = [];
+  var planes = _getAllPlaneData();
+  if (!planes || !planes.length) return bars;
+
+  // Check each plane at the midpoint of the range
+  var mid = Math.floor((startSerial + endSerial) / 2);
+  var seen = {};
+
+  for (var j = 0; j < planes.length; j++){
+    var plane = planes[j];
+    var canon = getPlanarState(plane.name, mid, { ignoreGenerated: true });
+    if (!canon) continue;
+    if (canon.phase !== 'coterminous' && canon.phase !== 'remote') continue;
+    var dur = canon.phaseDuration || 0;
+    if (dur <= PLANE_SHORT_EVENT_THRESHOLD) continue;
+
+    var key = plane.name + ':' + canon.phase;
+    if (seen[key]) continue;
+    seen[key] = true;
+
+    // Build tooltip with duration info
+    var phaseLabel = (PLANE_PHASE_LABELS[canon.phase] || canon.phase).toLowerCase();
+    var daysInto = canon.daysIntoPhase || 0;
+    var daysLeft = canon.daysUntilNextPhase || 0;
+    var totalDays = dur;
+    var tipParts = [plane.name + ' ' + phaseLabel];
+
+    // Duration display
+    var yearDays = _planarYearDays() || 336;
+    if (totalDays > yearDays * 2){
+      tipParts.push('~' + Math.round(totalDays / yearDays) + ' years total');
+    } else if (totalDays > 56){
+      tipParts.push('~' + Math.round(totalDays / 28) + ' months total');
+    } else {
+      tipParts.push(totalDays + ' days total');
+    }
+
+    // Started/ending info
+    if (daysInto > yearDays){
+      tipParts.push('began ~' + Math.round(daysInto / yearDays) + ' years ago');
+    } else if (daysInto > 56){
+      tipParts.push('began ~' + Math.round(daysInto / 28) + ' months ago');
+    } else {
+      tipParts.push('began ' + daysInto + ' days ago');
+    }
+    if (daysLeft > yearDays){
+      tipParts.push('ending in ~' + Math.round(daysLeft / yearDays) + ' years');
+    } else if (daysLeft > 56){
+      tipParts.push('ending in ~' + Math.round(daysLeft / 28) + ' months');
+    } else {
+      tipParts.push('ending in ' + daysLeft + ' days');
+    }
+
+    bars.push({
+      planeName: plane.name,
+      color: plane.color || '#607D8B',
+      phase: canon.phase,
+      label: plane.name + ' ' + titleCase(phaseLabel),
+      tooltip: tipParts.join(', ')
+    });
+  }
+
+  return bars;
 }
 
 export function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
@@ -1014,7 +1078,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   if (isGM) generatedCutoff = pr.end;
   else if (genHorizon > 0) generatedCutoff = Math.min(pr.end, todaySerial() + genHorizon);
   var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
-  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
+  var headerBars = _planesHeaderBars(pr.start, pr.end);
+  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents, headerBars);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow;
@@ -1254,7 +1319,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var calBody = navRow +
       _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) +
       planesMiniCal +
-      _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']) +
+      _legendLine(['Cell fill = short event', 'Hatched = remote', '\u25CF Dot = generated']) +
       longShadowsHtml;
     parts.push(_menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel), calBody));
   }
