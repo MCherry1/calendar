@@ -1017,7 +1017,7 @@ export function activeEffectsPanelHtml(){
   }
 
   return _menuBox('✨ Active Effects — ' + esc(currentDateLabel()),
-    sections.join('') + '<div style="margin-top:7px;">'+button('Back','help root')+'</div>'
+    sections.join('')
   );
 }
 
@@ -1164,14 +1164,13 @@ export function helpRootMenu(m){
 
 export function helpThemesMenu(m){
   var ro = !playerIsGM(m.playerid);
-  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>');
+  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro)));
 }
 
 export function helpCalendarSystemMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
-    _menuBox(ro ? 'Supported Settings (view only)' : 'Supported Settings', calendarSystemListHtml(ro))+
-    '<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>'
+    _menuBox(ro ? 'Supported Settings (view only)' : 'Supported Settings', calendarSystemListHtml(ro))
   );
 }
 
@@ -1185,16 +1184,14 @@ export function helpEventColorsMenu(m){
     '</div>'
   ].join('');
   whisperUi(m.who,
-    _menuBox('Event Colors', intro + colorsNamedListHtml())+
-    '<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>'
+    _menuBox('Event Colors', intro + colorsNamedListHtml())
   );
 }
 
 export function helpSeasonsMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
-    _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))+
-    '<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>'
+    _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))
   );
 }
 

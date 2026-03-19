@@ -3605,8 +3605,7 @@ export function handleMoonCommand(m, args){
       phLines.push('<div style="margin-bottom:6px;font-size:.85em;">' + line + '</div>');
     });
     return whisper(m.who, _menuBox('🌙 Current Phases — ' + esc(dateLabelFromSerial(phToday)),
-      phLines.join('') +
-      '<div style="margin-top:6px;">' + button('Back', 'moon') + '</div>'
+      phLines.join('')
     ));
   }
 
@@ -3666,8 +3665,7 @@ export function handleMoonCommand(m, args){
         });
         return whisper(m.who, _menuBox('🌙 Moon Calendar',
           '<div style="margin-bottom:4px;">Select a moon:</div>' +
-          pViewBtns.join(' ') +
-          '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
+          pViewBtns.join(' ')
         ));
       }
       var pViewMoon = _moonParseMoonName(pViewName, pViewSys);
@@ -3698,8 +3696,7 @@ export function handleMoonCommand(m, args){
         _pViewNav(pNextS, 'Next')+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
-        pViewNav + pCalBody +
-        '<div style="margin-top:6px;">'+button('Back to All Moons','moon')+'</div>'
+        pViewNav + pCalBody
       ));
     }
     return whisper(m.who,
@@ -3866,8 +3863,7 @@ export function handleMoonCommand(m, args){
       // Show dropdown picker for moon selection
       var viewQueryOpts = viewSys.moons.map(function(moon){ return moon.name; }).join('|');
       return whisper(m.who, _menuBox('🌙 Moon Calendar',
-        '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>' +
-        '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
+        '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>'
       ));
     }
     var viewMoonName = _moonParseMoonName(viewNameRaw, viewSys);
@@ -3889,7 +3885,7 @@ export function handleMoonCommand(m, args){
       '</div>';
     return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
       viewNav + calBody +
-      '<div style="margin-top:6px;">'+button('Back to All Moons','moon')+' '+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
+      '<div style="margin-top:6px;">'+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
     ));
   }
 

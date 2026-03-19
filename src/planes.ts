@@ -359,8 +359,7 @@ function _planeAnchorWizardHtml(planeName){
     var planeQueryOpts = planes.map(function(p){ return p.name; }).join('|');
     return _menuBox('Set Plane Anchor',
       '<div style="opacity:.8;margin-bottom:6px;">Choose a plane, then set when its first coterminous phase begins.</div>'+
-      '<div>'+button('Choose Plane', 'planes anchorwizard ?{Plane|' + planeQueryOpts + '}')+'</div>'+
-      '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+      '<div>'+button('Choose Plane', 'planes anchorwizard ?{Plane|' + planeQueryOpts + '}')+'</div>'
     );
   }
 
@@ -370,7 +369,7 @@ function _planeAnchorWizardHtml(planeName){
         esc(PLANE_PHASE_LABELS[plane.fixedPhase || 'remote'] || (plane.fixedPhase || 'remote'))+
       '</b>.</div>'+
       (plane.note ? '<div style="opacity:.78;margin-top:5px;">'+esc(plane.note)+'</div>' : '')+
-      '<div style="margin-top:6px;">'+button('Back','planes')+' '+button('Show Plane','planes view '+plane.name)+'</div>'
+      '<div style="margin-top:6px;">'+button('Show Plane','planes view '+plane.name)+'</div>'
     );
   }
 
@@ -429,7 +428,7 @@ function _planeAnchorWizardHtml(planeName){
       )+
     '</div>'+
     '<div style="font-size:.75em;opacity:.45;margin-top:5px;">Advanced CLI: <code>!cal planes anchor '+esc(plane.name)+' &lt;phase&gt; &lt;dateSpec&gt;</code></div>'+
-    '<div style="margin-top:6px;">'+button('Back','planes')+' '+button('Show Plane','planes view '+plane.name)+'</div>'
+    '<div style="margin-top:6px;">'+button('Show Plane','planes view '+plane.name)+'</div>'
   );
 }
 
@@ -1681,8 +1680,7 @@ export function handlePlanesCommand(m, args){
       whisper(m.who, _menuBox(
         '\uD83C\uDF00 Planar Almanac \u2014 '+esc(dateLabelFromSerial(today)),
         sendRows.join('') +
-        '<div style="opacity:.75;margin-top:4px;">GM-only view. No message was sent to players.</div>'+
-        '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+        '<div style="opacity:.75;margin-top:4px;">GM-only view. No message was sent to players.</div>'
       ));
       return;
     }
@@ -1742,8 +1740,7 @@ export function handlePlanesCommand(m, args){
       // Show dropdown picker for plane selection
       var viewQueryOpts = allPlanes.map(function(p){ return p.name; }).join('|');
       return whisper(m.who, _menuBox('🌀 Plane Detail',
-        '<div style="margin-bottom:4px;">'+button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + viewQueryOpts + '}')+'</div>' +
-        '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+        '<div style="margin-bottom:4px;">'+button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + viewQueryOpts + '}')+'</div>'
       ));
     }
     var viewPlane = _getPlaneData(viewNameRaw);
@@ -1792,8 +1789,7 @@ export function handlePlanesCommand(m, args){
     viewHtml += '</div>';
 
     return whisper(m.who, _menuBox('🌀 '+esc(viewPlane.name),
-      viewHtml +
-      '<div style="margin-top:6px;">'+button('Back to All Planes','planes')+'</div>'
+      viewHtml
     ));
   }
 

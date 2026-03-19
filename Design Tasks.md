@@ -94,7 +94,7 @@ There are 5 core commands:
 * !cal planes
 
 Aside from !cal, each of these is the default entry point to their subsystem. ALL of them will output a system-specific minical. Below: minical display, text info, and buttons for each.
-Navigation wording should be consistent across these views: use **Previous / Next** for month-or-view navigation, and **Back / Forward** for actual date stepping.
+Navigation wording should be consistent across these views: use **Previous / Next** for month-or-view navigation, and **Back / Forward** for actual date stepping. Do not add separate return/back buttons to drill-down panels; Roll20 chat history already preserves prior menus.
 
 #### Today (!cal or !cal today)
 * All info is specific to the current calendar date.
