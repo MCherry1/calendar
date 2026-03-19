@@ -7,6 +7,7 @@ import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button,
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
+import { bindMoonPageByName, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 
@@ -1740,8 +1741,8 @@ export function moonPanelParts(serialOverride?){
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    button('◀ Prev Month','moon on '+_serialToDateSpec(prevSer))+' '+
-    button('Next Month ▶','moon on '+_serialToDateSpec(nextSer))+
+    button('Previous','moon on '+_serialToDateSpec(prevSer))+' '+
+    button('Next','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
 
   var parts = [];
@@ -1840,7 +1841,7 @@ export function moonPanelParts(serialOverride?){
 
   // Management dropdown
   gmControls += '<div style="margin:4px 0;">' +
-    button('Management','moon manage ?{Action|Toggle Moons On/Off,settings moons toggle|Reseed Moons,moon reseed|Set New,moon setnew ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,moon setfull ?\\{Date dd or mm dd or mm dd yyyy\\}}') +
+    button('Management','moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Bind Moon Page,page bind ?\\{Moon Phase page name|Moon Phase\\}|Refresh Moon Page,page refresh|Show Moon Page,page show}') +
     '</div>';
 
   // Utility buttons
@@ -1898,8 +1899,8 @@ export function moonPlayerPanelHtml(serialOverride?){
     return button(label, 'moon on '+_serialToDateSpec(serial));
   }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    _navBtn(prevSer, '◀ Prev')+' '+
-    _navBtn(nextSer, 'Next ▶')+
+    _navBtn(prevSer, 'Previous')+' '+
+    _navBtn(nextSer, 'Next')+
     '</div>';
 
   // Today summary + notable moons only (not all 12)
@@ -1947,6 +1948,64 @@ export function moonPlayerPanelHtml(serialOverride?){
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
 }
 
+export function moonHandoutHtml(serialOverride?){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
+  }
+
+  var ms  = getMoonState();
+  var cal = getCal();
+  var cur = cal.current;
+  var tier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
+  var horizon = parseInt(ms.revealHorizonDays, 10) || 7;
+  var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
+  moonEnsureSequences(today, horizon + 30);
+  var dateLabel = dateLabelFromSerial(today);
+
+  var sys = _getMoonSys();
+  if (!sys){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+
+  var pmr = _monthRangeFromSerial(today);
+  var pMoonMiniEvents = _moonMiniCalEvents(pmr.start, pmr.end, tier, horizon);
+  var pMoonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', pmr.start, pmr.end, pMoonMiniEvents);
+
+  var body = _moonTodaySummaryHtml(today, tier, horizon);
+  body += pMoonMiniCal;
+  body += _legendLine(['🌕 Full', '🌑 New']);
+
+  var notableLines = [];
+  sys.moons.forEach(function(moon){
+    var peakType = _moonPeakPhaseDay(moon.name, today);
+    if (peakType === 'full'){
+      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+    } else if (peakType === 'new'){
+      var ph = moonPhaseAt(moon.name, today);
+      var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
+      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> is New' + tag);
+    }
+  });
+  if (notableLines.length){
+    body += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
+      notableLines.join('<br>') + '</div>';
+  } else {
+    body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
+  }
+  if (tier === 'high' && _eclipseNotableToday(today).length){
+    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
+      _eclipseNotableToday(today).join('<br>') + '</div>';
+  }
+
+  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
+  if (srcLabel){
+    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
+  }
+
+  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
+}
+
 // ---------------------------------------------------------------------------
 // 20j) Moon command handler  (!cal moon ...)
 // ---------------------------------------------------------------------------
@@ -1958,6 +2017,11 @@ export function _moonParseMoonName(str, sys){
     if (sys.moons[i].name.toLowerCase() === s) return sys.moons[i].name;
   }
   return null;
+}
+
+function _refreshMoonPersistentViews(){
+  refreshMoonPage({ autoBind: true });
+  refreshHandout('moons');
 }
 
 
@@ -3605,8 +3669,7 @@ export function handleMoonCommand(m, args){
       phLines.push('<div style="margin-bottom:6px;font-size:.85em;">' + line + '</div>');
     });
     return whisper(m.who, _menuBox('🌙 Current Phases — ' + esc(dateLabelFromSerial(phToday)),
-      phLines.join('') +
-      '<div style="margin-top:6px;">' + button('⬅ Back', 'moon') + '</div>'
+      phLines.join('')
     ));
   }
 
@@ -3666,8 +3729,7 @@ export function handleMoonCommand(m, args){
         });
         return whisper(m.who, _menuBox('🌙 Moon Calendar',
           '<div style="margin-bottom:4px;">Select a moon:</div>' +
-          pViewBtns.join(' ') +
-          '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
+          pViewBtns.join(' ')
         ));
       }
       var pViewMoon = _moonParseMoonName(pViewName, pViewSys);
@@ -3694,18 +3756,70 @@ export function handleMoonCommand(m, args){
         return button(label, 'moon view ' + pViewMoon + ' ' + _serialToDateSpec(serial));
       }
       var pViewNav = '<div style="margin:4px 0;">'+
-        _pViewNav(pPrevS, '◀ Prev')+' '+
-        _pViewNav(pNextS, 'Next ▶')+
+        _pViewNav(pPrevS, 'Previous')+' '+
+        _pViewNav(pNextS, 'Next')+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
-        pViewNav + pCalBody +
-        '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+'</div>'
+        pViewNav + pCalBody
       ));
     }
     return whisper(m.who,
       'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon view &lt;name&gt;</code>'
     );
   }
+
+  if (sub === 'manage'){
+    var manageAction = String(args[2] || '').toLowerCase();
+    if (!manageAction){
+      return whisper(m.who, 'Moon management: use the dropdown to select an action.');
+    }
+    return handleMoonCommand(m, ['moon', manageAction].concat(args.slice(3)));
+  }
+
+  if (sub === 'toggle'){
+    st.moonsEnabled = (st.moonsEnabled === false);
+    st._moonsAutoToggle = false;
+    _refreshMoonPersistentViews();
+    return whisperParts(m.who, moonPanelParts());
+  }
+
+  if (sub === 'page'){
+    var pageAction = String(args[2] || '').toLowerCase();
+    if (!pageAction || pageAction === 'bind'){
+      var pageName = args.slice(3).join(' ').trim() || 'Moon Phase';
+      var bindRes = bindMoonPageByName(pageName);
+      if (!bindRes.ok) return whisper(m.who, bindRes.message);
+      refreshMoonPage({ autoBind: true });
+      return whisper(m.who, bindRes.message);
+    }
+    if (pageAction === 'refresh'){
+      var refreshRes = refreshMoonPage({ autoBind: true });
+      return whisper(m.who, refreshRes.message);
+    }
+    if (pageAction === 'show'){
+      var showRes = showMoonPage();
+      return whisper(m.who, showRes.message);
+    }
+    return whisper(m.who, 'Usage: <code>!cal moon page bind &lt;page name&gt;</code> · <code>!cal moon page refresh</code> · <code>!cal moon page show</code>');
+  }
+
+  if (sub === 'reseed'){
+    var msReseed = getMoonState();
+    var prevSeed = (msReseed.systemSeed != null && String(msReseed.systemSeed).trim() !== '')
+      ? String(msReseed.systemSeed).trim()
+      : 'auto';
+    var nextSeed = 'moon-' + todaySerial() + '-' + Math.round(_moonHashStr(prevSeed + '|' + todaySerial() + '|' + (msReseed.generatedThru || 0)) * 1000000);
+    msReseed.systemSeed = nextSeed;
+    msReseed.generatedFrom = null;
+    msReseed.generatedThru = 0;
+    moonEnsureSequences();
+    _refreshMoonPersistentViews();
+    whisper(m.who, 'Moon sequences reseeded to <b>'+esc(nextSeed)+'</b>.');
+    return whisperParts(m.who, moonPanelParts());
+  }
+
+  if (sub === 'setnew') sub = 'new';
+  if (sub === 'setfull') sub = 'full';
 
   // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m|Nd|Nw]
   if (sub === 'send'){
@@ -3756,6 +3870,7 @@ export function handleMoonCommand(m, args){
       '<div style="font-size:.75em;opacity:.4;margin-top:3px;">Forecast horizon: '+esc(_rangeLabel(effectiveHorizon))+'</div>'
     ));
 
+    _refreshMoonPersistentViews();
     warnGM('Sent '+titleCase(effectiveTier)+' lunar forecast to players ('+_rangeLabel(effectiveHorizon)+').');
     return whisperParts(m.who, moonPanelParts());
   }
@@ -3781,6 +3896,7 @@ export function handleMoonCommand(m, args){
     ms.generatedFrom = null;
     ms.generatedThru = 0;
     moonEnsureSequences();
+    _refreshMoonPersistentViews();
     return whisper(m.who, 'System moon seed set to <b>'+esc(word)+'</b>. Sequences regenerated.');
   }
 
@@ -3818,6 +3934,7 @@ export function handleMoonCommand(m, args){
     ms2.generatedFrom = null;
     ms2.generatedThru = 0;
     moonEnsureSequences();
+    _refreshMoonPersistentViews();
 
     var monthName = _displayMonthDayParts(pref.mHuman - 1, pref.day).monthName;
     return whisper(m.who,
@@ -3835,8 +3952,7 @@ export function handleMoonCommand(m, args){
       // Show dropdown picker for moon selection
       var viewQueryOpts = viewSys.moons.map(function(moon){ return moon.name; }).join('|');
       return whisper(m.who, _menuBox('🌙 Moon Calendar',
-        '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>' +
-        '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
+        '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>'
       ));
     }
     var viewMoonName = _moonParseMoonName(viewNameRaw, viewSys);
@@ -3853,12 +3969,12 @@ export function handleMoonCommand(m, args){
     var prevS = _shiftSerialByMonth(viewSerial, -1);
     var nextS = _shiftSerialByMonth(viewSerial, 1);
     var viewNav = '<div style="margin:4px 0;">'+
-      button('◀ Prev','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
-      button('Next ▶','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
+      button('Previous','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
+      button('Next','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
       '</div>';
     return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
       viewNav + calBody +
-      '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+' '+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
+      '<div style="margin-top:6px;">'+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
     ));
   }
 
@@ -3873,12 +3989,14 @@ export function handleMoonCommand(m, args){
       ms3.generatedFrom = null;
       ms3.generatedThru = 0;
       moonEnsureSequences();
+      _refreshMoonPersistentViews();
       return whisper(m.who, 'Phase overrides reset for <b>'+esc(mName3)+'</b>.');
     } else {
       ms3.gmAnchors = {};
       ms3.generatedFrom = null;
       ms3.generatedThru = 0;
       moonEnsureSequences();
+      _refreshMoonPersistentViews();
       return whisper(m.who, 'All moon phase overrides reset.');
     }
   }
@@ -3888,6 +4006,9 @@ export function handleMoonCommand(m, args){
     '<code>!cal moon view &lt;name&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon page bind &lt;page name&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon page refresh</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon page show</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon reset [&lt;name&gt;]</code>'

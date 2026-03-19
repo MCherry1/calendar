@@ -8,6 +8,10 @@ declare function on(event: string, handler: (...args: any[]) => void): void;
 declare function log(message: any): void;
 declare function randomInteger(max: number): number;
 declare function playerIsGM(playerId: string): boolean;
+declare function Campaign(): any;
+declare function createObj(type: string, attributes: Record<string, any>): any;
+declare function findObjs(attrs: Record<string, any>, options?: Record<string, any>): any[];
+declare function getObj(type: string, id: string): any;
 
 // Test-mode flag set by roll20-shim
 declare var __CALENDAR_TEST_MODE__: boolean | undefined;
@@ -16,4 +20,6 @@ declare var __CALENDAR_TEST_MODE__: boolean | undefined;
 declare var _chatLog: Array<{ who: string; msg: string; opts?: any }>;
 declare var _eventHandlers: Record<string, Array<(...args: any[]) => void>>;
 declare var _logMessages: any[];
+declare var _roll20Objects: Record<string, any>;
+declare var _campaignState: Record<string, any>;
 declare function _resetShim(): void;

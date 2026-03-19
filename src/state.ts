@@ -8,6 +8,7 @@ import { DaySpec, Parse } from './parsing.js';
 import { compareEvents, currentDefaultKeySet, defaultKeyFor, mergeInNewDefaultEvents } from './events.js';
 import { clamp } from './rendering.js';
 import { ensureTimeOfDayState } from './time-of-day.js';
+import { refreshAllPersistentViews } from './persistent-views.js';
 import { _defaultDetailsForKey, _getSeasonLabel, _weatherViewDays, sendCurrentDate } from './ui.js';
 
 
@@ -217,6 +218,7 @@ export function ensureSettings(){
   if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
   if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
   if (s.weatherMechanicsEnabled === undefined) s.weatherMechanicsEnabled = CONFIG_DEFAULTS.weatherMechanicsEnabled;
+  if (s.weatherHazardsEnabled === undefined) s.weatherHazardsEnabled = CONFIG_DEFAULTS.weatherHazardsEnabled;
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
   if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
 
@@ -670,9 +672,16 @@ export function refreshCalendarState(silent){
   if (!silent) sendChat(script_name, '/w gm Calendar state refreshed ('+cal.events.length+' events).');
 }
 
-export function refreshAndSend(){ refreshCalendarState(true); sendCurrentDate(null, true); }
+export function refreshAndSend(){
+  refreshCalendarState(true);
+  sendCurrentDate(null, true);
+  refreshAllPersistentViews({ autoBind: true });
+}
 
 export function resetToDefaults(){
+  var preservedPersistent = state[state_name] && state[state_name].persistentViews
+    ? deepClone(state[state_name].persistentViews)
+    : null;
   delete state[state_name];
   state[state_name] = {
     setup: {
@@ -680,8 +689,9 @@ export function resetToDefaults(){
       draft: {}
     }
   };
+  if (preservedPersistent){
+    state[state_name].persistentViews = preservedPersistent;
+  }
   sendChat(script_name, '/w gm Calendar state wiped. Use <code>!cal</code> to begin setup.', null, { noarchive: true });
 }
-
-
 

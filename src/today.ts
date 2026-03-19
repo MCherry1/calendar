@@ -10,6 +10,7 @@ import { button, clamp, esc, listAllEventsTableHtml, removeListHtml, removeMatch
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
+import { refreshAllPersistentViews } from './persistent-views.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
@@ -194,7 +195,7 @@ export function _todayAllHtml(){
   btns.push('</div>');
 
   // Date step arrows
-  btns.push('<div style="margin:3px 0;">' + button('⬅','retreat 1') + ' ' + button('➡','advance 1') + '</div>');
+  btns.push('<div style="margin:3px 0;">' + button('Back','retreat 1') + ' ' + button('Forward','advance 1') + '</div>');
 
   // Send Today View to Players
   btns.push('<div style="margin:3px 0;">' + button('Send Today View to Players','send') + '</div>');
@@ -229,7 +230,7 @@ export function usage(key, m){ whisper(m.who, USAGE[key]); }
 
 export function invokeEventSub(m, sub, args){
   var cfg = EVENT_SUB[sub];
-  if (!cfg) return whisper(m.who, 'Unknown events subcommand. Try: add | remove | restore | list');
+  if (!cfg) return whisper(m.who, 'Unknown events subcommand. Try: add | addmonthly | addyearly | remove | restore | list');
   if (cfg.usage && (!args || args.length === 0)) return usage(cfg.usage, m);
   return cfg.run(m, args || []);
 }
@@ -238,6 +239,14 @@ export var EVENT_SUB = {
   add: {
     usage: 'events.add',
     run: function(m, args){ addEventSmart(args); }
+  },
+  addmonthly: {
+    usage: null,
+    run: function(m, args){ addMonthlySmart(args); }
+  },
+  addyearly: {
+    usage: null,
+    run: function(m, args){ addYearlySmart(args); }
   },
   remove: {
     usage: 'events.remove',
@@ -265,6 +274,14 @@ export var EVENT_SUB = {
   list: {
     usage: null,
     run: function(m){ whisper(m.who, listAllEventsTableHtml()); }
+  },
+  source: {
+    usage: null,
+    run: function(m){ return commands.source.run(m, ['!cal', 'source', 'list']); }
+  },
+  removeflow: {
+    usage: null,
+    run: function(m){ whisper(m.who, _eventsRemoveRestoreHtml()); }
   },
   panel: {
     usage: null,
@@ -349,10 +366,10 @@ function _eventsPanelHtml(serialArg){
 
   var btns = [];
   btns.push('<div style="margin:6px 0 3px 0;">');
-  btns.push(button('◀ Previous','events panel ' + prevSer) + ' ');
-  btns.push(button('Next ▶','events panel ' + nextSer));
+  btns.push(button('Previous','events panel ' + prevSer) + ' ');
+  btns.push(button('Next','events panel ' + nextSer));
   btns.push('</div>');
-  btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ?{Calendar range|this month}') + '</div>');
+  btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ' + mobj.name + ' ' + dd.year) + '</div>');
 
   // Additional Ranges
   var monthCount = cal.months.length;
@@ -365,11 +382,75 @@ function _eventsPanelHtml(serialArg){
   // Management (GM only)
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Management','events manage ?{Action|Add Single Event,add ?\\{Date DD or MM DD or MM DD YYYY\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Monthly Event,addmonthly ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Yearly Event,addyearly ?\\{Month MM\\} ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Source Controls,source list|Remove/Restore,events list}') +
+    button('Management','events manage ?{Action|Add Single Event,add ?\\{Date DD or MM DD or MM DD YYYY\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Monthly Event,addmonthly ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Yearly Event,addyearly ?\\{Month MM\\} ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Source Controls,source|Remove/Restore,removeflow}') +
     '</div>');
 
   return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
     calHtml + lines.join('') + btns.join(''));
+}
+
+export function eventsHandoutHtml(serialArg?){
+  var cal = getCal();
+  var c = cal.current;
+  var today = todaySerial();
+  var displaySerial = isFinite(parseInt(serialArg, 10))
+    ? (parseInt(serialArg, 10) | 0)
+    : today;
+  var dd = fromSerial(displaySerial);
+  var mobj = cal.months[dd.mi];
+  if (!mobj){
+    return _menuBox('Events', '<div style="opacity:.7;">No event calendar is available.</div>');
+  }
+
+  var monthStart = toSerial(dd.year, dd.mi, 1);
+  var monthEnd = toSerial(dd.year, dd.mi, mobj.days | 0);
+  var calHtml = buildCalendarsHtmlForSpec({
+    start: monthStart,
+    end: monthEnd,
+    months: [{ y: dd.year, mi: dd.mi }],
+    title: mobj.name + ' ' + dd.year
+  });
+
+  var lines = [];
+  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+  if (dd.year === c.year && dd.mi === c.month){
+    try {
+      var occ = occurrencesInRange(today, today);
+      if (occ.length){
+        var seen = {};
+        var evList = [];
+        for (var i = 0; i < occ.length; i++){
+          var nm = eventDisplayName(occ[i].e);
+          var key = String(nm || '').toLowerCase();
+          if (!seen[key]){ seen[key] = 1; evList.push(nm); }
+        }
+        if (evList.length){
+          lines.push('<div style="font-size:.85em;opacity:.8;margin:6px 0 3px 0;"><b>Today\'s events</b></div>');
+          lines.push('<ul style="margin:4px 0;padding-left:18px;">');
+          for (var j = 0; j < evList.length; j++){
+            lines.push('<li style="font-size:.85em;">' + esc(evList[j]) + '</li>');
+          }
+          lines.push('</ul>');
+        }
+      }
+    } catch(e0){}
+  }
+
+  return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year), calHtml + lines.join(''));
+}
+
+function _eventsRemoveRestoreHtml(){
+  return _menuBox('Remove / Restore Events',
+    '<div style="opacity:.8;margin-bottom:6px;">Open the matching workflow for custom-event removal or suppressed-default restoration.</div>' +
+    '<div style="margin-bottom:6px;">' +
+      button('Remove Custom Events', 'events remove list') + ' ' +
+      button('Restore Default Events', 'events restore list') +
+    '</div>' +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+    removeListHtml() +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+    suppressedDefaultsListHtml()
+  );
 }
 
 export var commands = {
@@ -403,7 +484,7 @@ export var commands = {
     // !cal today options <choice> — redirect from Additional Options dropdown
     if (sub === 'options'){
       var choice = (a[3] || '').toLowerCase();
-      if (choice === 'events') return commands.events.run(m, a);
+      if (choice === 'events') return invokeEventSub(m, 'panel', []);
       if (choice === 'moon')   return handleMoonCommand(m, ['moon']);
       if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
       if (choice === 'planes') return handlePlanesCommand(m, ['planes']);
@@ -483,7 +564,7 @@ export var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisperUi(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
         '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
@@ -530,7 +611,7 @@ export var commands = {
       refreshAndSend();
       return whisperUi(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
-    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|extremehazards|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
     }
     if (key==='group')    st.groupEventsBySource = (val==='on');
@@ -539,6 +620,7 @@ export var commands = {
     if (key==='moons'){    st.moonsEnabled  = (val==='on'); st._moonsAutoToggle = false; }
     if (key==='weather')  st.weatherEnabled      = (val==='on');
     if (key==='weathermechanics' || key==='wxmechanics') st.weatherMechanicsEnabled = (val==='on');
+    if (key==='hazards' || key==='weatherhazards' || key==='wxhazards' || key==='extremehazards') st.weatherHazardsEnabled = (val==='on');
     if (key==='planes'){  st.planesEnabled = (val==='on'); st._planesAutoToggle = false; }
     if (key==='offcycle') st.offCyclePlanes      = (val==='on');
     if (key==='buttons')  st.autoButtons         = (val==='on');
@@ -824,7 +906,7 @@ export var commands = {
     whisper(m.who, 'Usage: <code>!cal source [list|up|down|disable|enable] [&lt;name&gt;]</code>');
   }},
 
-  resetcalendar: { gm:true, run:function(){ resetToDefaults(); } },
+  resetcalendar: { gm:true, run:function(){ resetToDefaults(); refreshAllPersistentViews({ autoBind: true }); } },
 
   // Moon system
   lunar:  function(m, a){ handleMoonCommand(m, ['moon'].concat(a.slice(2))); }, // alias

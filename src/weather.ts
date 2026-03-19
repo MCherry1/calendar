@@ -51,6 +51,7 @@ import {
   _subsystemIsVerbose, _legendLine, _displayMonthDayParts, _weatherViewDays
 } from './ui';
 import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messaging';
+import { refreshHandout } from './persistent-views.js';
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
 import { weekdayProgressionFor } from './worlds/index';
@@ -64,6 +65,10 @@ import { isTimeOfDayActive, currentTimeBucket } from './time-of-day';
 function _seededRand(seed){
   var s = ((seed * 2654435769) >>> 0) / 4294967296;
   return function(){ s = ((s * 1103515245 + 12345) % 2147483648) / 2147483648; return s; };
+}
+
+function _weatherHazardsEnabled(){
+  return ensureSettings().weatherHazardsEnabled !== false;
 }
 // ---------------------------------------------------------------------------
 // Temperature band helpers
@@ -1568,6 +1573,7 @@ var EXTREME_EVENTS: any = {
 // Returns array of { key, event, probability } for events that qualify.
 // Probability > 0 means conditions are met. Events with p=0 are excluded.
 export function _evaluateExtremeEvents(rec: any){
+  if (!_weatherHazardsEnabled()) return [];
   rec = _weatherRecordForDisplay(rec);
   if (!rec) return [];
   var f   = rec.final;
@@ -1597,6 +1603,7 @@ export function _evaluateExtremeEvents(rec: any){
 
 // Roll the dice for a single event. Returns true if event fires.
 function _rollExtremeEvent(key: any, rec: any){
+  if (!_weatherHazardsEnabled()) return false;
   var evt = EXTREME_EVENTS[key];
   if (!evt) return false;
   rec = _weatherRecordForDisplay(rec);
@@ -1801,8 +1808,7 @@ export function _conditionsMechHtml(cond: any){
 function weatherTodayMechanicsHtml(){
   if (ensureSettings().weatherMechanicsEnabled === false){
     return _menuBox('📋 Weather Mechanics',
-      '<div style="opacity:.7;">Mechanical weather effects are disabled. Narrative weather remains active.</div>'+
-      '<div style="margin-top:6px;">'+button('⬅ Back', 'weather')+'</div>'
+      '<div style="opacity:.7;">Mechanical weather effects are disabled. Narrative weather remains active.</div>'
     );
   }
   var today = todaySerial();
@@ -1876,8 +1882,7 @@ function weatherTodayMechanicsHtml(){
   }
 
   return _menuBox('📋 Weather Mechanics — ' + dateLabel,
-    sections.join('') +
-    '<div style="margin-top:8px;">' + button('⬅ Back', 'weather') + '</div>'
+    sections.join('')
   );
 }
 
@@ -2508,6 +2513,40 @@ function _playerForecastViewData(maxDays: any){
   };
 }
 
+export function weatherHandoutHtml(){
+  if (ensureSettings().weatherEnabled === false){
+    return _menuBox('Weather', '<div style="opacity:.7;">Weather tracking is not active.</div>');
+  }
+
+  var ws = getWeatherState();
+  if (!ws.location){
+    return _menuBox('Weather', '<div style="opacity:.7;">No weather location has been set.</div>');
+  }
+
+  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!view){
+    weatherEnsureForecast();
+    var rec = _forecastRecord(todaySerial());
+    if (!rec){
+      return _menuBox('Weather', '<div style="opacity:.7;">Weather is not available right now.</div>');
+    }
+    var fallbackTier = (_weatherRevealForSerial(ws, todaySerial(), ws.location).tier || 'low');
+    return _menuBox('Weather — ' + _weatherLocationLabel(ws.location),
+      '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+esc(_displayMonthDayParts(fromSerial(todaySerial()).mi, fromSerial(todaySerial()).day).label)+'</b></div>' +
+      _playerDayHtml(rec, fallbackTier, true, WEATHER_SOURCE_LABELS.common || null)
+    );
+  }
+
+  return _menuBox('Weather — ' + view.locationLabel,
+    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>' +
+    view.summaryHtml + view.body
+  );
+}
+
+function _refreshWeatherHandout(){
+  refreshHandout('weather');
+}
+
 // Build whispered player forecast from their stored reveal state.
 function playerForecastWhisper(m: any){
   var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
@@ -2605,14 +2644,14 @@ function weatherTodayGmHtml(){
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
     '<div style="margin:4px 0;">' +
     button('Management','weather manage ?{Action|' +
-      'Toggle Weather On/Off,settings weather toggle|' +
-      'Toggle Extreme Hazards,settings hazards toggle|' +
-      'Toggle Mechanics,settings mechanics toggle|' +
-      'Reseed Weather,weather reseed|' +
-      'History,weather history|' +
-      'Reset Weather,weather reset|' +
-      'Reroll Today,weather reroll|' +
-      'Lock Day,weather lock ?\\{Day serial\\}' +
+      'Toggle Weather On/Off,toggleweather|' +
+      'Toggle Extreme Hazards,togglehazards|' +
+      'Toggle Mechanics,togglemechanics|' +
+      'Reseed Weather,reseed|' +
+      'History,history|' +
+      'Reset Weather,reset|' +
+      'Reroll Today,reroll|' +
+      'Lock Day,lock ?\\{Day serial|' + ser + '\\}' +
       '}') +
     '</div>';
 
@@ -2892,8 +2931,7 @@ function weatherForecastGmHtml(daysOverride?: any){
     '<div style="margin-top:6px;">'+
     (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics','weather mechanics')+' ' : '')+
     button('Reroll Today','weather reroll '+today)+' '+
-    button('Regenerate All','weather generate')+' '+
-    button('⬅ Back','weather')+
+    button('Regenerate All','weather generate')+
     '</div>'
   );
 }
@@ -2903,7 +2941,7 @@ function weatherHistoryGmHtml(){
   var cal = getCal();
 
   if (!ws.history || !ws.history.length){
-    return _menuBox('Weather History','<div style="opacity:.7;">No history yet.</div>'+'<div style="margin-top:4px;">'+button('⬅ Back','weather')+'</div>');
+    return _menuBox('Weather History','<div style="opacity:.7;">No history yet.</div>');
   }
 
   var rows = ws.history.slice().reverse().slice(0,20).map(function(rec: any){
@@ -2928,8 +2966,7 @@ function weatherHistoryGmHtml(){
     '</tr>';
 
   return _menuBox('Weather History (last 20)',
-    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
-    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'
   );
 }
 
@@ -3106,6 +3143,7 @@ function _setWeatherLocationFromWizard(m: any, partial: any){
     }
   }
 
+  _refreshWeatherHandout();
   whisperUi(m.who,
     _menuBox('Location Set', msg)+
     '<div style="margin-top:4px;">'+
@@ -3172,8 +3210,7 @@ function manifestZoneChooserHtml(){
     activeLine +
     arythLine +
     '<div style="font-size:.8em;opacity:.6;margin-bottom:6px;">Manifest zones affect today\'s weather only; forecast rows stay tied to the base location profile.</div>'+
-    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
-    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+    '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'
   );
 }
 
@@ -3190,6 +3227,7 @@ function _toggleManifestZoneForGm(m: any, zoneKey: any){
       whisper(m.who, 'No manifest zones are active.');
       return;
     }
+    _refreshWeatherHandout();
     whisper(m.who, 'Cleared manifest zones: <b>'+esc(removed.map(function(entry: any){ return entry.def.name; }).join(', '))+'</b>.');
     return;
   }
@@ -3203,6 +3241,7 @@ function _toggleManifestZoneForGm(m: any, zoneKey: any){
 
   if (ws.manifestZones[key]){
     delete ws.manifestZones[key];
+    _refreshWeatherHandout();
     whisper(m.who,
       'Manifest zone deactivated: <b>'+esc(def.name)+'</b>. ' +
       'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.'
@@ -3217,6 +3256,7 @@ function _toggleManifestZoneForGm(m: any, zoneKey: any){
     arythFullActivated: arythFull,
     arythFullExitWarned: false
   };
+  _refreshWeatherHandout();
   whisper(m.who,
     'Manifest zone activated: <b>'+esc(def.name)+'</b>. ' +
     'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.' +
@@ -3325,11 +3365,17 @@ export function handleWeatherCommand(m, args){
       } else {
         sendSpecificWeatherReveal(m, args.slice(2));
       }
+      _refreshWeatherHandout();
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
 
     case 'event': {
+      if (!_weatherHazardsEnabled()){
+        warnGM('Extreme hazards are disabled. Re-enable them with !cal settings hazards on.');
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
       var evtSub = String(args[2]||'').toLowerCase();
       var evtKey = String(args[3]||'').toLowerCase();
       var evtRec = _forecastRecord(todaySerial());
@@ -3348,7 +3394,6 @@ export function handleWeatherCommand(m, args){
           '<div style="opacity:.8;margin-top:3px;">No message was sent to players.</div>'+
           '<div style="margin-top:5px;">'+trigHtml+'</div>'+
           '<div style="margin-top:5px;">'+
-            button('Back to Weather','weather')+' '+
             button('Forecast','weather forecast')+
           '</div>'
         ));
@@ -3361,7 +3406,6 @@ export function handleWeatherCommand(m, args){
             '<div style="opacity:.8;margin-top:3px;">No message was sent to players.</div>'+
             '<div style="margin-top:5px;">'+fireHtml+'</div>'+
             '<div style="margin-top:5px;">'+
-              button('Back to Weather','weather')+' '+
               button('Forecast','weather forecast')+
             '</div>'
           ));
@@ -3369,7 +3413,6 @@ export function handleWeatherCommand(m, args){
           whisper(m.who, _menuBox('Extreme Event Roll',
             '<div><b>🎲 Result:</b> conditions were not quite right. No event this time.</div>'+
             '<div style="margin-top:5px;">'+
-              button('Back to Weather','weather')+' '+
               button('Forecast','weather forecast')+
             '</div>'
           ));
@@ -3392,6 +3435,7 @@ export function handleWeatherCommand(m, args){
         n = parsedDays;
       }
       var cnt = _generateForecast(todaySerial(), n, true);
+      _refreshWeatherHandout();
       whisper(m.who, 'Generated '+cnt+' day'+(cnt===1?'':'s')+' of weather.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
@@ -3426,6 +3470,7 @@ export function handleWeatherCommand(m, args){
           }
         }
       }
+      _refreshWeatherHandout();
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
     }
@@ -3437,6 +3482,7 @@ export function handleWeatherCommand(m, args){
       if (!lockRec){ warnGM('No weather record for that day.'); break; }
       lockRec.locked = true;
       lockRec.generatedAt = todaySerial();
+      _refreshWeatherHandout();
       warnGM('Forecast for day '+lockSer+' locked.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
@@ -3447,6 +3493,7 @@ export function handleWeatherCommand(m, args){
       wsReseed.forecast = [];
       wsReseed.history = [];
       weatherEnsureForecast();
+      _refreshWeatherHandout();
       warnGM('Weather reseeded. Forecast and history cleared, new forecast generated.');
       whisper(m.who, weatherTodayGmHtml());
       break;
@@ -3460,18 +3507,37 @@ export function handleWeatherCommand(m, args){
       wsReset.history = [];
       wsReset.playerReveal = preservedReveal;
       weatherEnsureForecast();
+      _refreshWeatherHandout();
       warnGM('Weather reset. Forecast regenerated for current location. Player reveal tags preserved.');
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
 
     case 'manage': {
-      // Route management dropdown choices — they route to existing commands
       var manageAction = String(args[2]||'').toLowerCase();
-      if (!manageAction) break;
-      // Redirect to the appropriate handler by re-dispatching
-      args[1] = manageAction;
-      return handleWeatherCommand(m, args);
+      if (!manageAction){
+        warnGM('Management: use the dropdown to select an action.');
+        break;
+      }
+      if (manageAction === 'toggleweather'){
+        ensureSettings().weatherEnabled = (ensureSettings().weatherEnabled === false);
+        _refreshWeatherHandout();
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      if (manageAction === 'togglehazards'){
+        ensureSettings().weatherHazardsEnabled = (ensureSettings().weatherHazardsEnabled === false);
+        _refreshWeatherHandout();
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      if (manageAction === 'togglemechanics'){
+        ensureSettings().weatherMechanicsEnabled = (ensureSettings().weatherMechanicsEnabled === false);
+        _refreshWeatherHandout();
+        whisper(m.who, weatherTodayGmHtml());
+        break;
+      }
+      return handleWeatherCommand(m, ['weather', manageAction].concat(args.slice(3)));
     }
 
     case 'location': {
@@ -3484,7 +3550,7 @@ export function handleWeatherCommand(m, args){
       if (locSub === 'climate'){
         var climate = String(args[3]||'').toLowerCase();
         if (!WEATHER_CLIMATE_BASE[climate]){
-          whisperUi(m.who, 'Unknown climate. '+button('Back','weather location'));
+          whisperUi(m.who, 'Unknown climate.');
           break;
         }
         var _svNow = ensureSettings().seasonVariant || CONFIG_DEFAULTS.seasonVariant;
@@ -3503,7 +3569,7 @@ export function handleWeatherCommand(m, args){
       if (locSub === 'geography'){
         var geography = String(args[3]||'').toLowerCase();
         if (!WEATHER_GEO_MOD[geography]){
-          whisperUi(m.who, 'Unknown geography. '+button('Back','weather location'));
+          whisperUi(m.who, 'Unknown geography.');
           break;
         }
         var wiz = _getWeatherWizard();
@@ -3514,7 +3580,7 @@ export function handleWeatherCommand(m, args){
       if (locSub === 'terrain'){
         var terrain = String(args[3]||'').toLowerCase();
         if (!WEATHER_TERRAIN_MOD[terrain]){
-          whisperUi(m.who, 'Unknown terrain. '+button('Back','weather location'));
+          whisperUi(m.who, 'Unknown terrain.');
           break;
         }
         var wiz2 = _getWeatherWizard();
@@ -3526,7 +3592,7 @@ export function handleWeatherCommand(m, args){
         var recentIdx = Math.max(1, parseInt(args[3], 10) || 1) - 1;
         var recentList = getWeatherState().recentLocations || [];
         if (!recentList[recentIdx]){
-          whisperUi(m.who, 'That recent location is no longer available. '+button('Back','weather location'));
+          whisperUi(m.who, 'That recent location is no longer available.');
           break;
         }
         _setWeatherLocationFromWizard(m, recentList[recentIdx]);
@@ -3536,7 +3602,7 @@ export function handleWeatherCommand(m, args){
         var presetIdx = Math.max(1, parseInt(args[3], 10) || 1) - 1;
         var savedList = getWeatherState().savedLocations || [];
         if (!savedList[presetIdx]){
-          whisperUi(m.who, 'That saved location is no longer available. '+button('Back','weather location'));
+          whisperUi(m.who, 'That saved location is no longer available.');
           break;
         }
         _setWeatherLocationFromWizard(m, savedList[presetIdx]);
@@ -3546,16 +3612,16 @@ export function handleWeatherCommand(m, args){
         var presetName = _normalizeWeatherPresetName(args.slice(3).join(' '));
         var wsSave = getWeatherState();
         if (!wsSave.location){
-          whisperUi(m.who, 'Set a weather location first. '+button('Back','weather location'));
+          whisperUi(m.who, 'Set a weather location first.');
           break;
         }
         if (!presetName){
-          whisperUi(m.who, 'Enter a preset name first. '+button('Back','weather location'));
+          whisperUi(m.who, 'Enter a preset name first.');
           break;
         }
         var saved = _saveWeatherLocationPreset(wsSave, wsSave.location, presetName);
         if (!saved){
-          whisperUi(m.who, 'Could not save that preset. '+button('Back','weather location'));
+          whisperUi(m.who, 'Could not save that preset.');
           break;
         }
         whisperUi(m.who,

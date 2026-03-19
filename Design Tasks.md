@@ -65,44 +65,15 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-### Init Prompt Syntax Fix
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Changed setup wizard Step 3 to use `MM DD YYYY` format in both prompt label and pre-entered default value. Shows both display name and numeric format.
-- **File:** `src/setup.ts:236-248`
+- **Default Views Redesign — hazards toggle, planes anchor wizard, and regression coverage**
+  - Completed by: GPT-5 Codex
+  - Date: 2026-03-18
+  - Scope: implemented the required `!cal weather` Extreme Hazards toggle as a real command path and persisted setting, reworked `Set Anchor` into a plane-specific coterminous anchor wizard while keeping `!cal planes anchor` as the advanced command surface, removed the nonexistent `Reseed Planes` spec item, and expanded regression coverage for panel command strings and management dispatch paths.
 
-### Minical Cell Proportions
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Adjusted cell height from `1.4em` to `1.5em`, reduced today-highlight box-shadow spread and outline-offset to `0px` to reduce visual bulk.
-- **Files:** `src/constants.ts:403-408`
-
-### Moon Lore: Remove Analog Info, Add Qualitative Stats
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Removed hex color code text line. Removed numeric albedo value from parentheses, kept qualitative label only. Simplified albedo tiers to Bright/Average/Dim. Renamed "Period" to "Synodic Period", "Surface Brightness" to "Brightness".
-- **File:** `src/moon.ts:396-462`
-
-### README: Migrate Setting-Specific Info to Per-Setting Sections
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Moved Eberron-specific Cosmology, Ring of Siberys, Moons of Eberron table, reference moon data, individual moon lore, planar weather effects table, manifest zone examples, and generated planar event profiles from general Moons/Weather/Planes sections into the Eberron per-setting section. General sections now have cross-links.
-- **File:** `README.md`
-
-### README: Planes Forecast Days → Months
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Fixed Knowledge Tiers DC ladder table: Planes row changed from "1 day / 3 days / 6 days / 10 days" to "1 month / 3 months / 6 months / 10 months" to match code.
-- **File:** `README.md:210`
-
-### Add !cal mechanics / !cal mech Aliases
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- Added `mechanics` and `mech` as top-level command aliases routing to `!cal weather mechanics`.
-- **File:** `src/today.ts`
-
-### Default Views Redesign and System Entry Points
-- **Completed by:** Claude Opus 4.6 (2026-03-18)
-- **Today view**: Replaced 6 task cards with consolidated layout per spec: organized text info (date, time of day, location, weather, lighting, events, moons by phase, planes by state), Time of Day advance/enable button, date step arrows, Send Today View, Additional Options dropdown routing to subsystem panels and Admin.
-- **Events view**: Built new `_eventsPanelHtml()` with month minical, prev/next navigation, bulleted events for current month, Send to Players, Additional Ranges dropdown, Management dropdown (Add events, Source Controls, Remove/Restore). Default `!cal events` now opens panel instead of plain table.
-- **Moons view**: Added Current Phases command (`!cal moon phases`) with per-moon phase, color swatch, and upcoming new/full dates. Added Additional Ranges dropdown, Management dropdown (Toggle, Reseed, Set New, Set Full). Restructured GM controls with spacer sections.
-- **Planes view**: Added Additional Ranges dropdown, Management dropdown (Toggle Planes, Toggle Generated, Reseed, Phase Override, Clear Override, Set Anchor, Seed Override). Restructured GM controls with spacer sections.
-- **Weather view**: Restructured buttons with spacer sections. Added Management dropdown (Toggle Weather/Hazards/Mechanics, Reseed, History, Reset, Reroll, Lock). Added `reseed` and `reset` command handlers. Moved Set Location and Set Manifest Zone into grouped section.
-- **Files:** `src/today.ts`, `src/moon.ts`, `src/planes.ts`, `src/weather.ts`, `src/ui.ts`
+- **Persistent Moon Phase page and synced subsystem handouts**
+  - Completed by: GPT-5 Codex
+  - Date: 2026-03-18
+  - Scope: added a bound live `!cal moon page` surface that redraws on date/moon-state changes, auto-maintained player-safe handouts for Events/Moons/Weather/Planes, preserved persistent-view bindings across calendar resets, updated README.md and DESIGN.md to document the new surfaces and commands, and added regression coverage for page binding/show behavior plus automatic handout refresh.
 
 ---
 
@@ -128,6 +99,7 @@ There are 5 core commands:
 * !cal planes
 
 Aside from !cal, each of these is the default entry point to their subsystem. ALL of them will output a system-specific minical. Below: minical display, text info, and buttons for each.
+Navigation wording should be consistent across these views: use **Previous / Next** for month-or-view navigation, and **Back / Forward** for actual date stepping. Do not add separate return/back buttons to drill-down panels; Roll20 chat history already preserves prior menus.
 
 #### Today (!cal or !cal today)
 * All info is specific to the current calendar date.
@@ -141,33 +113,35 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 * Current Location
 * Current Weather (deg F, wind, rain) (if active)
 * Current Lighting (if time of day active and currently before sunrise or after sunset)
-* Spacing break
+* small spacer
 * Events/Holidays
-* Spacing Line Break
+* small spacer
 * New Moons: List
 * Full Moons: List
-* Spacing Line Break
+* small spacer
 * Coterminous Planes: List
 * Remote Planes: List
 ##### Buttons
 * ⏩ Time of Day ⏩ if already active, otherwise the Enable button below (weather must be active)
 * Enable Time of Day (if weather is active)
-* ⬅ Date | Date ➡ (date step arrows)
+* Back | Forward (date step buttons)
 * Send Today View to Players
+* small spacer line
 * Additional Options (drop down menu)
 	* Events
 	* Moons
 	* Weather
 	* Planes
-	* Admin (drop down menu, GM only)
-		* Enable/Disable Moons
-		* Enable/Disable Weather
-		* Enable/Disable Planes
-		* Theme
-		* Calendar System
-		* Hemisphere
-		* Season Set
-		* Reset Calendar
+* small spacer line
+* Management (drop down menu, GM only)
+	* Enable/Disable Moons
+	* Enable/Disable Weather
+	* Enable/Disable Planes
+	* Theme
+	* Calendar System
+	* Hemisphere
+	* Season Set
+	* Reset Calendar
 
 #### Events (!cal events)
 * This system is for managing events.
@@ -186,16 +160,16 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 	* Bulleted list of Active Events/Holidays on the current date
 ##### Buttons
 * Previous | Next (months)
-	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Additional Ranges or Management.
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button only; it does not regenerate Additional Ranges or Management.
 * Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
-* small line break
-* Additional Ranges (opens drop down menu)
+* small spacer line
+* Additional Ranges (drop down menu; no additional buttons after these are displayed)
 	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* small line break
+* small spacer line
 * Management (drop down menu, GM only)
 	* Add Custom Events (drop down menu)
 		* Add Single Event (query: dd or mm dd or mm dd yyyy, next matching occurrence that fits the date provided)
@@ -251,28 +225,30 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 
 ##### Buttons
 * Previous | Next (month steps)
-	* Shows the requested month, Current Date below, Ascendant Moons below (for the named month), and regenerates the prev/next buttons and the send button, but NOT the Additional Views, Sky, Current Phases, or Management.
+	* Shows the requested month, Current Date below, Ascendant Moons below (for the named month), and regenerates the prev/next buttons and the send button only; it does not regenerate Sky, Current Phases, Specific Moons, forecast controls, Additional Ranges, or Management.
 * Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
-* small line break
+* small spacer line
 * Sky
 	* Position of moon(s) in the nighttime bucket, if no ToD active, or current ToD if buckets are active.
 * Current Phases
 	* Whispers a clean bulleted list with swatch + moon name, subbullets current phase (waning crescent, etc.) and upcoming "New/Full in X days on insert-month-and-day-date-format"
-* small line break
 * Specific Moons (named drop down list)
 	* Displays current plus n-1 upcoming months
 	* Displays Single Bar with Moon Name, colored with moon color, then outputs a year's worth of minicals
 	* Current date cell is still emphasized
 	* Replaces the numbered date in a cell with a full or new moon emoji, when appropriate
 	* Tooltip hover should say phase (waxing gibbous, etc.)
-* small line break
-* Additional Ranges (no additional buttons after these are displayed)
+* small spacer line
+* Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* small spacer line
+* Additional Ranges (drop down menu; no additional buttons after these are displayed)
 	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* small line break
+* small spacer line
 * Management (drop down menu, GM only)
 	* Toggle Moons On/Off
 	* Reseed Moons
@@ -381,29 +357,32 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 	* Same duration info and (Generated) tag format as coterminous
 ##### Buttons
 * Previous | Next (month steps)
-	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button, but NOT the Specific Planes, Additional Ranges, or Management.
+	* Shows the requested month, Current Date below, and regenerates the prev/next buttons and the send button only; it does not regenerate Specific Planes, forecast controls, Additional Ranges, or Management.
 * Send to Players (send month view to players, GM only. Sends the most recently displayed month, which may differ from the current month via the previous/next buttons.)
-* small line break
+* small spacer line
 * Specific Planes (named drop down list of all planes)
 	* Displays a single bar with the Plane Name, colored with the plane's color, then outputs a year's worth of minicals.
 	* Current date cell is still emphasized.
 	* Cell shading follows the same coterminous/remote rules as the main minical.
 	* For players, only include as far as their reveal knowledge horizon extends. Players always know canonical/annual events.
-* small line break
-* Additional Ranges (no additional buttons after these are displayed)
+* small spacer line
+* Medium Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* High Forecast (4 buttons: 1 month / 3 month / 6 month / 10 month)
+* Reveal Custom Range (query for date or date range)
+* small spacer line
+* Additional Ranges (drop down menu; no additional buttons after these are displayed)
 	* Full Year
 	* Upcoming (#n of months in calendar year) months (current month plus n-1)
 	* Specific Month (query mm or mm yyyy)
 	* Specific Year (query yy)
 	* None of these include the button sets or text when shown. Just the calendars requested. Calendars have typical tooltip behavior.
-* small line break
+* small spacer line
 * Management (drop down menu, GM only)
 	* Toggle Planes On/Off
 	* Toggle Generated Events On/Off (system-wide, not per-event)
-	* Reseed Planes
 	* Set Phase Override (force a plane to a specific phase, optionally for a duration)
 	* Clear Override (remove a phase override)
-	* Set Anchor (set a cycle anchor date for a plane)
+	* Set Anchor (choose a plane from a dropdown, then show that plane's default cycle clearly and prompt for when its first coterminous phase should begin, defining the cycle from that point forward)
 	* Seed Override (override the seed-derived anchor year)
 	* Whisper confirmations on all changes
 

@@ -8,6 +8,7 @@ import { DaySpec, Parse, monthIndexByName } from './parsing.js';
 import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, eventIndexByKey, markSuppressedIfDefault, occurrencesInRange } from './events.js';
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
+import { refreshAllPersistentViews } from './persistent-views.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
 import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
@@ -198,7 +199,7 @@ export function _weatherViewDays(n){
 export function _playerButtonsHtml(){
   var out = [];
   var st = ensureSettings();
-  out.push('<div>'+button('◀ Prev','show previous month')+' '+button('Next ▶','show next month')+'</div>');
+  out.push('<div>'+button('Previous','show previous month')+' '+button('Next','show next month')+'</div>');
   if (st.weatherEnabled !== false) out.push('<div>'+button('🌤 Weather','weather')+'</div>');
   if (st.moonsEnabled   !== false) out.push('<div>'+button('🌙 Moons','moon')+'</div>');
   if (st.planesEnabled  !== false) out.push('<div>'+button('🌀 Planes','planes')+'</div>');
@@ -616,13 +617,14 @@ export function stepDays(n, opts?){
   // Slide the forecast window forward and lock past days
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(startSerial, dest);
+  refreshAllPersistentViews({ autoBind: true });
   if (opts.announce === false) return;
 
   var direction = n >= 0 ? 'Forward' : 'Back';
   var dateStr = esc(currentDateLabel());
   var stepButtons =
-    mb('\u23ee\ufe0f Back','retreat 1')+'\u00a0'+
-    mb('\u23ed\ufe0f Forward','advance 1')+'\u00a0'+
+    mb('Back','retreat 1')+'\u00a0'+
+    mb('Forward','advance 1')+'\u00a0'+
     mb('\ud83d\udce3 Send','send')+'\u00a0'+
     nav('\u2754 Help','root');
   sendUiToGM(
@@ -647,6 +649,7 @@ export function setDate(m, d, y, opts?){
   // Slide the forecast window forward and lock past days, same as stepDays
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(oldSerial, toSerial(yi, mi, di));
+  refreshAllPersistentViews({ autoBind: true });
   if (opts.announce === false) return;
   sendCurrentDate(null, true);
 }
@@ -816,7 +819,7 @@ export function gmButtonsHtml(){
   }
 
   // Date step arrows
-  rows.push('<div>'+mb('⬅','retreat 1')+' '+mb('➡','advance 1')+'</div>');
+  rows.push('<div>'+mb('Back','retreat 1')+' '+mb('Forward','advance 1')+'</div>');
 
   // Send Today View to Players
   rows.push('<div>'+mb('📣 Send To Players','send')+'</div>');
@@ -1017,7 +1020,7 @@ export function activeEffectsPanelHtml(){
   }
 
   return _menuBox('✨ Active Effects — ' + esc(currentDateLabel()),
-    sections.join('') + '<div style="margin-top:7px;">'+button('⬅️ Back','help root')+'</div>'
+    sections.join('')
   );
 }
 
@@ -1164,14 +1167,13 @@ export function helpRootMenu(m){
 
 export function helpThemesMenu(m){
   var ro = !playerIsGM(m.playerid);
-  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro)));
 }
 
 export function helpCalendarSystemMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
-    _menuBox(ro ? 'Supported Settings (view only)' : 'Supported Settings', calendarSystemListHtml(ro))+
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+    _menuBox(ro ? 'Supported Settings (view only)' : 'Supported Settings', calendarSystemListHtml(ro))
   );
 }
 
@@ -1185,16 +1187,14 @@ export function helpEventColorsMenu(m){
     '</div>'
   ].join('');
   whisperUi(m.who,
-    _menuBox('Event Colors', intro + colorsNamedListHtml())+
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+    _menuBox('Event Colors', intro + colorsNamedListHtml())
   );
 }
 
 export function helpSeasonsMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
-    _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))+
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+    _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))
   );
 }
 

@@ -58,7 +58,7 @@ assertMatch(String.raw`warnGM\(['"]Aryth is full\. Consider a manifest zone\.['"
 assertMatch(String.raw`warnGM\(['"]Aryth is no longer full\. Consider deactivating:`, 'Aryth exit reminder should still fire for tracked manifest zones.');
 assertMatch(String.raw`if \(!playerIsGM\(m\.playerid\)\)\s*\{`, 'Weather command handler should still split GM and player behavior.');
 assertMatch(String.raw`Shorter off-cycle shifts are tied to Aryth full/new moons through the moontied generator\.`, 'Dolurrh notes should describe the implemented Aryth-linked generator.');
-assertMatch(String.raw`!cal settings \(group\|labels\|events\|moons\|weather\|weathermechanics\|wxmechanics\|planes\|offcycle\|buttons\)`, 'Settings usage text should include wxmechanics and offcycle.');
+assertMatch(String.raw`!cal settings \(group\|labels\|events\|moons\|weather\|weathermechanics\|wxmechanics\|hazards\|weatherhazards\|wxhazards\|planes\|offcycle\|buttons\)`, 'Settings usage text should include wxmechanics, hazards aliases, and offcycle.');
 assertMatch(String.raw`!cal moon send \(low\|medium\|high\) \[1w\|1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Moon help text should advertise the supported week/day range tokens.');
 assertMatch(String.raw`!cal planes send \[low\|medium\|high\] \[1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Plane help text should advertise the supported month range tokens.');
 assertNotMatch(String.raw`moons-system-design\.md`, 'Stale moon design-file references should be removed from calendar.js.');

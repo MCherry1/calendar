@@ -5,6 +5,7 @@ import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc } from './rendering.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
+import { refreshHandout } from './persistent-views.js';
 import { PLANAR_GENERATED_EVENT_PROFILE, _dN, _generatedEventAt, _generatedPhase, _nextGeneratedForecast, _rangeLabel, getLongShadowsMoons, isGeneratedShift } from './moon.js';
 
 
@@ -271,6 +272,183 @@ export function _planeTraditionalAnchorMode(plane, ps){
   return (hasDirectAnchor || hasSeedAnchor) ? 'gm-anchored' : 'random-seed';
 }
 
+function _planeCycleMetrics(plane){
+  var ypd = _planarYearDays();
+  var coterminousDays = plane.coterminousDays || ((plane.coterminousYears || 0) * ypd);
+  var remoteDays      = plane.remoteDays      || ((plane.remoteYears || 0)      * ypd);
+  var orbitDays       = (plane.orbitYears || 1) * ypd;
+  var transitionDays  = (orbitDays - coterminousDays - remoteDays) / 2;
+  if (transitionDays < 1) transitionDays = 1;
+
+  // Phase order: coterminous → neutral → remote → neutral → (repeat)
+  // No waxing/waning — planes snap between states.
+  var phases = [
+    { name:'coterminous', dur: coterminousDays },
+    { name:'neutral',     dur: transitionDays },
+    { name:'remote',      dur: remoteDays },
+    { name:'neutral',     dur: transitionDays }
+  ];
+  var phaseOffsets = {};
+  var running = 0;
+  for (var i = 0; i < phases.length; i++){
+    phaseOffsets[phases[i].name] = running;
+    running += phases[i].dur;
+  }
+
+  return {
+    ypd: ypd,
+    coterminousDays: coterminousDays,
+    remoteDays: remoteDays,
+    orbitDays: orbitDays,
+    transitionDays: transitionDays,
+    phases: phases,
+    phaseOffsets: phaseOffsets
+  };
+}
+
+function _planeAnchorRecordSerial(anchorRec){
+  if (!anchorRec) return null;
+  return toSerial(anchorRec.year, anchorRec.month || 0, anchorRec.day || 1);
+}
+
+function _planeDefaultAnchorRecord(plane){
+  if (!plane || plane.type !== 'cyclic') return null;
+  return {
+    year: plane.anchorYear || 998,
+    month: (plane.anchorMonth != null) ? (plane.anchorMonth - 1) : 0,
+    day: (plane.anchorDay != null) ? (plane.anchorDay | 0) : 1,
+    phase: plane.anchorPhase || 'coterminous'
+  };
+}
+
+function _planePhaseStartSerial(plane, anchorRec, targetPhase){
+  if (!plane || !anchorRec) return null;
+  var cycle = _planeCycleMetrics(plane);
+  var anchorPhase = String(anchorRec.phase || plane.anchorPhase || 'coterminous').toLowerCase();
+  if (cycle.phaseOffsets[anchorPhase] == null) anchorPhase = 'coterminous';
+  targetPhase = String(targetPhase || 'coterminous').toLowerCase();
+  if (cycle.phaseOffsets[targetPhase] == null) targetPhase = 'coterminous';
+  var anchorSerial = _planeAnchorRecordSerial(anchorRec);
+  if (anchorSerial == null) return null;
+  return anchorSerial - cycle.phaseOffsets[anchorPhase] + cycle.phaseOffsets[targetPhase];
+}
+
+function _planeDurationLabel(days){
+  var ypd = _planarYearDays();
+  var dur = Number(days);
+  if (!isFinite(dur) || dur <= 0) return '0 days';
+  if (Math.round(dur) === dur && ypd > 0 && dur >= ypd && dur % ypd === 0){
+    var years = dur / ypd;
+    return years + ' year' + (years === 1 ? '' : 's');
+  }
+  dur = (Math.round(dur) === dur) ? Math.round(dur) : Math.round(dur * 10) / 10;
+  return dur + ' day' + (dur === 1 ? '' : 's');
+}
+
+function _planeYearLabel(years){
+  var num = parseInt(years, 10) || 1;
+  return num + ' year' + (num === 1 ? '' : 's');
+}
+
+function _planeAnchorPromptText(plane){
+  if (!plane || plane.type !== 'cyclic') return 'When should the first coterminous phase begin?';
+  var cycle = _planeCycleMetrics(plane);
+  var parts = [
+    plane.name + ' cycle: coterminous ' + _planeDurationLabel(cycle.coterminousDays) +
+      ' every ' + _planeYearLabel(plane.orbitYears || 1) + '.'
+  ];
+  if (plane.remoteOrbitYears && plane.remoteDaysSpecial){
+    parts.push('Special remote phase ' + _planeDurationLabel(plane.remoteDaysSpecial) +
+      ' every ' + _planeYearLabel(plane.remoteOrbitYears) + '.');
+  } else if (cycle.remoteDays > 0){
+    parts.push('Remote ' + _planeDurationLabel(cycle.remoteDays) + ' halfway through.');
+  } else {
+    parts.push('No normal remote phase in the base cycle.');
+  }
+  parts.push('When should the first coterminous phase begin? This defines the cycle for all time.');
+  return parts.join(' ');
+}
+
+function _planeAnchorWizardHtml(planeName){
+  var planes = _getAllPlaneData();
+  var plane = _getPlaneData(planeName);
+  if (!plane){
+    var planeQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    return _menuBox('Set Plane Anchor',
+      '<div style="opacity:.8;margin-bottom:6px;">Choose a plane, then set when its first coterminous phase begins.</div>'+
+      '<div>'+button('Choose Plane', 'planes anchorwizard ?{Plane|' + planeQueryOpts + '}')+'</div>'
+    );
+  }
+
+  if (plane.type !== 'cyclic'){
+    return _menuBox('Set Anchor - ' + esc(plane.name),
+      '<div><b>'+esc(plane.name)+'</b> does not use a repeating cycle anchor. Its phase is effectively fixed at <b>'+
+        esc(PLANE_PHASE_LABELS[plane.fixedPhase || 'remote'] || (plane.fixedPhase || 'remote'))+
+      '</b>.</div>'+
+      (plane.note ? '<div style="opacity:.78;margin-top:5px;">'+esc(plane.note)+'</div>' : '')+
+      '<div style="margin-top:6px;">'+button('Show Plane','planes view '+plane.name)+'</div>'
+    );
+  }
+
+  var cycle = _planeCycleMetrics(plane);
+  var defaultAnchor = _planeDefaultAnchorRecord(plane);
+  var defaultCoterminousStart = _planePhaseStartSerial(plane, defaultAnchor, 'coterminous');
+  var defaultSpec = defaultCoterminousStart != null ? _serialToDateSpec(defaultCoterminousStart) : 'Lharvion 1 998';
+  var ps = getPlanesState();
+  var currentAnchor = ps.anchors && ps.anchors[plane.name];
+  var currentCoterminousStart = currentAnchor ? _planePhaseStartSerial(plane, currentAnchor, 'coterminous') : null;
+  var currentSpec = currentCoterminousStart != null ? _serialToDateSpec(currentCoterminousStart) : defaultSpec;
+
+  var cycleLines = [];
+  if (plane.note){
+    cycleLines.push('<div style="opacity:.82;margin-bottom:4px;"><b>Traditional cycle:</b> '+esc(plane.note)+'</div>');
+  }
+  cycleLines.push(
+    '<div style="opacity:.78;"><b>Mechanical cycle:</b> '+
+      'Coterminous '+esc(_planeDurationLabel(cycle.coterminousDays))+
+      ', neutral '+esc(_planeDurationLabel(cycle.transitionDays))+
+      ', remote '+esc(cycle.remoteDays > 0 ? _planeDurationLabel(cycle.remoteDays) : '0 days')+
+      ', neutral '+esc(_planeDurationLabel(cycle.transitionDays))+
+      ' across a '+esc(_planeYearLabel(plane.orbitYears || 1))+' orbit.'+
+    '</div>'
+  );
+  if (plane.remoteOrbitYears && plane.remoteDaysSpecial){
+    cycleLines.push(
+      '<div style="opacity:.78;margin-top:4px;"><b>Special remote rule:</b> '+
+      esc(_planeDurationLabel(plane.remoteDaysSpecial))+' every '+esc(_planeYearLabel(plane.remoteOrbitYears))+'.</div>'
+    );
+  }
+  cycleLines.push(
+    '<div style="opacity:.78;margin-top:4px;"><b>Default coterminous start:</b> <code>'+esc(defaultSpec)+'</code>.</div>'
+  );
+  if (currentAnchor){
+    cycleLines.push(
+      '<div style="opacity:.78;margin-top:4px;"><b>Current GM coterminous start:</b> <code>'+esc(currentSpec)+
+      '</code>. Choosing a new date below replaces it.</div>'
+    );
+  } else if (plane.seedAnchor){
+    cycleLines.push(
+      '<div style="opacity:.78;margin-top:4px;">This plane normally uses seed-derived timing. Setting a coterminous start here overrides that randomness and defines the cycle from this point forward.</div>'
+    );
+  } else {
+    cycleLines.push(
+      '<div style="opacity:.78;margin-top:4px;">Setting a coterminous start here defines the plane\'s repeating cycle from that point forward.</div>'
+    );
+  }
+
+  return _menuBox('Set Anchor - ' + esc(plane.name),
+    cycleLines.join('')+
+    '<div style="margin-top:6px;">'+
+      button(
+        'Set First Coterminous Start',
+        'planes anchor ' + plane.name + ' coterminous ?{' + _planeAnchorPromptText(plane) + '|' + currentSpec + '}'
+      )+
+    '</div>'+
+    '<div style="font-size:.75em;opacity:.45;margin-top:5px;">Advanced CLI: <code>!cal planes anchor '+esc(plane.name)+' &lt;phase&gt; &lt;dateSpec&gt;</code></div>'+
+    '<div style="margin-top:6px;">'+button('Show Plane','planes view '+plane.name)+'</div>'
+  );
+}
+
 // Calculate the current phase of a cyclic plane at a given serial day.
 // opts.ignoreGenerated=true returns canonical cycle state without seeded flickers.
 // Returns { phase, daysIntoPhase, daysUntilNextPhase, phaseDuration, nextPhase }
@@ -343,22 +521,12 @@ export function getPlanarState(planeName, serial, opts?){
 
   // Cyclic planes — calculate from anchor
   var ypd = _planarYearDays();
-
-  // Resolve durations in days
-  var coterminousDays = plane.coterminousDays || ((plane.coterminousYears || 0) * ypd);
-  var remoteDays      = plane.remoteDays      || ((plane.remoteYears || 0)      * ypd);
-  var orbitDays       = (plane.orbitYears || 1) * ypd;
-  var transitionDays  = (orbitDays - coterminousDays - remoteDays) / 2;
-  if (transitionDays < 1) transitionDays = 1;
-
-  // Phase order: coterminous → neutral → remote → neutral → (repeat)
-  // No waxing/waning — planes snap between states.
-  var phases = [
-    { name:'coterminous', dur: coterminousDays },
-    { name:'neutral',     dur: transitionDays },
-    { name:'remote',      dur: remoteDays },
-    { name:'neutral',     dur: transitionDays }
-  ];
+  var cycle = _planeCycleMetrics(plane);
+  var coterminousDays = cycle.coterminousDays;
+  var remoteDays = cycle.remoteDays;
+  var transitionDays = cycle.transitionDays;
+  var phases = cycle.phases;
+  var orbitDays = cycle.orbitDays;
 
   // Anchor: use GM override anchor, then plane default, then seed-based offset
   var anchor = ps.anchors[plane.name];
@@ -1085,8 +1253,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   var navRow;
   if (isGM){
     navRow = '<div style="margin:3px 0 6px 0;">'+
-      button('◀ Prev Month','planes on '+_serialToDateSpec(prevSer))+' '+
-      button('Next Month ▶','planes on '+_serialToDateSpec(nextSer))+
+      button('Previous','planes on '+_serialToDateSpec(prevSer))+' '+
+      button('Next','planes on '+_serialToDateSpec(nextSer))+
       '</div>';
   } else {
     var knownStart = todaySerial();
@@ -1096,8 +1264,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       return button(label, 'planes on '+_serialToDateSpec(serial));
     }
     navRow = '<div style="margin:3px 0 6px 0;">'+
-      _pNavBtn(prevSer, '◀ Prev Month')+' '+
-      _pNavBtn(nextSer, 'Next Month ▶')+
+      _pNavBtn(prevSer, 'Previous')+' '+
+      _pNavBtn(nextSer, 'Next')+
       '</div>';
   }
 
@@ -1284,6 +1452,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     }).join(' ');
 
     var planeQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    var seedPlaneQueryOpts = planes.filter(function(p){ return !!p.seedAnchor; }).map(function(p){ return p.name; }).join('|');
     var planeDropdown = button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}');
 
     // Send buttons
@@ -1320,7 +1489,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Management dropdown
     gmControls += '<div style="margin:4px 0;">' +
-      button('Management','planes manage ?{Action|Toggle Planes On/Off,settings planes toggle|Toggle Generated Events,settings generated toggle|Reseed Planes,planes reseed|Set Phase Override,planes override ?\\{Plane\\} ?\\{Phase cot/remote/off\\}|Clear Override,planes clearoverride ?\\{Plane\\}|Set Anchor,planes anchor ?\\{Plane\\} ?\\{Date\\}|Seed Override,planes seed ?\\{Seed word\\}}') +
+      button('Management','planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|remote|neutral\\} ?\\{Days (blank = indefinite)|\\}|Clear Override,clear ?\\{Plane|All|' + planeQueryOpts + '\\}|Set Anchor,anchorwizard ?\\{Plane|' + planeQueryOpts + '\\}|Seed Override,seed ?\\{Plane|' + seedPlaneQueryOpts + '\\} ?\\{Year or clear|998\\}}') +
       '</div>';
 
     // Utility buttons
@@ -1381,6 +1550,40 @@ export function planesPanelHtmlSingle(isGM, revealTier?, serialOverride?, reveal
   return planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, generatedHorizonDays).join('');
 }
 
+export function planesHandoutHtml(){
+  var st = ensureSettings();
+  if (st.planesEnabled === false){
+    return _menuBox('\uD83C\uDF00 Planes', '<div style="opacity:.7;">Planar tracking is not active.</div>');
+  }
+
+  var psView = getPlanesState();
+  var today = todaySerial();
+  var viewTier = _normalizePlaneRevealTier(psView.revealTier || 'medium');
+  var viewHorizon = parseInt(psView.revealHorizonDays, 10) || _planarYearDays();
+  var generatedHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
+  var dateLabel = dateLabelFromSerial(today);
+
+  var generatedCutoff = null;
+  if (viewTier === 'high') generatedCutoff = today + viewHorizon;
+  else if (generatedHorizon > 0) generatedCutoff = Math.min(_monthRangeFromSerial(today).end, today + generatedHorizon);
+  var pr = _monthRangeFromSerial(today);
+  var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
+  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
+
+  var parts = [];
+  parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
+  parts.push(planesMiniCal);
+  parts.push(_legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']));
+
+  var srcLabel = PLANE_SOURCE_LABELS[viewTier] || '';
+  if (srcLabel){
+    parts.push('<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:6px;">'+esc(srcLabel)+'</div>');
+  }
+  parts.push('<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:4px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>');
+
+  return _menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel), parts.join(''));
+}
+
 function _planesBroadcastSummaryHtml(viewTier, revealHorizonDays, generatedHorizonDays, serialOverride?){
   var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
   var planes = _getAllPlaneData();
@@ -1407,6 +1610,10 @@ function _planesBroadcastSummaryHtml(viewTier, revealHorizonDays, generatedHoriz
 
 export function _isGeneratedNote(note){
   return /generated/i.test(String(note || ''));
+}
+
+function _refreshPlanesHandout(){
+  refreshHandout('planes');
 }
 
 
@@ -1450,6 +1657,32 @@ export function handlePlanesCommand(m, args){
     );
   }
 
+  if (sub === 'manage'){
+    var manageAction = String(args[2] || '').toLowerCase();
+    if (!manageAction){
+      return whisper(m.who, 'Planes management: use the dropdown to select an action.');
+    }
+    return handlePlanesCommand(m, ['planes', manageAction].concat(args.slice(3)));
+  }
+
+  if (sub === 'toggle'){
+    var st = ensureSettings();
+    st.planesEnabled = (st.planesEnabled === false);
+    st._planesAutoToggle = false;
+    _refreshPlanesHandout();
+    return whisperParts(m.who, planesPanelHtml(true));
+  }
+
+  if (sub === 'generated'){
+    ensureSettings().offCyclePlanes = (ensureSettings().offCyclePlanes === false);
+    _refreshPlanesHandout();
+    return whisperParts(m.who, planesPanelHtml(true));
+  }
+
+  if (sub === 'anchorwizard' || sub === 'anchorsetup'){
+    return whisper(m.who, _planeAnchorWizardHtml(String(args[2] || '').trim()));
+  }
+
   // !cal planes on <dateSpec>  — inspect planar states on a specific day
   if (sub === 'on' || sub === 'date'){
     var dateToksOn = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
@@ -1490,6 +1723,7 @@ export function handlePlanesCommand(m, args){
     });
 
     var durMsg = durationDays > 0 ? ' for <b>'+durationDays+'</b> day'+(durationDays>1?'s':'') : ' (indefinite)';
+    _refreshPlanesHandout();
     whisper(m.who, '<b>'+esc(plane.name)+'</b> forced to <b>'+esc(PLANE_PHASE_LABELS[setPhase])+'</b>'+durMsg+'.');
     return whisperParts(m.who, planesPanelHtml(true));
   }
@@ -1497,11 +1731,13 @@ export function handlePlanesCommand(m, args){
   // !cal planes clear <name>  — remove override for a plane
   if (sub === 'clear'){
     var clearName = String(args[2] || '').trim();
+    if (/^all$/i.test(clearName)) clearName = '';
     var psC = getPlanesState();
     if (!clearName){
       psC.overrides = {};
       psC.anchors = {};
       psC.gmCustomEvents = {};
+      _refreshPlanesHandout();
       whisper(m.who, 'All planar overrides and anchor overrides cleared.');
       return whisperParts(m.who, planesPanelHtml(true));
     }
@@ -1510,6 +1746,7 @@ export function handlePlanesCommand(m, args){
     delete psC.overrides[planeC.name];
     delete psC.anchors[planeC.name];
     delete psC.gmCustomEvents[planeC.name];
+    _refreshPlanesHandout();
     whisper(m.who, 'Override cleared for <b>'+esc(planeC.name)+'</b>.');
     return whisperParts(m.who, planesPanelHtml(true));
   }
@@ -1549,6 +1786,7 @@ export function handlePlanesCommand(m, args){
     );
     // Clear any phase override since we're now using calculated cycles
     delete psA.overrides[planeA.name];
+    _refreshPlanesHandout();
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
@@ -1577,8 +1815,7 @@ export function handlePlanesCommand(m, args){
       whisper(m.who, _menuBox(
         '\uD83C\uDF00 Planar Almanac \u2014 '+esc(dateLabelFromSerial(today)),
         sendRows.join('') +
-        '<div style="opacity:.75;margin-top:4px;">GM-only view. No message was sent to players.</div>'+
-        '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
+        '<div style="opacity:.75;margin-top:4px;">GM-only view. No message was sent to players.</div>'
       ));
       return;
     }
@@ -1622,6 +1859,7 @@ export function handlePlanesCommand(m, args){
     var effectiveGenHorizon = parseInt(psSend.generatedHorizonDays,10) || genHorizon;
 
     sendToAll(_planesBroadcastSummaryHtml(effectiveTier, effectiveCanonHorizon, effectiveGenHorizon));
+    _refreshPlanesHandout();
     var rangeNote = (effectiveTier === 'medium')
       ? 'canon ' + _planeRangeLabel(effectiveCanonHorizon) + ', generated ' + effectiveGenHorizon + 'd'
       : _planeRangeLabel(effectiveCanonHorizon);
@@ -1638,8 +1876,7 @@ export function handlePlanesCommand(m, args){
       // Show dropdown picker for plane selection
       var viewQueryOpts = allPlanes.map(function(p){ return p.name; }).join('|');
       return whisper(m.who, _menuBox('🌀 Plane Detail',
-        '<div style="margin-bottom:4px;">'+button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + viewQueryOpts + '}')+'</div>' +
-        '<div style="margin-top:6px;">'+button('⬅ Back','planes')+'</div>'
+        '<div style="margin-bottom:4px;">'+button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + viewQueryOpts + '}')+'</div>'
       ));
     }
     var viewPlane = _getPlaneData(viewNameRaw);
@@ -1688,8 +1925,7 @@ export function handlePlanesCommand(m, args){
     viewHtml += '</div>';
 
     return whisper(m.who, _menuBox('🌀 '+esc(viewPlane.name),
-      viewHtml +
-      '<div style="margin-top:6px;">'+button('⬅ All Planes','planes')+'</div>'
+      viewHtml
     ));
   }
 
@@ -1719,6 +1955,7 @@ export function handlePlanesCommand(m, args){
     if (!psSup.suppressedEvents[suppPlane.name]) psSup.suppressedEvents[suppPlane.name] = {};
     psSup.suppressedEvents[suppPlane.name][suppEvt.startSerial] = true;
     var suppDateLabel = dateLabelFromSerial(suppEvt.startSerial);
+    _refreshPlanesHandout();
     whisper(m.who,
       'Suppressed <b>'+esc(suppPlane.name)+'</b> generated '+esc(suppEvt.phase)+
       ' event starting '+esc(suppDateLabel)+' ('+suppEvt.durationDays+'d).');
@@ -1740,6 +1977,7 @@ export function handlePlanesCommand(m, args){
     if (String(args[3] || '').toLowerCase() === 'clear'){
       var psSeedClear = getPlanesState();
       if (psSeedClear.seedOverrides) delete psSeedClear.seedOverrides[seedPlane.name];
+      _refreshPlanesHandout();
       whisper(m.who, '<b>'+esc(seedPlane.name)+'</b> seed anchor override removed. Using epoch-derived anchor.');
       return whisperParts(m.who, planesPanelHtml(true));
     }
@@ -1749,6 +1987,7 @@ export function handlePlanesCommand(m, args){
     var psSeed = getPlanesState();
     if (!psSeed.seedOverrides) psSeed.seedOverrides = {};
     psSeed.seedOverrides[seedPlane.name] = seedYear;
+    _refreshPlanesHandout();
     whisper(m.who,
       '<b>'+esc(seedPlane.name)+'</b> seed anchor overridden to year <b>'+seedYear+'</b>.<br>'+
       (seedPlane.linkedTo ? '<i>Note: linked plane '+esc(seedPlane.linkedTo)+' will derive from its own setting.</i><br>' : '')+
