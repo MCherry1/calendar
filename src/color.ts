@@ -120,6 +120,41 @@ export function applyBg(style, bgHex, minTarget){
   return style;
 }
 
+// Convert a hex color to rgba string with the given alpha (0-1).
+export function hexToRgba(hex, alpha){
+  hex = (hex||'').toString().replace(/^#/, '');
+  if (hex.length===3) hex = hex.replace(/(.)/g,'$1$1');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return 'rgba(0,0,0,'+alpha+')';
+  var n = parseInt(hex,16);
+  return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+alpha+')';
+}
+
+// Apply a planar cell fill: solid for coterminous, faded with diagonal
+// hatching for remote.  For diagonal split (two planes), uses a
+// linear-gradient dividing the cell diagonally.
+export function applyPlaneFill(style, event, minTarget){
+  var e = event as any;
+  if (e.splitColor){
+    // Diagonal split: two planes sharing the cell
+    var c1 = e.isRemote ? hexToRgba(e.color, 0.35) : e.color;
+    var c2 = e.splitIsRemote ? hexToRgba(e.splitColor, 0.35) : e.splitColor;
+    style += 'background:linear-gradient(135deg, '+c1+' 50%, '+c2+' 50%);';
+    style += 'color:#000;';
+    style += textOutline('#000', '#888', (minTarget||CONTRAST_MIN_HEADER));
+  } else if (e.isRemote){
+    // Remote: faded color with subtle diagonal line hatching
+    var fade = hexToRgba(e.color, 0.3);
+    var line = 'rgba(0,0,0,0.12)';
+    style += 'background:repeating-linear-gradient(135deg,'+fade+','+fade+' 3px,'+line+' 3px,'+line+' 5px);';
+    style += 'color:#000;';
+    style += textOutline('#000', '#ccc', (minTarget||CONTRAST_MIN_HEADER));
+  } else {
+    // Coterminous: solid fill
+    style = applyBg(style, e.color, minTarget);
+  }
+  return style;
+}
+
 export var colorsAPI = {
   textColor: textColor,
   applyBg: applyBg,

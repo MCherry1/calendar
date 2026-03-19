@@ -65,15 +65,7 @@ None currently. Add new items here only when the desired implementation behavior
 
 ## Needs Review by Different Agent
 
-- **Default Views Redesign — hazards toggle, planes anchor wizard, and regression coverage**
-  - Completed by: GPT-5 Codex
-  - Date: 2026-03-18
-  - Scope: implemented the required `!cal weather` Extreme Hazards toggle as a real command path and persisted setting, reworked `Set Anchor` into a plane-specific coterminous anchor wizard while keeping `!cal planes anchor` as the advanced command surface, removed the nonexistent `Reseed Planes` spec item, and expanded regression coverage for panel command strings and management dispatch paths.
-
-- **Persistent Moon Phase page and synced subsystem handouts**
-  - Completed by: GPT-5 Codex
-  - Date: 2026-03-18
-  - Scope: added a bound live `!cal moon page` surface that redraws on date/moon-state changes, auto-maintained player-safe handouts for Events/Moons/Weather/Planes, preserved persistent-view bindings across calendar resets, updated README.md and DESIGN.md to document the new surfaces and commands, and added regression coverage for page binding/show behavior plus automatic handout refresh.
+None currently.
 
 ---
 
@@ -332,7 +324,7 @@ Navigation wording should be consistent across these views: use **Previous / Nex
 #### Planes (!cal planes)
 * All info is specific to the current calendar date.
 * Only show information if the subsystem is active.
-* 13 planes with cyclic phases: coterminous, waning, remote, waxing. Some planes are fixed (e.g., Dal Quor permanently remote).
+* 13 planes with cyclic phases: coterminous, neutral, remote, neutral. Planes snap between active states with no gradual transition. Some planes are fixed (e.g., Dal Quor permanently remote).
 ##### Minical
 * Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Header bar is based on the color scheme, and consists of the current month and year.

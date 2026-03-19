@@ -730,7 +730,8 @@ export function buildCalendarsHtmlForSpec(spec){
       mode:'full',
       dimPast: dimActiveAll,
       extraEventsFn: extraEventsFn,
-      includeCalendarEvents: includeCalendarEvents
+      includeCalendarEvents: includeCalendarEvents,
+      headerBarsHtml: spec.headerBarsHtml || undefined
     })+'</div>');
   }
 

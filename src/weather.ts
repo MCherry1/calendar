@@ -56,9 +56,9 @@ import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
 import { weekdayProgressionFor } from './worlds/index';
 
-import { _isFullMoonIllum, moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel } from './moon';
+import { _isFullMoonIllum, moonPhaseAt, moonEnsureSequences, nighttimeLightHtml, getTidalIndex, tidalLabel, currentLightSnapshot } from './moon';
 import { getActivePlanarEffects } from './planes';
-import { _activePlanarWeatherShiftLines, _weatherInfluenceTexts, _weatherInfluenceHtml, _planarWeatherInfluenceText } from './ui';
+import { _activePlanarWeatherShiftLines, _weatherInfluenceTexts, _weatherInfluenceHtml, _planarWeatherInfluenceText, currentTimeOfDayLabel } from './ui';
 import { colorForMonth } from './state';
 import { isTimeOfDayActive, currentTimeBucket } from './time-of-day';
 
@@ -1633,13 +1633,13 @@ function _extremeEventPanelHtml(rec: any){
   for (var i=0; i<events.length; i++){
     var e   = events[i];
     var pct = Math.round(e.probability * 100);
-    var triggerBtn = button(e.event.emoji+' Mark Active', 'weather event trigger '+e.key);
-    var rollBtn    = button('🎲 Roll (GM) ('+pct+'%)', 'weather event roll '+e.key);
+    var triggerBtn = button(e.event.emoji+' Let\'s Do It', 'weather event trigger '+e.key);
+    var rollBtn    = button('🎲 Roll For It ('+pct+'%)', 'weather event roll '+e.key);
+    var mechBtn = mechanicsOn ? ' '+button('📖 Show Me The Mechanics', 'weather event details '+e.key) : '';
     lines.push(
       '<div style="margin:3px 0;padding:4px 6px;background:rgba(183,28,28,.06);border-radius:4px;border:1px solid rgba(183,28,28,.2);">'+
-      '<div style="font-size:.9em;font-weight:bold;">'+esc(e.event.emoji+' '+e.event.name)+'</div>'+
-      (mechanicsOn && e.event.mechanics ? '<div style="font-size:.85em;opacity:.85;margin:2px 0;">'+esc(e.event.mechanics)+'</div>' : '')+
-      '<div style="margin-top:3px;">'+triggerBtn+' '+rollBtn+'</div>'+
+      '<div style="font-size:.9em;font-weight:bold;">Conditions are right for a '+esc(e.event.name)+'</div>'+
+      '<div style="margin-top:3px;">'+triggerBtn+' '+rollBtn+mechBtn+'</div>'+
       '</div>'
     );
   }
@@ -2585,7 +2585,15 @@ function weatherTodayGmHtml(){
     );
   }
 
-  var locLine = '<div style="font-size:.85em;opacity:.75;">'+esc(_weatherLocationLabel(loc))+'</div>';
+  var dateLine = '<div style="font-weight:bold;margin:3px 0;">'+esc(currentDateLabel())+'</div>';
+
+  // Time of Day (if active)
+  var todLine = '';
+  if (isTimeOfDayActive()){
+    todLine = '<div style="font-size:.85em;opacity:.72;margin:0 0 2px 0;">' + esc(currentTimeOfDayLabel()) + '</div>';
+  }
+
+  var locLine = '<div style="font-size:.85em;opacity:.75;">📍 '+esc(_weatherLocationLabel(loc))+'</div>';
   var manifestEntries = _activeManifestZoneEntries();
   var manifestLine = manifestEntries.length
     ? '<div style="font-size:.82em;opacity:.7;margin-top:2px;">Manifest zones: <b>'+esc(_manifestZoneStatusLabel(manifestEntries))+'</b></div>'
@@ -2598,6 +2606,31 @@ function weatherTodayGmHtml(){
     ? _weatherDayGmHtml(rec, true)
     : '<div style="opacity:.6;">No weather generated for today.</div>';
 
+  // Current Light Level (if before sunrise or after sunset)
+  var lightLine = '';
+  if (isTimeOfDayActive()){
+    try {
+      var _lightSnap = currentLightSnapshot(ser);
+      if (_lightSnap && _lightSnap.mode !== 'day'){
+        lightLine = '<div style="font-size:.82em;opacity:.7;margin-top:2px;">💡 '+esc(_lightSnap.label || 'Unknown')+((_lightSnap.note) ? ' — '+esc(_lightSnap.note) : '')+'</div>';
+      }
+    } catch(eLight){}
+  }
+
+  // Active Mechanics summary
+  var activeMechLine = '';
+  if (rec && ensureSettings().weatherMechanicsEnabled !== false){
+    try {
+      var _wxVals = _weatherPrimaryValues(rec) || rec.final;
+      var _wxCond = _deriveConditions(_wxVals, rec.location || {}, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+      var _mechHtml = _conditionsMechHtml(_wxCond);
+      if (_mechHtml){
+        activeMechLine = '<div style="font-size:.82em;margin-top:4px;padding:3px 6px;background:rgba(0,0,0,.04);border-radius:3px;">' +
+          '<b>Active Mechanics:</b> ' + _mechHtml + '</div>';
+      }
+    } catch(eMech){}
+  }
+
   var topButtons =
     button('📣 Send Revealed','weather send')+' '+
     button('Forecast','weather forecast '+_weatherViewDays(st.weatherForecastViewDays))+' '+
@@ -2607,7 +2640,7 @@ function weatherTodayGmHtml(){
   var zoneButtons = '<div style="margin-top:4px;">'+button('Set Manifest Zone','weather manifest')+'</div>';
 
   var mediumRow =
-    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Reveal skilled forecast:</div>'+
+    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Medium Forecast:</div>'+
     '<div>'+
     button('1 day', 'weather reveal medium 1')+' '+
     button('3 days','weather reveal medium 3')+' '+
@@ -2616,7 +2649,7 @@ function weatherTodayGmHtml(){
     '</div>';
 
   var highRow =
-    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Reveal expert forecast:</div>'+
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">High Forecast:</div>'+
     '<div>'+
     button('1 day', 'weather reveal high 1')+' '+
     button('3 days','weather reveal high 3')+' '+
@@ -2656,7 +2689,8 @@ function weatherTodayGmHtml(){
     '</div>';
 
   return _menuBox("Today's Weather",
-    locLine + manifestLine + arythLine + body +
+    dateLine + todLine + locLine + manifestLine + arythLine + body +
+    lightLine + activeMechLine +
     tidalLine +
     extremeHtml +
     '<div style="margin-top:6px;">'+ button('📣 Send Revealed','weather send') +'</div>'+
@@ -2666,6 +2700,33 @@ function weatherTodayGmHtml(){
     '<div style="margin:4px 0;">' + button('Set Location','weather location') + ' ' + button('Set Manifest Zone','weather manifest') + '</div>' +
     managementBtn
   );
+}
+
+// Get L/H Fahrenheit temperatures for a forecast record's day.
+// Uses min/max temp bands across all periods, then adds a seeded d10
+// from the bottom of each band range for flavor.
+function _weatherDayTempRange(rec: any){
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec || !rec.periods) return null;
+  var minBand = 99, maxBand = -99;
+  for (var pk in rec.periods){
+    if (!Object.prototype.hasOwnProperty.call(rec.periods, pk)) continue;
+    var t = rec.periods[pk].temp;
+    if (t < minBand) minBand = t;
+    if (t > maxBand) maxBand = t;
+  }
+  if (minBand > maxBand) return null;
+  var loInfo = _weatherTempInfo(minBand);
+  var hiInfo = _weatherTempInfo(maxBand);
+  // Seed the d10 deterministically from the serial so it's stable
+  var seed = (rec.serial || 0) * 7 + 3;
+  var loRoll = ((seed * 13 + 5) % 10);
+  var hiRoll = ((seed * 17 + 11) % 10);
+  var loF = (loInfo.minF != null ? loInfo.minF : -50) + loRoll;
+  var hiF = (hiInfo.minF != null ? hiInfo.minF : -50) + hiRoll;
+  // Ensure Low < High when bands are the same
+  if (loF >= hiF) { loF = hiF - 1 - (loRoll % 3); }
+  return { lowF: loF, highF: hiF };
 }
 
 function _weatherEmojiForRecord(rec: any){
@@ -2736,12 +2797,19 @@ function _renderWeatherMonthStripWantedDays(year: any, mi: any, wantedSet: any, 
       var dayAttr = dayTitle ? ' title="'+esc(dayTitle)+'" aria-label="'+esc(dayTitle)+'"' : '';
       dayRow.push('<td'+dayAttr+' style="'+dayStyle+'"><div'+(numStyle ? ' style="'+numStyle+'"' : '')+'>'+d.day+'</div></td>');
 
-      var wxStyle = STYLES.td + 'font-size:1.05em;line-height:1;';
+      var wxStyle = STYLES.td + 'line-height:1;padding:1px 0;';
       var wxText = '&nbsp;';
       var wxAttr = '';
       if (inMonthWanted){
         var rec = _forecastRecord(ser);
-        wxText = _weatherEmojiForRecord(rec);
+        var emoji = _weatherEmojiForRecord(rec);
+        var temps = _weatherDayTempRange(rec);
+        var tempLine = '';
+        if (temps){
+          tempLine = '<div style="font-size:.5em;line-height:1;margin-top:1px;white-space:nowrap;">' +
+            temps.lowF + '/' + temps.highF + '</div>';
+        }
+        wxText = '<div style="font-size:1.05em;line-height:1;">' + emoji + '</div>' + tempLine;
         var wxTitle = _weatherMiniCellTitle(ser);
         if (wxTitle) wxAttr = ' title="'+esc(wxTitle)+'" aria-label="'+esc(wxTitle)+'"';
       } else {
@@ -3383,8 +3451,26 @@ export function handleWeatherCommand(m, args){
             '</div>'
           ));
         }
+      } else if (evtSub === 'details'){
+        // Show Me The Mechanics — whisper detailed info, then regenerate trigger/roll buttons
+        var detailsHtml = _extremeEventDetailsHtml(evtKey, evtRec);
+        var evtDef = EXTREME_EVENTS[evtKey];
+        var evtPct = 0;
+        if (evtDef){
+          var evtEvents = _evaluateExtremeEvents(evtRec);
+          for (var dei=0; dei<evtEvents.length; dei++){
+            if (evtEvents[dei].key === evtKey){ evtPct = Math.round(evtEvents[dei].probability * 100); break; }
+          }
+        }
+        whisper(m.who, _menuBox('Extreme Event Details',
+          detailsHtml +
+          '<div style="margin-top:5px;">'+
+            button((evtDef ? evtDef.emoji : '⚠')+' Let\'s Do It', 'weather event trigger '+evtKey)+' '+
+            button('🎲 Roll For It ('+evtPct+'%)', 'weather event roll '+evtKey)+
+          '</div>'
+        ));
       } else {
-        warnGM('Usage: weather event trigger <key>  or  weather event roll <key>');
+        warnGM('Usage: weather event trigger|roll|details <key>');
       }
       break;
     }

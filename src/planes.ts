@@ -3,6 +3,7 @@ import { state_name } from './constants.js';
 import { ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc } from './rendering.js';
+import { _deliverTopLevelCalendarRange } from './events.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { refreshHandout } from './persistent-views.js';
@@ -12,23 +13,25 @@ import { PLANAR_GENERATED_EVENT_PROFILE, _dN, _generatedEventAt, _generatedPhase
 /* ============================================================================
  * 21) PLANAR SYSTEM
  * ============================================================================
- * Each plane orbits the Material in a cycle: coterminous → waning → remote →
- * waxing → coterminous. The system calculates current phase from anchor dates
- * and cycle parameters, provides a public API for cross-system hooks, and
- * offers GM/player panels parallel to the moon system.
+ * Each plane orbits the Material in a cycle: coterminous → neutral → remote →
+ * neutral → coterminous. Planes snap between active states with no gradual
+ * transition. The system calculates current phase from anchor dates and cycle
+ * parameters, provides a public API for cross-system hooks, and offers
+ * GM/player panels parallel to the moon system.
  * ==========================================================================*/
 
 // ---------------------------------------------------------------------------
 // 21a) Planar data — cycle definitions for Eberron's 13 planes
 // ---------------------------------------------------------------------------
 
-// Phase durations in days. Full orbit = coterminous + waning + remote + waxing.
-// Waning and waxing are computed as (orbit - coterminous - remote) / 2.
+// Phase durations in days. Full orbit = coterminous + neutral + remote + neutral.
+// Neutral gaps are computed as (orbit - coterminous - remote) / 2.
 // Special planes have 'fixed' type instead of 'cyclic'.
 
 export var PLANE_DATA = {
   eberron: [
     { name:'Daanvi',    title:'The Perfect Order',
+      color: '#C9A227',
       type:'cyclic',
       orbitYears: 400,   coterminousDays: null, remoteDays: null,
       coterminousYears: 100, remoteYears: 100,
@@ -42,12 +45,14 @@ export var PLANE_DATA = {
       }
     },
     { name:'Dal Quor',  title:'The Region of Dreams',
+      color: '#7B68AE',
       type:'fixed', fixedPhase:'remote',
       associatedMoon: 'Crya',
       note: 'Knocked off orbit ~40,000 years ago during the Quori invasion of Xen\'drik. Permanently remote. Crya (the 13th moon) believed destroyed.',
       effects: { remote: 'Only reachable via dreaming. Plane shift cannot reach Dal Quor. No manifest zones exist naturally.' }
     },
     { name:'Dolurrh',   title:'The Realm of the Dead',
+      color: '#808080',
       type:'cyclic',
       orbitYears: 100,   coterminousDays: null, remoteDays: null,
       coterminousYears: 1, remoteYears: 1,
@@ -61,6 +66,7 @@ export var PLANE_DATA = {
       }
     },
     { name:'Fernia',    title:'The Sea of Fire',
+      color: '#FF5722',
       type:'cyclic',
       orbitYears: 5,     coterminousDays: 28, remoteDays: 28,
       coterminousYears: null, remoteYears: null,
@@ -75,6 +81,7 @@ export var PLANE_DATA = {
       }
     },
     { name:'Irian',     title:'The Eternal Dawn',
+      color: '#F0F0F0',
       type:'cyclic',
       orbitYears: 3,     coterminousDays: 10, remoteDays: 10,
       coterminousYears: null, remoteYears: null,
@@ -90,7 +97,8 @@ export var PLANE_DATA = {
       }
     },
     { name:'Kythri',    title:'The Churning Chaos',
-      type:'fixed', fixedPhase:'waning',
+      color: '#2E8B8B',
+      type:'fixed', fixedPhase:'neutral',
       associatedMoon: 'Zarantyr',
       note: 'Kythri\'s coterminous and remote phases are completely unpredictable, lasting from days to centuries. Proximity has no discernible global effects on the Material Plane.',
       effects: {
@@ -99,19 +107,21 @@ export var PLANE_DATA = {
       }
     },
     { name:'Lamannia',  title:'The Twilight Forest',
+      color: '#228B22',
       type:'cyclic',
       orbitYears: 1,     coterminousDays: 7, remoteDays: 7,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 6, anchorDay: 24,
       seasonHint: 'summer solstice',
       associatedMoon: 'Olarune',
-      note: 'Coterminous for a week centered on the summer solstice (Nymm 24–Lharvion 2) and remote for a week centered on the winter solstice (Vult 24–Zarantyr 2). Both occur every year.',
+      note: 'Coterminous for a week centered on the summer solstice (Nymm 24\u2013Lharvion 2) and remote for a week centered on the winter solstice (Vult 24\u2013Zarantyr 2). Both occur every year.',
       effects: {
         coterminous: 'Lamannian manifest zone effects are enhanced. In unspoiled nature, fertility of plants and animals rises and beasts conceived in this period are often exceptionally strong and healthy. Spells targeting beasts or elementals with duration 1 minute or longer are doubled; durations of 24 hours or longer are unaffected.',
         remote: 'Fertility rates drop and beasts born in this period are often weak or sickly; animals are uneasy. Spells affecting beasts or elementals have their duration halved, to a minimum of 1 round.'
       }
     },
     { name:'Mabar',     title:'The Endless Night',
+      color: '#111111',
       type:'cyclic',
       orbitYears: 1,     coterminousDays: 3, remoteDays: 0,
       coterminousYears: null, remoteYears: null,
@@ -120,13 +130,14 @@ export var PLANE_DATA = {
       seasonHint: 'winter solstice',
       associatedMoon: 'Sypheros',
       remoteOrbitYears: 5, remoteDaysSpecial: 5, remoteSeasonHint: 'summer solstice',
-      note: 'Long Shadows: coterminous from sundown on Vult 26 until sunrise on Vult 28, centered on noon of Vult 27. Remote for 5 days around the summer solstice (begins sunrise Nymm 25, ends sunset Lharvion 1), once every 5 years.',
+      note: 'Long Shadows: coterminous for 3 days around the winter solstice (Vult 26\u201328), every year. Remote for 5 days around the summer solstice (Nymm 25\u2013Lharvion 1), once every 5 years.',
       effects: {
         coterminous: 'Necrotic Power encompasses the world and all light source radii are halved. In regions steeped in despair or misery, deep darkness can open gateways to Mabar, releasing shadows and other horrors. This manifests only at night and ends at dawn.',
         remote: 'All creatures gain resistance to necrotic damage. Undead have disadvantage on saves vs being turned or frightened.'
       }
     },
     { name:'Risia',     title:'The Plain of Ice',
+      color: '#00ACC1',
       type:'cyclic',
       orbitYears: 5,     coterminousDays: 28, remoteDays: 28,
       coterminousYears: null, remoteYears: null,
@@ -141,6 +152,7 @@ export var PLANE_DATA = {
       }
     },
     { name:'Shavarath', title:'The Eternal Battleground',
+      color: '#8B0000',
       type:'cyclic',
       orbitYears: 36,    coterminousDays: null, remoteDays: null,
       coterminousYears: 1, remoteYears: 1,
@@ -154,19 +166,21 @@ export var PLANE_DATA = {
       }
     },
     { name:'Syrania',   title:'The Azure Sky',
+      color: '#64B5F6',
       type:'cyclic',
       orbitYears: 10,    coterminousDays: 1, remoteDays: 1,
       coterminousYears: null, remoteYears: null,
       anchorYear: 998, anchorPhase: 'coterminous', anchorMonth: 9, anchorDay: 9,
       seedAnchor: true,
       associatedMoon: 'Therendor',
-      note: 'Traditionally coterminous on 9 Rhaan once every 10 years and remote on the same day 5 years later. This is celebrated as Boldrei’s Feast, with especially grand celebrations on coterminous years.',
+      note: 'Traditionally coterminous on 9 Rhaan once every 10 years and remote on the same day 5 years later. This is celebrated as Boldrei\'s Feast, with especially grand celebrations on coterminous years.',
       effects: {
         coterminous: 'Goodwill spreads worldwide. Absolute Peace and Gentle Thoughts apply across Eberron; creatures harmed (or witnessing allies harmed) ignore Absolute Peace for 1 minute. Skies are clear and weather calm.',
         remote: 'Skies are gray and the sun is hidden. People feel quarrelsome: creatures have disadvantage on Charisma (Persuasion) checks and advantage on Charisma (Intimidation) checks. Outside Syranian manifest zones, flying speeds are reduced by 10 feet (minimum 5 feet).'
       }
     },
     { name:'Thelanis',  title:'The Faerie Court',
+      color: '#50C878',
       type:'cyclic',
       orbitYears: 225,   coterminousDays: null, remoteDays: null,
       coterminousYears: 7, remoteYears: 7,
@@ -180,10 +194,11 @@ export var PLANE_DATA = {
       }
     },
     { name:'Xoriat',    title:'The Realm of Madness',
+      color: '#9ACD32',
       type:'fixed', fixedPhase:'remote',
       associatedMoon: 'Lharvion',
-      note: 'The Gatekeeper seals that bind the daelkyr in Khyber also keep Xoriat from becoming coterminous. Remote phases are unpredictable and usually much slower than Kythri’s. No citizens of the Five Nations are known to have visited Xoriat.',
-      effects: { remote: 'Xoriat’s remote phases have no known global effect on the Material Plane.' }
+      note: 'The Gatekeeper seals that bind the daelkyr in Khyber also keep Xoriat from becoming coterminous. Remote phases are unpredictable and usually much slower than Kythri\'s. No citizens of the Five Nations are known to have visited Xoriat.',
+      effects: { remote: 'Xoriat\'s remote phases have no known global effect on the Material Plane.' }
     }
   ]
 };
@@ -196,7 +211,7 @@ export function getPlanesState(){
   var root = state[state_name];
   var baselineHorizon = _planarYearDays();
   if (!root.planes) root.planes = {
-    overrides: {},    // planeName -> { phase:'coterminous'|'waning'|'remote'|'waxing', note:'' }
+    overrides: {},    // planeName -> { phase:'coterminous'|'remote'|'neutral', note:'' }
     anchors: {},      // planeName -> { year, month, day, phase } — GM-set anchor overrides
     revealTier: 'medium', // 'low' | 'medium' | 'high'
     revealHorizonDays: baselineHorizon   // player-known horizon window
@@ -266,11 +281,13 @@ function _planeCycleMetrics(plane){
   var transitionDays  = (orbitDays - coterminousDays - remoteDays) / 2;
   if (transitionDays < 1) transitionDays = 1;
 
+  // Phase order: coterminous → neutral → remote → neutral → (repeat)
+  // No waxing/waning — planes snap between states.
   var phases = [
     { name:'coterminous', dur: coterminousDays },
-    { name:'waning',      dur: transitionDays },
+    { name:'neutral',     dur: transitionDays },
     { name:'remote',      dur: remoteDays },
-    { name:'waxing',      dur: transitionDays }
+    { name:'neutral',     dur: transitionDays }
   ];
   var phaseOffsets = {};
   var running = 0;
@@ -390,9 +407,9 @@ function _planeAnchorWizardHtml(planeName){
   cycleLines.push(
     '<div style="opacity:.78;"><b>Mechanical cycle:</b> '+
       'Coterminous '+esc(_planeDurationLabel(cycle.coterminousDays))+
-      ', waning '+esc(_planeDurationLabel(cycle.transitionDays))+
+      ', neutral '+esc(_planeDurationLabel(cycle.transitionDays))+
       ', remote '+esc(cycle.remoteDays > 0 ? _planeDurationLabel(cycle.remoteDays) : '0 days')+
-      ', waxing '+esc(_planeDurationLabel(cycle.transitionDays))+
+      ', neutral '+esc(_planeDurationLabel(cycle.transitionDays))+
       ' across a '+esc(_planeYearLabel(plane.orbitYears || 1))+' orbit.'+
     '</div>'
   );
@@ -463,7 +480,7 @@ export function getPlanarState(planeName, serial, opts?){
     if (overrideActive){
       return {
         plane: plane,
-        phase: override.phase || 'waning',
+        phase: override.phase || 'neutral',
         daysIntoPhase: null,
         daysUntilNextPhase: overrideEnd != null
           ? Math.max(0, overrideEnd - serial)
@@ -577,10 +594,10 @@ export function getPlanarState(planeName, serial, opts?){
       var cyclicPhase = ph.name;
       var cyclicNote = '';
 
-      // Off-cycle generated shift: can override waning/waxing to coterminous/remote
-      // Only triggers during transition phases (not when already coterminous/remote)
+      // Off-cycle generated shift: can override neutral to coterminous/remote
+      // Only triggers during neutral phases (not when already coterminous/remote)
       if (!ignoreGenerated &&
-          (cyclicPhase === 'waning' || cyclicPhase === 'waxing') &&
+          cyclicPhase === 'neutral' &&
           isGeneratedShift(plane.name, serial)){
         var genPhase = _generatedPhase(plane.name, serial);
         cyclicNote = 'Generated ' + genPhase + ' shift';
@@ -590,7 +607,7 @@ export function getPlanarState(planeName, serial, opts?){
       // ── Mabar special case: annual cot + 5-year remote cycle ──
       // Mabar is coterminous every year (Long Shadows) but remote only once
       // every 5 years around the summer solstice. The standard cyclic calc gives
-      // us the annual cot; we override waning/waxing based on the remote cycle.
+      // us the annual cot; we override neutral based on the remote cycle.
       if (plane.remoteOrbitYears && plane.remoteDaysSpecial){
         var remoteDur = plane.remoteDaysSpecial;
         // Summer solstice = Nymm 27 (month 6, day 27) — opposite winter solstice Vult 27
@@ -630,24 +647,14 @@ export function getPlanarState(planeName, serial, opts?){
             daysIntoPhase: _dayOfYear - _remoteStart,
             daysUntilNextPhase: _remoteEnd - _dayOfYear + 1,
             phaseDuration: remoteDur,
-            nextPhase: 'waxing',
+            nextPhase: 'neutral',
             overridden: false,
             sourceLabel: 'traditional',
             traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
           };
         }
 
-        // Fix waxing/waning based on what's next:
-        // - If NOT a remote year (or remote already past): always waxing toward next Long Shadows
-        // - If IS a remote year and remote is still ahead: waning toward remote
-        // - If IS a remote year and remote is past: waxing toward next Long Shadows
-        if (cyclicPhase === 'waning' || cyclicPhase === 'waxing'){
-          if (_isRemoteYear && _dayOfYear < _remoteStart){
-            cyclicPhase = 'waning';
-          } else {
-            cyclicPhase = 'waxing';
-          }
-        }
+        // Neutral periods stay neutral (no waxing/waning distinction).
       }
 
       // ── Floating start day: drift within the month per occurrence ──
@@ -693,40 +700,33 @@ export function getPlanarState(planeName, serial, opts?){
         var _remDrift = ((_fd[_remKey] || _baseDay) - _baseDay);
 
         // Which half of the orbit are we in?
-        // First half = coterminous + waning; second half = remote + waxing
+        // First half = coterminous + neutral; second half = remote + neutral
         var _halfOrbit = orbitDays / 2;
         var _offsetInOrbit = _daysSinceAnch - (_orbitNum * orbitDays);
         if (_offsetInOrbit < 0) _offsetInOrbit += orbitDays;
 
         if (_offsetInOrbit < _halfOrbit){
-          // First half: cot then waning
+          // First half: cot then neutral
           var _cotStart = _cotDrift; // offset within orbit where cot begins
           if (_cotStart < 0) _cotStart = 0;
           var _cotEnd = _cotStart + coterminousDays;
           if (_offsetInOrbit >= _cotStart && _offsetInOrbit < _cotEnd){
             cyclicPhase = 'coterminous';
             into = _offsetInOrbit - _cotStart;
-          } else if (_offsetInOrbit < _cotStart){
-            // Before cot starts in this orbit — waxing from previous orbit
-            cyclicPhase = 'waxing';
-            into = _offsetInOrbit;
           } else {
-            cyclicPhase = 'waning';
-            into = _offsetInOrbit - _cotEnd;
+            cyclicPhase = 'neutral';
+            into = _offsetInOrbit < _cotStart ? _offsetInOrbit : _offsetInOrbit - _cotEnd;
           }
         } else {
-          // Second half: remote then waxing
+          // Second half: remote then neutral
           var _remStart = _halfOrbit + _remDrift;
           var _remEnd = _remStart + remoteDays;
           if (_offsetInOrbit >= _remStart && _offsetInOrbit < _remEnd){
             cyclicPhase = 'remote';
             into = _offsetInOrbit - _remStart;
-          } else if (_offsetInOrbit < _remStart){
-            cyclicPhase = 'waning';
-            into = _offsetInOrbit - _halfOrbit;
           } else {
-            cyclicPhase = 'waxing';
-            into = _offsetInOrbit - _remEnd;
+            cyclicPhase = 'neutral';
+            into = _offsetInOrbit < _remStart ? _offsetInOrbit - _halfOrbit : _offsetInOrbit - _remEnd;
           }
         }
       }
@@ -750,11 +750,11 @@ export function getPlanarState(planeName, serial, opts?){
   // Shouldn't reach here, but fallback
   return {
     plane: plane,
-    phase: 'waning',
+    phase: 'neutral',
     daysIntoPhase: 0,
     daysUntilNextPhase: 0,
     phaseDuration: 0,
-    nextPhase: 'remote',
+    nextPhase: 'neutral',
     overridden: false,
     note: '',
     sourceLabel: 'traditional',
@@ -822,11 +822,12 @@ export function _planarNotableToday(serial){
         : '';
       notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote'+remTag);
     }
-    else if (ps.phase === 'waxing' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 3){
-      notes.push('\uD83D\uDD34 <b>'+esc(name)+'</b> coterminous in '+ps.daysUntilNextPhase+'d');
-    }
-    else if (ps.phase === 'waning' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 3){
-      notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote in '+ps.daysUntilNextPhase+'d');
+    // Neutral phases with imminent transition: hint at what's coming
+    else if (ps.phase === 'neutral' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 3 && ps.nextPhase){
+      if (ps.nextPhase === 'coterminous')
+        notes.push('\uD83D\uDD34 <b>'+esc(name)+'</b> coterminous in '+ps.daysUntilNextPhase+'d');
+      else if (ps.nextPhase === 'remote')
+        notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote in '+ps.daysUntilNextPhase+'d');
     }
   }
 
@@ -838,17 +839,15 @@ export function _planarNotableToday(serial){
 // ---------------------------------------------------------------------------
 
 export var PLANE_PHASE_EMOJI = {
-  coterminous: '🟢',
-  waning:      '🟠↓',
-  remote:      '🔴',
-  waxing:      '🟠↑'
+  coterminous: '\uD83D\uDFE2',  // 🟢
+  remote:      '\uD83D\uDD34',  // 🔴
+  neutral:     '\u26AA'          // ⚪
 };
 
 export var PLANE_PHASE_LABELS = {
   coterminous: 'Coterminous',
-  waning:      'Waning',
   remote:      'Remote',
-  waxing:      'Waxing'
+  neutral:     'Neutral'
 };
 
 export var PLANE_REVEAL_TIERS = { low:1, medium:2, high:3 };
@@ -1002,6 +1001,10 @@ export function _canonicalPhaseKnowledgeSummary(planeName, serial, horizonDays){
   return 'Cycle: C ' + cTxt + ' \u00B7 R ' + rTxt;
 }
 
+// Threshold for "short" vs "long" planar events.
+// Events ≤ this many days get cell fills; longer events get header bars.
+var PLANE_SHORT_EVENT_THRESHOLD = 28;
+
 export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSerial?){
   var out = [];
   var planes = _getAllPlaneData();
@@ -1010,109 +1013,169 @@ export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSeri
   var start = startSerial|0;
   var end = endSerial|0;
   if (end < start){ var t = start; start = end; end = t; }
-  var prevCanon = {};
-  var prevGen = {};
-
-  for (var i = 0; i < planes.length; i++){
-    var pname = planes[i].name;
-    prevCanon[pname] = getPlanarState(pname, start - 1, { ignoreGenerated: true });
-    if (generatedCutoffSerial != null && (start - 1) <= generatedCutoffSerial){
-      var prevActual = getPlanarState(pname, start - 1);
-      prevGen[pname] = prevActual ? { phase: prevActual.phase, gen: !!_isGeneratedNote(prevActual.note) } : null;
-    }
-  }
 
   for (var ser = start; ser <= end; ser++){
-    // Collect per-day summaries: transition events, active coterminous/remote,
-    // and generated shifts.  Then emit at most a few dot-only indicators per day
-    // instead of one fill event per plane per day.
-    var transitionNames = [];
-    var cotNames = [];
-    var remoteNames = [];
-    var genNames = [];
+    // Collect per-day: short canonical fills, generated dots, tooltip info.
+    var fills = [];   // short canonical events → cell fills
+    var dots  = [];   // generated events → dots
+    var tipCot  = [];
+    var tipRem  = [];
 
     for (var j = 0; j < planes.length; j++){
-      var name = planes[j].name;
+      var plane = planes[j];
+      var name = plane.name;
+      var planeColor = plane.color || '#607D8B';
 
-      // Canonical phase
-      var curCanon = getPlanarState(name, ser, { ignoreGenerated: true });
-      var prvCanon = prevCanon[name];
-      var isTransition = curCanon && prvCanon && curCanon.phase !== prvCanon.phase;
-      if (isTransition){
-        var emoji = PLANE_PHASE_EMOJI[curCanon.phase] || '\u26AA';
-        var label = PLANE_PHASE_LABELS[curCanon.phase] || curCanon.phase;
-        if (curCanon.phase === 'coterminous' || curCanon.phase === 'remote'){
-          transitionNames.push(emoji + ' ' + name + ': ' + label + ' begins');
-        } else {
-          var endedPhase = PLANE_PHASE_LABELS[prvCanon.phase] || prvCanon.phase;
-          transitionNames.push(emoji + ' ' + name + ': ' + endedPhase + ' ends');
+      // Canonical state (ignoring generated shifts)
+      var canon = getPlanarState(name, ser, { ignoreGenerated: true });
+      if (canon && (canon.phase === 'coterminous' || canon.phase === 'remote')){
+        var dur = canon.phaseDuration || 999;
+        if (dur <= PLANE_SHORT_EVENT_THRESHOLD){
+          fills.push({
+            planeName: name,
+            color: planeColor,
+            phase: canon.phase,
+            duration: dur
+          });
         }
-      } else if (curCanon && curCanon.phase === 'coterminous'){
-        cotNames.push(name);
-      } else if (curCanon && curCanon.phase === 'remote'){
-        remoteNames.push(name);
+        // Tooltip always includes active planes
+        if (canon.phase === 'coterminous') tipCot.push(name);
+        else tipRem.push(name);
       }
-      prevCanon[name] = curCanon;
 
-      // Generated (off-cycle) event spans
+      // Generated events → always dots
       if (generatedCutoffSerial != null && ser <= generatedCutoffSerial){
-        var curActual = getPlanarState(name, ser);
-        var curIsGen = !!(curActual && _isGeneratedNote(curActual.note));
-        var prevEntry = prevGen[name] || { phase: null, gen: false };
-        var prevWasGen = !!prevEntry.gen;
-
-        if (curIsGen){
-          var gPhase = curActual.phase || 'waning';
-          var gLabel = (PLANE_PHASE_LABELS[gPhase] || gPhase).toLowerCase();
-          var startsHere = (!prevWasGen || prevEntry.phase !== gPhase);
-          if (startsHere){
-            genNames.push(name + ': ' + gLabel + ' begins');
-          } else {
-            genNames.push(name + ': ' + gLabel);
+        var actual = getPlanarState(name, ser);
+        if (actual && _isGeneratedNote(actual.note)){
+          var gPhase = actual.phase || 'neutral';
+          if (gPhase === 'coterminous' || gPhase === 'remote'){
+            dots.push({
+              planeName: name,
+              color: planeColor,
+              phase: gPhase
+            });
+            // Also add to tooltip
+            if (gPhase === 'coterminous' && tipCot.indexOf(name) < 0) tipCot.push(name);
+            if (gPhase === 'remote' && tipRem.indexOf(name) < 0) tipRem.push(name);
           }
         }
-        prevGen[name] = { phase: curActual ? curActual.phase : null, gen: curIsGen };
       }
     }
 
-    // Emit dot-only indicators: one per category so cells aren't flooded
-    // with fill colours.  Transitions get their own teal dot; ongoing
-    // coterminous/remote get lighter dots; generated shifts get purple.
-    if (transitionNames.length){
+    // Sort fills by duration ascending (shortest first = primary fill)
+    fills.sort(function(a, b){ return a.duration - b.duration; });
+
+    // Build tooltip
+    var tipParts = [];
+    if (tipCot.length) tipParts.push('Coterminous:\n  • ' + tipCot.join('\n  • '));
+    if (tipRem.length) tipParts.push('Remote:\n  • ' + tipRem.join('\n  • '));
+    var tooltip = tipParts.join('\n');
+
+    // Emit fill events (max 2 for diagonal split)
+    if (fills.length === 1){
       out.push({
         serial: ser,
-        name: transitionNames.join(', '),
-        color: '#80CBC4',
-        dotOnly: true
+        name: tooltip || (fills[0].planeName + ' ' + fills[0].phase),
+        color: fills[0].color,
+        isRemote: fills[0].phase === 'remote',
+        planeFill: true
+      });
+    } else if (fills.length >= 2){
+      // Diagonal split: two fills
+      out.push({
+        serial: ser,
+        name: tooltip || (fills[0].planeName + ' / ' + fills[1].planeName),
+        color: fills[0].color,
+        planeFill: true,
+        isRemote: fills[0].phase === 'remote',
+        splitColor: fills[1].color,
+        splitIsRemote: fills[1].phase === 'remote'
       });
     }
-    if (cotNames.length){
+
+    // Emit generated dots — always include "Generated" in name for test/filter compatibility
+    for (var g = 0; g < dots.length; g++){
+      var gLabel = (PLANE_PHASE_LABELS[dots[g].phase] || dots[g].phase).toLowerCase();
+      var genName = 'Generated: ' + dots[g].planeName + ' ' + gLabel;
       out.push({
         serial: ser,
-        name: 'Coterminous: ' + cotNames.join(', '),
-        color: '#B2DFDB',
-        dotOnly: true
-      });
-    }
-    if (remoteNames.length){
-      out.push({
-        serial: ser,
-        name: 'Remote: ' + remoteNames.join(', '),
-        color: '#FFCDD2',
-        dotOnly: true
-      });
-    }
-    if (genNames.length){
-      out.push({
-        serial: ser,
-        name: 'Generated: ' + genNames.join(', '),
-        color: '#CE93D8',
+        name: genName + (tooltip ? ' | ' + tooltip : ''),
+        color: dots[g].color,
         dotOnly: true
       });
     }
   }
 
   return out;
+}
+
+// Compute header bars for long (>1 month) canonical planar events active
+// during a given month range.  Returns array of { planeName, color, phase,
+// tooltip } for rendering above the month header.
+export function _planesHeaderBars(startSerial, endSerial){
+  var bars = [];
+  var planes = _getAllPlaneData();
+  if (!planes || !planes.length) return bars;
+
+  // Check each plane at the midpoint of the range
+  var mid = Math.floor((startSerial + endSerial) / 2);
+  var seen = {};
+
+  for (var j = 0; j < planes.length; j++){
+    var plane = planes[j];
+    var canon = getPlanarState(plane.name, mid, { ignoreGenerated: true });
+    if (!canon) continue;
+    if (canon.phase !== 'coterminous' && canon.phase !== 'remote') continue;
+    var dur = canon.phaseDuration || 0;
+    if (dur <= PLANE_SHORT_EVENT_THRESHOLD) continue;
+
+    var key = plane.name + ':' + canon.phase;
+    if (seen[key]) continue;
+    seen[key] = true;
+
+    // Build tooltip with duration info
+    var phaseLabel = (PLANE_PHASE_LABELS[canon.phase] || canon.phase).toLowerCase();
+    var daysInto = canon.daysIntoPhase || 0;
+    var daysLeft = canon.daysUntilNextPhase || 0;
+    var totalDays = dur;
+    var tipParts = [plane.name + ' ' + phaseLabel];
+
+    // Duration display
+    var yearDays = _planarYearDays() || 336;
+    if (totalDays > yearDays * 2){
+      tipParts.push('~' + Math.round(totalDays / yearDays) + ' years total');
+    } else if (totalDays > 56){
+      tipParts.push('~' + Math.round(totalDays / 28) + ' months total');
+    } else {
+      tipParts.push(totalDays + ' days total');
+    }
+
+    // Started/ending info
+    if (daysInto > yearDays){
+      tipParts.push('began ~' + Math.round(daysInto / yearDays) + ' years ago');
+    } else if (daysInto > 56){
+      tipParts.push('began ~' + Math.round(daysInto / 28) + ' months ago');
+    } else {
+      tipParts.push('began ' + daysInto + ' days ago');
+    }
+    if (daysLeft > yearDays){
+      tipParts.push('ending in ~' + Math.round(daysLeft / yearDays) + ' years');
+    } else if (daysLeft > 56){
+      tipParts.push('ending in ~' + Math.round(daysLeft / 28) + ' months');
+    } else {
+      tipParts.push('ending in ' + daysLeft + ' days');
+    }
+
+    bars.push({
+      planeName: plane.name,
+      color: plane.color || '#607D8B',
+      phase: canon.phase,
+      label: plane.name + ' ' + titleCase(phaseLabel),
+      tooltip: tipParts.join(', ')
+    });
+  }
+
+  return bars;
 }
 
 export function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
@@ -1184,7 +1247,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   if (isGM) generatedCutoff = pr.end;
   else if (genHorizon > 0) generatedCutoff = Math.min(pr.end, todaySerial() + genHorizon);
   var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
-  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
+  var headerBars = _planesHeaderBars(pr.start, pr.end);
+  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents, headerBars);
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow;
@@ -1236,7 +1300,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var hasGenNow = _isGeneratedNote(ps.note);
     var generatedTag = '';
     if (hasGenNow){
-      generatedTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(non-canonical)</span>';
+      generatedTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(Generated)</span>';
     } else if (!ps.overridden && isGM){
       var lookahead = PLANE_GENERATED_LOOKAHEAD.gmDays;
       var ff = _nextGeneratedForecast(name, today, lookahead);
@@ -1284,7 +1348,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     // Fixed/sealed planes: skip when not notable
     if (isFixed && !isNotable && !hasGenNow) continue;
 
-    // For waxing/waning planes: one compact line
+    // For neutral planes: one compact line
     if (!isNotable && !hasGenNow){
       rows.push(
         '<div style="margin:1px 0;line-height:1.3;font-size:.9em;opacity:.65;">'+
@@ -1296,6 +1360,33 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     }
 
     // Notable planes (coterminous/remote/active flicker): full detail
+    // Build duration parenthetical per spec:
+    //   Canonical: "Daanvi (coterminous 85 years ago, ending in 15 years)"
+    //   Generated: "Kythri (Generated, coterminous, ending in 3 days)"
+    var durationTag = '';
+    if (isNotable){
+      var yearDays = _planarYearDays() || 336;
+      var dParts = [];
+      if (hasGenNow) dParts.push('Generated');
+      var dInto = ps.daysIntoPhase || 0;
+      var dLeft = ps.daysUntilNextPhase || 0;
+      if (!hasGenNow && dInto > 0){
+        if (dInto > yearDays * 2) dParts.push(label.toLowerCase() + ' ~' + Math.round(dInto / yearDays) + ' years ago');
+        else if (dInto > 56) dParts.push(label.toLowerCase() + ' ~' + Math.round(dInto / 28) + ' months ago');
+        else dParts.push(label.toLowerCase() + ' ' + dInto + ' days ago');
+      } else if (hasGenNow){
+        dParts.push(label.toLowerCase());
+      }
+      if (dLeft > 0){
+        if (dLeft > yearDays * 2) dParts.push('ending in ~' + Math.round(dLeft / yearDays) + ' years');
+        else if (dLeft > 56) dParts.push('ending in ~' + Math.round(dLeft / 28) + ' months');
+        else dParts.push('ending in ' + dLeft + ' days');
+      }
+      if (dParts.length){
+        durationTag = ' <span style="font-size:.8em;opacity:.6;">(' + esc(dParts.join(', ')) + ')</span>';
+      }
+    }
+
     var effectHtml = '';
     if (ps.phase === 'coterminous' || ps.phase === 'remote'){
       var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || '';
@@ -1322,7 +1413,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       '<div style="margin:3px 0;line-height:1.4;">'+
         emoji+' <b style="min-width:82px;display:inline-block;">'+esc(name)+'</b>'+
         '<span style="opacity:.85;">'+esc(label)+'</span>'+
-        overrideTag + anchorModeTag + nextTag + generatedTag +
+        durationTag + overrideTag + anchorModeTag + nextTag + generatedTag +
       '</div>'+
       effectHtml + cycleSummaryHtml + noteHtml
     );
@@ -1365,15 +1456,9 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var seedPlaneQueryOpts = planes.filter(function(p){ return !!p.seedAnchor; }).map(function(p){ return p.name; }).join('|');
     var planeDropdown = button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}');
 
-    // Send buttons
-    gmControls =
-      '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
-        '<div style="font-size:.82em;margin-bottom:2px;">Send Medium: '+pSendBtns+'</div>'+
-        '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
-      '</div>';
-
     // Send to Players
-    gmControls += '<div style="margin:4px 0;">' +
+    gmControls =
+      '<div style="margin:4px 0;">' +
       button('Send to Players','planes send medium ?{Horizon|1m|3m|6m|10m}') +
       '</div>';
 
@@ -1382,6 +1467,32 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Specific Planes dropdown
     gmControls += '<div style="margin:4px 0;">' + planeDropdown + '</div>';
+
+    // Spacer
+    gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+    // Medium Forecast buttons (1/3/6/10 month)
+    gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">Medium Forecast:</div>' +
+      '<div style="margin-bottom:4px;">' +
+      button('1 month','planes send medium 1m')+' '+
+      button('3 months','planes send medium 3m')+' '+
+      button('6 months','planes send medium 6m')+' '+
+      button('10 months','planes send medium 10m')+
+      '</div>';
+
+    // High Forecast buttons (1/3/6/10 month)
+    gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">High Forecast:</div>' +
+      '<div style="margin-bottom:4px;">' +
+      button('1 month','planes send high 1m')+' '+
+      button('3 months','planes send high 3m')+' '+
+      button('6 months','planes send high 6m')+' '+
+      button('10 months','planes send high 10m')+
+      '</div>';
+
+    // Reveal Custom Range
+    gmControls += '<div style="margin:4px 0;">' +
+      button('Reveal Custom Range','planes reveal ?{Date or range|14-17}') +
+      '</div>';
 
     // Spacer
     gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
@@ -1399,7 +1510,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Management dropdown
     gmControls += '<div style="margin:4px 0;">' +
-      button('Management','planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|waning|remote|waxing\\} ?\\{Days (blank = indefinite)|\\}|Clear Override,clear ?\\{Plane|All|' + planeQueryOpts + '\\}|Set Anchor,anchorwizard ?\\{Plane|' + planeQueryOpts + '\\}|Seed Override,seed ?\\{Plane|' + seedPlaneQueryOpts + '\\} ?\\{Year or clear|998\\}}') +
+      button('Management','planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|remote|neutral\\} ?\\{Days (blank = indefinite)|\\}|Clear Override,clear ?\\{Plane|All|' + planeQueryOpts + '\\}|Set Anchor,anchorwizard ?\\{Plane|' + planeQueryOpts + '\\}|Seed Override,seed ?\\{Plane|' + seedPlaneQueryOpts + '\\} ?\\{Year or clear|998\\}}') +
       '</div>';
 
     // Utility buttons
@@ -1425,7 +1536,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var calBody = navRow +
       _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon) +
       planesMiniCal +
-      _legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']) +
+      _legendLine(['Cell fill = short event', 'Hatched = remote', '\u25CF Dot = generated']) +
       longShadowsHtml;
     parts.push(_menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel), calBody));
   }
@@ -1446,10 +1557,13 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
     ));
   } else {
-    // For players, append back button to last part
+    // For players, add Specific Planes dropdown and back button
+    var playerPlaneQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    var playerControls = '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+      '<div style="margin:4px 0;">' + button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + playerPlaneQueryOpts + '}') + '</div>' +
+      '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
     var lastIdx = parts.length - 1;
-    parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') +
-      '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div></div>';
+    parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') + playerControls + '</div>';
   }
 
   return parts;
@@ -1478,12 +1592,13 @@ export function planesHandoutHtml(){
   else if (generatedHorizon > 0) generatedCutoff = Math.min(_monthRangeFromSerial(today).end, today + generatedHorizon);
   var pr = _monthRangeFromSerial(today);
   var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
-  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
+  var headerBarsHandout = _planesHeaderBars(pr.start, pr.end);
+  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents, headerBarsHandout);
 
   var parts = [];
   parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
   parts.push(planesMiniCal);
-  parts.push(_legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']));
+  parts.push(_legendLine(['Cell fill = short event', 'Hatched = remote', '\u25CF Dot = generated']));
 
   var srcLabel = PLANE_SOURCE_LABELS[viewTier] || '';
   if (srcLabel){
@@ -1609,7 +1724,7 @@ export function handlePlanesCommand(m, args){
     var setName  = String(args[2] || '').trim();
     var setPhase = String(args[3] || '').toLowerCase();
     if (!setName || !PLANE_PHASE_LABELS[setPhase]){
-      return whisper(m.who, 'Usage: <code>!cal planes set &lt;name&gt; (coterminous|waning|remote|waxing) [days]</code>');
+      return whisper(m.who, 'Usage: <code>!cal planes set &lt;name&gt; (coterminous|remote|neutral) [days]</code>');
     }
     var plane = _getPlaneData(setName);
     if (!plane) return whisper(m.who, 'Unknown plane: <b>'+esc(setName)+'</b>');
@@ -1667,7 +1782,7 @@ export function handlePlanesCommand(m, args){
     var ancPhase = String(args[3] || '').toLowerCase();
     if (!ancName || !PLANE_PHASE_LABELS[ancPhase]){
       return whisper(m.who,
-        'Usage: <code>!cal planes anchor &lt;name&gt; (coterminous|waning|remote|waxing) &lt;dateSpec&gt;</code><br>'+
+        'Usage: <code>!cal planes anchor &lt;name&gt; (coterminous|remote|neutral) &lt;dateSpec&gt;</code><br>'+
         'Example: <code>!cal planes anchor Fernia coterminous Lharvion 1 996</code>'
       );
     }
@@ -1905,10 +2020,23 @@ export function handlePlanesCommand(m, args){
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
+  // !cal planes ranges <rangeArgs>  — Additional Ranges (same as events/moons)
+  if (sub === 'ranges'){
+    var rangeArgs = args.slice(2);
+    return _deliverTopLevelCalendarRange({ who: m.who, args: rangeArgs, dest: 'whisper' });
+  }
+
+  // !cal planes reveal <rangeSpec>  — Reveal Custom Range
+  if (sub === 'reveal'){
+    var revealArgs = args.slice(2);
+    return _deliverTopLevelCalendarRange({ who: m.who, args: revealArgs, dest: 'whisper' });
+  }
+
   whisper(m.who,
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes ranges &lt;rangeSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes seed &lt;name&gt; &lt;year&gt;</code> &nbsp;\u00B7&nbsp; '+

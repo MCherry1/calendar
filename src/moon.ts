@@ -3,7 +3,7 @@ import { CONTRAST_MIN_HEADER, state_name } from './constants.js';
 import { defaults, ensureSettings, getCal, titleCase } from './state.js';
 import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
-import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button, esc } from './rendering.js';
+import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
@@ -1254,6 +1254,29 @@ export function _moonPeakPhaseDay(moonName, serial){
   return null;
 }
 
+// For multi-day full/new phases, compute "Day X of Y" within the contiguous run.
+// Returns { dayNum, totalDays } or null if this serial isn't a peak day.
+export function _moonPhaseSpan(moonName, serial){
+  var type = _moonPeakPhaseDay(moonName, serial);
+  if (!type) return null;
+  var checker = type === 'full' ? _isFullMoonIllum : _isNewMoonIllum;
+  // Scan backward to find start (max 60 days safety)
+  var start = serial;
+  for (var b = 0; b < 60; b++){
+    var ph = _moonPhaseAtRaw(moonName, start - 1);
+    if (ph && checker(ph.illum)) start--; else break;
+  }
+  // Scan forward to find end (max 60 days safety)
+  var end = serial;
+  for (var f = 0; f < 60; f++){
+    var ph2 = _moonPhaseAtRaw(moonName, end + 1);
+    if (ph2 && checker(ph2.illum)) end++; else break;
+  }
+  var totalDays = end - start + 1;
+  var dayNum = serial - start + 1;
+  return { dayNum: dayNum, totalDays: totalDays, type: type };
+}
+
 export var MOON_TARGET_FULL_DAYS_PER_28 = 19;
 
 export function _phaseThresholdForCoverage(targetDays, monthDays, moonCount){
@@ -1490,11 +1513,15 @@ export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays
       }
       var peakType = _moonPeakPhaseDay(moon.name, ser);
       if (peakType === 'full'){
-        fullMoons.push(moon.name);
+        var span = _moonPhaseSpan(moon.name, ser);
+        var spanTag = (span && span.totalDays > 1) ? ' Day ' + span.dayNum + '/' + span.totalDays : '';
+        fullMoons.push(moon.name + spanTag);
       } else if (peakType === 'new'){
         var ph = moonPhaseAt(moon.name, ser);
         var lsTag = (ph && ph.longShadows) ? ' (Long Shadows)' : '';
-        newMoons.push(moon.name + lsTag);
+        var span2 = _moonPhaseSpan(moon.name, ser);
+        var spanTag2 = (span2 && span2.totalDays > 1) ? ' Day ' + span2.dayNum + '/' + span2.totalDays : '';
+        newMoons.push(moon.name + spanTag2 + lsTag);
       }
     }
 
@@ -1646,9 +1673,13 @@ function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
     if (ser < todaySerial() || ser > knownEnd) continue;
     var peakType = _moonPeakPhaseDay(moonName, ser);
     if (peakType === 'full'){
-      events.push({ serial: ser, name: '🌕 ' + moonName + ' Full', color: '#FFD700' });
+      var span = _moonPhaseSpan(moonName, ser);
+      var spanTag = (span && span.totalDays > 1) ? ' Day ' + span.dayNum + '/' + span.totalDays : '';
+      events.push({ serial: ser, name: '🌕 ' + moonName + ' Full' + spanTag, color: '#FFD700' });
     } else if (peakType === 'new'){
-      events.push({ serial: ser, name: '🌑 ' + moonName + ' New', color: '#222222' });
+      var span2 = _moonPhaseSpan(moonName, ser);
+      var spanTag2 = (span2 && span2.totalDays > 1) ? ' Day ' + span2.dayNum + '/' + span2.totalDays : '';
+      events.push({ serial: ser, name: '🌑 ' + moonName + ' New' + spanTag2, color: '#222222' });
     }
   }
   var calHtml = _renderSyntheticMiniCal(moonDef.title || moonName, mr.start, mr.end, events);
@@ -1684,8 +1715,14 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
     var ph = moonPhaseAt(moon.name, today);
     if (!ph) continue;
     var _pt = _moonPeakPhaseDay(moon.name, today);
-    if (_pt === 'full') fullNow.push(moon.name);
-    if (_pt === 'new') newNow.push(moon.name + (ph.longShadows ? ' (Long Shadows)' : ''));
+    if (_pt === 'full'){
+      var _sp = _moonPhaseSpan(moon.name, today);
+      fullNow.push(moon.name + ((_sp && _sp.totalDays > 1) ? ' Day ' + _sp.dayNum + '/' + _sp.totalDays : ''));
+    }
+    if (_pt === 'new'){
+      var _sp2 = _moonPhaseSpan(moon.name, today);
+      newNow.push(moon.name + ((_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : '') + (ph.longShadows ? ' (Long Shadows)' : ''));
+    }
 
     var fSer = _moonNextEvent(moon.name, today, 'full');
     var nSer = _moonNextEvent(moon.name, today, 'new');
@@ -1698,8 +1735,8 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
   }
 
   var bits = [];
-  if (fullNow.length) bits.push('🌕 Full now: ' + fullNow.join(', '));
-  if (newNow.length) bits.push('🌑 New now: ' + newNow.join(', '));
+  if (fullNow.length) bits.push('🌕 Full Moons: ' + fullNow.join(', '));
+  if (newNow.length) bits.push('🌑 New Moons: ' + newNow.join(', '));
   if (best){
     bits.push('Next: ' + (best.str || (best.moon + ' ' + titleCase(best.type))));
   } else if (tier !== 'high') {
@@ -1777,6 +1814,48 @@ export function moonPanelParts(serialOverride?){
     parts.push(_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No lunar display mode selected.</div>'));
   }
 
+  // Part 2b: Eclipses, Ascendant/Dim Moons (appended to last content part)
+  var extraInfo = '';
+  // Eclipses (GM always sees high tier)
+  var eclipseLines = _eclipseNotableToday(today);
+  if (eclipseLines.length){
+    extraInfo += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
+      '<b>Eclipses:</b><br>' + eclipseLines.join('<br>') + '</div>';
+  }
+
+  // Ascendant Moons / Dim Moons (Eberron only — planes associated with moons)
+  if (ensureSettings().planesEnabled !== false){
+    var ascendantMoons = [];
+    var dimMoons = [];
+    for (var ai = 0; ai < sys.moons.length; ai++){
+      var aMoon = sys.moons[ai];
+      if (!aMoon.plane) continue;
+      try {
+        var plSt = getPlanarState(aMoon.plane, today);
+        if (plSt && plSt.phase === 'coterminous') ascendantMoons.push(aMoon.name);
+        else if (plSt && plSt.phase === 'remote') dimMoons.push(aMoon.name);
+      } catch(ea){}
+    }
+    // Also check month-associated ascendancy
+    for (var ai2 = 0; ai2 < sys.moons.length; ai2++){
+      var aMoon2 = sys.moons[ai2];
+      if (aMoon2.associatedMonth && (cur.month + 1) === aMoon2.associatedMonth){
+        if (ascendantMoons.indexOf(aMoon2.name) < 0) ascendantMoons.push(aMoon2.name);
+      }
+    }
+    if (ascendantMoons.length){
+      extraInfo += '<div style="font-size:.85em;margin-top:4px;">✨ <b>Ascendant Moons:</b> ' + ascendantMoons.map(esc).join(', ') + '</div>';
+    }
+    if (dimMoons.length){
+      extraInfo += '<div style="font-size:.85em;margin-top:2px;opacity:.7;">◌ <b>Dim Moons:</b> ' + dimMoons.map(esc).join(', ') + '</div>';
+    }
+  }
+
+  if (extraInfo && parts.length > 0){
+    // Append to the last content part before GM controls
+    parts[parts.length - 1] = parts[parts.length - 1].replace(/<\/div>$/, '') + extraInfo + '</div>';
+  }
+
   // Part 3: GM controls (always separate message to stay within size limits)
   var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'medium'));
 
@@ -1793,26 +1872,30 @@ export function moonPanelParts(serialOverride?){
   var sendBtns = MOON_REVEAL_PRESETS.map(function(p){
     return button(p.label + ' (' + p.dc + ')', 'moon send medium ' + p.days + 'd');
   }).join(' ');
-  var highBtns = MOON_REVEAL_PRESETS.map(function(p){
+  var highSendBtns = MOON_REVEAL_PRESETS.map(function(p){
     return button(p.label, 'moon send high ' + p.days + 'd');
   }).join(' ');
 
   var moonQueryOpts = sys.moons.map(function(moon){ return moon.name; }).join('|');
   var moonDropdown = button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + moonQueryOpts + '}');
 
-  // Send buttons
-  var gmControls = '<div style="font-size:.82em;opacity:.7;">'+
-    '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
-    '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
-    '</div>';
-
   // Send to Players
-  gmControls += '<div style="margin:4px 0;">' +
+  var gmControls = '<div style="margin:4px 0;">' +
     button('Send to Players','moon send medium ?{Horizon|1m|3m|6m|10m}') +
     '</div>';
 
   // Spacer
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+  // Sky button
+  gmControls += '<div style="margin:4px 0;">' +
+    button('🌌 Sky','moon sky') +
+    '</div>';
+
+  // Current Phases
+  gmControls += '<div style="margin:4px 0;">' +
+    button('Current Phases','moon phases') +
+    '</div>';
 
   // Specific Moons dropdown
   gmControls += '<div style="margin:4px 0;">' + moonDropdown + '</div>';
@@ -1820,9 +1903,22 @@ export function moonPanelParts(serialOverride?){
   // Spacer
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
 
-  // Current Phases
-  gmControls += '<div style="margin:4px 0;">' +
-    button('Current Phases','moon phases') +
+  // Medium Forecast buttons (1/3/6/10 month)
+  gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">Medium Forecast:</div>' +
+    '<div style="margin-bottom:4px;">' +
+    button('1 month','moon send medium 1m')+' '+
+    button('3 months','moon send medium 3m')+' '+
+    button('6 months','moon send medium 6m')+' '+
+    button('10 months','moon send medium 10m')+
+    '</div>';
+
+  // High Forecast buttons (1/3/6/10 month)
+  gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">High Forecast:</div>' +
+    '<div style="margin-bottom:4px;">' +
+    button('1 month','moon send high 1m')+' '+
+    button('3 months','moon send high 3m')+' '+
+    button('6 months','moon send high 6m')+' '+
+    button('10 months','moon send high 10m')+
     '</div>';
 
   // Spacer
@@ -1915,11 +2011,15 @@ export function moonPlayerPanelHtml(serialOverride?){
   sys.moons.forEach(function(moon){
     var peakType = _moonPeakPhaseDay(moon.name, today);
     if (peakType === 'full'){
-      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+      var _sp = _moonPhaseSpan(moon.name, today);
+      var _spStr = (_sp && _sp.totalDays > 1) ? ' Day ' + _sp.dayNum + '/' + _sp.totalDays : '';
+      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> Full' + esc(_spStr));
     } else if (peakType === 'new'){
       var ph = moonPhaseAt(moon.name, today);
+      var _sp2 = _moonPhaseSpan(moon.name, today);
+      var _spStr2 = (_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : '';
       var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
-      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> is New' + tag);
+      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> New' + esc(_spStr2) + tag);
     }
   });
   if (notableLines.length){
@@ -1948,6 +2048,26 @@ export function moonPlayerPanelHtml(serialOverride?){
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
 }
 
+// Build multi-month moon mini-cal grid for handouts.
+function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal){
+  var cal = getCal();
+  var totalMonths = cal.months.filter(function(m){ return !m.leapEvery; }).length;
+  var followCount = Math.max(0, totalMonths - 2);
+  var months = rollingMonthWindow(today, 1, followCount);
+
+  var calParts = [];
+  for (var k = 0; k < months.length; k++){
+    var wm = months[k];
+    var isPastMonth = wm.end < today;
+    var useTier = (pastFullReveal && isPastMonth) ? 'high' : tier;
+    var useHorizon = (pastFullReveal && isPastMonth) ? 9999 : horizon;
+    var events = _moonMiniCalEvents(wm.start, wm.end, useTier, useHorizon);
+    var miniCal = _renderSyntheticMiniCal(null, wm.start, wm.end, events);
+    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
+  }
+  return handoutWrap(calParts.join(''));
+}
+
 export function moonHandoutHtml(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
@@ -1968,23 +2088,22 @@ export function moonHandoutHtml(serialOverride?){
     return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
   }
 
-  var pmr = _monthRangeFromSerial(today);
-  var pMoonMiniEvents = _moonMiniCalEvents(pmr.start, pmr.end, tier, horizon);
-  var pMoonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', pmr.start, pmr.end, pMoonMiniEvents);
-
+  // Today summary + notable moons
   var body = _moonTodaySummaryHtml(today, tier, horizon);
-  body += pMoonMiniCal;
-  body += _legendLine(['🌕 Full', '🌑 New']);
 
   var notableLines = [];
   sys.moons.forEach(function(moon){
     var peakType = _moonPeakPhaseDay(moon.name, today);
     if (peakType === 'full'){
-      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+      var _sp = _moonPhaseSpan(moon.name, today);
+      var _spStr = (_sp && _sp.totalDays > 1) ? ' Day ' + _sp.dayNum + '/' + _sp.totalDays : '';
+      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> Full' + esc(_spStr));
     } else if (peakType === 'new'){
       var ph = moonPhaseAt(moon.name, today);
+      var _sp2 = _moonPhaseSpan(moon.name, today);
+      var _spStr2 = (_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : '';
       var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
-      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> is New' + tag);
+      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> New' + esc(_spStr2) + tag);
     }
   });
   if (notableLines.length){
@@ -1998,12 +2117,39 @@ export function moonHandoutHtml(serialOverride?){
       _eclipseNotableToday(today).join('<br>') + '</div>';
   }
 
+  // Multi-month calendars
+  body += _moonMultiMonthHtml(today, tier, horizon, true);
+  body += _legendLine(['🌕 Full', '🌑 New']);
+
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
   if (srcLabel){
     body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
   }
 
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
+}
+
+// GM handout: full-reveal multi-month moon calendars
+export function moonHandoutGmHtml(){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return '';
+  var sys = _getMoonSys();
+  if (!sys) return '';
+  var today = todaySerial();
+  moonEnsureSequences(today, 400);
+
+  var body = '<div style="font-weight:bold;margin-bottom:6px;">GM Moon Reference — Full Reveal</div>';
+  body += _moonTodaySummaryHtml(today, 'high', 9999);
+  body += _moonMultiMonthHtml(today, 'high', 9999, true);
+  body += _legendLine(['🌕 Full', '🌑 New']);
+
+  var eclNotes = _eclipseNotableToday(today);
+  if (eclNotes.length){
+    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
+      eclNotes.join('<br>') + '</div>';
+  }
+
+  return _menuBox('\uD83C\uDF19 GM Moons', body);
 }
 
 // ---------------------------------------------------------------------------
@@ -2955,7 +3101,7 @@ export function getLongShadowsMoons(year){
 //   - Plane-specific rarity profile (Mabar extremely rare, Kythri/Shavarath higher)
 //   - Short durations by default (Kythri can run longer)
 //   - GM overrides/anchors suppress flickering for that plane
-//   - For cyclic planes, only applies while waning/waxing (preserves canon anchors)
+//   - For cyclic planes, only applies while neutral (preserves canon anchors)
 //
 // Weather effects still flow through getActivePlanarEffects naturally.
 
