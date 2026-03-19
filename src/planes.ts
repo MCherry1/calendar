@@ -1568,12 +1568,13 @@ export function planesHandoutHtml(){
   else if (generatedHorizon > 0) generatedCutoff = Math.min(_monthRangeFromSerial(today).end, today + generatedHorizon);
   var pr = _monthRangeFromSerial(today);
   var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
-  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
+  var headerBarsHandout = _planesHeaderBars(pr.start, pr.end);
+  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents, headerBarsHandout);
 
   var parts = [];
   parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
   parts.push(planesMiniCal);
-  parts.push(_legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']));
+  parts.push(_legendLine(['Cell fill = short event', 'Hatched = remote', '\u25CF Dot = generated']));
 
   var srcLabel = PLANE_SOURCE_LABELS[viewTier] || '';
   if (srcLabel){
