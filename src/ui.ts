@@ -11,7 +11,7 @@ import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } fro
 import { refreshAllPersistentViews } from './persistent-views.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
 import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
-import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
+import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, captureMoonHistoryWindow, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory, tidalLabel } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getActivePlanarEffects, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
@@ -617,6 +617,14 @@ export function stepDays(n, opts?){
   // Slide the forecast window forward and lock past days
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(startSerial, dest);
+  if (ensureSettings().moonsEnabled !== false){
+    if (n > 0){
+      captureMoonHistoryWindow(Math.max(startSerial, dest - (MOON_HISTORY_DAYS - 1)), dest);
+      pruneMoonHistory(dest);
+    } else if (n < 0){
+      pruneMoonHistory(dest);
+    }
+  }
   refreshAllPersistentViews({ autoBind: true });
   if (opts.announce === false) return;
 
@@ -641,14 +649,18 @@ export function setDate(m, d, y, opts?){
   var mi = clamp(m, 1, cal.months.length) - 1;
   var di = clamp(d, 1, cal.months[mi].days);
   var yi = int(y, cur.year);
-  var delta = toSerial(yi, mi, di) - toSerial(oldY, oldM, oldD);
+  var nextSerial = toSerial(yi, mi, di);
+  var delta = nextSerial - toSerial(oldY, oldM, oldD);
   cur.month = mi; cur.day_of_the_month = di; cur.year = yi;
   var wdlen = cal.weekdays.length;
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
   if (!opts.preserveTimeOfDay) clearTimeOfDay();
   // Slide the forecast window forward and lock past days, same as stepDays
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
-  _manifestZoneOnDateChange(oldSerial, toSerial(yi, mi, di));
+  _manifestZoneOnDateChange(oldSerial, nextSerial);
+  if (ensureSettings().moonsEnabled !== false){
+    resetMoonHistory(nextSerial, true);
+  }
   refreshAllPersistentViews({ autoBind: true });
   if (opts.announce === false) return;
   sendCurrentDate(null, true);

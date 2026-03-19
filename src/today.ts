@@ -12,7 +12,7 @@ import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDay
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
-import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
+import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
 
 
@@ -722,6 +722,7 @@ export var commands = {
     // Reset manual theme override so variant default takes effect.
     ensureSettings().colorTheme = null;
     applyCalendarSystem(sysKey, vk);
+    invalidateMoonModel(false);
     _invalidateSerialCache();
     refreshAndSend();
     var msg = 'Setting: <b>'+esc(sys.label||titleCase(sysKey))+'</b>';

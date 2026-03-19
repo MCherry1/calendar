@@ -4,12 +4,15 @@ import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as a
 import { freshInstall } from "./helpers.js";
 import { toSerial, todaySerial } from "../src/date-math.js";
 import { solarProfileForSerial } from "../src/time-of-day.js";
+import { setDate, stepDays } from "../src/ui.js";
 import {
+  MOON_HISTORY_DAYS,
   MOON_SYSTEMS, _moonHashStr, _eberronMoonCore,
   moonEnsureSequences, moonPhaseAt, _applyAntiPhaseCoupling,
   nighttimeLightCondition, nighttimeLux,
   _diskOverlapFraction, _eclipseTimeBlock, _eclipseLifecycleText,
   _eclipseNotableToday, getEclipses, getMoonState, handleMoonCommand,
+  moonHandoutHtml, moonPlayerPanelHtml, _eclipseCacheKey, invalidateMoonModel,
   FESTIVAL_SOFT_ANCHORS, MOON_TARGET_FULL_DAYS_PER_28,
   _applyAssociatedPlanePhaseShifts, _applyFestivalNudges,
   _collectPlanarPhaseWindows, _dN, _edgeDayMidpointSerial,
@@ -431,6 +434,65 @@ describe("Eclipse: getEclipses", () => {
     for (const note of notes) {
       assert(typeof note === "string", "each entry should be a string");
     }
+  });
+});
+
+describe("Moon history cache", () => {
+  it("stores only the most recent 60 exact days on forward advance and resets on set", () => {
+    freshInstall();
+
+    stepDays(70, { announce: false });
+
+    const ms = getMoonState();
+    const keys = Object.keys(ms.recentHistory.bySerial).map(Number).sort((a, b) => a - b);
+    assertEquals(keys.length, MOON_HISTORY_DAYS);
+    assertEquals(keys[0], todaySerial() - (MOON_HISTORY_DAYS - 1));
+    assertEquals(keys[keys.length - 1], todaySerial());
+
+    setDate(1, 2, 998, { announce: false });
+
+    const resetKeys = Object.keys(getMoonState().recentHistory.bySerial).map(Number);
+    assertEquals(resetKeys.length, 1);
+    assertEquals(resetKeys[0], todaySerial());
+  });
+
+  it("uses cached exact past data only in the player moon handout", () => {
+    freshInstall();
+
+    const ms = getMoonState();
+    const yesterday = todaySerial() - 1;
+    ms.revealTier = "medium";
+    ms.revealHorizonDays = 7;
+    ms.recentHistory.bySerial[String(yesterday)] = {
+      serial: yesterday,
+      modelRevision: ms.modelRevision,
+      miniCalEvents: [
+        { serial: yesterday, name: "History Marker", color: "#123456", dotOnly: true }
+      ]
+    };
+    ms.recentHistory.minSerial = yesterday;
+    ms.recentHistory.maxSerial = yesterday;
+
+    assert(moonHandoutHtml().includes("History Marker"), "moon handout should use cached exact past history");
+    assert(!moonPlayerPanelHtml().includes("History Marker"), "live player moon panel should ignore cached history");
+  });
+
+  it("keeps eclipse cache keys stable across normal day advancement and changes them on model invalidation", () => {
+    freshInstall();
+
+    const serial = todaySerial();
+    moonEnsureSequences(serial, 30);
+    const before = _eclipseCacheKey(serial);
+
+    stepDays(1, { announce: false });
+
+    const afterAdvance = _eclipseCacheKey(serial);
+    assertEquals(afterAdvance, before);
+
+    invalidateMoonModel(false);
+
+    const afterInvalidate = _eclipseCacheKey(serial);
+    assertNotEquals(afterInvalidate, before);
   });
 });
 

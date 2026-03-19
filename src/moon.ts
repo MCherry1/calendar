@@ -505,6 +505,12 @@ export function getMoonState(){
     gmAnchors: {},     // moonName -> [{ serial, type }]  GM-forced phase events
     generatedFrom: null,  // serial day from which sequences were generated
     generatedThru: 0,  // serial day up to which sequences have been generated
+    modelRevision: 1,
+    recentHistory: {
+      bySerial: {},
+      minSerial: null,
+      maxSerial: null
+    },
     revealTier: 'medium',  // 'low' | 'medium' | 'high'
     revealHorizonDays: 7    // player-known horizon window
   };
@@ -512,12 +518,90 @@ export function getMoonState(){
   if (!ms.gmAnchors) ms.gmAnchors = {};
   if (ms.systemSeed === undefined) ms.systemSeed = null;
   if (!isFinite(ms.generatedFrom)) ms.generatedFrom = null;
+  ms.modelRevision = parseInt(ms.modelRevision, 10);
+  if (!isFinite(ms.modelRevision) || ms.modelRevision < 1) ms.modelRevision = 1;
+  if (!ms.recentHistory || typeof ms.recentHistory !== 'object'){
+    ms.recentHistory = { bySerial: {}, minSerial: null, maxSerial: null };
+  }
+  if (!ms.recentHistory.bySerial || typeof ms.recentHistory.bySerial !== 'object'){
+    ms.recentHistory.bySerial = {};
+  }
+  ms.recentHistory.minSerial = isFinite(ms.recentHistory.minSerial) ? (ms.recentHistory.minSerial|0) : null;
+  ms.recentHistory.maxSerial = isFinite(ms.recentHistory.maxSerial) ? (ms.recentHistory.maxSerial|0) : null;
   if (!ms.revealTier) ms.revealTier = 'medium';
   ms.revealTier = String(ms.revealTier || '').toLowerCase();
   if (!MOON_REVEAL_TIERS[ms.revealTier]) ms.revealTier = 'medium';
   ms.revealHorizonDays = parseInt(ms.revealHorizonDays, 10);
   if (!isFinite(ms.revealHorizonDays) || ms.revealHorizonDays < 7) ms.revealHorizonDays = 7;
   return ms;
+}
+
+function _cloneMoonMiniCalEvents(events){
+  if (!Array.isArray(events)) return [];
+  return events.map(function(evt: any){
+    var copy: any = {
+      serial: evt && isFinite(evt.serial) ? (evt.serial|0) : 0,
+      name: String(evt && evt.name || ''),
+      color: evt && evt.color
+    };
+    if (evt && evt.dotOnly) copy.dotOnly = true;
+    if (evt && evt.planeFill) copy.planeFill = true;
+    if (evt && evt.isRemote) copy.isRemote = true;
+    if (evt && evt.splitColor) copy.splitColor = evt.splitColor;
+    if (evt && evt.splitIsRemote) copy.splitIsRemote = true;
+    if (evt && evt.replaceNumeral) copy.replaceNumeral = evt.replaceNumeral;
+    return copy;
+  });
+}
+
+function _reindexMoonHistory(history){
+  if (!history || !history.bySerial || typeof history.bySerial !== 'object'){
+    return { bySerial: {}, minSerial: null, maxSerial: null };
+  }
+  var min = null;
+  var max = null;
+  Object.keys(history.bySerial).forEach(function(key){
+    var serial = parseInt(key, 10);
+    if (!isFinite(serial)){
+      delete history.bySerial[key];
+      return;
+    }
+    if (min == null || serial < min) min = serial;
+    if (max == null || serial > max) max = serial;
+  });
+  history.minSerial = min;
+  history.maxSerial = max;
+  return history;
+}
+
+function _moonHistoryState(){
+  return _reindexMoonHistory(getMoonState().recentHistory);
+}
+
+function _storeMoonHistorySnapshot(ms, snapshot){
+  if (!snapshot || !isFinite(snapshot.serial)) return null;
+  var history = _moonHistoryState();
+  history.bySerial[String(snapshot.serial|0)] = snapshot;
+  if (history.minSerial == null || snapshot.serial < history.minSerial) history.minSerial = snapshot.serial|0;
+  if (history.maxSerial == null || snapshot.serial > history.maxSerial) history.maxSerial = snapshot.serial|0;
+  ms.recentHistory = history;
+  return snapshot;
+}
+
+function _clearMoonDerivedCaches(){
+  _eclipseDayCache = Object.create(null);
+  _longShadowsCache = {};
+}
+
+export function getMoonHistoryDay(serial){
+  var ms = getMoonState();
+  var history = _moonHistoryState();
+  serial = serial|0;
+  if (history.minSerial != null && serial < history.minSerial) return null;
+  if (history.maxSerial != null && serial > history.maxSerial) return null;
+  var day = history.bySerial[String(serial)];
+  if (!day || day.modelRevision !== ms.modelRevision) return null;
+  return day;
 }
 
 export function _moonHashStr(str){
@@ -575,6 +659,8 @@ export var MOON_PREDICTION_LIMITS = {
   // High: full knowledge. Max reach = 2 years (pre-generation window).
   highMaxDays: 672
 };
+
+export var MOON_HISTORY_DAYS = 60;
 
 // Preset reveal buttons: 1m, 3m, 6m, 10m (in 28-day months, inclusive of today)
 // Each maps to days. DC hints for the GM.
@@ -1490,106 +1576,229 @@ export function _isSingleFillMoon(sys){
   return fillCount <= 1;
 }
 
+function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
+  opts = opts || {};
+  var sys = opts.sys || _getMoonSys();
+  var out = [];
+  if (!sys || !sys.moons || !sys.moons.length) return out;
+  var ser = serial|0;
+  var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
+  var today = isFinite(opts.today) ? (opts.today|0) : todaySerial();
+  var singleFill = (opts.singleFill !== undefined) ? !!opts.singleFill : _isSingleFillMoon(sys);
+  var fullMoons = [];
+  var newMoons = [];
+
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    // For player display: suppress events past the reveal horizon
+    if (!isHighTier && isFinite(baseHorizonDays) && ser > today){
+      if ((ser - today) > baseHorizonDays) continue;
+    }
+    var peakType = _moonPeakPhaseDay(moon.name, ser);
+    if (peakType === 'full'){
+      var span = _moonPhaseSpan(moon.name, ser);
+      var spanTag = (span && span.totalDays > 1) ? ' Day ' + span.dayNum + '/' + span.totalDays : '';
+      fullMoons.push(moon.name + spanTag);
+    } else if (peakType === 'new'){
+      var ph = moonPhaseAt(moon.name, ser);
+      var lsTag = (ph && ph.longShadows) ? ' (Long Shadows)' : '';
+      var span2 = _moonPhaseSpan(moon.name, ser);
+      var spanTag2 = (span2 && span2.totalDays > 1) ? ' Day ' + span2.dayNum + '/' + span2.totalDays : '';
+      newMoons.push(moon.name + spanTag2 + lsTag);
+    }
+  }
+
+  var eclipseNames = [];
+  if (isHighTier){
+    var eNotes = _eclipseNotableToday(ser);
+    for (var ei = 0; ei < eNotes.length; ei++){
+      eclipseNames.push(_stripHtmlTags(eNotes[ei]).split('.').slice(0, 2).join('.'));
+    }
+  }
+
+  // Multi-moon systems: dot-only indicators (no cell fill).
+  // Single-fill systems: cell fill + emoji numeral replacement on peak days.
+  if (!singleFill){
+    if (fullMoons.length){
+      out.push({
+        serial: ser,
+        name: 'Full: ' + fullMoons.join(', '),
+        color: '#FFD700',
+        dotOnly: true
+      });
+    }
+    if (newMoons.length){
+      out.push({
+        serial: ser,
+        name: 'New: ' + newMoons.join(', '),
+        color: '#222222',
+        dotOnly: true
+      });
+    }
+    if (eclipseNames.length){
+      out.push({
+        serial: ser,
+        name: 'Eclipses: ' + eclipseNames.join(', '),
+        color: '#9575CD',
+        dotOnly: true
+      });
+    }
+  } else {
+    if (fullMoons.length){
+      out.push({
+        serial: ser,
+        name: 'Full: ' + fullMoons.join(', '),
+        color: '#FFD700',
+        replaceNumeral: '\uD83C\uDF15'
+      });
+    }
+    if (newMoons.length){
+      out.push({
+        serial: ser,
+        name: 'New: ' + newMoons.join(', '),
+        color: '#222222',
+        replaceNumeral: '\uD83C\uDF11'
+      });
+    }
+    if (eclipseNames.length){
+      out.push({
+        serial: ser,
+        name: 'Eclipses: ' + eclipseNames.join(', '),
+        color: '#9575CD'
+      });
+    }
+  }
+
+  return out;
+}
+
 export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays?){
-  var st = ensureSettings();
   var sys = _getMoonSys();
   var out = [];
   if (!sys || !sys.moons || !sys.moons.length) return out;
   var start = startSerial|0;
   var end = endSerial|0;
   if (end < start){ var tmp = start; start = end; end = tmp; }
-  var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
   var today = todaySerial();
   var singleFill = _isSingleFillMoon(sys);
 
   for (var ser = start; ser <= end; ser++){
-    var fullMoons = [];
-    var newMoons = [];
-    for (var i = 0; i < sys.moons.length; i++){
-      var moon = sys.moons[i];
-      // For player display: suppress events past the reveal horizon
-      if (!isHighTier && isFinite(baseHorizonDays) && ser > today){
-        if ((ser - today) > baseHorizonDays) continue;
-      }
-      var peakType = _moonPeakPhaseDay(moon.name, ser);
-      if (peakType === 'full'){
-        var span = _moonPhaseSpan(moon.name, ser);
-        var spanTag = (span && span.totalDays > 1) ? ' Day ' + span.dayNum + '/' + span.totalDays : '';
-        fullMoons.push(moon.name + spanTag);
-      } else if (peakType === 'new'){
-        var ph = moonPhaseAt(moon.name, ser);
-        var lsTag = (ph && ph.longShadows) ? ' (Long Shadows)' : '';
-        var span2 = _moonPhaseSpan(moon.name, ser);
-        var spanTag2 = (span2 && span2.totalDays > 1) ? ' Day ' + span2.dayNum + '/' + span2.totalDays : '';
-        newMoons.push(moon.name + spanTag2 + lsTag);
-      }
-    }
+    out = out.concat(_moonMiniCalDayEvents(ser, tier, baseHorizonDays, {
+      sys: sys,
+      today: today,
+      singleFill: singleFill
+    }));
+  }
+  return out;
+}
 
-    // Collect eclipse notes for high tier
-    var eclipseNames = [];
-    if (isHighTier){
-      var eNotes = _eclipseNotableToday(ser);
-      for (var ei = 0; ei < eNotes.length; ei++){
-        eclipseNames.push(_stripHtmlTags(eNotes[ei]).split('.').slice(0, 2).join('.'));
-      }
-    }
+export function captureMoonHistoryDay(serial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return null;
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons || !sys.moons.length) return null;
+  var ms = getMoonState();
+  var ser = serial|0;
+  moonEnsureSequences(ser, MOON_PREDICTION_LIMITS.highMaxDays);
+  var snapshot = {
+    serial: ser,
+    modelRevision: ms.modelRevision,
+    miniCalEvents: _cloneMoonMiniCalEvents(_moonMiniCalDayEvents(ser, 'high', MOON_PREDICTION_LIMITS.highMaxDays, {
+      sys: sys,
+      today: ser,
+      singleFill: _isSingleFillMoon(sys)
+    }))
+  };
+  return _storeMoonHistorySnapshot(ms, snapshot);
+}
 
-    // Multi-moon systems: dot-only indicators (no cell fill).
-    // Single-fill systems: cell fill + emoji numeral replacement on peak days.
-    if (!singleFill){
-      // One event per category, max 3.  All flagged dotOnly so the renderer
-      // skips the cell background and renders all as dots.
-      if (fullMoons.length){
-        out.push({
-          serial: ser,
-          name: 'Full: ' + fullMoons.join(', '),
-          color: '#FFD700',
-          dotOnly: true
-        });
-      }
-      if (newMoons.length){
-        out.push({
-          serial: ser,
-          name: 'New: ' + newMoons.join(', '),
-          color: '#222222',
-          dotOnly: true
-        });
-      }
-      if (eclipseNames.length){
-        out.push({
-          serial: ser,
-          name: 'Eclipses: ' + eclipseNames.join(', '),
-          color: '#9575CD',
-          dotOnly: true
-        });
-      }
-    } else {
-      // Single-fill: use cell background colour.  Replace numeral with emoji
-      // on peak full/new days for the primary moon.
-      if (fullMoons.length){
-        out.push({
-          serial: ser,
-          name: 'Full: ' + fullMoons.join(', '),
-          color: '#FFD700',
-          replaceNumeral: '\uD83C\uDF15'  // 🌕
-        });
-      }
-      if (newMoons.length){
-        out.push({
-          serial: ser,
-          name: 'New: ' + newMoons.join(', '),
-          color: '#222222',
-          replaceNumeral: '\uD83C\uDF11'  // 🌑
-        });
-      }
-      if (eclipseNames.length){
-        out.push({
-          serial: ser,
-          name: 'Eclipses: ' + eclipseNames.join(', '),
-          color: '#9575CD'
-        });
-      }
+export function captureMoonHistoryWindow(startSerial, endSerial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return _moonHistoryState();
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons || !sys.moons.length) return _moonHistoryState();
+  var start = startSerial|0;
+  var end = endSerial|0;
+  if (end < start){ var tmp = start; start = end; end = tmp; }
+  if (end < start) return _moonHistoryState();
+  moonEnsureSequences(end, MOON_PREDICTION_LIMITS.highMaxDays);
+  var ms = getMoonState();
+  var singleFill = _isSingleFillMoon(sys);
+  for (var ser = start; ser <= end; ser++){
+    _storeMoonHistorySnapshot(ms, {
+      serial: ser,
+      modelRevision: ms.modelRevision,
+      miniCalEvents: _cloneMoonMiniCalEvents(_moonMiniCalDayEvents(ser, 'high', MOON_PREDICTION_LIMITS.highMaxDays, {
+        sys: sys,
+        today: ser,
+        singleFill: singleFill
+      }))
+    });
+  }
+  return _moonHistoryState();
+}
+
+export function pruneMoonHistory(referenceSerial?){
+  var ms = getMoonState();
+  var history = _moonHistoryState();
+  var ref = isFinite(referenceSerial) ? (referenceSerial|0) : todaySerial();
+  var keepMin = ref - (MOON_HISTORY_DAYS - 1);
+  var keepMax = ref;
+  Object.keys(history.bySerial).forEach(function(key){
+    var serial = parseInt(key, 10);
+    var day = history.bySerial[key];
+    if (!isFinite(serial) || serial < keepMin || serial > keepMax || !day || day.modelRevision !== ms.modelRevision){
+      delete history.bySerial[key];
     }
+  });
+  ms.recentHistory = _reindexMoonHistory(history);
+  return ms.recentHistory;
+}
+
+export function resetMoonHistory(referenceSerial?, seedToday?){
+  var ms = getMoonState();
+  ms.recentHistory = {
+    bySerial: {},
+    minSerial: null,
+    maxSerial: null
+  };
+  if (seedToday === false) return ms.recentHistory;
+  var ref = isFinite(referenceSerial) ? (referenceSerial|0) : todaySerial();
+  captureMoonHistoryDay(ref);
+  return pruneMoonHistory(ref);
+}
+
+export function invalidateMoonModel(seedToday?){
+  var ms = getMoonState();
+  ms.generatedFrom = null;
+  ms.generatedThru = 0;
+  ms.modelRevision = (parseInt(ms.modelRevision, 10) || 1) + 1;
+  _clearMoonDerivedCaches();
+  return resetMoonHistory(todaySerial(), seedToday);
+}
+
+function _moonMiniCalEventsWithRecentHistory(startSerial, endSerial, tier, baseHorizonDays?){
+  var sys = _getMoonSys();
+  var out = [];
+  if (!sys || !sys.moons || !sys.moons.length) return out;
+  var start = startSerial|0;
+  var end = endSerial|0;
+  if (end < start){ var tmp = start; start = end; end = tmp; }
+  var today = todaySerial();
+  var singleFill = _isSingleFillMoon(sys);
+  moonEnsureSequences(Math.max(today, end), Math.max(parseInt(baseHorizonDays, 10) || 0, 30));
+
+  for (var ser = start; ser <= end; ser++){
+    var cached = (ser < today) ? getMoonHistoryDay(ser) : null;
+    if (cached && Array.isArray(cached.miniCalEvents)){
+      out = out.concat(_cloneMoonMiniCalEvents(cached.miniCalEvents));
+      continue;
+    }
+    out = out.concat(_moonMiniCalDayEvents(ser, tier, baseHorizonDays, {
+      sys: sys,
+      today: today,
+      singleFill: singleFill
+    }));
   }
   return out;
 }
@@ -2049,7 +2258,7 @@ export function moonPlayerPanelHtml(serialOverride?){
 }
 
 // Build multi-month moon mini-cal grid for handouts.
-function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal){
+function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal, useRecentHistory?){
   var cal = getCal();
   var totalMonths = cal.months.filter(function(m){ return !m.leapEvery; }).length;
   var followCount = Math.max(0, totalMonths - 2);
@@ -2061,7 +2270,9 @@ function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal){
     var isPastMonth = wm.end < today;
     var useTier = (pastFullReveal && isPastMonth) ? 'high' : tier;
     var useHorizon = (pastFullReveal && isPastMonth) ? 9999 : horizon;
-    var events = _moonMiniCalEvents(wm.start, wm.end, useTier, useHorizon);
+    var events = useRecentHistory
+      ? _moonMiniCalEventsWithRecentHistory(wm.start, wm.end, useTier, useHorizon)
+      : _moonMiniCalEvents(wm.start, wm.end, useTier, useHorizon);
     var miniCal = _renderSyntheticMiniCal(null, wm.start, wm.end, events);
     calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
   }
@@ -2120,7 +2331,7 @@ export function moonHandoutHtml(serialOverride?){
   // Keep the auto-refreshed player handout on the player reveal tier across
   // its rolling window. Rendering the past month at forced high tier makes
   // every date change pay the expensive eclipse scan path.
-  body += _moonMultiMonthHtml(today, tier, horizon, false);
+  body += _moonMultiMonthHtml(today, tier, horizon, false, true);
   body += _legendLine(['🌕 Full', '🌑 New']);
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
@@ -2858,8 +3069,7 @@ export function _eclipseCacheKey(serial){
     serial|0,
     ms.systemSeed || '',
     JSON.stringify(ms.gmAnchors || {}),
-    ms.generatedFrom || '',
-    ms.generatedThru || ''
+    ms.modelRevision || 1
   ].join('|');
 }
 
@@ -3958,8 +4168,7 @@ export function handleMoonCommand(m, args){
       : 'auto';
     var nextSeed = 'moon-' + todaySerial() + '-' + Math.round(_moonHashStr(prevSeed + '|' + todaySerial() + '|' + (msReseed.generatedThru || 0)) * 1000000);
     msReseed.systemSeed = nextSeed;
-    msReseed.generatedFrom = null;
-    msReseed.generatedThru = 0;
+    invalidateMoonModel(false);
     moonEnsureSequences();
     _refreshMoonPersistentViews();
     whisper(m.who, 'Moon sequences reseeded to <b>'+esc(nextSeed)+'</b>.');
@@ -4041,8 +4250,7 @@ export function handleMoonCommand(m, args){
     if (!word) return whisper(m.who, 'Usage: <code>!cal moon seed &lt;word&gt;</code>');
     var ms = getMoonState();
     ms.systemSeed = word;
-    ms.generatedFrom = null;
-    ms.generatedThru = 0;
+    invalidateMoonModel(false);
     moonEnsureSequences();
     _refreshMoonPersistentViews();
     return whisper(m.who, 'System moon seed set to <b>'+esc(word)+'</b>. Sequences regenerated.');
@@ -4079,8 +4287,7 @@ export function handleMoonCommand(m, args){
     var ms2 = getMoonState();
     if (!ms2.gmAnchors[mName]) ms2.gmAnchors[mName] = [];
     ms2.gmAnchors[mName].push({ serial: targetSerial, type: sub });
-    ms2.generatedFrom = null;
-    ms2.generatedThru = 0;
+    invalidateMoonModel(false);
     moonEnsureSequences();
     _refreshMoonPersistentViews();
 
@@ -4134,15 +4341,13 @@ export function handleMoonCommand(m, args){
     var ms3 = getMoonState();
     if (mName3){
       ms3.gmAnchors[mName3] = [];
-      ms3.generatedFrom = null;
-      ms3.generatedThru = 0;
+      invalidateMoonModel(false);
       moonEnsureSequences();
       _refreshMoonPersistentViews();
       return whisper(m.who, 'Phase overrides reset for <b>'+esc(mName3)+'</b>.');
     } else {
       ms3.gmAnchors = {};
-      ms3.generatedFrom = null;
-      ms3.generatedThru = 0;
+      invalidateMoonModel(false);
       moonEnsureSequences();
       _refreshMoonPersistentViews();
       return whisper(m.who, 'All moon phase overrides reset.');

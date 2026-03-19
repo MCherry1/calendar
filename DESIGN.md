@@ -602,6 +602,7 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 - Non-GM `!cal moon on <dateSpec>` is constrained by reveal horizon.
 - Moon crossing proximity output is modeled through the eclipse/conjunction engine but does not currently have a dedicated standalone command or named report.
 - The script now maintains four player-safe persistent handouts (`Calendar - Events`, `Calendar - Moons`, `Calendar - Weather`, `Calendar - Planes`) containing subsystem minicals plus descriptive text, but no chat buttons or GM-only controls.
+- The player moon handout keeps exact derived lunar history for a rolling 60-day past window so lived-through dates stay exact without forcing a fresh high-tier recomputation across the full past month on every date change.
 - The live Moon Phase page is redraw-only: it binds to an existing Roll20 page, redraws when the date or moon state changes, and only moves players there when the GM explicitly uses `!cal moon page show`.
 
 ---
