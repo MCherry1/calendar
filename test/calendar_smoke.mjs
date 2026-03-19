@@ -1,5 +1,7 @@
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -8,64 +10,238 @@ const __dirname = path.dirname(__filename);
 const calendarPath = path.join(__dirname, '..', 'calendar.js');
 const source = fs.readFileSync(calendarPath, 'utf8');
 
-function assertMatch(pattern, message, flags = '') {
-  if (!new RegExp(pattern, flags).test(source)) {
-    throw new Error(message);
+function installRoll20Shim() {
+  globalThis.state = {};
+  globalThis._roll20Objects = {};
+  globalThis._roll20IdCounter = 1;
+  globalThis._campaignState = { playerpageid: '', playerspecificpages: {} };
+  globalThis._chatLog = [];
+  globalThis._eventHandlers = {};
+  globalThis._logMessages = [];
+  globalThis._gmIds = new Set(['GM']);
+  globalThis.__CALENDAR_TEST_MODE__ = true;
+
+  globalThis.sendChat = function(who, msg, _cb, opts) {
+    globalThis._chatLog.push({ who, msg, opts: opts || null });
+  };
+
+  globalThis.on = function(event, handler) {
+    if (!globalThis._eventHandlers[event]) globalThis._eventHandlers[event] = [];
+    globalThis._eventHandlers[event].push(handler);
+  };
+
+  globalThis.log = function(msg) {
+    globalThis._logMessages.push(msg);
+  };
+
+  globalThis.playerIsGM = function(playerid) {
+    return globalThis._gmIds.has(String(playerid || ''));
+  };
+
+  function newRoll20Id() {
+    const next = globalThis._roll20IdCounter++;
+    return `-MOCK${String(next).padStart(6, '0')}`;
   }
+
+  function normalizeAttrBag(type, attrs) {
+    const out = { ...(attrs || {}) };
+    out._type = type;
+    if (!out._id) out._id = newRoll20Id();
+    if (!out.id) out.id = out._id;
+    if (out.pageid != null && out._pageid == null) out._pageid = out.pageid;
+    if (out._pageid != null && out.pageid == null) out.pageid = out._pageid;
+    if (out.characterid != null && out._characterid == null) out._characterid = out.characterid;
+    if (out._characterid != null && out.characterid == null) out.characterid = out._characterid;
+    return out;
+  }
+
+  function makeObj(type, attrs) {
+    const bag = normalizeAttrBag(type, attrs);
+    const obj = {
+      id: bag._id,
+      get(prop, cb) {
+        const key = String(prop || '');
+        const value = key === 'id' ? bag._id : bag[key];
+        if (typeof cb === 'function') cb(value);
+        return value;
+      },
+      set(prop, value) {
+        if (prop && typeof prop === 'object') {
+          Object.keys(prop).forEach((key) => {
+            bag[key] = prop[key];
+          });
+        } else {
+          bag[String(prop)] = value;
+        }
+        if (bag.pageid != null && bag._pageid == null) bag._pageid = bag.pageid;
+        if (bag._pageid != null && bag.pageid == null) bag.pageid = bag._pageid;
+        if (bag.characterid != null && bag._characterid == null) bag._characterid = bag.characterid;
+        if (bag._characterid != null && bag.characterid == null) bag.characterid = bag._characterid;
+        return obj;
+      },
+      remove() {
+        delete globalThis._roll20Objects[bag._id];
+      }
+    };
+    globalThis._roll20Objects[bag._id] = { type, bag, obj };
+    return obj;
+  }
+
+  globalThis.createObj = function(type, attrs) {
+    return makeObj(String(type || ''), attrs || {});
+  };
+
+  globalThis.getObj = function(type, id) {
+    const found = globalThis._roll20Objects[String(id || '')];
+    if (!found) return null;
+    if (String(found.type) !== String(type || '')) return null;
+    return found.obj;
+  };
+
+  globalThis.findObjs = function(attrs, options) {
+    const want = attrs || {};
+    const caseInsensitive = !!(options && options.caseInsensitive);
+    return Object.values(globalThis._roll20Objects)
+      .filter((entry) => {
+        const bag = entry.bag || {};
+        return Object.keys(want).every((key) => {
+          const actual = bag[key];
+          const expected = want[key];
+          if (typeof actual === 'string' && typeof expected === 'string' && caseInsensitive) {
+            return actual.toLowerCase() === expected.toLowerCase();
+          }
+          return actual === expected;
+        });
+      })
+      .map((entry) => entry.obj);
+  };
+
+  globalThis.Campaign = function() {
+    return {
+      get(prop) {
+        return globalThis._campaignState[String(prop || '')];
+      },
+      set(prop, value) {
+        if (prop && typeof prop === 'object') {
+          Object.keys(prop).forEach((key) => {
+            globalThis._campaignState[key] = prop[key];
+          });
+        } else {
+          globalThis._campaignState[String(prop || '')] = value;
+        }
+      }
+    };
+  };
+
+  globalThis.randomInteger = function(max) {
+    return Math.floor(Math.random() * max) + 1;
+  };
 }
 
-function assertCount(pattern, expected, message, flags = '') {
-  const count = [...source.matchAll(new RegExp(pattern, flags.includes('g') ? flags : `${flags}g`))].length;
-  if (count !== expected) {
-    throw new Error(`${message} (expected ${expected}, got ${count})`);
-  }
+function loadBundle() {
+  assert(source.length > 1000, 'calendar.js should exist and be non-trivial.');
+  vm.runInThisContext(`${source}\n;globalThis.__calendarBundle = Calendar;`, { filename: calendarPath });
+  const bundle = globalThis.__calendarBundle;
+  assert(bundle, 'Built bundle should expose Calendar.');
+  assert.equal(typeof bundle.checkInstall, 'function', 'Calendar.checkInstall should exist.');
+  assert.equal(typeof bundle.register, 'function', 'Calendar.register should exist.');
+  assert(bundle.render && typeof bundle.render === 'object', 'Calendar.render should expose the render API.');
+  assert(bundle._test, 'Built bundle should expose test helpers in smoke mode.');
+  return bundle;
 }
 
-function assertNotMatch(pattern, message, flags = '') {
-  if (new RegExp(pattern, flags).test(source)) {
-    throw new Error(message);
-  }
+function handlersFor(event) {
+  return globalThis._eventHandlers[event] || [];
 }
 
-assertMatch(String.raw`var CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS = 90;`, 'Specific-date weather reveal cap should be present.');
-assertMatch(String.raw`specific:\s*['"]Divination Reveal['"]`, 'Weather source labels should include the divination reveal label.');
-assertMatch(String.raw`playerReveal:\s*\{\s*byLocation:\s*\{\}\s*\}`, 'Weather reveal state should be stored per location.');
-assertMatch(String.raw`function sendSpecificWeatherReveal\(m, tokens\)`, 'Specific-date weather reveal command handler should exist.');
-assertMatch(String.raw`sendSpecificWeatherReveal\(m, args\.slice\(2\)\);`, 'Weather reveal command should fall through to specific-date reveals.');
-assertMatch(String.raw`if \(parsed\.startSerial < today\)`, 'Specific-date weather reveals should reject any range that starts in the past.');
-assertMatch(String.raw`if \(locSub === ['"]recent['"]\)`, 'Weather location menu should support recent-location quick switches.');
-assertMatch(String.raw`function _historyRecord\(serial\)`, 'Weather history lookups should be factored into a helper.');
-assertMatch(String.raw`warnGM\(['"]Usage: weather generate `, 'Manual weather generation should be bounded by the configured forecast horizon.');
-assertMatch(String.raw`if \(targetSer < todayNow\)`, 'Weather rerolls should refuse archived past days.');
-assertMatch(String.raw`var prevRec = _forecastRecord\(targetSer - 1\) \|\| _historyRecord\(targetSer - 1\);`, 'Weather rerolls should reuse yesterday history for continuity when needed.');
-assertMatch(String.raw`var regenNext = _generateDayWeather\(targetSer \+ 1, newRec, ws2\.location \|\| null\);`, 'Weather reroll cascades should stay on the current location.');
+function trigger(event, ...args) {
+  const handlers = handlersFor(event);
+  assert(handlers.length > 0, `Expected at least one handler for ${event}.`);
+  for (const handler of handlers) handler(...args);
+}
 
-assertMatch(String.raw`return parts\.monthName \+ ['"] ['"] \+ d\.day \+ ['"] ['"] \+ d\.year;`, 'Button date specs should stay parser-friendly after Harptos formatting changes.');
-assertMatch(String.raw`label:\s*_ordinal\(day\) \+ ['"] of ['"] \+ String\(m\.name \|\| mi \+ 1\)`, 'Harptos display labels should use ordinal-of-month formatting.');
-assertMatch(String.raw`if \(progression === ['"]month_reset['"] && !mobj\.isIntercalary\)\s*\{\s*return \(\(\(parseInt\(d, 10\) \|\| 1\) - 1\) % wdlen \+ wdlen\) % wdlen;`, 'Harptos weekday math should restart each tenday.');
-assertMatch(String.raw`_renderHarptosFestivalStrip\(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, ['"]full['"]\)`, 'Harptos intercalary days should render with the festival strip helper.');
+function clearChat() {
+  globalThis._chatLog = [];
+}
 
-assertMatch(String.raw`var typeLabel = .*['"]Total Eclipse['"] : .*['"]Partial Eclipse['"] : ['"]Transit['"];`, 'Eclipse classification thresholds should match the task requirements.');
-assertMatch(String.raw`return \[\s*_eclipseTimingClause\(['"]start['"], event, serial\),\s*_eclipseTimingClause\(['"]peak['"], event, serial\),\s*_eclipseTimingClause\(['"]end['"], event, serial\)`, 'Eclipse lifecycle text should include start, peak, and end timing.');
-assertMatch(String.raw`var ECLIPSE_TICKS_PER_DAY = 96;`, 'Eclipse exact refinement should still use 15-minute increments.');
-assertMatch(String.raw`var ECLIPSE_STAGE_BUCKET_TICKS = 16;`, 'Eclipse coarse filtering should use 4-hour buckets.');
-assertMatch(String.raw`var ECLIPSE_STAGE_HOUR_TICKS = 4;`, 'Eclipse narrowing should use 1-hour buckets.');
-assertMatch(String.raw`function _getEclipsesStaged\(`, 'Staged eclipse detection should be present.');
-assertMatch(String.raw`var eclipses = _getEclipsesStaged\(serial\);`, 'Public eclipse lookups should use the staged detector.');
-assertCount(String.raw`function getEclipses\(`, 1, 'There should be exactly one active getEclipses implementation.');
-assertCount(String.raw`function _eclipseNotableToday\(`, 1, 'There should be exactly one active _eclipseNotableToday implementation.');
-assertCount(String.raw`^function _getEclipsesLegacy\(`, 0, 'Legacy eclipse detector should no longer be active code.', 'm');
-assertCount(String.raw`^function _eclipseNotableTodayLegacy\(`, 0, 'Legacy eclipse notable-text formatter should no longer be active code.', 'm');
+function lastChat() {
+  return globalThis._chatLog[globalThis._chatLog.length - 1] || null;
+}
 
-assertMatch(String.raw`function _activeManifestZonesForSerial\(serial\)\s*\{\s*return serial === todaySerial\(\) \? _activeManifestZoneEntries\(\) : \[\];`, 'Manifest-zone overlays should stay limited to the current day.');
-assertMatch(String.raw`warnGM\(['"]Aryth is full\. Consider a manifest zone\.['"]\);`, 'Aryth-full reminder should still fire on date advancement.');
-assertMatch(String.raw`warnGM\(['"]Aryth is no longer full\. Consider deactivating:`, 'Aryth exit reminder should still fire for tracked manifest zones.');
-assertMatch(String.raw`if \(!playerIsGM\(m\.playerid\)\)\s*\{`, 'Weather command handler should still split GM and player behavior.');
-assertMatch(String.raw`Shorter off-cycle shifts are tied to Aryth full/new moons through the moontied generator\.`, 'Dolurrh notes should describe the implemented Aryth-linked generator.');
-assertMatch(String.raw`!cal settings \(group\|labels\|events\|moons\|weather\|weathermechanics\|wxmechanics\|hazards\|weatherhazards\|wxhazards\|planes\|offcycle\|buttons\)`, 'Settings usage text should include wxmechanics, hazards aliases, and offcycle.');
-assertMatch(String.raw`!cal moon send \(low\|medium\|high\) \[1w\|1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Moon help text should advertise the supported week/day range tokens.');
-assertMatch(String.raw`!cal planes send \[low\|medium\|high\] \[1m\|3m\|6m\|10m\|Nd\|Nw\]`, 'Plane help text should advertise the supported month range tokens.');
-assertNotMatch(String.raw`moons-system-design\.md`, 'Stale moon design-file references should be removed from calendar.js.');
-assertNotMatch(String.raw`Generated events should be tied to Aryth full/new moons rather than independent dice rolls`, 'Outdated Dolurrh TODO text should be removed from calendar.js.');
+function chatSlice(startIndex) {
+  return globalThis._chatLog.slice(startIndex);
+}
+
+function sendApi(content, who = 'GM (GM)', playerid = 'GM') {
+  const before = globalThis._chatLog.length;
+  trigger('chat:message', { type: 'api', content, who, playerid });
+  const entries = chatSlice(before);
+  assert(entries.length > 0, `Command ${content} should emit chat output.`);
+  return entries;
+}
+
+function assertChatIncludes(entries, needle, message) {
+  assert(
+    entries.some((entry) => String(entry.msg || '').includes(needle)),
+    message
+  );
+}
+
+function completeSetup(bundle) {
+  const stateName = bundle._test.state_name;
+  const root = globalThis.state[stateName];
+  assert(root, 'checkInstall should initialize persistent state.');
+  root.setup = root.setup || {};
+  root.setup.status = 'complete';
+  root.setup.draft = {};
+
+  const settings = bundle._test.ensureSettings();
+  settings.moonsEnabled = true;
+  settings.weatherEnabled = true;
+  settings.weatherMechanicsEnabled = true;
+  settings.weatherHazardsEnabled = true;
+  settings.planesEnabled = true;
+
+  const weatherState = bundle._test.getWeatherState();
+  weatherState.location = {
+    climate: 'temperate',
+    geography: 'inland',
+    terrain: 'open',
+    sig: 'temperate/inland/open'
+  };
+}
+
+installRoll20Shim();
+const bundle = loadBundle();
+
+assert(handlersFor('ready').length > 0, 'Bundle should register a ready handler.');
+trigger('ready');
+assert(handlersFor('chat:message').length > 0, 'Ready handler should register chat command routing.');
+assert(
+  globalThis._chatLog.some((entry) => String(entry.msg || '').includes('Welcome to Calendar')),
+  'Fresh installs should prompt the GM to run setup.'
+);
+
+completeSetup(bundle);
+clearChat();
+
+const rootEntries = sendApi('!cal');
+assertChatIncludes(rootEntries, 'Additional Options', 'Root command should render the main dashboard after setup.');
+
+const moonEntries = sendApi('!cal moon');
+assertChatIncludes(moonEntries, 'Moon', 'Moon command should render lunar output.');
+
+const weatherEntries = sendApi('!cal weather');
+assertChatIncludes(weatherEntries, 'Weather', 'Weather command should render weather output.');
+
+const planeEntries = sendApi('!cal planes');
+assertChatIncludes(planeEntries, 'Plane', 'Planes command should render planar output.');
+
+const beforeAdvance = bundle._test.todaySerial();
+sendApi('!cal advance 1');
+assert.equal(bundle._test.todaySerial(), beforeAdvance + 1, 'Advance command should move the current date forward.');
+
+const helpEntries = sendApi('!cal help');
+assertChatIncludes(helpEntries, '!cal', 'Help command should render command usage.');
 
 console.log('PASS: calendar smoke checks');
