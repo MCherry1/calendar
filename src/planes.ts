@@ -1459,6 +1459,58 @@ export function planesPanelHtmlSingle(isGM, revealTier?, serialOverride?, reveal
   return planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, generatedHorizonDays).join('');
 }
 
+export function planesHandoutHtml(){
+  var st = ensureSettings();
+  if (st.planesEnabled === false){
+    return _menuBox('\uD83C\uDF00 Planes', '<div style="opacity:.7;">Planar tracking is not active.</div>');
+  }
+
+  var psView = getPlanesState();
+  var today = todaySerial();
+  var viewTier = _normalizePlaneRevealTier(psView.revealTier || 'medium');
+  var viewHorizon = parseInt(psView.revealHorizonDays, 10) || _planarYearDays();
+  var generatedHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
+  var displayMode = _normalizeDisplayMode(st.planesDisplayMode);
+  var dateLabel = dateLabelFromSerial(today);
+
+  var generatedCutoff = null;
+  if (viewTier === 'high') generatedCutoff = today + viewHorizon;
+  else if (generatedHorizon > 0) generatedCutoff = Math.min(_monthRangeFromSerial(today).end, today + generatedHorizon);
+  var pr = _monthRangeFromSerial(today);
+  var planesMiniEvents = _planesMiniCalEvents(pr.start, pr.end, generatedCutoff);
+  var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
+
+  var parts = [];
+  if (displayMode !== 'list'){
+    parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
+    parts.push(planesMiniCal);
+    parts.push(_legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']));
+  }
+  if (displayMode !== 'calendar'){
+    var rows = [];
+    var planes = _getAllPlaneData();
+    var ignoreGenerated = (viewTier === 'low' || generatedHorizon <= 0);
+    for (var i = 0; i < planes.length; i++){
+      var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated:true } : null);
+      if (!ps) continue;
+      rows.push(_planeRowHtml(ps, false, viewTier, viewHorizon, generatedHorizon));
+    }
+    if (displayMode === 'list') parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
+    parts.push(rows.join(''));
+  }
+  if (!parts.length){
+    parts.push('<div style="opacity:.7;">No planar display mode selected.</div>');
+  }
+
+  var srcLabel = PLANE_SOURCE_LABELS[viewTier] || '';
+  if (srcLabel){
+    parts.push('<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:6px;">'+esc(srcLabel)+'</div>');
+  }
+  parts.push('<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:4px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>');
+
+  return _menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel), parts.join(''));
+}
+
 function _planesBroadcastSummaryHtml(viewTier, revealHorizonDays, generatedHorizonDays, serialOverride?){
   var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
   var planes = _getAllPlaneData();

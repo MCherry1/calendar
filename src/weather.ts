@@ -2512,6 +2512,36 @@ function _playerForecastViewData(maxDays: any){
   };
 }
 
+export function weatherHandoutHtml(){
+  if (ensureSettings().weatherEnabled === false){
+    return _menuBox('Weather', '<div style="opacity:.7;">Weather tracking is not active.</div>');
+  }
+
+  var ws = getWeatherState();
+  if (!ws.location){
+    return _menuBox('Weather', '<div style="opacity:.7;">No weather location has been set.</div>');
+  }
+
+  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!view){
+    weatherEnsureForecast();
+    var rec = _forecastRecord(todaySerial());
+    if (!rec){
+      return _menuBox('Weather', '<div style="opacity:.7;">Weather is not available right now.</div>');
+    }
+    var fallbackTier = (_weatherRevealForSerial(ws, todaySerial(), ws.location).tier || 'low');
+    return _menuBox('Weather — ' + _weatherLocationLabel(ws.location),
+      '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+esc(_displayMonthDayParts(fromSerial(todaySerial()).mi, fromSerial(todaySerial()).day).label)+'</b></div>' +
+      _playerDayHtml(rec, fallbackTier, true, WEATHER_SOURCE_LABELS.common || null)
+    );
+  }
+
+  return _menuBox('Weather — ' + view.locationLabel,
+    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>' +
+    view.summaryHtml + view.body
+  );
+}
+
 // Build whispered player forecast from their stored reveal state.
 function playerForecastWhisper(m: any){
   var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);

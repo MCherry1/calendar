@@ -1947,6 +1947,64 @@ export function moonPlayerPanelHtml(serialOverride?){
   return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
 }
 
+export function moonHandoutHtml(serialOverride?){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
+  }
+
+  var ms  = getMoonState();
+  var cal = getCal();
+  var cur = cal.current;
+  var tier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
+  var horizon = parseInt(ms.revealHorizonDays, 10) || 7;
+  var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
+  moonEnsureSequences(today, horizon + 30);
+  var dateLabel = dateLabelFromSerial(today);
+
+  var sys = _getMoonSys();
+  if (!sys){
+    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+
+  var pmr = _monthRangeFromSerial(today);
+  var pMoonMiniEvents = _moonMiniCalEvents(pmr.start, pmr.end, tier, horizon);
+  var pMoonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', pmr.start, pmr.end, pMoonMiniEvents);
+
+  var body = _moonTodaySummaryHtml(today, tier, horizon);
+  body += pMoonMiniCal;
+  body += _legendLine(['🌕 Full', '🌑 New']);
+
+  var notableLines = [];
+  sys.moons.forEach(function(moon){
+    var peakType = _moonPeakPhaseDay(moon.name, today);
+    if (peakType === 'full'){
+      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> is Full');
+    } else if (peakType === 'new'){
+      var ph = moonPhaseAt(moon.name, today);
+      var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
+      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> is New' + tag);
+    }
+  });
+  if (notableLines.length){
+    body += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
+      notableLines.join('<br>') + '</div>';
+  } else {
+    body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
+  }
+  if (tier === 'high' && _eclipseNotableToday(today).length){
+    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
+      _eclipseNotableToday(today).join('<br>') + '</div>';
+  }
+
+  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
+  if (srcLabel){
+    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
+  }
+
+  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
+}
+
 // ---------------------------------------------------------------------------
 // 20j) Moon command handler  (!cal moon ...)
 // ---------------------------------------------------------------------------
