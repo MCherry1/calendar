@@ -2629,6 +2629,33 @@ function weatherTodayGmHtml(){
   );
 }
 
+// Get L/H Fahrenheit temperatures for a forecast record's day.
+// Uses min/max temp bands across all periods, then adds a seeded d10
+// from the bottom of each band range for flavor.
+function _weatherDayTempRange(rec: any){
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec || !rec.periods) return null;
+  var minBand = 99, maxBand = -99;
+  for (var pk in rec.periods){
+    if (!Object.prototype.hasOwnProperty.call(rec.periods, pk)) continue;
+    var t = rec.periods[pk].temp;
+    if (t < minBand) minBand = t;
+    if (t > maxBand) maxBand = t;
+  }
+  if (minBand > maxBand) return null;
+  var loInfo = _weatherTempInfo(minBand);
+  var hiInfo = _weatherTempInfo(maxBand);
+  // Seed the d10 deterministically from the serial so it's stable
+  var seed = (rec.serial || 0) * 7 + 3;
+  var loRoll = ((seed * 13 + 5) % 10);
+  var hiRoll = ((seed * 17 + 11) % 10);
+  var loF = (loInfo.minF != null ? loInfo.minF : -50) + loRoll;
+  var hiF = (hiInfo.minF != null ? hiInfo.minF : -50) + hiRoll;
+  // Ensure Low < High when bands are the same
+  if (loF >= hiF) { loF = hiF - 1 - (loRoll % 3); }
+  return { lowF: loF, highF: hiF };
+}
+
 function _weatherEmojiForRecord(rec: any){
   rec = _weatherRecordForDisplay(rec);
   if (!rec || !rec.final) return '🌥️';
@@ -2697,12 +2724,19 @@ function _renderWeatherMonthStripWantedDays(year: any, mi: any, wantedSet: any, 
       var dayAttr = dayTitle ? ' title="'+esc(dayTitle)+'" aria-label="'+esc(dayTitle)+'"' : '';
       dayRow.push('<td'+dayAttr+' style="'+dayStyle+'"><div'+(numStyle ? ' style="'+numStyle+'"' : '')+'>'+d.day+'</div></td>');
 
-      var wxStyle = STYLES.td + 'font-size:1.05em;line-height:1;';
+      var wxStyle = STYLES.td + 'line-height:1;padding:1px 0;';
       var wxText = '&nbsp;';
       var wxAttr = '';
       if (inMonthWanted){
         var rec = _forecastRecord(ser);
-        wxText = _weatherEmojiForRecord(rec);
+        var emoji = _weatherEmojiForRecord(rec);
+        var temps = _weatherDayTempRange(rec);
+        var tempLine = '';
+        if (temps){
+          tempLine = '<div style="font-size:.5em;line-height:1;margin-top:1px;white-space:nowrap;">' +
+            temps.lowF + '/' + temps.highF + '</div>';
+        }
+        wxText = '<div style="font-size:1.05em;line-height:1;">' + emoji + '</div>' + tempLine;
         var wxTitle = _weatherMiniCellTitle(ser);
         if (wxTitle) wxAttr = ' title="'+esc(wxTitle)+'" aria-label="'+esc(wxTitle)+'"';
       } else {

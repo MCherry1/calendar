@@ -356,7 +356,7 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 #### Planes (!cal planes)
 * All info is specific to the current calendar date.
 * Only show information if the subsystem is active.
-* 13 planes with cyclic phases: coterminous, waning, remote, waxing. Some planes are fixed (e.g., Dal Quor permanently remote).
+* 13 planes with cyclic phases: coterminous, neutral, remote, neutral. Planes snap between active states with no gradual transition. Some planes are fixed (e.g., Dal Quor permanently remote).
 ##### Minical
 * Current month, full display, including shoulder week logic for displaying a week strip from a nearby adjacent month.
 * Header bar is based on the color scheme, and consists of the current month and year.

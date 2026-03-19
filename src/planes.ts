@@ -1191,6 +1191,33 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     }
 
     // Notable planes (coterminous/remote/active flicker): full detail
+    // Build duration parenthetical per spec:
+    //   Canonical: "Daanvi (coterminous 85 years ago, ending in 15 years)"
+    //   Generated: "Kythri (Generated, coterminous, ending in 3 days)"
+    var durationTag = '';
+    if (isNotable){
+      var yearDays = _planarYearDays() || 336;
+      var dParts = [];
+      if (hasGenNow) dParts.push('Generated');
+      var dInto = ps.daysIntoPhase || 0;
+      var dLeft = ps.daysUntilNextPhase || 0;
+      if (!hasGenNow && dInto > 0){
+        if (dInto > yearDays * 2) dParts.push(label.toLowerCase() + ' ~' + Math.round(dInto / yearDays) + ' years ago');
+        else if (dInto > 56) dParts.push(label.toLowerCase() + ' ~' + Math.round(dInto / 28) + ' months ago');
+        else dParts.push(label.toLowerCase() + ' ' + dInto + ' days ago');
+      } else if (hasGenNow){
+        dParts.push(label.toLowerCase());
+      }
+      if (dLeft > 0){
+        if (dLeft > yearDays * 2) dParts.push('ending in ~' + Math.round(dLeft / yearDays) + ' years');
+        else if (dLeft > 56) dParts.push('ending in ~' + Math.round(dLeft / 28) + ' months');
+        else dParts.push('ending in ' + dLeft + ' days');
+      }
+      if (dParts.length){
+        durationTag = ' <span style="font-size:.8em;opacity:.6;">(' + esc(dParts.join(', ')) + ')</span>';
+      }
+    }
+
     var effectHtml = '';
     if (ps.phase === 'coterminous' || ps.phase === 'remote'){
       var eff = (ps.plane.effects && ps.plane.effects[ps.phase]) || '';
@@ -1217,7 +1244,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       '<div style="margin:3px 0;line-height:1.4;">'+
         emoji+' <b style="min-width:82px;display:inline-block;">'+esc(name)+'</b>'+
         '<span style="opacity:.85;">'+esc(label)+'</span>'+
-        overrideTag + anchorModeTag + nextTag + generatedTag +
+        durationTag + overrideTag + anchorModeTag + nextTag + generatedTag +
       '</div>'+
       effectHtml + cycleSummaryHtml + noteHtml
     );
