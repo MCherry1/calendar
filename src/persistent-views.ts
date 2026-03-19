@@ -29,6 +29,10 @@ var PRIMARY_HANDOUT_KEYS = {
   lunar: 'lunar:unified',
   planar: 'planar:unified'
 };
+var _batchedHandoutRefreshTimer = null;
+var _batchedHandoutRefreshQueue = [];
+var _batchedHandoutRefreshDelayMs = 50;
+var _batchedHandoutRefreshForce = false;
 
 function _rootState(){
   if (!state[state_name]) state[state_name] = {};
@@ -919,16 +923,27 @@ export function refreshHandoutsBatched(kinds?, opts?){
   var specs = _buildHandoutSpecs();
   _syncHandoutLayout(specs);
   var list = _resolveHandoutSpecs(kinds, specs);
-  var queue = list.slice();
   var delayMs = Math.max(0, parseInt(opts.delayMs, 10) || 50);
 
   function next(){
-    if (!queue.length) return;
-    _refreshHandoutSpec(queue.shift(), { force: opts.force === true, skipFolderNotice: true });
-    if (queue.length) setTimeout(next, delayMs);
+    _batchedHandoutRefreshTimer = null;
+    if (!_batchedHandoutRefreshQueue.length) return;
+    _refreshHandoutSpec(_batchedHandoutRefreshQueue.shift(), {
+      force: _batchedHandoutRefreshForce,
+      skipFolderNotice: true
+    });
+    if (_batchedHandoutRefreshQueue.length){
+      _batchedHandoutRefreshTimer = setTimeout(next, _batchedHandoutRefreshDelayMs);
+    }
   }
 
-  if (queue.length) next();
+  _batchedHandoutRefreshQueue = list.slice();
+  _batchedHandoutRefreshDelayMs = delayMs;
+  _batchedHandoutRefreshForce = opts.force === true;
+  if (_batchedHandoutRefreshTimer) clearTimeout(_batchedHandoutRefreshTimer);
+  if (_batchedHandoutRefreshQueue.length){
+    _batchedHandoutRefreshTimer = setTimeout(next, delayMs);
+  }
   if (!opts.skipFolderNotice) _maybeNotifyFolderInstructions(specs);
   return { ok:true, queued:list.length };
 }

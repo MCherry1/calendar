@@ -37,6 +37,18 @@ export function currentTimeOfDayLabel(){
   return bucket ? bucketLabel(bucket) : '';
 }
 
+function _shouldDeferPersistentHandouts(){
+  return typeof globalThis !== 'undefined' && !(globalThis as any).__CALENDAR_TEST_MODE__;
+}
+
+function _refreshPersistentViewsOnDateChange(){
+  refreshAllPersistentViews({
+    autoBind: true,
+    batched: _shouldDeferPersistentHandouts(),
+    batchDelayMs: 0
+  });
+}
+
 export function _timeOfDayStatusHtml(style?){
   if (!isTimeOfDayActive()) return '';
   return '<div style="' + (style || 'font-size:.82em;opacity:.72;margin-top:2px;') + '">Current time: ' +
@@ -625,7 +637,7 @@ export function stepDays(n, opts?){
       pruneMoonHistory(dest);
     }
   }
-  refreshAllPersistentViews({ autoBind: true });
+  _refreshPersistentViewsOnDateChange();
   if (opts.announce === false) return;
 
   var direction = n >= 0 ? 'Forward' : 'Back';
@@ -661,7 +673,7 @@ export function setDate(m, d, y, opts?){
   if (ensureSettings().moonsEnabled !== false){
     resetMoonHistory(nextSerial, true);
   }
-  refreshAllPersistentViews({ autoBind: true });
+  _refreshPersistentViewsOnDateChange();
   if (opts.announce === false) return;
   sendCurrentDate(null, true);
 }
