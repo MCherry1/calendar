@@ -4,6 +4,7 @@ import { freshInstall } from "./helpers.js";
 import { ensureSettings, getCal } from "../src/state.js";
 import { toSerial } from "../src/date-math.js";
 import { setDate, stepDays } from "../src/ui.js";
+import { commands } from "../src/today.js";
 import {
   activateTimeOfDay,
   bucketMidpointTimeFrac,
@@ -112,5 +113,17 @@ describe("Time of Day", () => {
     clearTimeOfDay();
     assert(!isTimeOfDayActive());
     assertEquals(currentTimeBucket(), null);
+  });
+
+  it("time next whisper keeps follow-up controls", () => {
+    freshInstall();
+    activateTimeOfDay("morning");
+    (commands.time as any).run({ who: "GM (GM)", playerid: "GM" }, ["!cal", "time", "next"]);
+    const log = (globalThis as any)._chatLog;
+    const last = log[log.length - 1];
+    assert(last && typeof last.msg === "string");
+    assert(last.msg.includes("!cal time next"));
+    assert(last.msg.includes("!cal show"));
+    assert(last.msg.includes("!cal send"));
   });
 });

@@ -50,17 +50,28 @@ function _timeOfDayMenuHtml(){
   return _menuBox('Time of Day',
     '<div style="font-weight:bold;">Current time: ' + esc(bucketLabel(bucket)) + '</div>' +
     '<div style="opacity:.75;margin-top:2px;">' + esc(currentDateLabel()) + '</div>' +
-    '<div style="margin-top:6px;">' +
-      button('Advance Time', 'time next') + ' ' +
-      button('Clear Time', 'time clear') +
-    '</div>'
+    _timeOfDayActionButtonsHtml()
   );
 }
 
+function _timeOfDayActionButtonsHtml(){
+  return '<div style="margin-top:6px;">' +
+    button('Advance Time', 'time next') + ' ' +
+    button('Show', 'show') + ' ' +
+    button('Send', 'send') + ' ' +
+    button('Clear Time', 'time clear') +
+  '</div>';
+}
+
 function _sendTimeOfDayStatus(who){
+  var bucket = currentTimeBucket();
+  var label = bucket ? bucketLabel(bucket) : currentTimeOfDayLabel();
   whisperUi(who,
-    '<div><b>Current time: ' + esc(currentTimeOfDayLabel()) + '</b><br>' +
-    esc(currentDateLabel()) + '</div>'
+    _menuBox('Time of Day',
+      '<div style="font-weight:bold;">Current time: ' + esc(label) + '</div>' +
+      '<div style="opacity:.75;margin-top:2px;">' + esc(currentDateLabel()) + '</div>' +
+      _timeOfDayActionButtonsHtml()
+    )
   );
 }
 

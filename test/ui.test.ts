@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import { ok as assert, strictEqual as assertEquals } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
 import { _showDefaultCalView } from "../src/commands.js";
+import { stepDays } from "../src/ui.js";
 import { sendToAll, sendUiToGM } from "../src/messaging.js";
 import { helpRootMenu } from "../src/ui.js";
 
@@ -36,5 +37,14 @@ describe("Task-focused UI", () => {
     assert(msg.msg.includes("retreat 1") || msg.msg.includes("⬅"), "should have retreat/back button");
     assert(msg.msg.includes("advance 1") || msg.msg.includes("➡"), "should have advance/forward button");
     assert(msg.msg.includes("send"), "should have send-to-players action");
+  });
+
+  it("redraws the dashboard minical after day advance", () => {
+    freshInstall();
+    stepDays(1);
+    const msg = (globalThis as any)._chatLog.slice(-1)[0];
+    assert(msg.msg.includes("<table"), "should redraw the month minical");
+    assert(msg.msg.includes("advance 1") || msg.msg.includes("➡"), "should keep advance controls");
+    assert(!msg.msg.includes("Stepped Forward"), "should send the refreshed Today view instead of the old step notice");
   });
 });

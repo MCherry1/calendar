@@ -639,18 +639,7 @@ export function stepDays(n, opts?){
   }
   _refreshPersistentViewsOnDateChange();
   if (opts.announce === false) return;
-
-  var direction = n >= 0 ? 'Forward' : 'Back';
-  var dateStr = esc(currentDateLabel());
-  var stepButtons =
-    mb('Back','retreat 1')+'\u00a0'+
-    mb('Forward','advance 1')+'\u00a0'+
-    mb('\ud83d\udce3 Send','send')+'\u00a0'+
-    nav('\u2754 Help','root');
-  sendUiToGM(
-    '<div><b>Stepped '+direction+'</b> \u2014 '+dateStr+'</div>'+
-    '<div style="margin-top:4px;">'+stepButtons+'</div>'
-  );
+  sendCurrentDate(null, true, { dashboard:true, includeButtons:true });
 }
 
 export function setDate(m, d, y, opts?){
