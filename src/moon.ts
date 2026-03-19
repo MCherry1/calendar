@@ -3059,6 +3059,185 @@ export function _eclipseMetricsAt(sys, e, t){
   return null;
 }
 
+export function _eclipseCandidateDistance(sys, e, t){
+  if (!e) return Infinity;
+
+  if (e.kind === 'solar'){
+    var sm = _moonByName(sys, e.moon);
+    if (!sm) return Infinity;
+    var op = _moonOrbitalParams(sm.name, t);
+    var dLong = _degSeparation(_moonSkyLong(sm, t), _sunSkyLong(t));
+    var dLat  = Math.abs(_moonEclipticLat(sm, t));
+    var sepDeg = Math.sqrt(dLong*dLong + dLat*dLat);
+    var sepSun = sepDeg / _SUN_ANGULAR_DIAM_DEG;
+    return sepSun - (((op.apparentSize || 0) / 2) + 0.5);
+  }
+
+  if (e.kind === 'lunar'){
+    var moonA = _moonByName(sys, e.a);
+    var moonB = _moonByName(sys, e.b);
+    if (!moonA || !moonB) return Infinity;
+    var distA = _moonDistanceAt(moonA, t);
+    var distB = _moonDistanceAt(moonB, t);
+    var front = (distA <= distB) ? moonA : moonB;
+    var back  = (front === moonA) ? moonB : moonA;
+    var fop = _moonOrbitalParams(front.name, t);
+    var bop = _moonOrbitalParams(back.name, t);
+    var dLong2 = _degSeparation(_moonSkyLong(front, t), _moonSkyLong(back, t));
+    var dLat2  = Math.abs(_moonEclipticLat(front, t) - _moonEclipticLat(back, t));
+    var sepDeg2 = Math.sqrt(dLong2*dLong2 + dLat2*dLat2);
+    var sepSun2 = sepDeg2 / _SUN_ANGULAR_DIAM_DEG;
+    return sepSun2 - (((fop.apparentSize || 0) / 2) + ((bop.apparentSize || 0) / 2));
+  }
+
+  return Infinity;
+}
+
+function _eclipseDescriptors(sys){
+  var descriptors = [];
+  var moons = (sys && sys.moons) ? sys.moons : [];
+  for (var i = 0; i < moons.length; i++){
+    descriptors.push({ kind: 'solar', moon: moons[i].name });
+  }
+  for (var a = 0; a < moons.length; a++){
+    for (var b = a + 1; b < moons.length; b++){
+      descriptors.push({ kind: 'lunar', a: moons[a].name, b: moons[b].name });
+    }
+  }
+  return descriptors;
+}
+
+function _eclipseTickToSerial(tick){
+  return tick / ECLIPSE_TICKS_PER_DAY;
+}
+
+function _mergeEclipseTickSpans(spans, minTick, maxTick){
+  var out = [];
+  if (!Array.isArray(spans) || !spans.length) return out;
+  var sorted = spans.map(function(span){
+    return {
+      startTick: Math.max(minTick, parseInt(span.startTick, 10) || 0),
+      endTick: Math.min(maxTick, parseInt(span.endTick, 10) || 0)
+    };
+  }).filter(function(span){
+    return span.endTick > span.startTick;
+  }).sort(function(a, b){
+    return a.startTick - b.startTick;
+  });
+  for (var i = 0; i < sorted.length; i++){
+    var span = sorted[i];
+    if (!out.length || span.startTick > out[out.length - 1].endTick){
+      out.push(span);
+      continue;
+    }
+    if (span.endTick > out[out.length - 1].endTick){
+      out[out.length - 1].endTick = span.endTick;
+    }
+  }
+  return out;
+}
+
+function _expandEclipseTickSpans(spans, expandTicks, minTick, maxTick){
+  expandTicks = Math.max(0, expandTicks|0);
+  return _mergeEclipseTickSpans((spans || []).map(function(span){
+    return {
+      startTick: span.startTick - expandTicks,
+      endTick: span.endTick + expandTicks
+    };
+  }), minTick, maxTick);
+}
+
+function _sampleEclipseCandidateSpans(sys, descriptor, sampleStartTick, sampleEndTick, stepTicks, threshold){
+  var spans = [];
+  for (var bucketStart = sampleStartTick; bucketStart < sampleEndTick; bucketStart += stepTicks){
+    var midpointTick = bucketStart + Math.floor(stepTicks / 2);
+    if (_eclipseCandidateDistance(sys, descriptor, _eclipseTickToSerial(midpointTick)) <= threshold){
+      spans.push({
+        startTick: bucketStart,
+        endTick: Math.min(sampleEndTick, bucketStart + stepTicks)
+      });
+    }
+  }
+  return _mergeEclipseTickSpans(spans, sampleStartTick, sampleEndTick);
+}
+
+function _scanEclipseDescriptorSpans(sys, descriptor, spans, serial, windowStartTick, windowEndTick){
+  var eclipses = [];
+  var seen = Object.create(null);
+  var coveredUntilTick = windowStartTick - 1;
+
+  function _pushFinished(startTick, endTick, peak){
+    var finished = _finalizeEclipseEvent(sys, _eclipseTickToSerial(startTick), _eclipseTickToSerial(endTick), peak);
+    if (!finished || finished.startT >= serial + 1 || finished.endT < serial || seen[finished.id]) return;
+    seen[finished.id] = 1;
+    eclipses.push(finished);
+  }
+
+  for (var si = 0; si < spans.length; si++){
+    var span = spans[si];
+    if (!span || span.endTick <= span.startTick) continue;
+    if (span.startTick <= coveredUntilTick) continue;
+
+    var scanStartTick = Math.max(windowStartTick, span.startTick);
+    var scanEndTick = Math.min(windowEndTick, span.endTick);
+    var active = false;
+    var startTick = 0;
+    var endTick = 0;
+    var peak = null;
+
+    for (var tick = scanStartTick; tick <= scanEndTick; tick++){
+      var metrics = _eclipseMetricsAt(sys, descriptor, _eclipseTickToSerial(tick));
+      var cover = metrics ? metrics.cover : 0;
+      if (cover > 0){
+        if (!active){
+          active = true;
+          startTick = tick;
+          peak = { t: _eclipseTickToSerial(tick), metrics: metrics };
+          if (tick === scanStartTick){
+            for (var backTick = tick - 1; backTick >= windowStartTick; backTick--){
+              var backMetrics = _eclipseMetricsAt(sys, descriptor, _eclipseTickToSerial(backTick));
+              var backCover = backMetrics ? backMetrics.cover : 0;
+              if (backCover <= 0){
+                startTick = backTick + 1;
+                break;
+              }
+              startTick = backTick;
+              if (!peak || backCover > (peak.metrics.cover || 0)){
+                peak = { t: _eclipseTickToSerial(backTick), metrics: backMetrics };
+              }
+            }
+          }
+        }
+        endTick = tick;
+        if (!peak || cover > (peak.metrics.cover || 0)){
+          peak = { t: _eclipseTickToSerial(tick), metrics: metrics };
+        }
+      } else if (active){
+        coveredUntilTick = Math.max(coveredUntilTick, endTick);
+        _pushFinished(startTick, endTick, peak);
+        active = false;
+        peak = null;
+      }
+    }
+
+    if (active){
+      for (var fTick = scanEndTick + 1; fTick <= windowEndTick; fTick++){
+        var fMetrics = _eclipseMetricsAt(sys, descriptor, _eclipseTickToSerial(fTick));
+        var fCover = fMetrics ? fMetrics.cover : 0;
+        if (fCover <= 0) break;
+        endTick = fTick;
+        if (!peak || fCover > (peak.metrics.cover || 0)){
+          peak = { t: _eclipseTickToSerial(fTick), metrics: fMetrics };
+        }
+      }
+      coveredUntilTick = Math.max(coveredUntilTick, endTick);
+      _pushFinished(startTick, endTick, peak);
+    }
+  }
+
+  return eclipses;
+}
+
 export function _eclipsePeakSkyLabel(sys, moonName, t){
   var moon = _moonByName(sys, moonName);
   if (!moon) return null;
