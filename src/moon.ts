@@ -550,8 +550,14 @@ function _cloneMoonMiniCalEvents(events){
     if (evt && evt.splitColor) copy.splitColor = evt.splitColor;
     if (evt && evt.splitIsRemote) copy.splitIsRemote = true;
     if (evt && evt.replaceNumeral) copy.replaceNumeral = evt.replaceNumeral;
+    if (evt && evt.isEclipse) copy.isEclipse = true;
     return copy;
   });
+}
+
+function _isMoonEclipseMiniCalEvent(evt){
+  var name = String(evt && evt.name || '');
+  return !!(evt && evt.isEclipse) || name.indexOf('Eclipses: ') === 0;
 }
 
 function _reindexMoonHistory(history){
@@ -581,7 +587,17 @@ function _moonHistoryState(){
 function _storeMoonHistorySnapshot(ms, snapshot){
   if (!snapshot || !isFinite(snapshot.serial)) return null;
   var history = _moonHistoryState();
-  history.bySerial[String(snapshot.serial|0)] = snapshot;
+  var key = String(snapshot.serial|0);
+  var prior = history.bySerial[key];
+  if (prior && prior.modelRevision === snapshot.modelRevision){
+    var preservedEclipses = _cloneMoonMiniCalEvents((prior.miniCalEvents || []).filter(_isMoonEclipseMiniCalEvent));
+    if (preservedEclipses.length){
+      snapshot.miniCalEvents = (snapshot.miniCalEvents || []).filter(function(evt){
+        return !_isMoonEclipseMiniCalEvent(evt);
+      }).concat(preservedEclipses);
+    }
+  }
+  history.bySerial[key] = snapshot;
   if (history.minSerial == null || snapshot.serial < history.minSerial) history.minSerial = snapshot.serial|0;
   if (history.maxSerial == null || snapshot.serial > history.maxSerial) history.maxSerial = snapshot.serial|0;
   ms.recentHistory = history;
@@ -1585,6 +1601,7 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
   var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
   var today = isFinite(opts.today) ? (opts.today|0) : todaySerial();
   var singleFill = (opts.singleFill !== undefined) ? !!opts.singleFill : _isSingleFillMoon(sys);
+  var includeEclipses = opts.includeEclipses !== false;
   var fullMoons = [];
   var newMoons = [];
 
@@ -1608,12 +1625,9 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
     }
   }
 
-  var eclipseNames = [];
-  if (isHighTier){
-    var eNotes = _eclipseNotableToday(ser);
-    for (var ei = 0; ei < eNotes.length; ei++){
-      eclipseNames.push(_stripHtmlTags(eNotes[ei]).split('.').slice(0, 2).join('.'));
-    }
+  var eclipseEvents = [];
+  if (isHighTier && includeEclipses){
+    eclipseEvents = _moonMiniCalEclipseEvents(ser, getEclipses(ser), singleFill);
   }
 
   // Multi-moon systems: dot-only indicators (no cell fill).
@@ -1635,14 +1649,7 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
         dotOnly: true
       });
     }
-    if (eclipseNames.length){
-      out.push({
-        serial: ser,
-        name: 'Eclipses: ' + eclipseNames.join(', '),
-        color: '#9575CD',
-        dotOnly: true
-      });
-    }
+    out = out.concat(eclipseEvents);
   } else {
     if (fullMoons.length){
       out.push({
@@ -1660,13 +1667,7 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
         replaceNumeral: '\uD83C\uDF11'
       });
     }
-    if (eclipseNames.length){
-      out.push({
-        serial: ser,
-        name: 'Eclipses: ' + eclipseNames.join(', '),
-        color: '#9575CD'
-      });
-    }
+    out = out.concat(eclipseEvents);
   }
 
   return out;
@@ -1706,7 +1707,8 @@ export function captureMoonHistoryDay(serial){
     miniCalEvents: _cloneMoonMiniCalEvents(_moonMiniCalDayEvents(ser, 'high', MOON_PREDICTION_LIMITS.highMaxDays, {
       sys: sys,
       today: ser,
-      singleFill: _isSingleFillMoon(sys)
+      singleFill: _isSingleFillMoon(sys),
+      includeEclipses: false
     }))
   };
   return _storeMoonHistorySnapshot(ms, snapshot);
@@ -1731,7 +1733,8 @@ export function captureMoonHistoryWindow(startSerial, endSerial){
       miniCalEvents: _cloneMoonMiniCalEvents(_moonMiniCalDayEvents(ser, 'high', MOON_PREDICTION_LIMITS.highMaxDays, {
         sys: sys,
         today: ser,
-        singleFill: singleFill
+        singleFill: singleFill,
+        includeEclipses: false
       }))
     });
   }
@@ -2955,6 +2958,11 @@ export function _clamp01(x){
 // separations into the same units as apparentSizeVsSun.
 export var _SUN_ANGULAR_DIAM_DEG = 0.53;
 export var _eclipseDayCache = Object.create(null);
+export var ECLIPSE_TICKS_PER_DAY = 96;
+export var ECLIPSE_STAGE_BUCKET_TICKS = 16; // 4-hour buckets
+export var ECLIPSE_STAGE_HOUR_TICKS = 4;    // 1-hour buckets
+export var ECLIPSE_STAGE_COARSE_THRESHOLD = 2.0;
+export var ECLIPSE_STAGE_HOURLY_THRESHOLD = 0.5;
 
 export function _eclipseTimeBlock(frac){
   var h = ((frac % 1) + 1) % 1 * 24;
