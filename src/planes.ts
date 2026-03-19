@@ -3,6 +3,7 @@ import { state_name } from './constants.js';
 import { ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc } from './rendering.js';
+import { _deliverTopLevelCalendarRange } from './events.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { refreshHandout } from './persistent-views.js';
@@ -1066,9 +1067,9 @@ export function _planesMiniCalEvents(startSerial, endSerial, generatedCutoffSeri
 
     // Build tooltip
     var tipParts = [];
-    if (tipCot.length) tipParts.push('Coterminous: ' + tipCot.join(', '));
-    if (tipRem.length) tipParts.push('Remote: ' + tipRem.join(', '));
-    var tooltip = tipParts.join(' | ');
+    if (tipCot.length) tipParts.push('Coterminous:\n  • ' + tipCot.join('\n  • '));
+    if (tipRem.length) tipParts.push('Remote:\n  • ' + tipRem.join('\n  • '));
+    var tooltip = tipParts.join('\n');
 
     // Emit fill events (max 2 for diagonal split)
     if (fills.length === 1){
@@ -1299,7 +1300,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var hasGenNow = _isGeneratedNote(ps.note);
     var generatedTag = '';
     if (hasGenNow){
-      generatedTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(non-canonical)</span>';
+      generatedTag = ' <span style="font-size:.75em;opacity:.55;font-style:italic;">(Generated)</span>';
     } else if (!ps.overridden && isGM){
       var lookahead = PLANE_GENERATED_LOOKAHEAD.gmDays;
       var ff = _nextGeneratedForecast(name, today, lookahead);
@@ -1455,15 +1456,9 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var seedPlaneQueryOpts = planes.filter(function(p){ return !!p.seedAnchor; }).map(function(p){ return p.name; }).join('|');
     var planeDropdown = button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}');
 
-    // Send buttons
-    gmControls =
-      '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:5px;">'+
-        '<div style="font-size:.82em;margin-bottom:2px;">Send Medium: '+pSendBtns+'</div>'+
-        '<div style="font-size:.82em;margin-bottom:2px;">Send High: '+pHighBtns+'</div>'+
-      '</div>';
-
     // Send to Players
-    gmControls += '<div style="margin:4px 0;">' +
+    gmControls =
+      '<div style="margin:4px 0;">' +
       button('Send to Players','planes send medium ?{Horizon|1m|3m|6m|10m}') +
       '</div>';
 
@@ -1472,6 +1467,32 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Specific Planes dropdown
     gmControls += '<div style="margin:4px 0;">' + planeDropdown + '</div>';
+
+    // Spacer
+    gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+    // Medium Forecast buttons (1/3/6/10 month)
+    gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">Medium Forecast:</div>' +
+      '<div style="margin-bottom:4px;">' +
+      button('1 month','planes send medium 1m')+' '+
+      button('3 months','planes send medium 3m')+' '+
+      button('6 months','planes send medium 6m')+' '+
+      button('10 months','planes send medium 10m')+
+      '</div>';
+
+    // High Forecast buttons (1/3/6/10 month)
+    gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">High Forecast:</div>' +
+      '<div style="margin-bottom:4px;">' +
+      button('1 month','planes send high 1m')+' '+
+      button('3 months','planes send high 3m')+' '+
+      button('6 months','planes send high 6m')+' '+
+      button('10 months','planes send high 10m')+
+      '</div>';
+
+    // Reveal Custom Range
+    gmControls += '<div style="margin:4px 0;">' +
+      button('Reveal Custom Range','planes reveal ?{Date or range|14-17}') +
+      '</div>';
 
     // Spacer
     gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
@@ -1536,10 +1557,13 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>'
     ));
   } else {
-    // For players, append back button to last part
+    // For players, add Specific Planes dropdown and back button
+    var playerPlaneQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    var playerControls = '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+      '<div style="margin:4px 0;">' + button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + playerPlaneQueryOpts + '}') + '</div>' +
+      '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
     var lastIdx = parts.length - 1;
-    parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') +
-      '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div></div>';
+    parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') + playerControls + '</div>';
   }
 
   return parts;
@@ -1996,10 +2020,23 @@ export function handlePlanesCommand(m, args){
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
+  // !cal planes ranges <rangeArgs>  — Additional Ranges (same as events/moons)
+  if (sub === 'ranges'){
+    var rangeArgs = args.slice(2);
+    return _deliverTopLevelCalendarRange({ who: m.who, args: rangeArgs, dest: 'whisper' });
+  }
+
+  // !cal planes reveal <rangeSpec>  — Reveal Custom Range
+  if (sub === 'reveal'){
+    var revealArgs = args.slice(2);
+    return _deliverTopLevelCalendarRange({ who: m.who, args: revealArgs, dest: 'whisper' });
+  }
+
   whisper(m.who,
     'Planes: <code>!cal planes</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes ranges &lt;rangeSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes seed &lt;name&gt; &lt;year&gt;</code> &nbsp;\u00B7&nbsp; '+

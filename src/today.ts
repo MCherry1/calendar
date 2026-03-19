@@ -6,7 +6,7 @@ import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { _deliverTopLevelCalendarRange, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
-import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
+import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
@@ -70,6 +70,17 @@ export function _todayAllHtml(){
   var cal = getCal(), c = cal.current;
   var lines = [];
   var sp = '<div style="height:6px;"></div>';
+
+  // ── Minical (Events minical) ───────────────────────────────────────────
+  try {
+    var mr = _monthRangeFromSerial(today);
+    var miniCalHtml = buildCalendarsHtmlForSpec({
+      start: mr.start, end: mr.end,
+      months: [{ y: mr.year, mi: mr.mi }],
+      title: cal.months[mr.mi].name + ' ' + mr.year
+    });
+    lines.push(miniCalHtml);
+  } catch(eMini){}
 
   // ── Text Info ──────────────────────────────────────────────────────────
   // Current Date
@@ -201,19 +212,16 @@ export function _todayAllHtml(){
   btns.push('<div style="margin:3px 0;">' + button('Send Today View to Players','send') + '</div>');
 
   // Additional Options dropdown
-  var adminMenu = '|Enable/Disable Moons,moon toggle' +
-    '|Enable/Disable Weather,weather toggle' +
-    '|Enable/Disable Planes,planes toggle' +
-    '|Theme,help themes' +
-    '|Calendar System,help calendarsystems' +
-    '|Hemisphere,help hemisphere' +
-    '|Season Set,help seasons' +
-    '|Reset Calendar,help resetconfirm';
+  btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Additional Options', 'today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,help root}') +
+    button('Additional Options', 'today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes}') +
     '</div>');
 
-  btns.push('');
+  // Management dropdown (GM only)
+  btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Management', 'today manage ?{Action|Enable/Disable Moons,moon toggle|Enable/Disable Weather,weather toggle|Enable/Disable Planes,planes toggle|Theme,help themes|Calendar System,help calendarsystems|Hemisphere,help hemisphere|Season Set,help seasons|Reset Calendar,help resetconfirm}') +
+    '</div>');
 
   return _menuBox('Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label),
     lines.join('') + btns.join(''));
@@ -486,8 +494,15 @@ export var commands = {
       if (choice === 'moon')   return handleMoonCommand(m, ['moon']);
       if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
       if (choice === 'planes') return handlePlanesCommand(m, ['planes']);
-      // default: fall through to admin root
       return whisper(m.who, helpRootMenu(m));
+    }
+    // !cal today manage <action> — GM-only Management dropdown
+    if (sub === 'manage'){
+      var mAction = (a[3] || '').toLowerCase();
+      if (!mAction) return whisper(m.who, helpRootMenu(m));
+      // Route management actions to their existing handlers
+      var mRest = a.slice(3);
+      return commands[mAction] ? (typeof commands[mAction] === 'function' ? commands[mAction](m, ['!cal'].concat(mRest)) : commands[mAction].run(m, ['!cal'].concat(mRest))) : whisper(m.who, helpRootMenu(m));
     }
     // Both GMs and players get the consolidated Today view.
     // sendCurrentDate handles audience-appropriate output internally.

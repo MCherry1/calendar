@@ -1735,8 +1735,8 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
   }
 
   var bits = [];
-  if (fullNow.length) bits.push('🌕 Full now: ' + fullNow.join(', '));
-  if (newNow.length) bits.push('🌑 New now: ' + newNow.join(', '));
+  if (fullNow.length) bits.push('🌕 Full Moons: ' + fullNow.join(', '));
+  if (newNow.length) bits.push('🌑 New Moons: ' + newNow.join(', '));
   if (best){
     bits.push('Next: ' + (best.str || (best.moon + ' ' + titleCase(best.type))));
   } else if (tier !== 'high') {
@@ -1814,6 +1814,48 @@ export function moonPanelParts(serialOverride?){
     parts.push(_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No lunar display mode selected.</div>'));
   }
 
+  // Part 2b: Eclipses, Ascendant/Dim Moons (appended to last content part)
+  var extraInfo = '';
+  // Eclipses (GM always sees high tier)
+  var eclipseLines = _eclipseNotableToday(today);
+  if (eclipseLines.length){
+    extraInfo += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
+      '<b>Eclipses:</b><br>' + eclipseLines.join('<br>') + '</div>';
+  }
+
+  // Ascendant Moons / Dim Moons (Eberron only — planes associated with moons)
+  if (ensureSettings().planesEnabled !== false){
+    var ascendantMoons = [];
+    var dimMoons = [];
+    for (var ai = 0; ai < sys.moons.length; ai++){
+      var aMoon = sys.moons[ai];
+      if (!aMoon.plane) continue;
+      try {
+        var plSt = getPlanarState(aMoon.plane, today);
+        if (plSt && plSt.phase === 'coterminous') ascendantMoons.push(aMoon.name);
+        else if (plSt && plSt.phase === 'remote') dimMoons.push(aMoon.name);
+      } catch(ea){}
+    }
+    // Also check month-associated ascendancy
+    for (var ai2 = 0; ai2 < sys.moons.length; ai2++){
+      var aMoon2 = sys.moons[ai2];
+      if (aMoon2.associatedMonth && (cur.month + 1) === aMoon2.associatedMonth){
+        if (ascendantMoons.indexOf(aMoon2.name) < 0) ascendantMoons.push(aMoon2.name);
+      }
+    }
+    if (ascendantMoons.length){
+      extraInfo += '<div style="font-size:.85em;margin-top:4px;">✨ <b>Ascendant Moons:</b> ' + ascendantMoons.map(esc).join(', ') + '</div>';
+    }
+    if (dimMoons.length){
+      extraInfo += '<div style="font-size:.85em;margin-top:2px;opacity:.7;">◌ <b>Dim Moons:</b> ' + dimMoons.map(esc).join(', ') + '</div>';
+    }
+  }
+
+  if (extraInfo && parts.length > 0){
+    // Append to the last content part before GM controls
+    parts[parts.length - 1] = parts[parts.length - 1].replace(/<\/div>$/, '') + extraInfo + '</div>';
+  }
+
   // Part 3: GM controls (always separate message to stay within size limits)
   var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'medium'));
 
@@ -1830,26 +1872,30 @@ export function moonPanelParts(serialOverride?){
   var sendBtns = MOON_REVEAL_PRESETS.map(function(p){
     return button(p.label + ' (' + p.dc + ')', 'moon send medium ' + p.days + 'd');
   }).join(' ');
-  var highBtns = MOON_REVEAL_PRESETS.map(function(p){
+  var highSendBtns = MOON_REVEAL_PRESETS.map(function(p){
     return button(p.label, 'moon send high ' + p.days + 'd');
   }).join(' ');
 
   var moonQueryOpts = sys.moons.map(function(moon){ return moon.name; }).join('|');
   var moonDropdown = button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + moonQueryOpts + '}');
 
-  // Send buttons
-  var gmControls = '<div style="font-size:.82em;opacity:.7;">'+
-    '<div style="margin-bottom:2px;">Send Medium: '+sendBtns+'</div>'+
-    '<div style="margin-bottom:2px;">Send High: '+highBtns+'</div>'+
-    '</div>';
-
   // Send to Players
-  gmControls += '<div style="margin:4px 0;">' +
+  var gmControls = '<div style="margin:4px 0;">' +
     button('Send to Players','moon send medium ?{Horizon|1m|3m|6m|10m}') +
     '</div>';
 
   // Spacer
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
+
+  // Sky button
+  gmControls += '<div style="margin:4px 0;">' +
+    button('🌌 Sky','moon sky') +
+    '</div>';
+
+  // Current Phases
+  gmControls += '<div style="margin:4px 0;">' +
+    button('Current Phases','moon phases') +
+    '</div>';
 
   // Specific Moons dropdown
   gmControls += '<div style="margin:4px 0;">' + moonDropdown + '</div>';
@@ -1857,9 +1903,22 @@ export function moonPanelParts(serialOverride?){
   // Spacer
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
 
-  // Current Phases
-  gmControls += '<div style="margin:4px 0;">' +
-    button('Current Phases','moon phases') +
+  // Medium Forecast buttons (1/3/6/10 month)
+  gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">Medium Forecast:</div>' +
+    '<div style="margin-bottom:4px;">' +
+    button('1 month','moon send medium 1m')+' '+
+    button('3 months','moon send medium 3m')+' '+
+    button('6 months','moon send medium 6m')+' '+
+    button('10 months','moon send medium 10m')+
+    '</div>';
+
+  // High Forecast buttons (1/3/6/10 month)
+  gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">High Forecast:</div>' +
+    '<div style="margin-bottom:4px;">' +
+    button('1 month','moon send high 1m')+' '+
+    button('3 months','moon send high 3m')+' '+
+    button('6 months','moon send high 6m')+' '+
+    button('10 months','moon send high 10m')+
     '</div>';
 
   // Spacer
