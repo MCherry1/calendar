@@ -453,6 +453,60 @@ describe("Eclipse: getEclipses", () => {
       assert(typeof note === "string", "each entry should be a string");
     }
   });
+
+  it("staged eclipse detection matches the brute-force reference across representative windows", () => {
+    freshInstall();
+    const start = todaySerial();
+    const windowStarts = [start, start + 336, start + 672, start + 1008];
+    moonEnsureSequences(start + 1300, 30);
+
+    for (const windowStart of windowStarts) {
+      for (let serial = windowStart; serial < windowStart + 21; serial++) {
+        const brute = _getEclipsesBruteforce(serial);
+        const staged = _getEclipsesStaged(serial);
+        assertDeepEqual(
+          eclipseDigest(staged),
+          eclipseDigest(brute),
+          `staged eclipses should match brute-force on serial ${serial}`
+        );
+      }
+    }
+  });
+
+  it("candidate distance is positive away from alignment and non-positive during an exact overlap", () => {
+    freshInstall();
+    const today = todaySerial();
+    moonEnsureSequences(today, 60);
+    const sys = MOON_SYSTEMS.eberron;
+    const descriptor = { kind: "solar", moon: "Zarantyr" } as any;
+    assert(_eclipseCandidateDistance(sys as any, descriptor, today + 0.1) > -10, "distance should be numeric");
+
+    let exactEvent: any = null;
+    for (let serial = today; serial < today + 120; serial++) {
+      const eclipses = _getEclipsesBruteforce(serial);
+      if (eclipses.length) {
+        exactEvent = eclipses[0];
+        break;
+      }
+    }
+    if (exactEvent) {
+      const hitDescriptor = exactEvent.occluded === "Sun"
+        ? { kind: "solar", moon: exactEvent.occulting }
+        : { kind: "lunar", a: exactEvent.occulting, b: exactEvent.occluded };
+      assert(
+        _eclipseCandidateDistance(sys as any, hitDescriptor as any, exactEvent.peakT) <= 0,
+        "candidate distance should indicate overlap at the exact peak"
+      );
+    }
+  });
+});
+
+describe("Eclipse text", () => {
+  it("formats relative apparent size as percent below 2x and multiplier at or above 2x", () => {
+    freshInstall();
+    assertEquals(_eclipseRelativeSizeText(1.463, "Therendor"), "146% as wide as Therendor");
+    assertEquals(_eclipseRelativeSizeText(14.63, "Therendor"), "14x as wide as Therendor");
+  });
 });
 
 describe("Moon history cache", () => {
@@ -493,6 +547,51 @@ describe("Moon history cache", () => {
 
     assert(moonHandoutHtml().includes("History Marker"), "moon handout should use cached exact past history");
     assert(!moonPlayerPanelHtml().includes("History Marker"), "live player moon panel should ignore cached history");
+  });
+
+  it("captures phase history without eclipse backfill and preserves exact eclipses once known", () => {
+    freshInstall();
+
+    const start = todaySerial();
+    captureMoonHistoryWindow(start, start + 5);
+    for (let serial = start; serial <= start + 5; serial++) {
+      const day = getMoonState().recentHistory.bySerial[String(serial)];
+      assert(day, `expected cached moon history for serial ${serial}`);
+      const eclipseMarkers = (day.miniCalEvents || []).filter((evt: any) => String(evt.name || "").startsWith("Eclipses: "));
+      assertEquals(eclipseMarkers.length, 0, "history capture should not backfill eclipse markers");
+    }
+
+    let eclipseSerial: number | null = null;
+    for (let serial = start; serial < start + 672; serial++) {
+      if (_getEclipsesBruteforce(serial).length) {
+        eclipseSerial = serial;
+        break;
+      }
+    }
+    assert(eclipseSerial !== null, "expected at least one eclipse day in range");
+
+    captureMoonHistoryDay(eclipseSerial as number);
+    let cached = getMoonState().recentHistory.bySerial[String(eclipseSerial)];
+    assertEquals(
+      (cached.miniCalEvents || []).filter((evt: any) => String(evt.name || "").startsWith("Eclipses: ")).length,
+      0,
+      "fresh exact history snapshots should still omit eclipse markers"
+    );
+
+    const exactEclipses = getEclipses(eclipseSerial as number);
+    assert(exactEclipses.length > 0, "expected exact eclipse data on the selected serial");
+
+    cached = getMoonState().recentHistory.bySerial[String(eclipseSerial)];
+    const knownMarkers = (cached.miniCalEvents || []).filter((evt: any) => String(evt.name || "").startsWith("Eclipses: "));
+    assertEquals(knownMarkers.length, 1, "exact eclipse inspection should merge one eclipse marker into recent history");
+
+    captureMoonHistoryDay(eclipseSerial as number);
+    cached = getMoonState().recentHistory.bySerial[String(eclipseSerial)];
+    assertEquals(
+      (cached.miniCalEvents || []).filter((evt: any) => String(evt.name || "").startsWith("Eclipses: ")).length,
+      1,
+      "phase-only recapture should preserve previously known eclipse markers"
+    );
   });
 
   it("keeps eclipse cache keys stable across normal day advancement and changes them on model invalidation", () => {
