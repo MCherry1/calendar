@@ -1808,7 +1808,7 @@ function weatherTodayMechanicsHtml(){
   if (ensureSettings().weatherMechanicsEnabled === false){
     return _menuBox('📋 Weather Mechanics',
       '<div style="opacity:.7;">Mechanical weather effects are disabled. Narrative weather remains active.</div>'+
-      '<div style="margin-top:6px;">'+button('⬅ Back', 'weather')+'</div>'
+      '<div style="margin-top:6px;">'+button('Back', 'weather')+'</div>'
     );
   }
   var today = todaySerial();
@@ -1883,7 +1883,7 @@ function weatherTodayMechanicsHtml(){
 
   return _menuBox('📋 Weather Mechanics — ' + dateLabel,
     sections.join('') +
-    '<div style="margin-top:8px;">' + button('⬅ Back', 'weather') + '</div>'
+    '<div style="margin-top:8px;">' + button('Back', 'weather') + '</div>'
   );
 }
 
@@ -2865,7 +2865,7 @@ function weatherForecastGmHtml(daysOverride?: any){
     (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics','weather mechanics')+' ' : '')+
     button('Reroll Today','weather reroll '+today)+' '+
     button('Regenerate All','weather generate')+' '+
-    button('⬅ Back','weather')+
+    button('Back','weather')+
     '</div>'
   );
 }
@@ -2875,7 +2875,7 @@ function weatherHistoryGmHtml(){
   var cal = getCal();
 
   if (!ws.history || !ws.history.length){
-    return _menuBox('Weather History','<div style="opacity:.7;">No history yet.</div>'+'<div style="margin-top:4px;">'+button('⬅ Back','weather')+'</div>');
+    return _menuBox('Weather History','<div style="opacity:.7;">No history yet.</div>'+'<div style="margin-top:4px;">'+button('Back','weather')+'</div>');
   }
 
   var rows = ws.history.slice().reverse().slice(0,20).map(function(rec: any){
@@ -2901,7 +2901,7 @@ function weatherHistoryGmHtml(){
 
   return _menuBox('Weather History (last 20)',
     '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
-    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+    '<div style="margin-top:6px;">'+button('Back','weather')+'</div>'
   );
 }
 
@@ -3145,7 +3145,7 @@ function manifestZoneChooserHtml(){
     arythLine +
     '<div style="font-size:.8em;opacity:.6;margin-bottom:6px;">Manifest zones affect today\'s weather only; forecast rows stay tied to the base location profile.</div>'+
     '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>'+
-    '<div style="margin-top:6px;">'+button('⬅ Back','weather')+'</div>'
+    '<div style="margin-top:6px;">'+button('Back','weather')+'</div>'
   );
 }
 

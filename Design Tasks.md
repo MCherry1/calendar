@@ -94,6 +94,7 @@ There are 5 core commands:
 * !cal planes
 
 Aside from !cal, each of these is the default entry point to their subsystem. ALL of them will output a system-specific minical. Below: minical display, text info, and buttons for each.
+Navigation wording should be consistent across these views: use **Previous / Next** for month-or-view navigation, and **Back / Forward** for actual date stepping.
 
 #### Today (!cal or !cal today)
 * All info is specific to the current calendar date.
@@ -118,7 +119,7 @@ Aside from !cal, each of these is the default entry point to their subsystem. AL
 ##### Buttons
 * ⏩ Time of Day ⏩ if already active, otherwise the Enable button below (weather must be active)
 * Enable Time of Day (if weather is active)
-* ⬅ Date | Date ➡ (date step arrows)
+* Back | Forward (date step buttons)
 * Send Today View to Players
 * small spacer line
 * Additional Options (drop down menu)

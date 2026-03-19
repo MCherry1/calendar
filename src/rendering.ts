@@ -42,6 +42,9 @@ export function _buttonIcon(lbl){
   var t = String(lbl||'').toLowerCase();
   if (/\b(show|view)\b/.test(t))            return '📅';
   if (/\b(send)\b/.test(t))                 return '📣';
+  if (/\b(previous|prev)\b/.test(t))        return '◀️';
+  if (/\b(next)\b/.test(t))                 return '▶️';
+  if (/\b(forward)\b/.test(t))              return '➡️';
   if (/\b(advance)\b/.test(t))              return '⏭️';
   if (/\b(retreat)\b/.test(t))              return '⏮️';
   if (/\b(list)\b/.test(t))                 return '📋';
@@ -866,5 +869,4 @@ export function restoreDefaultEvents(query){
   refreshAndSend();
   sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".');
 }
-
 

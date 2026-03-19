@@ -360,7 +360,7 @@ function _planeAnchorWizardHtml(planeName){
     return _menuBox('Set Plane Anchor',
       '<div style="opacity:.8;margin-bottom:6px;">Choose a plane, then set when its first coterminous phase begins.</div>'+
       '<div>'+button('Choose Plane', 'planes anchorwizard ?{Plane|' + planeQueryOpts + '}')+'</div>'+
-      '<div style="margin-top:6px;">'+button('⬅ Back','planes')+'</div>'
+      '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
     );
   }
 
@@ -370,7 +370,7 @@ function _planeAnchorWizardHtml(planeName){
         esc(PLANE_PHASE_LABELS[plane.fixedPhase || 'remote'] || (plane.fixedPhase || 'remote'))+
       '</b>.</div>'+
       (plane.note ? '<div style="opacity:.78;margin-top:5px;">'+esc(plane.note)+'</div>' : '')+
-      '<div style="margin-top:6px;">'+button('⬅ Back','planes')+' '+button('Show Plane','planes view '+plane.name)+'</div>'
+      '<div style="margin-top:6px;">'+button('Back','planes')+' '+button('Show Plane','planes view '+plane.name)+'</div>'
     );
   }
 
@@ -429,7 +429,7 @@ function _planeAnchorWizardHtml(planeName){
       )+
     '</div>'+
     '<div style="font-size:.75em;opacity:.45;margin-top:5px;">Advanced CLI: <code>!cal planes anchor '+esc(plane.name)+' &lt;phase&gt; &lt;dateSpec&gt;</code></div>'+
-    '<div style="margin-top:6px;">'+button('⬅ Back','planes')+' '+button('Show Plane','planes view '+plane.name)+'</div>'
+    '<div style="margin-top:6px;">'+button('Back','planes')+' '+button('Show Plane','planes view '+plane.name)+'</div>'
   );
 }
 
@@ -1190,8 +1190,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   var navRow;
   if (isGM){
     navRow = '<div style="margin:3px 0 6px 0;">'+
-      button('◀ Prev Month','planes on '+_serialToDateSpec(prevSer))+' '+
-      button('Next Month ▶','planes on '+_serialToDateSpec(nextSer))+
+      button('Previous','planes on '+_serialToDateSpec(prevSer))+' '+
+      button('Next','planes on '+_serialToDateSpec(nextSer))+
       '</div>';
   } else {
     var knownStart = todaySerial();
@@ -1201,8 +1201,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       return button(label, 'planes on '+_serialToDateSpec(serial));
     }
     navRow = '<div style="margin:3px 0 6px 0;">'+
-      _pNavBtn(prevSer, '◀ Prev Month')+' '+
-      _pNavBtn(nextSer, 'Next Month ▶')+
+      _pNavBtn(prevSer, 'Previous')+' '+
+      _pNavBtn(nextSer, 'Next')+
       '</div>';
   }
 
@@ -1743,7 +1743,7 @@ export function handlePlanesCommand(m, args){
       var viewQueryOpts = allPlanes.map(function(p){ return p.name; }).join('|');
       return whisper(m.who, _menuBox('🌀 Plane Detail',
         '<div style="margin-bottom:4px;">'+button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + viewQueryOpts + '}')+'</div>' +
-        '<div style="margin-top:6px;">'+button('⬅ Back','planes')+'</div>'
+        '<div style="margin-top:6px;">'+button('Back','planes')+'</div>'
       ));
     }
     var viewPlane = _getPlaneData(viewNameRaw);
@@ -1793,7 +1793,7 @@ export function handlePlanesCommand(m, args){
 
     return whisper(m.who, _menuBox('🌀 '+esc(viewPlane.name),
       viewHtml +
-      '<div style="margin-top:6px;">'+button('⬅ All Planes','planes')+'</div>'
+      '<div style="margin-top:6px;">'+button('Back to All Planes','planes')+'</div>'
     ));
   }
 

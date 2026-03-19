@@ -198,7 +198,7 @@ export function _weatherViewDays(n){
 export function _playerButtonsHtml(){
   var out = [];
   var st = ensureSettings();
-  out.push('<div>'+button('◀ Prev','show previous month')+' '+button('Next ▶','show next month')+'</div>');
+  out.push('<div>'+button('Previous','show previous month')+' '+button('Next','show next month')+'</div>');
   if (st.weatherEnabled !== false) out.push('<div>'+button('🌤 Weather','weather')+'</div>');
   if (st.moonsEnabled   !== false) out.push('<div>'+button('🌙 Moons','moon')+'</div>');
   if (st.planesEnabled  !== false) out.push('<div>'+button('🌀 Planes','planes')+'</div>');
@@ -621,8 +621,8 @@ export function stepDays(n, opts?){
   var direction = n >= 0 ? 'Forward' : 'Back';
   var dateStr = esc(currentDateLabel());
   var stepButtons =
-    mb('\u23ee\ufe0f Back','retreat 1')+'\u00a0'+
-    mb('\u23ed\ufe0f Forward','advance 1')+'\u00a0'+
+    mb('Back','retreat 1')+'\u00a0'+
+    mb('Forward','advance 1')+'\u00a0'+
     mb('\ud83d\udce3 Send','send')+'\u00a0'+
     nav('\u2754 Help','root');
   sendUiToGM(
@@ -816,7 +816,7 @@ export function gmButtonsHtml(){
   }
 
   // Date step arrows
-  rows.push('<div>'+mb('⬅','retreat 1')+' '+mb('➡','advance 1')+'</div>');
+  rows.push('<div>'+mb('Back','retreat 1')+' '+mb('Forward','advance 1')+'</div>');
 
   // Send Today View to Players
   rows.push('<div>'+mb('📣 Send To Players','send')+'</div>');
@@ -1017,7 +1017,7 @@ export function activeEffectsPanelHtml(){
   }
 
   return _menuBox('✨ Active Effects — ' + esc(currentDateLabel()),
-    sections.join('') + '<div style="margin-top:7px;">'+button('⬅️ Back','help root')+'</div>'
+    sections.join('') + '<div style="margin-top:7px;">'+button('Back','help root')+'</div>'
   );
 }
 
@@ -1164,14 +1164,14 @@ export function helpRootMenu(m){
 
 export function helpThemesMenu(m){
   var ro = !playerIsGM(m.playerid);
-  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>');
+  whisperUi(m.who, _menuBox(ro ? 'Appearance — Themes (view only)' : 'Appearance — Themes', themeListHtml(ro))+'<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>');
 }
 
 export function helpCalendarSystemMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
     _menuBox(ro ? 'Supported Settings (view only)' : 'Supported Settings', calendarSystemListHtml(ro))+
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+    '<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>'
   );
 }
 
@@ -1186,7 +1186,7 @@ export function helpEventColorsMenu(m){
   ].join('');
   whisperUi(m.who,
     _menuBox('Event Colors', intro + colorsNamedListHtml())+
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+    '<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>'
   );
 }
 
@@ -1194,7 +1194,7 @@ export function helpSeasonsMenu(m){
   var ro = !playerIsGM(m.playerid);
   whisperUi(m.who,
     _menuBox(ro ? 'Season Variants (view only)' : 'Season Variants', seasonSetListHtml(ro))+
-    '<div style="margin-top:8px;">'+navP(m,'⬅ Back','root')+'</div>'
+    '<div style="margin-top:8px;">'+navP(m,'Back','root')+'</div>'
   );
 }
 

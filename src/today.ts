@@ -194,7 +194,7 @@ export function _todayAllHtml(){
   btns.push('</div>');
 
   // Date step arrows
-  btns.push('<div style="margin:3px 0;">' + button('⬅','retreat 1') + ' ' + button('➡','advance 1') + '</div>');
+  btns.push('<div style="margin:3px 0;">' + button('Back','retreat 1') + ' ' + button('Forward','advance 1') + '</div>');
 
   // Send Today View to Players
   btns.push('<div style="margin:3px 0;">' + button('Send Today View to Players','send') + '</div>');
@@ -365,8 +365,8 @@ function _eventsPanelHtml(serialArg){
 
   var btns = [];
   btns.push('<div style="margin:6px 0 3px 0;">');
-  btns.push(button('◀ Previous','events panel ' + prevSer) + ' ');
-  btns.push(button('Next ▶','events panel ' + nextSer));
+  btns.push(button('Previous','events panel ' + prevSer) + ' ');
+  btns.push(button('Next','events panel ' + nextSer));
   btns.push('</div>');
   btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ' + mobj.name + ' ' + dd.year) + '</div>');
 

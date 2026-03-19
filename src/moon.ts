@@ -1740,8 +1740,8 @@ export function moonPanelParts(serialOverride?){
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    button('◀ Prev Month','moon on '+_serialToDateSpec(prevSer))+' '+
-    button('Next Month ▶','moon on '+_serialToDateSpec(nextSer))+
+    button('Previous','moon on '+_serialToDateSpec(prevSer))+' '+
+    button('Next','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
 
   var parts = [];
@@ -1898,8 +1898,8 @@ export function moonPlayerPanelHtml(serialOverride?){
     return button(label, 'moon on '+_serialToDateSpec(serial));
   }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    _navBtn(prevSer, '◀ Prev')+' '+
-    _navBtn(nextSer, 'Next ▶')+
+    _navBtn(prevSer, 'Previous')+' '+
+    _navBtn(nextSer, 'Next')+
     '</div>';
 
   // Today summary + notable moons only (not all 12)
@@ -3606,7 +3606,7 @@ export function handleMoonCommand(m, args){
     });
     return whisper(m.who, _menuBox('🌙 Current Phases — ' + esc(dateLabelFromSerial(phToday)),
       phLines.join('') +
-      '<div style="margin-top:6px;">' + button('⬅ Back', 'moon') + '</div>'
+      '<div style="margin-top:6px;">' + button('Back', 'moon') + '</div>'
     ));
   }
 
@@ -3667,7 +3667,7 @@ export function handleMoonCommand(m, args){
         return whisper(m.who, _menuBox('🌙 Moon Calendar',
           '<div style="margin-bottom:4px;">Select a moon:</div>' +
           pViewBtns.join(' ') +
-          '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
+          '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
         ));
       }
       var pViewMoon = _moonParseMoonName(pViewName, pViewSys);
@@ -3694,12 +3694,12 @@ export function handleMoonCommand(m, args){
         return button(label, 'moon view ' + pViewMoon + ' ' + _serialToDateSpec(serial));
       }
       var pViewNav = '<div style="margin:4px 0;">'+
-        _pViewNav(pPrevS, '◀ Prev')+' '+
-        _pViewNav(pNextS, 'Next ▶')+
+        _pViewNav(pPrevS, 'Previous')+' '+
+        _pViewNav(pNextS, 'Next')+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
         pViewNav + pCalBody +
-        '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+'</div>'
+        '<div style="margin-top:6px;">'+button('Back to All Moons','moon')+'</div>'
       ));
     }
     return whisper(m.who,
@@ -3867,7 +3867,7 @@ export function handleMoonCommand(m, args){
       var viewQueryOpts = viewSys.moons.map(function(moon){ return moon.name; }).join('|');
       return whisper(m.who, _menuBox('🌙 Moon Calendar',
         '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>' +
-        '<div style="margin-top:6px;">'+button('⬅ Back','moon')+'</div>'
+        '<div style="margin-top:6px;">'+button('Back','moon')+'</div>'
       ));
     }
     var viewMoonName = _moonParseMoonName(viewNameRaw, viewSys);
@@ -3884,12 +3884,12 @@ export function handleMoonCommand(m, args){
     var prevS = _shiftSerialByMonth(viewSerial, -1);
     var nextS = _shiftSerialByMonth(viewSerial, 1);
     var viewNav = '<div style="margin:4px 0;">'+
-      button('◀ Prev','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
-      button('Next ▶','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
+      button('Previous','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
+      button('Next','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
       '</div>';
     return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
       viewNav + calBody +
-      '<div style="margin-top:6px;">'+button('⬅ All Moons','moon')+' '+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
+      '<div style="margin-top:6px;">'+button('Back to All Moons','moon')+' '+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
     ));
   }
 
