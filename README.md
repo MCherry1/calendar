@@ -171,6 +171,13 @@ Use `!cal show ...` or `!cal send ...` when you want the traditional month/year 
 
 </details>
 
+### Persistent Player Surfaces
+
+- The script maintains four player-safe handouts automatically: `Calendar - Events`, `Calendar - Moons`, `Calendar - Weather`, and `Calendar - Planes`.
+- Each handout shows the subsystem minical plus descriptive text, but no chat buttons or GM-only controls.
+- The script can also keep a live Roll20 page updated for lunar display. Bind an existing page named `Moon Phase`, or bind any other existing page by name with the moon page commands below.
+- Player movement to the live Moon page is explicit: the page redraws automatically when state changes, but players are only moved there when the GM uses `!cal moon page show`.
+
 [Return to Table of Contents](#table-of-contents)
 
 ---
@@ -734,6 +741,9 @@ Examples:
 !cal moon full <MoonName> <dateSpec>
 !cal moon new <MoonName> <dateSpec>
 !cal moon reset [MoonName]
+!cal moon page bind <page name>
+!cal moon page refresh
+!cal moon page show
 ```
 
 Examples:
@@ -743,6 +753,8 @@ Examples:
 !cal moon new Zarantyr Rhaan 14
 !cal moon full Therendor Rhaan 14 998
 ```
+
+`!cal moon page bind <page name>` only binds to an existing Roll20 page. Once bound, the script redraws that page automatically on date and moon-state changes, and `!cal moon page show` moves the shared player bookmark there explicitly.
 
 ### Plane Commands
 

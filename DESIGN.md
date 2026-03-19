@@ -547,6 +547,9 @@ Aryth "has a similar effect on manifest zones as Zarantyr has on tides."
 !cal moon full <MoonName> <dateSpec>  — anchor full phase to date
 !cal moon new <MoonName> <dateSpec>   — anchor new phase to date
 !cal moon reset [<MoonName>]      — clear GM phase anchors
+!cal moon page bind <page name>   — bind an existing Roll20 page for live moon redraws
+!cal moon page refresh            — redraw the bound Moon Phase page immediately
+!cal moon page show               — move the shared player bookmark to the bound Moon Phase page
 ```
 
 ### 7.12 Reference Moon Candidate Pool (Design Appendix)
@@ -598,6 +601,8 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 - `!cal moon sky [time]`, `!cal moon lore`, `!cal moon seed`, and GM phase anchoring commands (`full`/`new`/`reset`) are implemented but were not in earlier design doc drafts. They are documented in the commands list above.
 - Non-GM `!cal moon on <dateSpec>` is constrained by reveal horizon.
 - Moon crossing proximity output is modeled through the eclipse/conjunction engine but does not currently have a dedicated standalone command or named report.
+- The script now maintains four player-safe persistent handouts (`Calendar - Events`, `Calendar - Moons`, `Calendar - Weather`, `Calendar - Planes`) containing subsystem minicals plus descriptive text, but no chat buttons or GM-only controls.
+- The live Moon Phase page is redraw-only: it binds to an existing Roll20 page, redraws when the date or moon state changes, and only moves players there when the GM explicitly uses `!cal moon page show`.
 
 ---
 
