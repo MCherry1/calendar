@@ -2,11 +2,12 @@ import { describe, it } from "node:test";
 import { strictEqual as assertEquals, ok as assert } from "node:assert/strict";
 import { completeSetup, freshInstall } from "./helpers.js";
 import { state_name } from "../src/constants.js";
+import { todaySerial } from "../src/date-math.js";
 import { handleInput } from "../src/boot-register.js";
 import { notifySetupStatusOnReady } from "../src/setup.js";
 import { checkInstall, ensureSettings, getSetupState, resetToDefaults } from "../src/state.js";
 import { getWeatherState } from "../src/weather.js";
-import { getPlanesState } from "../src/planes.js";
+import { getPlanarState, getPlanesState } from "../src/planes.js";
 
 function gmMsg(content: string) {
   return { type: "api", content, who: "GM (GM)", playerid: "GM" } as any;
@@ -178,6 +179,14 @@ describe("Setup onboarding", () => {
     assert(ps.seedOverrides.Daanvi != null);
     assert(ps.seedOverrides.Irian != null);
     assert(ps.seedOverrides.Mabar != null);
+
+    const today = todaySerial();
+    const daanvi = getPlanarState("Daanvi", today, { ignoreGenerated: true } as any);
+    const irian = getPlanarState("Irian", today, { ignoreGenerated: true } as any);
+    assert(daanvi && daanvi.phase === "remote");
+    assertEquals(Math.floor((daanvi.daysIntoPhase || 0) / 336), Math.floor(((daanvi.phaseDuration || 0) / 336) / 2));
+    assert(irian && irian.phase === "neutral");
+    assertEquals(irian.phaseIndex, 3);
 
     const log = (globalThis as any)._chatLog;
     const summary = [...log].reverse().find((entry: any) =>

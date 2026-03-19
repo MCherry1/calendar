@@ -558,6 +558,7 @@ export function getPlanarState(planeName, serial, opts?){
       return {
         plane: plane,
         phase: override.phase || 'neutral',
+        phaseIndex: null,
         daysIntoPhase: null,
         daysUntilNextPhase: overrideEnd != null
           ? Math.max(0, overrideEnd - serial)
@@ -586,6 +587,7 @@ export function getPlanarState(planeName, serial, opts?){
     return {
       plane: plane,
       phase: fixedPhase,
+      phaseIndex: null,
       daysIntoPhase: null,
       daysUntilNextPhase: null,
       phaseDuration: null,
@@ -640,6 +642,7 @@ export function getPlanarState(planeName, serial, opts?){
       var into = offset - accumulated;
       var nextIdx = (idx + 1) % phases.length;
       var cyclicPhase = ph.name;
+      var cyclicPhaseIdx = idx;
       var cyclicNote = '';
 
       // Off-cycle generated shift: can override neutral to coterminous/remote
@@ -692,6 +695,7 @@ export function getPlanarState(planeName, serial, opts?){
           return {
             plane: plane,
             phase: 'remote',
+            phaseIndex: 2,
             daysIntoPhase: _dayOfYear - _remoteStart,
             daysUntilNextPhase: _remoteEnd - _dayOfYear + 1,
             phaseDuration: remoteDur,
@@ -760,9 +764,11 @@ export function getPlanarState(planeName, serial, opts?){
           var _cotEnd = _cotStart + coterminousDays;
           if (_offsetInOrbit >= _cotStart && _offsetInOrbit < _cotEnd){
             cyclicPhase = 'coterminous';
+            cyclicPhaseIdx = 0;
             into = _offsetInOrbit - _cotStart;
           } else {
             cyclicPhase = 'neutral';
+            cyclicPhaseIdx = 1;
             into = _offsetInOrbit < _cotStart ? _offsetInOrbit : _offsetInOrbit - _cotEnd;
           }
         } else {
@@ -771,9 +777,11 @@ export function getPlanarState(planeName, serial, opts?){
           var _remEnd = _remStart + remoteDays;
           if (_offsetInOrbit >= _remStart && _offsetInOrbit < _remEnd){
             cyclicPhase = 'remote';
+            cyclicPhaseIdx = 2;
             into = _offsetInOrbit - _remStart;
           } else {
             cyclicPhase = 'neutral';
+            cyclicPhaseIdx = 3;
             into = _offsetInOrbit < _remStart ? _offsetInOrbit - _halfOrbit : _offsetInOrbit - _remEnd;
           }
         }
@@ -782,6 +790,7 @@ export function getPlanarState(planeName, serial, opts?){
       return {
         plane: plane,
         phase: cyclicPhase,
+        phaseIndex: cyclicPhaseIdx,
         daysIntoPhase: Math.floor(into),
         daysUntilNextPhase: Math.ceil(ph.dur - into),
         phaseDuration: Math.floor(ph.dur),
@@ -799,6 +808,7 @@ export function getPlanarState(planeName, serial, opts?){
   return {
     plane: plane,
     phase: 'neutral',
+    phaseIndex: null,
     daysIntoPhase: 0,
     daysUntilNextPhase: 0,
     phaseDuration: 0,
@@ -847,6 +857,36 @@ function _windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice){
   return true;
 }
 
+function _stateMidpointScore(state){
+  if (!state || state.phaseDuration == null || state.daysIntoPhase == null) return null;
+  var ypd = _planarYearDays();
+  if (state.phaseDuration >= ypd && state.phaseDuration % ypd === 0){
+    var totalYears = Math.floor(state.phaseDuration / ypd);
+    var targetYearIndex = Math.floor(totalYears / 2);
+    return Math.abs(Math.floor(state.daysIntoPhase / ypd) - targetYearIndex);
+  }
+  return Math.abs(state.daysIntoPhase - Math.floor(state.phaseDuration / 2));
+}
+
+function _planeChoiceScoreAtStart(planeName, startSerial, endSerial, choice){
+  var state = getPlanarState(planeName, startSerial, { ignoreGenerated: true });
+  if (!state) return null;
+  var ypd = _planarYearDays();
+  if (choice === 'coterminous' || choice === 'remote'){
+    if (state.phaseDuration != null && state.phaseDuration >= ypd && state.phaseDuration % ypd === 0){
+      if (state.phase !== choice) return null;
+      return _stateMidpointScore(state);
+    }
+    return _windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice) ? 0 : null;
+  }
+  if (choice === 'neither'){
+    if (!_windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice)) return null;
+    if (state.phase !== 'neutral' || state.phaseIndex !== 3) return null;
+    return _stateMidpointScore(state);
+  }
+  return 0;
+}
+
 function _candidateYearOrder(baseYear, radius){
   var out = [baseYear];
   for (var delta = 1; delta <= radius; delta++){
@@ -880,6 +920,74 @@ function _findNearestSeedOverrideYear(planeName, startSerial, endSerial, linkMod
   return null;
 }
 
+function _findBestSeedOverrideYear(planeName, startSerial, endSerial, linkModeSetting, scoreFn, baseSeedOverrides?){
+  var plane = _getPlaneData(planeName);
+  if (!plane || !plane.seedAnchor) return null;
+  var ps = getPlanesState();
+  var baseYear = _planeSeedSearchYear(plane, ps);
+  var radius = Math.max(parseInt(plane.orbitYears, 10) || 1, parseInt(plane.remoteOrbitYears, 10) || 0, 1);
+  var orderedYears = _candidateYearOrder(baseYear, radius);
+  var best = null;
+  for (var i = 0; i < orderedYears.length; i++){
+    var candidateYear = orderedYears[i];
+    var tempOverrides = deepClone(baseSeedOverrides || {});
+    tempOverrides[plane.name] = candidateYear;
+    var score = _withTemporaryPlanarSeedState(tempOverrides, linkModeSetting, function(){
+      return scoreFn(tempOverrides);
+    });
+    if (typeof score !== 'number' || !isFinite(score)) continue;
+    var candidate = {
+      year: candidateYear,
+      score: Number(score),
+      delta: Math.abs(candidateYear - baseYear)
+    };
+    if (!best ||
+        candidate.score < best.score ||
+        (candidate.score === best.score && candidate.delta < best.delta) ||
+        (candidate.score === best.score && candidate.delta === best.delta && candidate.year < best.year)){
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+function _mabarRemoteCycleWindowInfo(startSerial, plane){
+  plane = plane || _getPlaneData('Mabar');
+  if (!plane || !plane.remoteOrbitYears || !plane.remoteDaysSpecial) return null;
+  var ps = getPlanesState();
+  var remoteDur = plane.remoteDaysSpecial;
+  var solstice = 5 * 28 + 26;
+  var di = fromSerial(startSerial);
+  var remoteBaseYear = (plane.anchorYear || 998) + 1;
+  if (plane.seedAnchor){
+    try {
+      var seedOverrideYear = (ps.seedOverrides && ps.seedOverrides[plane.name]);
+      if (seedOverrideYear != null){
+        remoteBaseYear = (parseInt(seedOverrideYear, 10) || (plane.anchorYear || 998)) + 1;
+      } else {
+        var ep = ensureSettings().epochSeed || 0;
+        var sn = _planeSeedName(plane, ps);
+        var rOff = _dN(ep, sn + '_remote_anchor_offset', plane.remoteOrbitYears) - 1;
+        remoteBaseYear += rOff;
+      }
+    } catch(e){}
+  }
+  var rel = di.year - remoteBaseYear;
+  var prevIndex = Math.floor(rel / plane.remoteOrbitYears);
+  var prevYear = remoteBaseYear + prevIndex * plane.remoteOrbitYears;
+  var nextYear = prevYear + plane.remoteOrbitYears;
+  var remoteStartOffset = solstice - Math.floor(remoteDur / 2);
+  var prevStart = toSerial(prevYear, 0, 1) + remoteStartOffset;
+  var nextStart = toSerial(nextYear, 0, 1) + remoteStartOffset;
+  var prevMid = prevStart + Math.floor(remoteDur / 2);
+  var nextMid = nextStart + Math.floor(remoteDur / 2);
+  return {
+    prevMid: prevMid,
+    nextMid: nextMid,
+    gapMid: Math.floor((prevMid + nextMid) / 2)
+  };
+}
+
 function _seedOverridePreview(resolvedYears){
   var names = Object.keys(resolvedYears || {});
   if (!names.length) return 'Random seed unchanged';
@@ -894,16 +1002,28 @@ function _resolvePlanarSeedChoice(planeName, choice, startSerial, endSerial, lin
   if (choice === 'roll'){
     return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
   }
-  var found = _findNearestSeedOverrideYear(
+  var found = _findBestSeedOverrideYear(
     planeName,
     startSerial,
     endSerial,
     linkModeSetting,
     function(){
-      return _windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice);
+      return _planeChoiceScoreAtStart(planeName, startSerial, endSerial, choice);
     },
     baseSeedOverrides
   );
+  if (!found){
+    found = _findNearestSeedOverrideYear(
+      planeName,
+      startSerial,
+      endSerial,
+      linkModeSetting,
+      function(){
+        return _windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice);
+      },
+      baseSeedOverrides
+    );
+  }
   if (found) resolvedYears[planeName] = found.year;
   return {
     resolvedYears: resolvedYears,
@@ -918,12 +1038,23 @@ function _resolveFerniaRisiaClimateChoice(choice, effectiveLinkMode, startSerial
   }
 
   if (effectiveLinkMode === 'linked'){
+    var linkedScore = null;
     var linkedJudge = null;
     if (choice === 'fernia-coterminous'){
+      linkedScore = function(){ return _windowSatisfiesPlaneChoice('Fernia', startSerial, endSerial, 'coterminous') ? 0 : null; };
       linkedJudge = function(){ return _windowSatisfiesPlaneChoice('Fernia', startSerial, endSerial, 'coterminous'); };
     } else if (choice === 'risia-coterminous'){
+      linkedScore = function(){ return _windowSatisfiesPlaneChoice('Risia', startSerial, endSerial, 'coterminous') ? 0 : null; };
       linkedJudge = function(){ return _windowSatisfiesPlaneChoice('Risia', startSerial, endSerial, 'coterminous'); };
     } else if (choice === 'neither'){
+      linkedScore = function(){
+        var ferniaSeen = _phasePresenceInWindow('Fernia', startSerial, endSerial);
+        var risiaSeen = _phasePresenceInWindow('Risia', startSerial, endSerial);
+        if (ferniaSeen.coterminous || risiaSeen.coterminous) return null;
+        var ferniaState = getPlanarState('Fernia', startSerial, { ignoreGenerated: true });
+        if (!ferniaState || ferniaState.phase !== 'neutral' || ferniaState.phaseIndex !== 3) return null;
+        return _stateMidpointScore(ferniaState);
+      };
       linkedJudge = function(){
         var ferniaSeen = _phasePresenceInWindow('Fernia', startSerial, endSerial);
         var risiaSeen = _phasePresenceInWindow('Risia', startSerial, endSerial);
@@ -931,7 +1062,8 @@ function _resolveFerniaRisiaClimateChoice(choice, effectiveLinkMode, startSerial
       };
     }
     if (!linkedJudge) return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
-    var linkedFound = _findNearestSeedOverrideYear('Fernia', startSerial, endSerial, linkModeSetting, linkedJudge, baseSeedOverrides);
+    var linkedFound = _findBestSeedOverrideYear('Fernia', startSerial, endSerial, linkModeSetting, linkedScore, baseSeedOverrides);
+    if (!linkedFound) linkedFound = _findNearestSeedOverrideYear('Fernia', startSerial, endSerial, linkModeSetting, linkedJudge, baseSeedOverrides);
     if (linkedFound) resolvedYears.Fernia = linkedFound.year;
     return {
       resolvedYears: resolvedYears,
@@ -966,17 +1098,48 @@ function _resolveMabarRemoteChoice(choice, startSerial, endSerial, linkModeSetti
   if (choice === 'roll'){
     return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
   }
-  var found = _findNearestSeedOverrideYear(
-    'Mabar',
-    startSerial,
-    endSerial,
-    linkModeSetting,
-    function(){
-      var seen = _phasePresenceInWindow('Mabar', startSerial, endSerial);
-      return choice === 'remote' ? !!seen.remote : !seen.remote;
-    },
-    baseSeedOverrides
-  );
+  var found = null;
+  if (choice === 'remote'){
+    found = _findBestSeedOverrideYear(
+      'Mabar',
+      startSerial,
+      endSerial,
+      linkModeSetting,
+      function(){
+        var seen = _phasePresenceInWindow('Mabar', startSerial, endSerial);
+        return seen.remote ? 0 : null;
+      },
+      baseSeedOverrides
+    );
+  } else {
+    found = _findBestSeedOverrideYear(
+      'Mabar',
+      startSerial,
+      endSerial,
+      linkModeSetting,
+      function(){
+        var seen = _phasePresenceInWindow('Mabar', startSerial, endSerial);
+        if (seen.remote) return null;
+        var info = _mabarRemoteCycleWindowInfo(startSerial, _getPlaneData('Mabar'));
+        if (!info) return null;
+        return Math.abs(startSerial - info.gapMid);
+      },
+      baseSeedOverrides
+    );
+  }
+  if (!found){
+    found = _findNearestSeedOverrideYear(
+      'Mabar',
+      startSerial,
+      endSerial,
+      linkModeSetting,
+      function(){
+        var seen = _phasePresenceInWindow('Mabar', startSerial, endSerial);
+        return choice === 'remote' ? !!seen.remote : !seen.remote;
+      },
+      baseSeedOverrides
+    );
+  }
   if (found) resolvedYears.Mabar = found.year;
   return {
     resolvedYears: resolvedYears,
