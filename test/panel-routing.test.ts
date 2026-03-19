@@ -7,6 +7,7 @@ import { handleInput } from "../src/boot-register.js";
 import { getWeatherState, handleWeatherCommand, weatherEnsureForecast } from "../src/weather.js";
 import { getMoonState, handleMoonCommand } from "../src/moon.js";
 import { getPlanesState, handlePlanesCommand } from "../src/planes.js";
+import { getPersistentViewsState } from "../src/persistent-views.js";
 
 function gmMessage(content: string) {
   return {
@@ -122,6 +123,9 @@ describe("Moon management routing", () => {
     assert(msg.includes("moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed"));
     assert(msg.includes("Set New,setnew"));
     assert(msg.includes("Set Full,setfull"));
+    assert(msg.includes("Bind Moon Page,page bind"));
+    assert(msg.includes("Refresh Moon Page,page refresh"));
+    assert(msg.includes("Show Moon Page,page show"));
 
     const beforeSeed = getMoonState().systemSeed;
     handleMoonCommand(gmUser(), ["moon", "manage", "reseed"]);
@@ -136,6 +140,17 @@ describe("Moon management routing", () => {
 
     const anchors = getMoonState().gmAnchors.Zarantyr || [];
     assert(anchors.some((entry: any) => entry.type === "new"));
+  });
+
+  it("routes moon page bind/show commands through the moon handler", () => {
+    freshInstall();
+    const page = (globalThis as any).createObj("page", { name: "Moon Phase", width: 25, height: 25 });
+
+    handleMoonCommand(gmUser(), ["moon", "page", "bind", "Moon", "Phase"]);
+    assertEquals(getPersistentViewsState().moonPage.pageId, page.id);
+
+    handleMoonCommand(gmUser(), ["moon", "page", "show"]);
+    assertEquals((globalThis as any).Campaign().get("playerpageid"), page.id);
   });
 });
 

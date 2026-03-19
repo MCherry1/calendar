@@ -1,6 +1,6 @@
 import { script_name, state_name } from './constants.js';
 import { fromSerial, todaySerial } from './date-math.js';
-import { _moonPhaseLabel, _getMoonSys, moonEnsureSequences, moonHandoutHtml, moonPhaseAt } from './moon.js';
+import { _moonPhaseLabel, _getMoonSys, getMoonState, moonEnsureSequences, moonHandoutHtml, moonPhaseAt } from './moon.js';
 import { planesHandoutHtml } from './planes.js';
 import { esc } from './rendering.js';
 import { ensureSettings, getCal } from './state.js';
@@ -337,14 +337,14 @@ export function refreshMoonPage(opts?){
 
   if (ensureSettings().moonsEnabled === false){
     _renderMoonPageDisabled(pageId, serial, title);
-    mp.renderStamp = 'disabled:' + serial;
+    mp.renderStamp = 'disabled:' + serial + ':' + String(getMoonState().systemSeed || '');
     return { ok: true, pageId: pageId, pageName: mp.pageName, message: 'Moon page refreshed.' };
   }
 
   var sys = _getMoonSys();
   if (!sys || !sys.moons || !sys.moons.length){
     _renderMoonPageDisabled(pageId, serial, title);
-    mp.renderStamp = 'empty:' + serial;
+    mp.renderStamp = 'empty:' + serial + ':' + String(getMoonState().systemSeed || '');
     return { ok: true, pageId: pageId, pageName: mp.pageName, message: 'Moon page refreshed.' };
   }
 
@@ -367,7 +367,7 @@ export function refreshMoonPage(opts?){
   }
 
   _moonPageText(pageId, 590, layout.pageH - 32, _moonPageSummaryText(serial), 13, '#8E9BB2', MOON_PAGE_MARKER + ' footer');
-  mp.renderStamp = String(serial) + ':' + String(sys.moons.length);
+  mp.renderStamp = String(serial) + ':' + String(sys.moons.length) + ':' + String(getMoonState().systemSeed || '');
   return {
     ok: true,
     pageId: pageId,

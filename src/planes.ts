@@ -1471,7 +1471,6 @@ export function planesHandoutHtml(){
   var viewTier = _normalizePlaneRevealTier(psView.revealTier || 'medium');
   var viewHorizon = parseInt(psView.revealHorizonDays, 10) || _planarYearDays();
   var generatedHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
-  var displayMode = _normalizeDisplayMode(st.planesDisplayMode);
   var dateLabel = dateLabelFromSerial(today);
 
   var generatedCutoff = null;
@@ -1482,26 +1481,9 @@ export function planesHandoutHtml(){
   var planesMiniCal = _renderSyntheticMiniCal('Planar Movement', pr.start, pr.end, planesMiniEvents);
 
   var parts = [];
-  if (displayMode !== 'list'){
-    parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
-    parts.push(planesMiniCal);
-    parts.push(_legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']));
-  }
-  if (displayMode !== 'calendar'){
-    var rows = [];
-    var planes = _getAllPlaneData();
-    var ignoreGenerated = (viewTier === 'low' || generatedHorizon <= 0);
-    for (var i = 0; i < planes.length; i++){
-      var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated:true } : null);
-      if (!ps) continue;
-      rows.push(_planeRowHtml(ps, false, viewTier, viewHorizon, generatedHorizon));
-    }
-    if (displayMode === 'list') parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
-    parts.push(rows.join(''));
-  }
-  if (!parts.length){
-    parts.push('<div style="opacity:.7;">No planar display mode selected.</div>');
-  }
+  parts.push(_planesTodaySummaryHtml(today, false, viewTier, viewHorizon));
+  parts.push(planesMiniCal);
+  parts.push(_legendLine(['🔴 Coterminous', '🟠 Waning', '🔵 Remote', '🟡 Waxing', '◇ Generated shift']));
 
   var srcLabel = PLANE_SOURCE_LABELS[viewTier] || '';
   if (srcLabel){
