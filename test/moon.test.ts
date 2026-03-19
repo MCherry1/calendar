@@ -1,6 +1,6 @@
 // Tests for moon system, eclipses, and nighttime lighting.
 import { describe, it } from "node:test";
-import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
+import { deepStrictEqual as assertDeepEqual, strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
 import { toSerial, todaySerial } from "../src/date-math.js";
 import { solarProfileForSerial } from "../src/time-of-day.js";
@@ -17,8 +17,26 @@ import {
   _applyAssociatedPlanePhaseShifts, _applyFestivalNudges,
   _collectPlanarPhaseWindows, _dN, _edgeDayMidpointSerial,
   _isLongShadowsOverride, _longShadowsWindow, _moonPeakPhaseDay,
-  getLongShadowsMoons
+  getLongShadowsMoons, _eclipseCandidateDistance, _getEclipsesBruteforce,
+  _getEclipsesStaged, _eclipseRelativeSizeText, captureMoonHistoryDay,
+  captureMoonHistoryWindow
 } from "../src/moon.js";
+
+function eclipseDigest(events: any[]) {
+  return events.map((event) => ({
+    occulting: event.occulting,
+    occluded: event.occluded,
+    typeLabel: event.typeLabel,
+    startDay: event.startDay,
+    peakDay: event.peakDay,
+    endDay: event.endDay,
+    startBucket: event.startBucket,
+    peakBucket: event.peakBucket,
+    endBucket: event.endBucket,
+    peakCoveragePct: event.peakCoveragePct,
+    sizePct: event.sizePct
+  }));
+}
 
 // ============================================================================
 // 7) MOON SYSTEM

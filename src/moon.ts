@@ -3176,10 +3176,9 @@ function _scanEclipseDescriptorSpans(sys, descriptor, spans, serial, windowStart
   for (var si = 0; si < spans.length; si++){
     var span = spans[si];
     if (!span || span.endTick <= span.startTick) continue;
-    if (span.startTick <= coveredUntilTick) continue;
-
-    var scanStartTick = Math.max(windowStartTick, span.startTick);
+    var scanStartTick = Math.max(windowStartTick, span.startTick, coveredUntilTick + 1);
     var scanEndTick = Math.min(windowEndTick, span.endTick);
+    if (scanEndTick < scanStartTick) continue;
     var active = false;
     var startTick = 0;
     var endTick = 0;
@@ -3323,8 +3322,151 @@ export function _eclipseSentenceType(typeLabel){
   return (typeLabel === 'Transit') ? 'Transit' : typeLabel.replace(' Eclipse', ' eclipse');
 }
 
-// Eclipse engine: groups physical overlap windows across midnight
-// and reports only true disk overlaps that peak above the horizon.
+export function _eclipseRelativeSizeText(sizeRatio, occluded){
+  var ratio = Math.max(0, parseFloat(String(sizeRatio || 0)) || 0);
+  var target = String(occluded || '');
+  if (ratio >= 2){
+    return Math.max(2, Math.floor(ratio)) + 'x as wide as ' + target;
+  }
+  return Math.max(1, Math.round(ratio * 100)) + '% as wide as ' + target;
+}
+
+function _eclipseMiniCalLabel(event){
+  return _eclipseSentenceType(event.typeLabel) + ' of ' + event.occluded + ' by ' + event.occulting +
+    ', covering ' + event.peakCoveragePct + '% of ' + event.occluded + '. ' +
+    event.occulting + ' appears ' + _eclipseRelativeSizeText(event.sizeRatio, event.occluded) + '.';
+}
+
+function _moonMiniCalEclipseEvents(serial, eclipses, singleFill){
+  if (!Array.isArray(eclipses) || !eclipses.length) return [];
+  var evt: any = {
+    serial: serial|0,
+    name: 'Eclipses: ' + eclipses.map(_eclipseMiniCalLabel).join(', '),
+    color: '#9575CD',
+    isEclipse: true
+  };
+  if (!singleFill) evt.dotOnly = true;
+  return [evt];
+}
+
+function _mergeKnownMoonHistoryEclipses(serial, eclipses){
+  var ms = getMoonState();
+  var history = _moonHistoryState();
+  var key = String(serial|0);
+  var day = history.bySerial[key];
+  if (!day || day.modelRevision !== ms.modelRevision) return;
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons || !sys.moons.length) return;
+  var baseEvents = Array.isArray(day.miniCalEvents) ? day.miniCalEvents.filter(function(evt){
+    return !_isMoonEclipseMiniCalEvent(evt);
+  }) : [];
+  day.miniCalEvents = _cloneMoonMiniCalEvents(baseEvents.concat(
+    _moonMiniCalEclipseEvents(serial, eclipses, _isSingleFillMoon(sys))
+  ));
+  history.bySerial[key] = day;
+  ms.recentHistory = _reindexMoonHistory(history);
+}
+
+// Eclipse engine reference: brute-force exact overlap scan across the full
+// 3-day window surrounding the requested serial.
+export function _getEclipsesBruteforce(serial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return [];
+
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons) return [];
+
+  serial = serial|0;
+  moonEnsureSequences(serial, 3);
+
+  var eclipses = [];
+  var descriptors = _eclipseDescriptors(sys);
+  var windowStartTick = (serial - 1) * ECLIPSE_TICKS_PER_DAY;
+  var windowEndTick = (serial + 2) * ECLIPSE_TICKS_PER_DAY;
+  var fullWindow = [{ startTick: windowStartTick, endTick: windowEndTick }];
+
+  for (var di = 0; di < descriptors.length; di++){
+    eclipses = eclipses.concat(_scanEclipseDescriptorSpans(
+      sys,
+      descriptors[di],
+      fullWindow,
+      serial,
+      windowStartTick,
+      windowEndTick
+    ));
+  }
+
+  eclipses.sort(function(x, y){ return x.peakT - y.peakT; });
+  return eclipses;
+}
+
+export function _getEclipsesStaged(serial){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false) return [];
+
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons) return [];
+
+  serial = serial|0;
+  moonEnsureSequences(serial, 3);
+
+  var eclipses = [];
+  var descriptors = _eclipseDescriptors(sys);
+  var windowStartTick = (serial - 1) * ECLIPSE_TICKS_PER_DAY;
+  var windowEndTick = (serial + 2) * ECLIPSE_TICKS_PER_DAY;
+
+  for (var di = 0; di < descriptors.length; di++){
+    var descriptor = descriptors[di];
+    var coarseSpans = _sampleEclipseCandidateSpans(
+      sys,
+      descriptor,
+      windowStartTick,
+      windowEndTick,
+      ECLIPSE_STAGE_BUCKET_TICKS,
+      ECLIPSE_STAGE_COARSE_THRESHOLD
+    );
+    if (!coarseSpans.length) continue;
+    coarseSpans = _expandEclipseTickSpans(
+      coarseSpans,
+      ECLIPSE_STAGE_BUCKET_TICKS,
+      windowStartTick,
+      windowEndTick
+    );
+
+    var hourlySpans = [];
+    for (var ci = 0; ci < coarseSpans.length; ci++){
+      hourlySpans = hourlySpans.concat(_sampleEclipseCandidateSpans(
+        sys,
+        descriptor,
+        coarseSpans[ci].startTick,
+        coarseSpans[ci].endTick,
+        ECLIPSE_STAGE_HOUR_TICKS,
+        ECLIPSE_STAGE_HOURLY_THRESHOLD
+      ));
+    }
+    if (!hourlySpans.length) continue;
+    hourlySpans = _expandEclipseTickSpans(
+      hourlySpans,
+      ECLIPSE_STAGE_HOUR_TICKS,
+      windowStartTick,
+      windowEndTick
+    );
+
+    eclipses = eclipses.concat(_scanEclipseDescriptorSpans(
+      sys,
+      descriptor,
+      hourlySpans,
+      serial,
+      windowStartTick,
+      windowEndTick
+    ));
+  }
+
+  eclipses.sort(function(x, y){ return x.peakT - y.peakT; });
+  return eclipses;
+}
+
+// Eclipse engine: staged candidate narrowing plus exact overlap refinement.
 export function getEclipses(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
@@ -3336,64 +3478,15 @@ export function getEclipses(serial){
   moonEnsureSequences(serial, 3);
 
   var cacheKey = _eclipseCacheKey(serial);
-  if (_eclipseDayCache[cacheKey]) return _eclipseDayCache[cacheKey];
-
-  var descriptors = [];
-  var moons = sys.moons;
-  for (var i = 0; i < moons.length; i++){
-    descriptors.push({ kind: 'solar', moon: moons[i].name });
-  }
-  for (var a = 0; a < moons.length; a++){
-    for (var b = a + 1; b < moons.length; b++){
-      descriptors.push({ kind: 'lunar', a: moons[a].name, b: moons[b].name });
-    }
+  if (_eclipseDayCache[cacheKey]){
+    _mergeKnownMoonHistoryEclipses(serial, _eclipseDayCache[cacheKey]);
+    return _eclipseDayCache[cacheKey];
   }
 
-  var eclipses = [];
-  var windowStart = serial - 1;
-  var windowEnd = serial + 2;
-  var dt = 1 / 96;
-
-  for (var di = 0; di < descriptors.length; di++){
-    var active = false;
-    var startT = 0;
-    var endT = 0;
-    var peak = null;
-
-    for (var t = windowStart; t <= windowEnd + 1e-9; t += dt){
-      var metrics = _eclipseMetricsAt(sys, descriptors[di], t);
-      var cover = metrics ? metrics.cover : 0;
-      if (cover > 0){
-        if (!active){
-          active = true;
-          startT = t;
-          peak = { t: t, metrics: metrics };
-        }
-        endT = t;
-        if (!peak || cover > (peak.metrics.cover || 0)){
-          peak = { t: t, metrics: metrics };
-        }
-      } else if (active){
-        var finished = _finalizeEclipseEvent(sys, startT, endT, peak);
-        if (finished && finished.startT < serial + 1 && finished.endT >= serial){
-          eclipses.push(finished);
-        }
-        active = false;
-        peak = null;
-      }
-    }
-
-    if (active){
-      var trailing = _finalizeEclipseEvent(sys, startT, endT, peak);
-      if (trailing && trailing.startT < serial + 1 && trailing.endT >= serial){
-        eclipses.push(trailing);
-      }
-    }
-  }
-
-  eclipses.sort(function(x, y){ return x.peakT - y.peakT; });
+  var eclipses = _getEclipsesStaged(serial);
   _eclipseDayCache[cacheKey] = eclipses;
   _cullCacheIfLarge(_eclipseDayCache, 180);
+  _mergeKnownMoonHistoryEclipses(serial, eclipses);
   return eclipses;
 }
 
@@ -3406,7 +3499,7 @@ export function _eclipseNotableToday(serial){
       '\uD83C\uDF18 <b>' + esc(_eclipseSentenceType(ev.typeLabel)) + '</b> of ' +
       esc(ev.occluded) + ' by ' + esc(ev.occulting) +
       ', covering ' + ev.peakCoveragePct + '% of ' + esc(ev.occluded) + '. ' +
-      esc(ev.occulting) + ' appears ' + ev.sizePct + '% as wide as ' + esc(ev.occluded) + '. ' +
+      esc(ev.occulting) + ' appears ' + esc(_eclipseRelativeSizeText(ev.sizeRatio, ev.occluded)) + '. ' +
       esc(_eclipseLifecycleText(ev, serial))
     );
   }
