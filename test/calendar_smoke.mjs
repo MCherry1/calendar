@@ -47,7 +47,11 @@ assertMatch(String.raw`_renderHarptosFestivalStrip\(y, mi, mobj, dimActive, extr
 
 assertMatch(String.raw`var typeLabel = .*['"]Total Eclipse['"] : .*['"]Partial Eclipse['"] : ['"]Transit['"];`, 'Eclipse classification thresholds should match the task requirements.');
 assertMatch(String.raw`return \[\s*_eclipseTimingClause\(['"]start['"], event, serial\),\s*_eclipseTimingClause\(['"]peak['"], event, serial\),\s*_eclipseTimingClause\(['"]end['"], event, serial\)`, 'Eclipse lifecycle text should include start, peak, and end timing.');
-assertMatch(String.raw`var dt = 1 / 96;`, 'Eclipse sampling should use 15-minute increments.');
+assertMatch(String.raw`var ECLIPSE_TICKS_PER_DAY = 96;`, 'Eclipse exact refinement should still use 15-minute increments.');
+assertMatch(String.raw`var ECLIPSE_STAGE_BUCKET_TICKS = 16;`, 'Eclipse coarse filtering should use 4-hour buckets.');
+assertMatch(String.raw`var ECLIPSE_STAGE_HOUR_TICKS = 4;`, 'Eclipse narrowing should use 1-hour buckets.');
+assertMatch(String.raw`function _getEclipsesStaged\(`, 'Staged eclipse detection should be present.');
+assertMatch(String.raw`var eclipses = _getEclipsesStaged\(serial\);`, 'Public eclipse lookups should use the staged detector.');
 assertCount(String.raw`function getEclipses\(`, 1, 'There should be exactly one active getEclipses implementation.');
 assertCount(String.raw`function _eclipseNotableToday\(`, 1, 'There should be exactly one active _eclipseNotableToday implementation.');
 assertCount(String.raw`^function _getEclipsesLegacy\(`, 0, 'Legacy eclipse detector should no longer be active code.', 'm');
