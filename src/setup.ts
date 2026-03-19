@@ -1,12 +1,13 @@
 import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS, CONFIG_START_DATE } from './config.js';
 import { COLOR_THEMES, SEASON_SETS, state_name } from './constants.js';
-import { _invalidateSerialCache } from './date-math.js';
+import { _invalidateSerialCache, toSerial } from './date-math.js';
 import { mergeInNewDefaultEvents } from './events.js';
 import { cleanWho, sendUiToGM, whisperUi } from './messaging.js';
 import { Parse } from './parsing.js';
+import { _getPlaneData, getPlanesState, resolveEberronPlanarInitialization, resolveFerniaRisiaLinkModeChoice } from './planes.js';
 import { button, esc } from './rendering.js';
 import { applyCalendarSystem, applySeasonSet, checkInstall, deepClone, defaults, ensureSettings, getCal, getManualSuppressedSources, getSetupState, setupIsComplete, titleCase } from './state.js';
-import { _displayMonthDayParts, _menuBox, nextForDayOnly, nextForMonthDay, sendCurrentDate, setDate } from './ui.js';
+import { _displayMonthDayParts, _menuBox, dateLabelFromSerial, nextForDayOnly, nextForMonthDay, sendCurrentDate, setDate } from './ui.js';
 import { _normalizeWeatherLocation, _rememberRecentWeatherLocation, _weatherLocationLabel, getWeatherState, weatherEnsureForecast, weatherLocationWizardHtml } from './weather.js';
 import { getWorld, WORLD_ORDER, WORLDS } from './worlds/index.js';
 
@@ -134,6 +135,312 @@ function _setupDefaultDate(sysKey, variantKey){
   });
 }
 
+var EBERRON_PLANAR_SETUP_ORDER = [
+  { key: 'link', title: 'Fernia/Risia Link' },
+  { key: 'climate', title: 'Fernia/Risia Climate' },
+  { key: 'plane:Daanvi', title: 'Daanvi' },
+  { key: 'plane:Dolurrh', title: 'Dolurrh' },
+  { key: 'plane:Irian', title: 'Irian' },
+  { key: 'plane:Shavarath', title: 'Shavarath' },
+  { key: 'plane:Syrania', title: 'Syrania' },
+  { key: 'plane:Thelanis', title: 'Thelanis' },
+  { key: 'mabar', title: 'Mabar Remote' }
+];
+
+function _setupResetEberronPlanarInit(draft){
+  delete draft.eberronPlanarInit;
+}
+
+function _setupShouldRunEberronPlanarInit(draft){
+  return String(draft.calendarSystem || '').toLowerCase() === 'eberron' &&
+    !!draft.date &&
+    draft.planesEnabled !== undefined &&
+    draft.planesEnabled !== false;
+}
+
+function _setupEberronPlanarInitState(draft){
+  if (!draft.eberronPlanarInit || typeof draft.eberronPlanarInit !== 'object'){
+    draft.eberronPlanarInit = {};
+  }
+  if (!draft.eberronPlanarInit.planeChoices || typeof draft.eberronPlanarInit.planeChoices !== 'object'){
+    draft.eberronPlanarInit.planeChoices = {};
+  }
+  return draft.eberronPlanarInit;
+}
+
+function _setupEberronPlanarSelections(draft){
+  var init = _setupEberronPlanarInitState(draft);
+  return {
+    linkModeChoice: String(init.linkModeChoice || 'roll').toLowerCase(),
+    climateChoice: String(init.climateChoice || 'roll').toLowerCase(),
+    planeChoices: deepClone(init.planeChoices || {}),
+    mabarChoice: String(init.mabarChoice || 'roll').toLowerCase()
+  };
+}
+
+function _setupEberronResolvedLinkMode(draft){
+  var sysKey = String(draft.calendarSystem || '').toLowerCase();
+  var variantKey = _setupVariantKey(sysKey, draft.calendarVariant);
+  var selections = _setupEberronPlanarSelections(draft);
+  return _withSetupCalendar(sysKey, variantKey, function(){
+    return resolveFerniaRisiaLinkModeChoice(selections.linkModeChoice);
+  });
+}
+
+function _setupNextEberronPlanarStep(draft){
+  if (!_setupShouldRunEberronPlanarInit(draft)) return null;
+  var init = _setupEberronPlanarInitState(draft);
+  if (!init.linkModeChoice) return 'link';
+  if (!init.climateChoice) return 'climate';
+  var planeChoices = init.planeChoices || {};
+  for (var i = 0; i < EBERRON_PLANAR_SETUP_ORDER.length; i++){
+    var key = EBERRON_PLANAR_SETUP_ORDER[i].key;
+    if (key.indexOf('plane:') === 0){
+      var planeName = key.slice(6);
+      if (!planeChoices[planeName]) return key;
+    }
+  }
+  if (!init.mabarChoice) return 'mabar';
+  return null;
+}
+
+function _setupEberronPlanarMeta(stepKey){
+  for (var i = 0; i < EBERRON_PLANAR_SETUP_ORDER.length; i++){
+    if (EBERRON_PLANAR_SETUP_ORDER[i].key === stepKey){
+      return {
+        index: i + 1,
+        total: EBERRON_PLANAR_SETUP_ORDER.length,
+        title: EBERRON_PLANAR_SETUP_ORDER[i].title
+      };
+    }
+  }
+  return { index: 1, total: EBERRON_PLANAR_SETUP_ORDER.length, title: 'Planar Initialization' };
+}
+
+function _setupMonthDayLabelForCalendar(sysKey, variantKey, monthIndex, day){
+  return _withSetupCalendar(sysKey, variantKey, function(){
+    return _displayMonthDayParts(monthIndex, day).label;
+  });
+}
+
+function _setupEberronYearOneWindowLabel(draft){
+  if (!_setupShouldRunEberronPlanarInit(draft)) return '';
+  var sysKey = String(draft.calendarSystem || '').toLowerCase();
+  var variantKey = _setupVariantKey(sysKey, draft.calendarVariant);
+  return _withSetupCalendar(sysKey, variantKey, function(){
+    var startSerial = toSerial(draft.date.year, draft.date.month, draft.date.day);
+    var endSerial = startSerial + getCal().months.reduce(function(sum, month){ return sum + (month.days|0); }, 0) - 1;
+    return dateLabelFromSerial(startSerial) + ' through ' + dateLabelFromSerial(endSerial);
+  });
+}
+
+function _setupEberronPlanarResolution(draft){
+  if (!_setupShouldRunEberronPlanarInit(draft)) return null;
+  var sysKey = String(draft.calendarSystem || '').toLowerCase();
+  var variantKey = _setupVariantKey(sysKey, draft.calendarVariant);
+  var selections = _setupEberronPlanarSelections(draft);
+  return _withSetupCalendar(sysKey, variantKey, function(){
+    return resolveEberronPlanarInitialization(
+      toSerial(draft.date.year, draft.date.month, draft.date.day),
+      selections
+    );
+  });
+}
+
+function _setupEberronPlanarChoiceLabel(kind, choice, effectiveLinkMode?){
+  choice = String(choice || 'roll').toLowerCase();
+  if (kind === 'link'){
+    if (choice === 'linked') return 'Linked';
+    if (choice === 'independent') return 'Independent';
+    return 'Roll for it';
+  }
+  if (kind === 'climate'){
+    if (choice === 'fernia-coterminous') return 'Fernia coterminous in year one';
+    if (choice === 'fernia-remote') return 'Fernia remote in year one';
+    if (choice === 'risia-coterminous') return 'Risia coterminous in year one';
+    if (choice === 'risia-remote') return 'Risia remote in year one';
+    if (choice === 'neither') return 'Neither in year one';
+    return 'Roll for it';
+  }
+  if (choice === 'coterminous') return 'Coterminous in year one';
+  if (choice === 'remote') return 'Remote in year one';
+  if (choice === 'neither') return 'Neither in year one';
+  return 'Roll for it';
+}
+
+function _setupEberronPlanarPromptBody(draft, stepKey){
+  var sysKey = String(draft.calendarSystem || '').toLowerCase();
+  var variantKey = _setupVariantKey(sysKey, draft.calendarVariant);
+  var windowLabel = _setupEberronYearOneWindowLabel(draft);
+  var linkResolved = _setupEberronResolvedLinkMode(draft);
+  var ferniaMonth = _setupMonthDayLabelForCalendar(sysKey, variantKey, 6, 1);
+  var risiaMonth = _setupMonthDayLabelForCalendar(sysKey, variantKey, 0, 1);
+  var irianCot = _setupMonthDayLabelForCalendar(sysKey, variantKey, 3, 1);
+  var irianRem = _setupMonthDayLabelForCalendar(sysKey, variantKey, 9, 1);
+  var syraniaDay = _setupMonthDayLabelForCalendar(sysKey, variantKey, 8, 9);
+  var mabarRemote = _setupMonthDayLabelForCalendar(sysKey, variantKey, 5, 27);
+  var intro = '<div style="margin-bottom:6px;">Year one runs from <b>' + esc(windowLabel) + '</b>.</div>';
+  if (stepKey === 'link'){
+    return intro +
+      '<div style="margin-bottom:6px;">Fernia is coterminous for 28 days starting at ' + esc(ferniaMonth) + ' every 5 years. Risia is coterminous for 28 days starting at ' + esc(risiaMonth) + ' every 5 years.</div>' +
+      '<div style="margin-bottom:6px;">Should those two planes stay linked as opposite halves of the same climate cycle, or roll independently for this campaign seed?</div>';
+  }
+  if (stepKey === 'climate'){
+    var modeText = linkResolved.effectiveMode === 'linked'
+      ? 'Linked mode is active for this setup. Fernia and Risia stay opposite on the same 5-year cycle.'
+      : 'Independent mode is active for this setup. Fernia and Risia each keep their own seeded 5-year cycle.';
+    return intro +
+      '<div style="margin-bottom:6px;">' + esc(modeText) + '</div>' +
+      '<div style="margin-bottom:6px;">Fernia uses ' + esc(ferniaMonth) + ' for coterminous years; Risia uses ' + esc(risiaMonth) + ' for coterminous years.</div>' +
+      '<div style="margin-bottom:6px;">Which climate event, if any, should land during year one?</div>';
+  }
+  if (stepKey === 'plane:Daanvi'){
+    return intro +
+      '<div style="margin-bottom:6px;">Daanvi is coterminous for 100 years once every 400 years. Its remote century begins 100 years later.</div>' +
+      '<div style="margin-bottom:6px;">Do you want one of those century-scale phases to intersect year one?</div>';
+  }
+  if (stepKey === 'plane:Dolurrh'){
+    return intro +
+      '<div style="margin-bottom:6px;">Dolurrh is coterminous for 1 year once every 100 years. Its remote year begins 50 years later.</div>' +
+      '<div style="margin-bottom:6px;">Do you want either of those non-annual phases to intersect year one?</div>';
+  }
+  if (stepKey === 'plane:Irian'){
+    return intro +
+      '<div style="margin-bottom:6px;">Irian is coterminous for 10 days in ' + esc(irianCot) + ' once every 3 years, then remote for 10 days in ' + esc(irianRem) + ' 1.5 years later. The start day floats within the month.</div>' +
+      '<div style="margin-bottom:6px;">Do you want one of those short Irian windows to land during year one?</div>';
+  }
+  if (stepKey === 'plane:Shavarath'){
+    return intro +
+      '<div style="margin-bottom:6px;">Shavarath is coterminous for 1 year once every 36 years. Its remote year begins 18 years later.</div>' +
+      '<div style="margin-bottom:6px;">Do you want one of those long war-cycle phases to intersect year one?</div>';
+  }
+  if (stepKey === 'plane:Syrania'){
+    return intro +
+      '<div style="margin-bottom:6px;">Syrania is coterminous on ' + esc(syraniaDay) + ' once every 10 years. Its remote day is exactly 5 years later.</div>' +
+      '<div style="margin-bottom:6px;">Do you want that Boldrei\'s Feast cycle to hit year one?</div>';
+  }
+  if (stepKey === 'plane:Thelanis'){
+    return intro +
+      '<div style="margin-bottom:6px;">Thelanis is coterminous for 7 years once every 225 years. Its remote span begins halfway through the cycle.</div>' +
+      '<div style="margin-bottom:6px;">Do you want one of those major fairy-cycle phases to intersect year one?</div>';
+  }
+  if (stepKey === 'mabar'){
+    return intro +
+      '<div style="margin-bottom:6px;">Mabar\'s special non-annual remote phase lasts 5 days around ' + esc(mabarRemote) + ' every 5 years.</div>' +
+      '<div style="margin-bottom:6px;">The annual Long Shadows coterminous phase is always handled separately. This prompt only controls the 5-year remote window.</div>';
+  }
+  return intro;
+}
+
+function _setupEberronPlanarOptions(draft, stepKey){
+  var linkResolved = _setupEberronResolvedLinkMode(draft);
+  if (stepKey === 'link'){
+    return [
+      { label: 'Roll for it', value: 'roll' },
+      { label: 'Linked', value: 'linked' },
+      { label: 'Independent', value: 'independent' }
+    ];
+  }
+  if (stepKey === 'climate'){
+    if (linkResolved.effectiveMode === 'linked'){
+      return [
+        { label: 'Roll for it', value: 'roll' },
+        { label: 'Fernia coterminous in year one', value: 'fernia-coterminous' },
+        { label: 'Risia coterminous in year one', value: 'risia-coterminous' },
+        { label: 'Neither in year one', value: 'neither' }
+      ];
+    }
+    return [
+      { label: 'Roll for it', value: 'roll' },
+      { label: 'Fernia coterminous in year one', value: 'fernia-coterminous' },
+      { label: 'Fernia remote in year one', value: 'fernia-remote' },
+      { label: 'Risia coterminous in year one', value: 'risia-coterminous' },
+      { label: 'Risia remote in year one', value: 'risia-remote' },
+      { label: 'Neither in year one', value: 'neither' }
+    ];
+  }
+  if (stepKey === 'mabar'){
+    return [
+      { label: 'Roll for it', value: 'roll' },
+      { label: 'Remote in year one', value: 'remote' },
+      { label: 'Neither in year one', value: 'neither' }
+    ];
+  }
+  return [
+    { label: 'Roll for it', value: 'roll' },
+    { label: 'Coterminous in year one', value: 'coterminous' },
+    { label: 'Remote in year one', value: 'remote' },
+    { label: 'Neither in year one', value: 'neither' }
+  ];
+}
+
+function _setupEberronPlanarStepHtml(draft, stepKey){
+  var meta = _setupEberronPlanarMeta(stepKey);
+  var body = _setupEberronPlanarPromptBody(draft, stepKey);
+  var rows = _setupEberronPlanarOptions(draft, stepKey).map(function(opt){
+    var cmd = '';
+    if (stepKey === 'link') cmd = 'setup planeinit link ' + opt.value;
+    else if (stepKey === 'climate') cmd = 'setup planeinit climate ' + opt.value;
+    else if (stepKey === 'mabar') cmd = 'setup planeinit mabar ' + opt.value;
+    else if (stepKey.indexOf('plane:') === 0) cmd = 'setup planeinit plane ' + stepKey.slice(6) + ' ' + opt.value;
+    return _setupPromptButton(opt.label, cmd, '');
+  }).join('');
+  return _menuBox(
+    'Calendar Setup - Step 11: Planar Initialization (' + meta.index + '/' + meta.total + ')',
+    '<div style="margin-bottom:6px;"><b>' + esc(meta.title) + '</b></div>' + body + rows
+  );
+}
+
+function _setupEberronReviewRows(draft){
+  var resolved = _setupEberronPlanarResolution(draft);
+  if (!resolved) return '';
+  var selections = _setupEberronPlanarSelections(draft);
+  var rows = [];
+  rows.push('<div><b>Fernia/Risia link mode:</b> ' + esc(_setupEberronPlanarChoiceLabel('link', selections.linkModeChoice, resolved.effectiveLinkMode)) + ' <span style="opacity:.72;">(' + esc(resolved.items.link.preview) + ')</span></div>');
+  rows.push('<div><b>Fernia/Risia climate pair:</b> ' + esc(_setupEberronPlanarChoiceLabel('climate', selections.climateChoice, resolved.effectiveLinkMode)) + ' <span style="opacity:.72;">(' + esc(resolved.items.climate.preview) + ')</span></div>');
+  ['Daanvi', 'Dolurrh', 'Irian', 'Shavarath', 'Syrania', 'Thelanis'].forEach(function(name){
+    rows.push('<div><b>' + esc(name) + ':</b> ' + esc(_setupEberronPlanarChoiceLabel('plane', selections.planeChoices[name], resolved.effectiveLinkMode)) + ' <span style="opacity:.72;">(' + esc(resolved.items[name].preview) + ')</span></div>');
+  });
+  rows.push('<div><b>Mabar remote:</b> ' + esc(_setupEberronPlanarChoiceLabel('mabar', selections.mabarChoice, resolved.effectiveLinkMode)) + ' <span style="opacity:.72;">(' + esc(resolved.items.Mabar.preview) + ')</span></div>');
+  return rows.join('');
+}
+
+function _setupEberronApplySummaryHtml(draft, resolved){
+  if (!resolved) return '';
+  var selections = _setupEberronPlanarSelections(draft);
+  var rows = [];
+  rows.push('<div style="margin-bottom:6px;">Year one: <b>' + esc(_setupEberronYearOneWindowLabel(draft)) + '</b></div>');
+  rows.push(
+    '<div style="margin-bottom:6px;"><b>Fernia/Risia link mode:</b> ' +
+    esc(_setupEberronPlanarChoiceLabel('link', selections.linkModeChoice, resolved.effectiveLinkMode)) +
+    ' <span style="opacity:.72;">(' + esc(resolved.items.link.preview) + ')</span><br>' +
+    '<code>!cal planes link fernia-risia ' + esc(resolved.storedLinkMode) + '</code></div>'
+  );
+  [
+    { label: 'Fernia/Risia climate pair', item: resolved.items.climate },
+    { label: 'Daanvi', item: resolved.items.Daanvi },
+    { label: 'Dolurrh', item: resolved.items.Dolurrh },
+    { label: 'Irian', item: resolved.items.Irian },
+    { label: 'Shavarath', item: resolved.items.Shavarath },
+    { label: 'Syrania', item: resolved.items.Syrania },
+    { label: 'Thelanis', item: resolved.items.Thelanis },
+    { label: 'Mabar remote', item: resolved.items.Mabar }
+  ].forEach(function(entry){
+    var lines = '<div style="margin-bottom:6px;"><b>' + esc(entry.label) + ':</b> <span style="opacity:.72;">' + esc(entry.item.preview) + '</span>';
+    var names = Object.keys(entry.item.resolvedYears || {});
+    if (names.length){
+      names.sort(function(a, b){ return String(a).localeCompare(String(b)); });
+      names.forEach(function(name){
+        var year = entry.item.resolvedYears[name];
+        lines += '<br><code>!cal planes seed ' + esc(name) + ' ' + esc(String(year)) + '</code> &nbsp; <code>!cal planes seed ' + esc(name) + ' clear</code>';
+      });
+    }
+    lines += '</div>';
+    rows.push(lines);
+  });
+  return _menuBox('Planar Initialization Applied', rows.join(''));
+}
+
 function _setupCurrentStep(draft){
   var sysKey = _setupVariantKey(draft.calendarSystem, draft.calendarVariant) ? String(draft.calendarSystem || '').toLowerCase() : '';
   var sys = _setupSystem(sysKey);
@@ -155,6 +462,8 @@ function _setupCurrentStep(draft){
   var _stepCaps = (getWorld(sysKey) || {}).capabilities;
   if (_stepCaps && _stepCaps.planes && draft.planesEnabled === undefined) return 'planes';
   if (draft.weatherMode !== 'off' && !draft.weatherLocation && !draft.weatherLocationLater) return 'weather-location';
+  var eberronPlanarStep = _setupNextEberronPlanarStep(draft);
+  if (eberronPlanarStep) return 'plane-init:' + eberronPlanarStep;
   // World-defined extra steps (e.g. Dragonlance conjunction anchor)
   var world = getWorld(sysKey);
   var extras = (world && world.setup && world.setup.extraSteps) || [];
@@ -185,6 +494,10 @@ function _setupSummaryHtml(draft){
   var _sumCaps = (getWorld(sysKey) || {}).capabilities;
   if (_sumCaps && _sumCaps.planes){
     bits.push('<div><b>Planar tracking:</b> ' + esc(draft.planesEnabled === false ? 'Off' : 'On') + '</div>');
+    if (_setupShouldRunEberronPlanarInit(draft)){
+      bits.push('<div style="margin-top:6px;"><b>Year-one planar initialization:</b></div>');
+      bits.push(_setupEberronReviewRows(draft));
+    }
   }
   if (draft.weatherMode !== 'off'){
     bits.push('<div><b>Weather location:</b> ' + esc(draft.weatherLocation ? _weatherLocationLabel(draft.weatherLocation) : 'Set later') + '</div>');
@@ -388,6 +701,7 @@ function _renderSetupWizard(draft, notice){
   else if (step === 'weather') body = _setupWeatherStepHtml();
   else if (step === 'planes') body = _setupPlanesStepHtml();
   else if (step === 'weather-location') body = _setupWeatherLocationStepHtml(draft);
+  else if (step.indexOf('plane-init:') === 0) body = _setupEberronPlanarStepHtml(draft, step.slice(11));
   else if (step.indexOf('extra:') === 0) body = _setupExtraStepHtml(draft, step.slice(6));
   else body = _setupReviewStepHtml(draft);
   if (!notice) return body;
@@ -503,9 +817,24 @@ function _applySetupDraft(m){
     }
   }
 
+  var planarSummaryHtml = '';
+  if (st.planesEnabled && sysKey === 'eberron' && draft.eberronPlanarInit){
+    var planarResolved = resolveEberronPlanarInitialization(
+      toSerial(draft.date.year, draft.date.month, draft.date.day),
+      _setupEberronPlanarSelections(draft)
+    );
+    var psApply = getPlanesState();
+    psApply.ferniaRisiaLinkMode = planarResolved.storedLinkMode;
+    Object.keys(planarResolved.seedOverrides || {}).forEach(function(name){
+      psApply.seedOverrides[name] = planarResolved.seedOverrides[name];
+    });
+    planarSummaryHtml = _setupEberronApplySummaryHtml(draft, planarResolved);
+  }
+
   getSetupState().status = 'complete';
   getSetupState().draft = {};
   whisperUi(cleanWho(m.who), _menuBox('Calendar Setup', '<div>Setup applied. Calendar is ready.</div>'));
+  if (planarSummaryHtml) whisperUi(cleanWho(m.who), planarSummaryHtml);
   sendCurrentDate(cleanWho(m.who), false, { playerid: m.playerid, dashboard: true, includeButtons: true });
 }
 
@@ -636,6 +965,7 @@ export function maybeHandleSetupGate(msg, args){
       delete setup.draft.seasonVariant;
       delete setup.draft.hemisphere;
       delete setup.draft.planesEnabled;
+      _setupResetEberronPlanarInit(setup.draft);
       if (setup.draft.calendarVariant){
         return _showSetupWizard(msg, _setupCalendarSelectionNotice(setup.draft.calendarSystem, setup.draft.calendarVariant)), true;
       }
@@ -645,6 +975,7 @@ export function maybeHandleSetupGate(msg, args){
       setup.status = 'in_progress';
       setup.draft.calendarVariant = _setupVariantKey(setup.draft.calendarSystem, args[3]);
       delete setup.draft.date;
+      _setupResetEberronPlanarInit(setup.draft);
       return _showSetupWizard(msg), true;
     }
     if (action === 'date'){
@@ -712,6 +1043,46 @@ export function maybeHandleSetupGate(msg, args){
     if (action === 'planes'){
       setup.status = 'in_progress';
       setup.draft.planesEnabled = String(args[3] || '').toLowerCase() !== 'off';
+      if (!setup.draft.planesEnabled) _setupResetEberronPlanarInit(setup.draft);
+      return _showSetupWizard(msg), true;
+    }
+    if (action === 'planeinit'){
+      setup.status = 'in_progress';
+      if (!_setupShouldRunEberronPlanarInit(setup.draft)){
+        return _showSetupWizard(msg), true;
+      }
+      var init = _setupEberronPlanarInitState(setup.draft);
+      var initSub = String(args[3] || '').toLowerCase();
+      var initVal = String(args[4] || '').toLowerCase();
+      if (initSub === 'link'){
+        if (!/^(roll|linked|independent)$/.test(initVal)) return _showSetupWizard(msg), true;
+        init.linkModeChoice = initVal;
+        delete init.climateChoice;
+        return _showSetupWizard(msg), true;
+      }
+      if (initSub === 'climate'){
+        var effectiveLinkMode = _setupEberronResolvedLinkMode(setup.draft).effectiveMode;
+        var climateChoices = effectiveLinkMode === 'linked'
+          ? ['roll', 'fernia-coterminous', 'risia-coterminous', 'neither']
+          : ['roll', 'fernia-coterminous', 'fernia-remote', 'risia-coterminous', 'risia-remote', 'neither'];
+        if (climateChoices.indexOf(initVal) < 0) return _showSetupWizard(msg), true;
+        init.climateChoice = initVal;
+        return _showSetupWizard(msg), true;
+      }
+      if (initSub === 'plane'){
+        var planeName = String(args[4] || '');
+        var planeChoice = String(args[5] || '').toLowerCase();
+        var plane = _getPlaneData(planeName);
+        if (!plane || ['Daanvi', 'Dolurrh', 'Irian', 'Shavarath', 'Syrania', 'Thelanis'].indexOf(plane.name) < 0) return _showSetupWizard(msg), true;
+        if (!/^(roll|coterminous|remote|neither)$/.test(planeChoice)) return _showSetupWizard(msg), true;
+        init.planeChoices[plane.name] = planeChoice;
+        return _showSetupWizard(msg), true;
+      }
+      if (initSub === 'mabar'){
+        if (!/^(roll|remote|neither)$/.test(initVal)) return _showSetupWizard(msg), true;
+        init.mabarChoice = initVal;
+        return _showSetupWizard(msg), true;
+      }
       return _showSetupWizard(msg), true;
     }
     if (action === 'review'){

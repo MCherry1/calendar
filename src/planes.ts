@@ -1,6 +1,6 @@
 // Section 21: Planar System
 import { state_name } from './constants.js';
-import { ensureSettings, getCal, titleCase } from './state.js';
+import { deepClone, ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { _deliverTopLevelCalendarRange } from './events.js';
@@ -213,12 +213,14 @@ export function getPlanesState(){
   if (!root.planes) root.planes = {
     overrides: {},    // planeName -> { phase:'coterminous'|'remote'|'neutral', note:'' }
     anchors: {},      // planeName -> { year, month, day, phase } — GM-set anchor overrides
+    ferniaRisiaLinkMode: 'seed', // 'seed' | 'linked' | 'independent'
     revealTier: 'medium', // 'low' | 'medium' | 'high'
     revealHorizonDays: baselineHorizon   // player-known horizon window
   };
   var ps = root.planes;
   if (!ps.overrides) ps.overrides = {};
   if (!ps.anchors) ps.anchors = {};
+  ps.ferniaRisiaLinkMode = _normalizeFerniaRisiaLinkModeSetting(ps.ferniaRisiaLinkMode);
   if (!ps.floatingDays) ps.floatingDays = {};  // planeName -> { phase, startDay, orbitNum }
   if (!ps.suppressedEvents) ps.suppressedEvents = {}; // planeName -> { serial: true }
   if (!ps.gmCustomEvents) ps.gmCustomEvents = {};     // planeName -> [ {serial, phase, durationDays, note} ]
@@ -256,6 +258,45 @@ export function _getAllPlaneData(){
 // Convert years to days using the calendar's year length.
 export function _planarYearDays(){
   return getCal().months.reduce(function(s, m){ return s + (m.days|0); }, 0);
+}
+
+export function _normalizeFerniaRisiaLinkModeSetting(mode){
+  var raw = String(mode || '').toLowerCase();
+  if (raw === 'linked' || raw === 'independent') return raw;
+  return 'seed';
+}
+
+function _seededFerniaRisiaLinkMode(){
+  var epoch = ensureSettings().epochSeed || 0;
+  return _dN(epoch, 'fernia_risia_link_mode', 2) === 1 ? 'linked' : 'independent';
+}
+
+export function resolveFerniaRisiaLinkModeChoice(choice){
+  var raw = String(choice || '').toLowerCase();
+  var storedMode = (raw === 'roll') ? 'seed' : _normalizeFerniaRisiaLinkModeSetting(raw);
+  return {
+    storedMode: storedMode,
+    effectiveMode: storedMode === 'seed' ? _seededFerniaRisiaLinkMode() : storedMode
+  };
+}
+
+export function getFerniaRisiaLinkModeSetting(ps?){
+  ps = ps || getPlanesState();
+  return _normalizeFerniaRisiaLinkModeSetting(ps.ferniaRisiaLinkMode);
+}
+
+export function getFerniaRisiaLinkMode(ps?){
+  var resolved = resolveFerniaRisiaLinkModeChoice(getFerniaRisiaLinkModeSetting(ps));
+  return resolved.effectiveMode;
+}
+
+function _planeUsesLinkedSeed(plane, ps){
+  if (!plane || !plane.linkedTo) return false;
+  return plane.name === 'Risia' && getFerniaRisiaLinkMode(ps) === 'linked';
+}
+
+function _planeSeedName(plane, ps){
+  return _planeUsesLinkedSeed(plane, ps) ? plane.linkedTo : plane.name;
 }
 
 export function _planeHasNonAnnualTraditionalCycle(plane){
@@ -320,6 +361,42 @@ function _planeDefaultAnchorRecord(plane){
     day: (plane.anchorDay != null) ? (plane.anchorDay | 0) : 1,
     phase: plane.anchorPhase || 'coterminous'
   };
+}
+
+function _planeResolvedAnchorSerial(plane, ps, ignoreSeedOverride?){
+  if (!plane || plane.type !== 'cyclic') return null;
+  ps = ps || getPlanesState();
+  var anchorMi = (plane.anchorMonth != null) ? (plane.anchorMonth - 1) : 0;
+  var anchorDay = (plane.anchorDay != null) ? (plane.anchorDay | 0) : 1;
+  if (anchorDay < 1) anchorDay = 1;
+  var anchorSerial = toSerial(plane.anchorYear || 998, anchorMi, anchorDay);
+  if (!plane.seedAnchor) return anchorSerial;
+
+  try {
+    if (!ignoreSeedOverride){
+      var seedOverride = (ps.seedOverrides && ps.seedOverrides[plane.name]);
+      if (seedOverride != null){
+        return toSerial(parseInt(seedOverride, 10) || (plane.anchorYear || 998), anchorMi, anchorDay);
+      }
+    }
+    var epoch = ensureSettings().epochSeed || 0;
+    var cycle = _planeCycleMetrics(plane);
+    var seedName = _planeSeedName(plane, ps);
+    if (plane.anchorMonth != null){
+      var yearOff = _dN(epoch, seedName + '_anchor_offset', plane.orbitYears || 1) - 1;
+      anchorSerial += yearOff * cycle.ypd;
+    } else {
+      var seedOffset = _dN(epoch, seedName + '_anchor_offset', cycle.orbitDays);
+      anchorSerial += seedOffset;
+    }
+  } catch(e){}
+  return anchorSerial;
+}
+
+function _planeSeedSearchYear(plane, ps){
+  var serial = _planeResolvedAnchorSerial(plane, ps, true);
+  if (serial == null) return plane && plane.anchorYear ? plane.anchorYear : 998;
+  return fromSerial(serial).year;
 }
 
 function _planePhaseStartSerial(plane, anchorRec, targetPhase){
@@ -535,36 +612,7 @@ export function getPlanarState(planeName, serial, opts?){
   if (anchor){
     anchorSerial = toSerial(anchor.year, anchor.month || 0, anchor.day || 1);
   } else {
-    var anchorMi = (plane.anchorMonth != null) ? (plane.anchorMonth - 1) : 0;
-    var anchorDay = (plane.anchorDay != null) ? (plane.anchorDay | 0) : 1;
-    if (anchorDay < 1) anchorDay = 1;
-    anchorSerial = toSerial(plane.anchorYear || 998, anchorMi, anchorDay);
-    // For planes flagged seedAnchor, offset the anchor by a seed-derived amount.
-    // This gives each campaign different timing for long-cycle planes.
-    // GM can override with !cal planes seed <name> <year> to pin a specific anchor year.
-    // linkedTo: derive seed from the linked plane's name (keeps pairs in sync).
-    // If anchorMonth is set (seasonal plane), offset by whole years to preserve season.
-    if (plane.seedAnchor){
-      try {
-        var ps2 = getPlanesState();
-        var seedOverride = (ps2.seedOverrides && ps2.seedOverrides[plane.name]);
-        if (seedOverride != null){
-          // GM-pinned anchor year: replace the base anchor year entirely
-          anchorSerial = toSerial(seedOverride, anchorMi, anchorDay);
-        } else {
-          var epoch = ensureSettings().epochSeed || 0;
-          var seedName = plane.linkedTo || plane.name;
-          if (plane.anchorMonth != null){
-            var yearOff = _dN(epoch, seedName + '_anchor_offset', plane.orbitYears || 1) - 1;
-            anchorSerial += yearOff * ypd;
-          } else {
-            var seedOffset = _dN(epoch, seedName + '_anchor_offset', orbitDays);
-            anchorSerial += seedOffset;
-          }
-        }
-      } catch(e){}
-    }
-
+    anchorSerial = _planeResolvedAnchorSerial(plane, ps);
     // floatingStartDay planes: the start day within the month drifts between
     // occurrences. Handled after the standard phase walk — see below.
   }
@@ -625,7 +673,7 @@ export function getPlanarState(planeName, serial, opts?){
               _remoteBaseYear = (parseInt(_seedOverrideYear, 10) || (plane.anchorYear || 998)) + 1;
             } else {
               var _ep = ensureSettings().epochSeed || 0;
-              var _sn = plane.linkedTo || plane.name;
+              var _sn = _planeSeedName(plane, ps);
               // Use the same seed as the primary anchor, but for the remote sub-cycle.
               // Offset by 0 to (remoteOrbitYears-1) whole years.
               var _rOff = _dN(_ep, _sn + '_remote_anchor_offset', plane.remoteOrbitYears) - 1;
@@ -759,6 +807,232 @@ export function getPlanarState(planeName, serial, opts?){
     note: '',
     sourceLabel: 'traditional',
     traditionalAnchorMode: _planeTraditionalAnchorMode(plane, ps)
+  };
+}
+
+function _withTemporaryPlanarSeedState(seedOverrides, linkModeSetting, fn){
+  var ps = getPlanesState();
+  var origSeedOverrides = deepClone(ps.seedOverrides || {});
+  var origFloatingDays = deepClone(ps.floatingDays || {});
+  var origLinkMode = getFerniaRisiaLinkModeSetting(ps);
+  try {
+    ps.seedOverrides = deepClone(seedOverrides || {});
+    ps.floatingDays = {};
+    ps.ferniaRisiaLinkMode = _normalizeFerniaRisiaLinkModeSetting(linkModeSetting);
+    return fn();
+  } finally {
+    ps.seedOverrides = origSeedOverrides;
+    ps.floatingDays = origFloatingDays;
+    ps.ferniaRisiaLinkMode = origLinkMode;
+  }
+}
+
+function _phasePresenceInWindow(planeName, startSerial, endSerial){
+  var seen = { coterminous: false, remote: false };
+  for (var serial = startSerial; serial <= endSerial; serial++){
+    var state = getPlanarState(planeName, serial, { ignoreGenerated: true });
+    if (!state) continue;
+    if (state.phase === 'coterminous') seen.coterminous = true;
+    else if (state.phase === 'remote') seen.remote = true;
+    if (seen.coterminous && seen.remote) break;
+  }
+  return seen;
+}
+
+function _windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice){
+  var seen = _phasePresenceInWindow(planeName, startSerial, endSerial);
+  if (choice === 'coterminous') return !!seen.coterminous;
+  if (choice === 'remote') return !!seen.remote;
+  if (choice === 'neither') return !seen.coterminous && !seen.remote;
+  return true;
+}
+
+function _candidateYearOrder(baseYear, radius){
+  var out = [baseYear];
+  for (var delta = 1; delta <= radius; delta++){
+    out.push(baseYear - delta);
+    out.push(baseYear + delta);
+  }
+  return out;
+}
+
+function _findNearestSeedOverrideYear(planeName, startSerial, endSerial, linkModeSetting, judgeFn, baseSeedOverrides?){
+  var plane = _getPlaneData(planeName);
+  if (!plane || !plane.seedAnchor) return null;
+  var ps = getPlanesState();
+  var baseYear = _planeSeedSearchYear(plane, ps);
+  var radius = Math.max(parseInt(plane.orbitYears, 10) || 1, parseInt(plane.remoteOrbitYears, 10) || 0, 1);
+  var orderedYears = _candidateYearOrder(baseYear, radius);
+  for (var i = 0; i < orderedYears.length; i++){
+    var candidateYear = orderedYears[i];
+    var tempOverrides = deepClone(baseSeedOverrides || {});
+    tempOverrides[plane.name] = candidateYear;
+    var matched = _withTemporaryPlanarSeedState(tempOverrides, linkModeSetting, function(){
+      return !!judgeFn(tempOverrides);
+    });
+    if (matched){
+      return {
+        year: candidateYear,
+        delta: Math.abs(candidateYear - baseYear)
+      };
+    }
+  }
+  return null;
+}
+
+function _seedOverridePreview(resolvedYears){
+  var names = Object.keys(resolvedYears || {});
+  if (!names.length) return 'Random seed unchanged';
+  names.sort(function(a, b){ return String(a).localeCompare(String(b)); });
+  return names.map(function(name){
+    return name + ' seed year ' + resolvedYears[name];
+  }).join('; ');
+}
+
+function _resolvePlanarSeedChoice(planeName, choice, startSerial, endSerial, linkModeSetting, baseSeedOverrides?){
+  var resolvedYears: any = {};
+  if (choice === 'roll'){
+    return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
+  }
+  var found = _findNearestSeedOverrideYear(
+    planeName,
+    startSerial,
+    endSerial,
+    linkModeSetting,
+    function(){
+      return _windowSatisfiesPlaneChoice(planeName, startSerial, endSerial, choice);
+    },
+    baseSeedOverrides
+  );
+  if (found) resolvedYears[planeName] = found.year;
+  return {
+    resolvedYears: resolvedYears,
+    preview: found ? _seedOverridePreview(resolvedYears) : 'No matching seed year found'
+  };
+}
+
+function _resolveFerniaRisiaClimateChoice(choice, effectiveLinkMode, startSerial, endSerial, linkModeSetting, baseSeedOverrides?){
+  var resolvedYears: any = {};
+  if (choice === 'roll'){
+    return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
+  }
+
+  if (effectiveLinkMode === 'linked'){
+    var linkedJudge = null;
+    if (choice === 'fernia-coterminous'){
+      linkedJudge = function(){ return _windowSatisfiesPlaneChoice('Fernia', startSerial, endSerial, 'coterminous'); };
+    } else if (choice === 'risia-coterminous'){
+      linkedJudge = function(){ return _windowSatisfiesPlaneChoice('Risia', startSerial, endSerial, 'coterminous'); };
+    } else if (choice === 'neither'){
+      linkedJudge = function(){
+        var ferniaSeen = _phasePresenceInWindow('Fernia', startSerial, endSerial);
+        var risiaSeen = _phasePresenceInWindow('Risia', startSerial, endSerial);
+        return !ferniaSeen.coterminous && !risiaSeen.coterminous;
+      };
+    }
+    if (!linkedJudge) return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
+    var linkedFound = _findNearestSeedOverrideYear('Fernia', startSerial, endSerial, linkModeSetting, linkedJudge, baseSeedOverrides);
+    if (linkedFound) resolvedYears.Fernia = linkedFound.year;
+    return {
+      resolvedYears: resolvedYears,
+      preview: linkedFound ? _seedOverridePreview(resolvedYears) : 'No matching seed year found'
+    };
+  }
+
+  if (choice === 'fernia-coterminous' || choice === 'fernia-remote'){
+    return _resolvePlanarSeedChoice('Fernia', choice === 'fernia-coterminous' ? 'coterminous' : 'remote', startSerial, endSerial, linkModeSetting, baseSeedOverrides);
+  }
+  if (choice === 'risia-coterminous' || choice === 'risia-remote'){
+    return _resolvePlanarSeedChoice('Risia', choice === 'risia-coterminous' ? 'coterminous' : 'remote', startSerial, endSerial, linkModeSetting, baseSeedOverrides);
+  }
+  if (choice === 'neither'){
+    var ferniaRes = _resolvePlanarSeedChoice('Fernia', 'neither', startSerial, endSerial, linkModeSetting, baseSeedOverrides);
+    var ferniaOverrides = deepClone(baseSeedOverrides || {});
+    Object.keys(ferniaRes.resolvedYears).forEach(function(name){ ferniaOverrides[name] = ferniaRes.resolvedYears[name]; });
+    var risiaRes = _resolvePlanarSeedChoice('Risia', 'neither', startSerial, endSerial, linkModeSetting, ferniaOverrides);
+    Object.keys(ferniaRes.resolvedYears).forEach(function(name){ resolvedYears[name] = ferniaRes.resolvedYears[name]; });
+    Object.keys(risiaRes.resolvedYears).forEach(function(name){ resolvedYears[name] = risiaRes.resolvedYears[name]; });
+    return {
+      resolvedYears: resolvedYears,
+      preview: _seedOverridePreview(resolvedYears)
+    };
+  }
+
+  return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
+}
+
+function _resolveMabarRemoteChoice(choice, startSerial, endSerial, linkModeSetting, baseSeedOverrides?){
+  var resolvedYears: any = {};
+  if (choice === 'roll'){
+    return { resolvedYears: resolvedYears, preview: 'Random seed unchanged' };
+  }
+  var found = _findNearestSeedOverrideYear(
+    'Mabar',
+    startSerial,
+    endSerial,
+    linkModeSetting,
+    function(){
+      var seen = _phasePresenceInWindow('Mabar', startSerial, endSerial);
+      return choice === 'remote' ? !!seen.remote : !seen.remote;
+    },
+    baseSeedOverrides
+  );
+  if (found) resolvedYears.Mabar = found.year;
+  return {
+    resolvedYears: resolvedYears,
+    preview: found ? _seedOverridePreview(resolvedYears) : 'No matching seed year found'
+  };
+}
+
+export function resolveEberronPlanarInitialization(startSerial, selections?){
+  selections = selections || {};
+  var yearDays = _planarYearDays();
+  var endSerial = startSerial + yearDays - 1;
+  var linkChoice = String(selections.linkModeChoice || 'roll').toLowerCase();
+  var climateChoice = String(selections.climateChoice || 'roll').toLowerCase();
+  var planeChoices = selections.planeChoices || {};
+  var storedLink = resolveFerniaRisiaLinkModeChoice(linkChoice);
+  var seedOverrides: any = {};
+  var items: any = {};
+
+  items.link = {
+    choice: linkChoice,
+    preview: linkChoice === 'roll'
+      ? ('Seed resolves to ' + titleCase(storedLink.effectiveMode))
+      : ('Using ' + titleCase(storedLink.effectiveMode) + ' mode')
+  };
+
+  items.climate = _resolveFerniaRisiaClimateChoice(
+    climateChoice,
+    storedLink.effectiveMode,
+    startSerial,
+    endSerial,
+    storedLink.storedMode,
+    seedOverrides
+  );
+  items.climate.choice = climateChoice;
+  Object.keys(items.climate.resolvedYears || {}).forEach(function(name){ seedOverrides[name] = items.climate.resolvedYears[name]; });
+
+  ['Daanvi', 'Dolurrh', 'Irian', 'Shavarath', 'Syrania', 'Thelanis'].forEach(function(name){
+    var choice = String(planeChoices[name] || 'roll').toLowerCase();
+    var resolved: any = _resolvePlanarSeedChoice(name, choice, startSerial, endSerial, storedLink.storedMode, seedOverrides);
+    resolved.choice = choice;
+    items[name] = resolved;
+    Object.keys(resolved.resolvedYears || {}).forEach(function(planeName){ seedOverrides[planeName] = resolved.resolvedYears[planeName]; });
+  });
+
+  var mabarChoice = String(selections.mabarChoice || 'roll').toLowerCase();
+  items.Mabar = _resolveMabarRemoteChoice(mabarChoice === 'remote' ? 'remote' : (mabarChoice === 'neither' ? 'neither' : 'roll'), startSerial, endSerial, storedLink.storedMode, seedOverrides);
+  items.Mabar.choice = mabarChoice;
+  Object.keys(items.Mabar.resolvedYears || {}).forEach(function(name){ seedOverrides[name] = items.Mabar.resolvedYears[name]; });
+
+  return {
+    storedLinkMode: storedLink.storedMode,
+    effectiveLinkMode: storedLink.effectiveMode,
+    startSerial: startSerial,
+    endSerial: endSerial,
+    seedOverrides: seedOverrides,
+    items: items
   };
 }
 
@@ -2138,6 +2412,26 @@ export function handlePlanesCommand(m, args){
   // !cal planes seed <name> <year>
   // Override the seed-derived anchor year for a specific plane.
   // This lets GMs pin when a plane's canonical cycle hits without affecting other planes.
+  if (sub === 'link'){
+    var linkTarget = String(args[2] || '').toLowerCase();
+    var linkMode = String(args[3] || '').toLowerCase();
+    if (linkTarget !== 'fernia-risia' || !/^(linked|independent|seed)$/.test(linkMode)){
+      return whisper(m.who,
+        'Usage: <code>!cal planes link fernia-risia (linked|independent|seed)</code><br>'+
+        'Choose whether Risia follows Fernia, uses its own seed, or rolls from the campaign seed.'
+      );
+    }
+    var psLink = getPlanesState();
+    psLink.ferniaRisiaLinkMode = _normalizeFerniaRisiaLinkModeSetting(linkMode);
+    _refreshPlanesHandout();
+    whisper(m.who,
+      '<b>Fernia/Risia</b> link mode set to <b>' + esc(titleCase(linkMode === 'seed' ? 'seeded roll' : linkMode)) + '</b>.<br>' +
+      'Current effective mode: <b>' + esc(titleCase(getFerniaRisiaLinkMode(psLink))) + '</b>.<br>' +
+      'Use <code>!cal planes link fernia-risia seed</code> to return to the campaign-seeded result.'
+    );
+    return whisperParts(m.who, planesPanelHtml(true));
+  }
+
   if (sub === 'seed'){
     var seedName = String(args[2] || '');
     var seedPlane = _getPlaneData(seedName);
@@ -2160,10 +2454,16 @@ export function handlePlanesCommand(m, args){
     var psSeed = getPlanesState();
     if (!psSeed.seedOverrides) psSeed.seedOverrides = {};
     psSeed.seedOverrides[seedPlane.name] = seedYear;
+    var seedLinkNote = '';
+    if (seedPlane.name === 'Fernia' && getFerniaRisiaLinkMode(psSeed) === 'linked'){
+      seedLinkNote = '<i>Risia follows Fernia while the pair is linked.</i><br>';
+    } else if (seedPlane.name === 'Risia' && getFerniaRisiaLinkMode(psSeed) === 'linked'){
+      seedLinkNote = '<i>Risia is currently linked to Fernia, but this explicit Risia seed override takes precedence.</i><br>';
+    }
     _refreshPlanesHandout();
     whisper(m.who,
       '<b>'+esc(seedPlane.name)+'</b> seed anchor overridden to year <b>'+seedYear+'</b>.<br>'+
-      (seedPlane.linkedTo ? '<i>Note: linked plane '+esc(seedPlane.linkedTo)+' will derive from its own setting.</i><br>' : '')+
+      seedLinkNote +
       'Use <code>!cal planes seed '+esc(seedPlane.name)+' clear</code> to remove.');
     return whisperParts(m.who, planesPanelHtml(true));
   }
@@ -2186,6 +2486,7 @@ export function handlePlanesCommand(m, args){
     '<code>!cal planes on &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes ranges &lt;rangeSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes set &lt;name&gt; &lt;phase&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes link fernia-risia &lt;mode&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes seed &lt;name&gt; &lt;year&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes suppress &lt;name&gt; [dateSpec]</code> &nbsp;\u00B7&nbsp; '+

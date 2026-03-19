@@ -9,6 +9,14 @@ function gmArgs(content: string[]) {
   return { who: "GM (GM)", playerid: "GM" } as any;
 }
 
+function firstPhaseDay(planeName: string, phase: string, start: number, span: number) {
+  for (let serial = start; serial < start + span; serial++) {
+    const state = getPlanarState(planeName, serial, { ignoreGenerated: true } as any);
+    if (state && state.phase === phase) return serial;
+  }
+  return null;
+}
+
 describe("Planes regressions", () => {
   it("only applies overrides from setOn forward and keeps future queries from deleting live overrides", () => {
     freshInstall();
@@ -73,5 +81,32 @@ describe("Planes regressions", () => {
 
     assert(vult28 && vult28.phase === "coterminous", "Vult 28 should still be within Long Shadows at day granularity");
     assert(zarantyr1 && zarantyr1.phase !== "coterminous", "Zarantyr 1 should no longer be marked coterminous");
+  });
+
+  it("lets the GM switch Fernia/Risia between linked, independent, and seeded link modes", () => {
+    freshInstall();
+    handlePlanesCommand(gmArgs([]), ["planes", "link", "fernia-risia", "independent"]);
+    assertEquals(getPlanesState().ferniaRisiaLinkMode, "independent");
+
+    handlePlanesCommand(gmArgs([]), ["planes", "link", "fernia-risia", "seed"]);
+    assertEquals(getPlanesState().ferniaRisiaLinkMode, "seed");
+  });
+
+  it("only makes Risia follow Fernia when the pair is linked", () => {
+    freshInstall();
+    const ps = getPlanesState();
+    ps.seedOverrides.Fernia = 998;
+    delete ps.seedOverrides.Risia;
+    const start = toSerial(998, 0, 1);
+
+    ps.ferniaRisiaLinkMode = "linked";
+    const linkedRisiaCoterminous = firstPhaseDay("Risia", "coterminous", start, 2200);
+
+    ps.ferniaRisiaLinkMode = "independent";
+    const independentRisiaCoterminous = firstPhaseDay("Risia", "coterminous", start, 2200);
+
+    assert(linkedRisiaCoterminous != null, "expected a linked Risia coterminous day in range");
+    assert(independentRisiaCoterminous != null, "expected an independent Risia coterminous day in range");
+    assert(linkedRisiaCoterminous !== independentRisiaCoterminous, "Risia should stop following Fernia when the pair is independent");
   });
 });

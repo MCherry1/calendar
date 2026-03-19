@@ -6,6 +6,7 @@ import { handleInput } from "../src/boot-register.js";
 import { notifySetupStatusOnReady } from "../src/setup.js";
 import { checkInstall, ensureSettings, getSetupState, resetToDefaults } from "../src/state.js";
 import { getWeatherState } from "../src/weather.js";
+import { getPlanesState } from "../src/planes.js";
 
 function gmMsg(content: string) {
   return { type: "api", content, who: "GM (GM)", playerid: "GM" } as any;
@@ -18,6 +19,28 @@ function playerMsg(content: string) {
 function lastChat() {
   const log = (globalThis as any)._chatLog;
   return log[log.length - 1] || null;
+}
+
+function startEberronSetup() {
+  handleInput(gmMsg("!cal setup calendar eberron"));
+  handleInput(gmMsg("!cal setup variant standard"));
+  handleInput(gmMsg("!cal setup date default"));
+  handleInput(gmMsg("!cal setup season eberron"));
+  handleInput(gmMsg("!cal setup theme default"));
+  handleInput(gmMsg("!cal setup defaults on"));
+  handleInput(gmMsg("!cal setup moons on"));
+}
+
+function finishDefaultEberronPlanarInit() {
+  handleInput(gmMsg("!cal setup planeinit link roll"));
+  handleInput(gmMsg("!cal setup planeinit climate roll"));
+  handleInput(gmMsg("!cal setup planeinit plane Daanvi roll"));
+  handleInput(gmMsg("!cal setup planeinit plane Dolurrh roll"));
+  handleInput(gmMsg("!cal setup planeinit plane Irian roll"));
+  handleInput(gmMsg("!cal setup planeinit plane Shavarath roll"));
+  handleInput(gmMsg("!cal setup planeinit plane Syrania roll"));
+  handleInput(gmMsg("!cal setup planeinit plane Thelanis roll"));
+  handleInput(gmMsg("!cal setup planeinit mabar roll"));
 }
 
 describe("Setup onboarding", () => {
@@ -80,15 +103,10 @@ describe("Setup onboarding", () => {
 
   it("applies a weather-off setup flow and marks the campaign complete", () => {
     freshInstall();
-    handleInput(gmMsg("!cal setup calendar eberron"));
-    handleInput(gmMsg("!cal setup variant standard"));
-    handleInput(gmMsg("!cal setup date default"));
-    handleInput(gmMsg("!cal setup season eberron"));
-    handleInput(gmMsg("!cal setup theme default"));
-    handleInput(gmMsg("!cal setup defaults on"));
-    handleInput(gmMsg("!cal setup moons on"));
+    startEberronSetup();
     handleInput(gmMsg("!cal setup weather off"));
     handleInput(gmMsg("!cal setup planes on"));
+    finishDefaultEberronPlanarInit();
     handleInput(gmMsg("!cal setup apply"));
     assertEquals(getSetupState().status, "complete");
     assertEquals(ensureSettings().weatherEnabled, false);
@@ -97,21 +115,78 @@ describe("Setup onboarding", () => {
 
   it("supports the weather-location branch and stores the chosen location", () => {
     freshInstall();
-    handleInput(gmMsg("!cal setup calendar eberron"));
-    handleInput(gmMsg("!cal setup variant standard"));
-    handleInput(gmMsg("!cal setup date default"));
-    handleInput(gmMsg("!cal setup season eberron"));
-    handleInput(gmMsg("!cal setup theme default"));
-    handleInput(gmMsg("!cal setup defaults on"));
-    handleInput(gmMsg("!cal setup moons on"));
+    startEberronSetup();
     handleInput(gmMsg("!cal setup weather narrative"));
     handleInput(gmMsg("!cal setup planes on"));
     handleInput(gmMsg("!cal setup weather climate temperate"));
     handleInput(gmMsg("!cal setup weather geography inland"));
     handleInput(gmMsg("!cal setup weather terrain open"));
+    finishDefaultEberronPlanarInit();
     handleInput(gmMsg("!cal setup apply"));
     assertEquals(getSetupState().status, "complete");
     assertEquals(getWeatherState().location.sig, "temperate/inland/open");
+  });
+
+  it("enters the Eberron planar initialization branch after planes are enabled", () => {
+    freshInstall();
+    startEberronSetup();
+    handleInput(gmMsg("!cal setup weather off"));
+    handleInput(gmMsg("!cal setup planes on"));
+    assert(lastChat().msg.includes("Planar Initialization"));
+    assert(lastChat().msg.includes("Fernia/Risia Link"));
+    assert(lastChat().msg.includes("Roll for it"));
+  });
+
+  it("changes the climate prompt shape based on the Fernia/Risia link choice", () => {
+    freshInstall();
+    startEberronSetup();
+    handleInput(gmMsg("!cal setup weather off"));
+    handleInput(gmMsg("!cal setup planes on"));
+    handleInput(gmMsg("!cal setup planeinit link linked"));
+    assert(lastChat().msg.includes("Fernia coterminous in year one"));
+    assert(lastChat().msg.includes("Risia coterminous in year one"));
+    assert(!lastChat().msg.includes("Fernia remote in year one"));
+
+    freshInstall();
+    startEberronSetup();
+    handleInput(gmMsg("!cal setup weather off"));
+    handleInput(gmMsg("!cal setup planes on"));
+    handleInput(gmMsg("!cal setup planeinit link independent"));
+    assert(lastChat().msg.includes("Fernia remote in year one"));
+    assert(lastChat().msg.includes("Risia remote in year one"));
+  });
+
+  it("applies explicit Eberron planar setup choices and writes the resolved state plus follow-up commands", () => {
+    freshInstall();
+    startEberronSetup();
+    handleInput(gmMsg("!cal setup weather off"));
+    handleInput(gmMsg("!cal setup planes on"));
+    handleInput(gmMsg("!cal setup planeinit link linked"));
+    handleInput(gmMsg("!cal setup planeinit climate fernia-coterminous"));
+    handleInput(gmMsg("!cal setup planeinit plane Daanvi remote"));
+    handleInput(gmMsg("!cal setup planeinit plane Dolurrh roll"));
+    handleInput(gmMsg("!cal setup planeinit plane Irian neither"));
+    handleInput(gmMsg("!cal setup planeinit plane Shavarath roll"));
+    handleInput(gmMsg("!cal setup planeinit plane Syrania roll"));
+    handleInput(gmMsg("!cal setup planeinit plane Thelanis roll"));
+    handleInput(gmMsg("!cal setup planeinit mabar neither"));
+    handleInput(gmMsg("!cal setup apply"));
+
+    const ps = getPlanesState();
+    assertEquals(ps.ferniaRisiaLinkMode, "linked");
+    assert(ps.seedOverrides.Fernia != null);
+    assert(ps.seedOverrides.Daanvi != null);
+    assert(ps.seedOverrides.Irian != null);
+    assert(ps.seedOverrides.Mabar != null);
+
+    const log = (globalThis as any)._chatLog;
+    const summary = [...log].reverse().find((entry: any) =>
+      String(entry.msg).includes("Planar Initialization Applied")
+    );
+    assert(summary);
+    assert(summary.msg.includes("!cal planes link fernia-risia linked"));
+    assert(summary.msg.includes("!cal planes seed Fernia"));
+    assert(summary.msg.includes("!cal planes seed Daanvi"));
   });
 
   it("resetcalendar returns the campaign to the onboarding gate", () => {
