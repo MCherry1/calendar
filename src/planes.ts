@@ -5,6 +5,7 @@ import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc } from './rendering.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
+import { refreshHandout } from './persistent-views.js';
 import { PLANAR_GENERATED_EVENT_PROFILE, _dN, _generatedEventAt, _generatedPhase, _nextGeneratedForecast, _rangeLabel, getLongShadowsMoons, isGeneratedShift } from './moon.js';
 
 
@@ -1539,6 +1540,10 @@ export function _isGeneratedNote(note){
   return /generated/i.test(String(note || ''));
 }
 
+function _refreshPlanesHandout(){
+  refreshHandout('planes');
+}
+
 
 // ---------------------------------------------------------------------------
 // 21g) Command handler  (!cal planes ...)
@@ -1592,11 +1597,13 @@ export function handlePlanesCommand(m, args){
     var st = ensureSettings();
     st.planesEnabled = (st.planesEnabled === false);
     st._planesAutoToggle = false;
+    _refreshPlanesHandout();
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
   if (sub === 'generated'){
     ensureSettings().offCyclePlanes = (ensureSettings().offCyclePlanes === false);
+    _refreshPlanesHandout();
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
@@ -1644,6 +1651,7 @@ export function handlePlanesCommand(m, args){
     });
 
     var durMsg = durationDays > 0 ? ' for <b>'+durationDays+'</b> day'+(durationDays>1?'s':'') : ' (indefinite)';
+    _refreshPlanesHandout();
     whisper(m.who, '<b>'+esc(plane.name)+'</b> forced to <b>'+esc(PLANE_PHASE_LABELS[setPhase])+'</b>'+durMsg+'.');
     return whisperParts(m.who, planesPanelHtml(true));
   }
@@ -1657,6 +1665,7 @@ export function handlePlanesCommand(m, args){
       psC.overrides = {};
       psC.anchors = {};
       psC.gmCustomEvents = {};
+      _refreshPlanesHandout();
       whisper(m.who, 'All planar overrides and anchor overrides cleared.');
       return whisperParts(m.who, planesPanelHtml(true));
     }
@@ -1665,6 +1674,7 @@ export function handlePlanesCommand(m, args){
     delete psC.overrides[planeC.name];
     delete psC.anchors[planeC.name];
     delete psC.gmCustomEvents[planeC.name];
+    _refreshPlanesHandout();
     whisper(m.who, 'Override cleared for <b>'+esc(planeC.name)+'</b>.');
     return whisperParts(m.who, planesPanelHtml(true));
   }
@@ -1704,6 +1714,7 @@ export function handlePlanesCommand(m, args){
     );
     // Clear any phase override since we're now using calculated cycles
     delete psA.overrides[planeA.name];
+    _refreshPlanesHandout();
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
@@ -1776,6 +1787,7 @@ export function handlePlanesCommand(m, args){
     var effectiveGenHorizon = parseInt(psSend.generatedHorizonDays,10) || genHorizon;
 
     sendToAll(_planesBroadcastSummaryHtml(effectiveTier, effectiveCanonHorizon, effectiveGenHorizon));
+    _refreshPlanesHandout();
     var rangeNote = (effectiveTier === 'medium')
       ? 'canon ' + _planeRangeLabel(effectiveCanonHorizon) + ', generated ' + effectiveGenHorizon + 'd'
       : _planeRangeLabel(effectiveCanonHorizon);
@@ -1871,6 +1883,7 @@ export function handlePlanesCommand(m, args){
     if (!psSup.suppressedEvents[suppPlane.name]) psSup.suppressedEvents[suppPlane.name] = {};
     psSup.suppressedEvents[suppPlane.name][suppEvt.startSerial] = true;
     var suppDateLabel = dateLabelFromSerial(suppEvt.startSerial);
+    _refreshPlanesHandout();
     whisper(m.who,
       'Suppressed <b>'+esc(suppPlane.name)+'</b> generated '+esc(suppEvt.phase)+
       ' event starting '+esc(suppDateLabel)+' ('+suppEvt.durationDays+'d).');
@@ -1892,6 +1905,7 @@ export function handlePlanesCommand(m, args){
     if (String(args[3] || '').toLowerCase() === 'clear'){
       var psSeedClear = getPlanesState();
       if (psSeedClear.seedOverrides) delete psSeedClear.seedOverrides[seedPlane.name];
+      _refreshPlanesHandout();
       whisper(m.who, '<b>'+esc(seedPlane.name)+'</b> seed anchor override removed. Using epoch-derived anchor.');
       return whisperParts(m.who, planesPanelHtml(true));
     }
@@ -1901,6 +1915,7 @@ export function handlePlanesCommand(m, args){
     var psSeed = getPlanesState();
     if (!psSeed.seedOverrides) psSeed.seedOverrides = {};
     psSeed.seedOverrides[seedPlane.name] = seedYear;
+    _refreshPlanesHandout();
     whisper(m.who,
       '<b>'+esc(seedPlane.name)+'</b> seed anchor overridden to year <b>'+seedYear+'</b>.<br>'+
       (seedPlane.linkedTo ? '<i>Note: linked plane '+esc(seedPlane.linkedTo)+' will derive from its own setting.</i><br>' : '')+

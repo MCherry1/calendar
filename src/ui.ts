@@ -8,6 +8,7 @@ import { DaySpec, Parse, monthIndexByName } from './parsing.js';
 import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, eventIndexByKey, markSuppressedIfDefault, occurrencesInRange } from './events.js';
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
+import { refreshAllPersistentViews } from './persistent-views.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
 import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, tidalLabel } from './moon.js';
@@ -616,6 +617,7 @@ export function stepDays(n, opts?){
   // Slide the forecast window forward and lock past days
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(startSerial, dest);
+  refreshAllPersistentViews({ autoBind: true });
   if (opts.announce === false) return;
 
   var direction = n >= 0 ? 'Forward' : 'Back';
@@ -647,6 +649,7 @@ export function setDate(m, d, y, opts?){
   // Slide the forecast window forward and lock past days, same as stepDays
   if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
   _manifestZoneOnDateChange(oldSerial, toSerial(yi, mi, di));
+  refreshAllPersistentViews({ autoBind: true });
   if (opts.announce === false) return;
   sendCurrentDate(null, true);
 }

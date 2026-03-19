@@ -13,6 +13,7 @@ import { notifySetupStatusOnReady } from './setup.js';
 import { WEATHER_CLIMATES, WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _bestTier, _clampWeatherTempBand, _composeFormula, _forecastRecord, _grantCommonWeatherReveals, _locSig, _parseWeatherRevealDateSpec, _parseWeatherRevealDayToken, _recordReveal, _rollTrait, _weatherRecordForDisplay, _weatherRevealBucket, _weatherRevealForSerial, _weatherTempInfo, _weatherTempLabel, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { register } from './boot-register.js';
 import { MOON_SYSTEMS, _diskOverlapFraction, _eberronMoonCore, _eclipseLifecycleText, _eclipseMetricsAt, _eclipseNotableToday, _eclipseTimeBlock, _finalizeEclipseEvent, _moonHashStr, getEclipses, getMoonState, moonEnsureSequences, moonPhaseAt, nighttimeLightCondition, nighttimeLux } from './moon.js';
+import { refreshAllPersistentViews } from './persistent-views.js';
 
 
 /* ============================================================================
@@ -27,6 +28,7 @@ on("ready", function(){
   var stReady = ensureSettings();
   var sysReady = CALENDAR_SYSTEMS[stReady.calendarSystem] || {};
   var sysLabelReady = String(sysReady.label || 'Calendar');
+  refreshAllPersistentViews({ autoBind: true });
   log(sysLabelReady + ' Running, current date: ' + currentDate);
   notifySetupStatusOnReady();
 });

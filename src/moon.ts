@@ -7,6 +7,7 @@ import { _monthRangeFromSerial, _renderSyntheticMiniCal, _stripHtmlTags, button,
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
+import { bindMoonPageByName, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 
@@ -1840,7 +1841,7 @@ export function moonPanelParts(serialOverride?){
 
   // Management dropdown
   gmControls += '<div style="margin:4px 0;">' +
-    button('Management','moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}}') +
+    button('Management','moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Bind Moon Page,page bind ?\\{Moon Phase page name|Moon Phase\\}|Refresh Moon Page,page refresh|Show Moon Page,page show}') +
     '</div>';
 
   // Utility buttons
@@ -2016,6 +2017,11 @@ export function _moonParseMoonName(str, sys){
     if (sys.moons[i].name.toLowerCase() === s) return sys.moons[i].name;
   }
   return null;
+}
+
+function _refreshMoonPersistentViews(){
+  refreshMoonPage({ autoBind: true });
+  refreshHandout('moons');
 }
 
 
@@ -3773,7 +3779,28 @@ export function handleMoonCommand(m, args){
   if (sub === 'toggle'){
     st.moonsEnabled = (st.moonsEnabled === false);
     st._moonsAutoToggle = false;
+    _refreshMoonPersistentViews();
     return whisperParts(m.who, moonPanelParts());
+  }
+
+  if (sub === 'page'){
+    var pageAction = String(args[2] || '').toLowerCase();
+    if (!pageAction || pageAction === 'bind'){
+      var pageName = args.slice(3).join(' ').trim() || 'Moon Phase';
+      var bindRes = bindMoonPageByName(pageName);
+      if (!bindRes.ok) return whisper(m.who, bindRes.message);
+      refreshMoonPage({ autoBind: true });
+      return whisper(m.who, bindRes.message);
+    }
+    if (pageAction === 'refresh'){
+      var refreshRes = refreshMoonPage({ autoBind: true });
+      return whisper(m.who, refreshRes.message);
+    }
+    if (pageAction === 'show'){
+      var showRes = showMoonPage();
+      return whisper(m.who, showRes.message);
+    }
+    return whisper(m.who, 'Usage: <code>!cal moon page bind &lt;page name&gt;</code> · <code>!cal moon page refresh</code> · <code>!cal moon page show</code>');
   }
 
   if (sub === 'reseed'){
@@ -3786,6 +3813,7 @@ export function handleMoonCommand(m, args){
     msReseed.generatedFrom = null;
     msReseed.generatedThru = 0;
     moonEnsureSequences();
+    _refreshMoonPersistentViews();
     whisper(m.who, 'Moon sequences reseeded to <b>'+esc(nextSeed)+'</b>.');
     return whisperParts(m.who, moonPanelParts());
   }
@@ -3842,6 +3870,7 @@ export function handleMoonCommand(m, args){
       '<div style="font-size:.75em;opacity:.4;margin-top:3px;">Forecast horizon: '+esc(_rangeLabel(effectiveHorizon))+'</div>'
     ));
 
+    _refreshMoonPersistentViews();
     warnGM('Sent '+titleCase(effectiveTier)+' lunar forecast to players ('+_rangeLabel(effectiveHorizon)+').');
     return whisperParts(m.who, moonPanelParts());
   }
@@ -3867,6 +3896,7 @@ export function handleMoonCommand(m, args){
     ms.generatedFrom = null;
     ms.generatedThru = 0;
     moonEnsureSequences();
+    _refreshMoonPersistentViews();
     return whisper(m.who, 'System moon seed set to <b>'+esc(word)+'</b>. Sequences regenerated.');
   }
 
@@ -3904,6 +3934,7 @@ export function handleMoonCommand(m, args){
     ms2.generatedFrom = null;
     ms2.generatedThru = 0;
     moonEnsureSequences();
+    _refreshMoonPersistentViews();
 
     var monthName = _displayMonthDayParts(pref.mHuman - 1, pref.day).monthName;
     return whisper(m.who,
@@ -3958,12 +3989,14 @@ export function handleMoonCommand(m, args){
       ms3.generatedFrom = null;
       ms3.generatedThru = 0;
       moonEnsureSequences();
+      _refreshMoonPersistentViews();
       return whisper(m.who, 'Phase overrides reset for <b>'+esc(mName3)+'</b>.');
     } else {
       ms3.gmAnchors = {};
       ms3.generatedFrom = null;
       ms3.generatedThru = 0;
       moonEnsureSequences();
+      _refreshMoonPersistentViews();
       return whisper(m.who, 'All moon phase overrides reset.');
     }
   }
@@ -3973,6 +4006,9 @@ export function handleMoonCommand(m, args){
     '<code>!cal moon view &lt;name&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;·&nbsp; '+
     '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon page bind &lt;page name&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon page refresh</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon page show</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon reset [&lt;name&gt;]</code>'

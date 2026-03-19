@@ -51,6 +51,7 @@ import {
   _subsystemIsVerbose, _legendLine, _displayMonthDayParts, _weatherViewDays
 } from './ui';
 import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messaging';
+import { refreshHandout } from './persistent-views.js';
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
 import { weekdayProgressionFor } from './worlds/index';
@@ -2542,6 +2543,10 @@ export function weatherHandoutHtml(){
   );
 }
 
+function _refreshWeatherHandout(){
+  refreshHandout('weather');
+}
+
 // Build whispered player forecast from their stored reveal state.
 function playerForecastWhisper(m: any){
   var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
@@ -3104,6 +3109,7 @@ function _setWeatherLocationFromWizard(m: any, partial: any){
     }
   }
 
+  _refreshWeatherHandout();
   whisperUi(m.who,
     _menuBox('Location Set', msg)+
     '<div style="margin-top:4px;">'+
@@ -3187,6 +3193,7 @@ function _toggleManifestZoneForGm(m: any, zoneKey: any){
       whisper(m.who, 'No manifest zones are active.');
       return;
     }
+    _refreshWeatherHandout();
     whisper(m.who, 'Cleared manifest zones: <b>'+esc(removed.map(function(entry: any){ return entry.def.name; }).join(', '))+'</b>.');
     return;
   }
@@ -3200,6 +3207,7 @@ function _toggleManifestZoneForGm(m: any, zoneKey: any){
 
   if (ws.manifestZones[key]){
     delete ws.manifestZones[key];
+    _refreshWeatherHandout();
     whisper(m.who,
       'Manifest zone deactivated: <b>'+esc(def.name)+'</b>. ' +
       'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.'
@@ -3214,6 +3222,7 @@ function _toggleManifestZoneForGm(m: any, zoneKey: any){
     arythFullActivated: arythFull,
     arythFullExitWarned: false
   };
+  _refreshWeatherHandout();
   whisper(m.who,
     'Manifest zone activated: <b>'+esc(def.name)+'</b>. ' +
     'Active: <b>'+esc(_manifestZoneStatusLabel())+'</b>.' +
@@ -3322,6 +3331,7 @@ export function handleWeatherCommand(m, args){
       } else {
         sendSpecificWeatherReveal(m, args.slice(2));
       }
+      _refreshWeatherHandout();
       whisper(m.who, weatherTodayGmHtml());
       break;
     }
@@ -3391,6 +3401,7 @@ export function handleWeatherCommand(m, args){
         n = parsedDays;
       }
       var cnt = _generateForecast(todaySerial(), n, true);
+      _refreshWeatherHandout();
       whisper(m.who, 'Generated '+cnt+' day'+(cnt===1?'':'s')+' of weather.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
@@ -3425,6 +3436,7 @@ export function handleWeatherCommand(m, args){
           }
         }
       }
+      _refreshWeatherHandout();
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
     }
@@ -3436,6 +3448,7 @@ export function handleWeatherCommand(m, args){
       if (!lockRec){ warnGM('No weather record for that day.'); break; }
       lockRec.locked = true;
       lockRec.generatedAt = todaySerial();
+      _refreshWeatherHandout();
       warnGM('Forecast for day '+lockSer+' locked.');
       whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
       break;
@@ -3446,6 +3459,7 @@ export function handleWeatherCommand(m, args){
       wsReseed.forecast = [];
       wsReseed.history = [];
       weatherEnsureForecast();
+      _refreshWeatherHandout();
       warnGM('Weather reseeded. Forecast and history cleared, new forecast generated.');
       whisper(m.who, weatherTodayGmHtml());
       break;
@@ -3459,6 +3473,7 @@ export function handleWeatherCommand(m, args){
       wsReset.history = [];
       wsReset.playerReveal = preservedReveal;
       weatherEnsureForecast();
+      _refreshWeatherHandout();
       warnGM('Weather reset. Forecast regenerated for current location. Player reveal tags preserved.');
       whisper(m.who, weatherTodayGmHtml());
       break;
@@ -3472,16 +3487,19 @@ export function handleWeatherCommand(m, args){
       }
       if (manageAction === 'toggleweather'){
         ensureSettings().weatherEnabled = (ensureSettings().weatherEnabled === false);
+        _refreshWeatherHandout();
         whisper(m.who, weatherTodayGmHtml());
         break;
       }
       if (manageAction === 'togglehazards'){
         ensureSettings().weatherHazardsEnabled = (ensureSettings().weatherHazardsEnabled === false);
+        _refreshWeatherHandout();
         whisper(m.who, weatherTodayGmHtml());
         break;
       }
       if (manageAction === 'togglemechanics'){
         ensureSettings().weatherMechanicsEnabled = (ensureSettings().weatherMechanicsEnabled === false);
+        _refreshWeatherHandout();
         whisper(m.who, weatherTodayGmHtml());
         break;
       }
