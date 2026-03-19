@@ -2117,8 +2117,10 @@ export function moonHandoutHtml(serialOverride?){
       _eclipseNotableToday(today).join('<br>') + '</div>';
   }
 
-  // Multi-month calendars
-  body += _moonMultiMonthHtml(today, tier, horizon, true);
+  // Keep the auto-refreshed player handout on the player reveal tier across
+  // its rolling window. Rendering the past month at forced high tier makes
+  // every date change pay the expensive eclipse scan path.
+  body += _moonMultiMonthHtml(today, tier, horizon, false);
   body += _legendLine(['🌕 Full', '🌑 New']);
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';

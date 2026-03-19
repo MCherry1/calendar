@@ -92,6 +92,7 @@ Evaluation summary:
 - The dominant cost is eclipse work inside the high-tier month minical, not HTML assembly. `_moonMiniCalEvents()` calls `_eclipseNotableToday()` for every displayed day, which calls `getEclipses(serial)`.
 - `getEclipses(serial)` calls `moonEnsureSequences(serial, 3)`. Because the focus serial advances day by day across the month, `generatedThru` extends repeatedly during the scan, forcing fresh moon-sequence generation and changing the eclipse cache key. That largely defeats caching during a full-month high-tier render.
 - Conclusion: the moons view is slow because eclipse generation is recomputed repeatedly while building the month overlay. This is primarily a server computation problem, not a "script is too large for browsers" problem.
+- Date-change regression note: the auto-refreshed player moon handout was also forcing a high-tier past-month render on every `!cal set` / `!cal advance`. Keeping that handout on the player reveal tier across its rolling window reduced local command timings from about 1.6 s to about 52 ms for `!cal advance 1` and about 116 ms for `!cal set 1 2 998`.
 
 Recommended follow-up if optimization is needed:
 
