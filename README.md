@@ -173,9 +173,12 @@ Use `!cal show ...` or `!cal send ...` when you want the traditional month/year 
 
 ### Persistent Player Surfaces
 
-- The script maintains four player-safe handouts automatically: `Calendar - Events`, `Calendar - Moons`, `Calendar - Weather`, and `Calendar - Planes`.
-- Each handout shows the subsystem minical plus descriptive text, but no chat buttons or GM-only controls.
-- The moon handout preserves exact lived-through lunar results for the most recent 60 in-world days, then falls back to the normal reveal-tier view for older past dates.
+- The script now maintains a structured handout hierarchy automatically instead of the old flat four-handout model.
+- Unified handouts: `Calendar - Events`, `Calendar - Lunar - 0 Unified`, `Calendar - Weather`, and `Calendar - Planar - 0 Unified`.
+- Mechanics handouts: `Calendar - Events - Mechanics`, `Calendar - Lunar - Mechanics`, `Calendar - Weather - Mechanics`, and `Calendar - Planar - Mechanics`.
+- Entity handouts: one handout per moon (`Calendar - Lunar - <Moon>`) and one handout per plane (`Calendar - Planar - <Plane>`).
+- Roll20 cannot create Journal folders via API, so the script creates the handouts at the Journal root and whispers the GM one-time foldering instructions.
+- The unified lunar handout still preserves exact lived-through lunar results for the most recent 60 in-world days, then falls back to the normal reveal-tier view for older past dates.
 - The script can also keep a live Roll20 page updated for lunar display. Bind an existing page named `Moon Phase`, or bind any other existing page by name with the moon page commands below.
 - Player movement to the live Moon page is explicit: the page redraws automatically when state changes, but players are only moved there when the GM uses `!cal moon page show`.
 

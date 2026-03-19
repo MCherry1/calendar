@@ -110,7 +110,17 @@ None currently.
 
 These tasks still need design direction before coding.
 
-None currently.
+- **Calendar Initialization: Eberron planar seed prompts**
+  - Add a design/workshop task for the Eberron setup flow so initialization explicitly addresses the campaign-impacting long-cycle and less-than-annual planar seeds.
+  - The setup should explain that seeded timing can materially change whether major planar phases happen during the campaign and should not be hidden behind a silent random default.
+  - Work through which planes need explicit setup questions at minimum: `Daanvi`, `Thelanis`, `Fernia/Risia` linked vs floating behavior, `Fernia/Risia` active timing, `Shavarath`, `Dolurrh`, and any other Eberron planes whose seeded anchors meaningfully affect near-term play.
+  - For each affected seedable plane/cycle, decide the GM-facing choices:
+    - `Roll for it` and accept the random seed-derived result
+    - `Make it happen` / ask for a specific campaign-facing outcome
+    - `Do not let it happen during this campaign`
+  - Design the UX copy so the GM understands why the question matters without getting buried in lore during setup.
+  - Decide whether this belongs in the main setup wizard, an Eberron-only advanced step, or a post-setup calibration flow.
+  - Do not implement yet; this item exists to workshop the initialization design before coding.
 
 ---
 

@@ -10,7 +10,7 @@ import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFro
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
-import { refreshAllPersistentViews } from './persistent-views.js';
+import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
@@ -445,6 +445,22 @@ export function eventsHandoutHtml(serialArg?){
   return _menuBox('Events — ' + esc(currentDateLabel()), lines.join('') + calHtml);
 }
 
+export function eventsMechanicsHandoutHtml(){
+  return _menuBox('Events Mechanics',
+    '<div style="margin-bottom:6px;">Reference handout for the live event list, management workflows, and source-priority behavior.</div>' +
+    '<div style="font-size:.84em;line-height:1.6;margin-bottom:8px;">' +
+      '<b>Adding events:</b> Single, monthly, and yearly events all resolve into the live event table shown below.<br>' +
+      '<b>Removing events:</b> Custom events can be removed directly; default events are suppressed and can be restored later.<br>' +
+      '<b>Source priority:</b> Default canon, generated content, and manual additions are tracked separately so suppression and restore flows stay deterministic.' +
+    '</div>' +
+    listAllEventsTableHtml() +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:8px 0 6px 0;"></div>' +
+    removeListHtml() +
+    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:8px 0 6px 0;"></div>' +
+    suppressedDefaultsListHtml()
+  );
+}
+
 function _eventsRemoveRestoreHtml(){
   return _menuBox('Remove / Restore Events',
     '<div style="opacity:.8;margin-bottom:6px;">Open the matching workflow for custom-event removal or suppressed-default restoration.</div>' +
@@ -511,6 +527,15 @@ export var commands = {
 
   // FIX: top-level !cal list now works
   list: function(m){ whisper(m.who, listAllEventsTableHtml()); },
+
+  setup: function(m, a){
+    var action = String(a[2] || '').toLowerCase();
+    if (action === 'dismiss' || action === 'later'){
+      var res = dismissPersistentFolderInstructions();
+      return whisperUi(m.who, res.message);
+    }
+    whisperUi(m.who, 'Setup is already complete.');
+  },
 
   // Player shortcut: !cal forecast shows their revealed weather forecast
   forecast: function(m){

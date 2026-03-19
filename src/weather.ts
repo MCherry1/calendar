@@ -51,7 +51,7 @@ import {
   _subsystemIsVerbose, _legendLine, _displayMonthDayParts, _weatherViewDays
 } from './ui';
 import { send, sendToAll, whisper, whisperUi, warnGM, cleanWho } from './messaging';
-import { refreshHandout } from './persistent-views.js';
+import { handoutButton, refreshHandout } from './persistent-views.js';
 import { _setCount, _setMin, _setMax, _monthsFromRangeSpec } from './events';
 import { weekStartSerial } from './date-math';
 import { weekdayProgressionFor } from './worlds/index';
@@ -2523,23 +2523,125 @@ export function weatherHandoutHtml(){
     return _menuBox('Weather', '<div style="opacity:.7;">No weather location has been set.</div>');
   }
 
-  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
-  if (!view){
-    weatherEnsureForecast();
-    var rec = _forecastRecord(todaySerial());
-    if (!rec){
-      return _menuBox('Weather', '<div style="opacity:.7;">Weather is not available right now.</div>');
-    }
-    var fallbackTier = (_weatherRevealForSerial(ws, todaySerial(), ws.location).tier || 'low');
-    return _menuBox('Weather — ' + _weatherLocationLabel(ws.location),
-      '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+esc(_displayMonthDayParts(fromSerial(todaySerial()).mi, fromSerial(todaySerial()).day).label)+'</b></div>' +
-      _playerDayHtml(rec, fallbackTier, true, WEATHER_SOURCE_LABELS.common || null)
+  weatherEnsureForecast();
+  var today = todaySerial();
+  var start = today - 10;
+  var spanDays = 21;
+  var miniCal = _weatherForecastMiniCalHtml(start, spanDays);
+  var rows: any[] = [];
+
+  for (var ser = start; ser <= today + 10; ser++){
+    var rec = _weatherRecordForDisplay(_forecastRecord(ser));
+    if (!rec || !rec.final) continue;
+    var dayObj = fromSerial(ser);
+    var label = _displayMonthDayParts(dayObj.mi, dayObj.day).label + ', ' + dayObj.year;
+    var delta = ser - today;
+    var rel = delta < 0 ? ('-' + Math.abs(delta) + 'd') : (delta > 0 ? ('+' + delta + 'd') : 'Today');
+    var cond = _deriveConditions(rec.final, rec.location || {}, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+    var narr = _conditionsNarrative(rec.final, cond, WEATHER_PRIMARY_PERIOD);
+    var temps = _weatherDayTempRange(rec);
+    var tempText = temps ? (temps.lowF + '/' + temps.highF + '\u00B0F') : '\u2014';
+    rows.push(
+      '<tr>' +
+        '<td style="'+STYLES.td+';white-space:nowrap;">' + esc(label) + '<br><span style="opacity:.55;">' + esc(rel) + '</span></td>' +
+        '<td style="'+STYLES.td+';text-align:center;font-size:1.15em;">' + _weatherEmojiForRecord(rec) + '</td>' +
+        '<td style="'+STYLES.td+';text-align:center;">' + esc(tempText) + '</td>' +
+        '<td style="'+STYLES.td+';font-size:.84em;">' + esc(narr) + '</td>' +
+      '</tr>'
     );
   }
 
-  return _menuBox('Weather — ' + view.locationLabel,
-    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>' +
-    view.summaryHtml + view.body
+  if (!rows.length){
+    return _menuBox('Weather — ' + _weatherLocationLabel(ws.location), '<div style="opacity:.7;">Weather is not available right now.</div>');
+  }
+
+  var head = '<tr>' +
+    '<th style="'+STYLES.th+'">Date</th>' +
+    '<th style="'+STYLES.th+'">Sky</th>' +
+    '<th style="'+STYLES.th+'">Temps</th>' +
+    '<th style="'+STYLES.th+'">Outlook</th>' +
+  '</tr>';
+
+  return _menuBox('Weather — ' + _weatherLocationLabel(ws.location),
+    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Window: <b>Previous 10 days + next 10 days</b></div>' +
+    _weatherTodaySummaryHtml(today, null, true) +
+    miniCal +
+    _legendLine(['Emoji = afternoon outlook', 'Temps = low/high for the day']) +
+    '<table style="'+STYLES.table+'">' + head + rows.join('') + '</table>'
+  );
+}
+
+export function weatherMechanicsHandoutHtml(){
+  var tempRows = WEATHER_TEMPERATURE_BANDS_F.map(function(band){
+    var range = (band.minF == null ? '\u2264 ' + band.maxF : band.maxF == null ? '\u2265 ' + band.minF : band.minF + ' to ' + band.maxF) + '\u00B0F';
+    var dcText = (band.nominalDC == null) ? '\u2014' : ('DC ' + band.nominalDC);
+    var heatRule = band.heatArmorDisadvantageLabel || ((WEATHER_HEAT_ARMOR_RULES[band.heatArmorDisadvantage || 'none'] || {}).label) || '\u2014';
+    return '<tr>' +
+      '<td style="'+STYLES.td+';text-align:center;">' + band.band + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(range) + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(titleCase(band.label || '')) + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(dcText) + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(band.coldRequirementLabel || '\u2014') + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(heatRule || '\u2014') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var windRows = CONFIG_WEATHER_LABELS.wind.map(function(label: any, idx: any){
+    return '<tr>' +
+      '<td style="'+STYLES.td+';text-align:center;">' + idx + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(label) + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(CONFIG_WEATHER_MECHANICS.wind[idx] || 'No special mechanical effect by default.') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var extremeRows = Object.keys(EXTREME_EVENTS).map(function(key: any){
+    var evt = EXTREME_EVENTS[key];
+    return '<tr>' +
+      '<td style="'+STYLES.td+'">' + esc(evt.emoji || '') + ' ' + esc(evt.name || key) + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(evt.duration || '\u2014') + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(evt.mechanics || '\u2014') + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(evt.aftermath || '\u2014') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return _menuBox('Weather Mechanics',
+    '<div style="margin-bottom:6px;">Reference tables for the weather bands, derived visibility rules, and the extreme-event catalog used by the script.</div>' +
+    '<div style="font-weight:bold;margin:6px 0 4px 0;">Temperature Bands</div>' +
+    '<table style="'+STYLES.table+'">' +
+      '<tr>' +
+        '<th style="'+STYLES.th+'">Band</th>' +
+        '<th style="'+STYLES.th+'">Range</th>' +
+        '<th style="'+STYLES.th+'">Label</th>' +
+        '<th style="'+STYLES.th+'">Nominal DC</th>' +
+        '<th style="'+STYLES.th+'">Cold Gear</th>' +
+        '<th style="'+STYLES.th+'">Heat Armor Rule</th>' +
+      '</tr>' +
+      tempRows +
+    '</table>' +
+    '<div style="font-weight:bold;margin:10px 0 4px 0;">Wind Bands</div>' +
+    '<table style="'+STYLES.table+'">' +
+      '<tr>' +
+        '<th style="'+STYLES.th+'">Band</th>' +
+        '<th style="'+STYLES.th+'">Label</th>' +
+        '<th style="'+STYLES.th+'">Mechanical Effect</th>' +
+      '</tr>' +
+      windRows +
+    '</table>' +
+    '<div style="margin-top:10px;font-size:.84em;line-height:1.6;">' +
+      '<b>Visibility and fog:</b> <code>_deriveConditions()</code> turns precipitation and fog into the three obscurity tiers used elsewhere in the system. Dense fog and the worst precipitation collapse visibility first, then difficult terrain and hazard tags are layered on top.<br>' +
+      '<b>Tides:</b> Coastal and island locations use the current tidal index from the moon system, with Zarantyr carrying the dominant effect.<br>' +
+      '<b>Extreme events:</b> These are GM advisory hazards gated by the daily weather state and location profile.' +
+    '</div>' +
+    '<div style="font-weight:bold;margin:10px 0 4px 0;">Extreme Events</div>' +
+    '<table style="'+STYLES.table+'">' +
+      '<tr>' +
+        '<th style="'+STYLES.th+'">Event</th>' +
+        '<th style="'+STYLES.th+'">Duration</th>' +
+        '<th style="'+STYLES.th+'">Mechanics</th>' +
+        '<th style="'+STYLES.th+'">Aftermath</th>' +
+      '</tr>' +
+      extremeRows +
+    '</table>'
   );
 }
 
@@ -2694,6 +2796,7 @@ function weatherTodayGmHtml(){
     tidalLine +
     extremeHtml +
     '<div style="margin-top:6px;">'+ button('📣 Send Revealed','weather send') +'</div>'+
+    '<div style="margin-top:4px;">' + handoutButton('Open Weather Handout', 'weather') + ' ' + handoutButton('Weather Mechanics', 'weather:mechanics') + '</div>' +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
     mediumRow + highRow + specificRow +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
@@ -2966,6 +3069,10 @@ function weatherForecastGmHtml(daysOverride?: any){
     (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics','weather mechanics')+' ' : '')+
     button('Reroll Today','weather reroll '+today)+' '+
     button('Regenerate All','weather generate')+
+    '</div>' +
+    '<div style="margin-top:4px;">' +
+    handoutButton('Open Weather Handout', 'weather') + ' ' +
+    handoutButton('Weather Mechanics', 'weather:mechanics') +
     '</div>'
   );
 }

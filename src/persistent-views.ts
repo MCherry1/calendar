@@ -1,20 +1,33 @@
+import { _stableHash } from './color.js';
 import { script_name, state_name } from './constants.js';
 import { fromSerial, todaySerial } from './date-math.js';
-import { _moonPhaseLabel, _getMoonSys, getMoonState, moonEnsureSequences, moonHandoutHtml, moonPhaseAt } from './moon.js';
-import { planesHandoutHtml } from './planes.js';
-import { esc } from './rendering.js';
+import { _moonPhaseLabel, _getMoonSys, getMoonState, moonEnsureSequences, moonHandoutHtml, moonIndividualHandoutHtml, moonMechanicsHandoutHtml, moonPhaseAt } from './moon.js';
+import { _getAllPlaneData, getPlanesState, planeIndividualHandoutHtml, planesHandoutHtml, planesMechanicsHandoutHtml } from './planes.js';
+import { button, esc } from './rendering.js';
 import { ensureSettings, getCal } from './state.js';
-import { eventsHandoutHtml } from './today.js';
-import { weatherHandoutHtml } from './weather.js';
+import { eventsHandoutHtml, eventsMechanicsHandoutHtml } from './today.js';
+import { _forecastRecord, _locSig, getWeatherState, weatherHandoutHtml, weatherMechanicsHandoutHtml } from './weather.js';
 
 var MOON_PAGE_DEFAULT_NAME = 'Moon Phase';
 var MOON_PAGE_MARKER = '[Calendar Moon Page]';
-
-var HANDOUT_SPECS = {
-  events: { name: 'Calendar - Events', render: function(){ return eventsHandoutHtml(); } },
-  moons: { name: 'Calendar - Moons', render: function(){ return moonHandoutHtml(); } },
-  weather: { name: 'Calendar - Weather', render: function(){ return weatherHandoutHtml(); } },
-  planes: { name: 'Calendar - Planes', render: function(){ return planesHandoutHtml(); } }
+var HANDOUT_OPEN_BASE = 'http://journal.roll20.net/handout/';
+var HANDOUT_SUBSYSTEM_ALIASES = {
+  moon: 'lunar',
+  moons: 'lunar',
+  lunar: 'lunar',
+  plane: 'planar',
+  planes: 'planar',
+  planar: 'planar',
+  weather: 'weather',
+  events: 'events',
+  handouts: 'all',
+  all: 'all'
+};
+var PRIMARY_HANDOUT_KEYS = {
+  events: 'events:unified',
+  weather: 'weather:unified',
+  lunar: 'lunar:unified',
+  planar: 'planar:unified'
 };
 
 function _rootState(){
@@ -30,17 +43,343 @@ function _rootState(){
   if (!pv.handouts || typeof pv.handouts !== 'object'){
     pv.handouts = {};
   }
+  if (!pv.handouts.entries || typeof pv.handouts.entries !== 'object'){
+    pv.handouts.entries = {};
+  }
+  if (!pv.handouts.entities || typeof pv.handouts.entities !== 'object'){
+    pv.handouts.entities = {};
+  }
   if (!Array.isArray(pv.moonPage.ownedObjectIds)){
     pv.moonPage.ownedObjectIds = [];
   }
   if (!pv.moonPage.pageName){
     pv.moonPage.pageName = MOON_PAGE_DEFAULT_NAME;
   }
+  if (typeof pv.setupComplete !== 'boolean'){
+    pv.setupComplete = false;
+  }
+  if (typeof pv.folderInstructionsDismissed !== 'boolean'){
+    pv.folderInstructionsDismissed = false;
+  }
+  if (!pv.folderInstructionsShownFor){
+    pv.folderInstructionsShownFor = '';
+  }
+  if (!pv.handoutLayoutStamp){
+    pv.handoutLayoutStamp = '';
+  }
   return pv;
 }
 
 export function getPersistentViewsState(){
   return _rootState();
+}
+
+function _calendarSetupIsComplete(){
+  var root = state[state_name] || {};
+  return !!(root.setup && root.setup.status === 'complete');
+}
+
+function _handoutState(){
+  return _rootState().handouts;
+}
+
+function _slugKey(text){
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'item';
+}
+
+function _hashJson(value){
+  var raw = '';
+  try {
+    raw = JSON.stringify(value == null ? null : value);
+  } catch(e){
+    raw = String(value || '');
+  }
+  return String(_stableHash(raw));
+}
+
+function _currentEventListSignature(){
+  var cal = getCal();
+  return _hashJson((cal.events || []).map(function(evt){
+    return [evt.name, evt.month, evt.day, evt.year, evt.color, evt.source];
+  }));
+}
+
+function _currentMoonStateSignature(){
+  var ms = getMoonState();
+  var sys = _getMoonSys();
+  return _hashJson({
+    calendarSystem: ensureSettings().calendarSystem || '',
+    systemSeed: ms.systemSeed || '',
+    modelRevision: ms.modelRevision || 0,
+    revealTier: ms.revealTier || '',
+    revealHorizonDays: ms.revealHorizonDays || 0,
+    moonCount: sys && sys.moons ? sys.moons.length : 0
+  });
+}
+
+function _currentPlaneStateSignature(){
+  var ps = getPlanesState();
+  return _hashJson({
+    calendarSystem: ensureSettings().calendarSystem || '',
+    revealTier: ps.revealTier || '',
+    revealHorizonDays: ps.revealHorizonDays || 0,
+    generatedHorizonDays: ps.generatedHorizonDays || 0,
+    overrides: ps.overrides || {},
+    anchors: ps.anchors || {},
+    seedOverrides: ps.seedOverrides || {}
+  });
+}
+
+function _currentWeatherWindowSignature(){
+  var ws = getWeatherState();
+  var today = todaySerial();
+  var rows = [];
+  for (var serial = today - 10; serial <= today + 10; serial++){
+    var rec = _forecastRecord(serial);
+    rows.push(rec ? [
+      serial,
+      rec.final && rec.final.temp,
+      rec.final && rec.final.wind,
+      rec.final && rec.final.precip,
+      rec.location ? _locSig(rec.location) : '',
+      rec.snowAccumulated || 0,
+      rec.stale ? 1 : 0
+    ].join(':') : String(serial));
+  }
+  return _hashJson({
+    calendarSystem: ensureSettings().calendarSystem || '',
+    location: ws.location ? _locSig(ws.location) : '',
+    rows: rows
+  });
+}
+
+function _isEntityHandoutKey(key){
+  key = String(key || '');
+  return key.indexOf('lunar:moon:') === 0 || key.indexOf('planar:plane:') === 0;
+}
+
+function _handoutRecordStore(key){
+  var hs = _handoutState();
+  return _isEntityHandoutKey(key) ? hs.entities : hs.entries;
+}
+
+function _handoutRecord(key){
+  var store = _handoutRecordStore(key);
+  if (!store[key] || typeof store[key] !== 'object'){
+    store[key] = {};
+  }
+  var rec = store[key];
+  if (!rec.id) rec.id = '';
+  if (!rec.name) rec.name = '';
+  if (!rec.renderStamp) rec.renderStamp = '';
+  rec.lastRefreshSerial = isFinite(rec.lastRefreshSerial) ? (rec.lastRefreshSerial|0) : null;
+  return rec;
+}
+
+function _dropHandoutRecord(key){
+  var store = _handoutRecordStore(key);
+  delete store[key];
+}
+
+function _buildHandoutSpecs(){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var eventSig = _currentEventListSignature();
+  var moonSig = _currentMoonStateSignature();
+  var planeSig = _currentPlaneStateSignature();
+  var weatherSig = _currentWeatherWindowSignature();
+  var moonSys = _getMoonSys();
+  var planes = _getAllPlaneData();
+  var specs = [
+    {
+      key: 'events:unified',
+      subsystem: 'events',
+      name: 'Calendar - Events',
+      legacyIdKeys: ['eventsId'],
+      renderStamp: 'events:' + today + ':' + eventSig,
+      render: function(){ return eventsHandoutHtml(today); }
+    },
+    {
+      key: 'events:mechanics',
+      subsystem: 'events',
+      name: 'Calendar - Events - Mechanics',
+      renderStamp: 'events-mechanics:' + eventSig,
+      render: function(){ return eventsMechanicsHandoutHtml(); }
+    },
+    {
+      key: 'lunar:unified',
+      subsystem: 'lunar',
+      name: 'Calendar - Lunar - 0 Unified',
+      legacyIdKeys: ['moonsId'],
+      legacyNames: ['Calendar - Moons'],
+      renderStamp: 'lunar-unified:' + today + ':' + moonSig,
+      render: function(){ return moonHandoutHtml(today); }
+    },
+    {
+      key: 'lunar:mechanics',
+      subsystem: 'lunar',
+      name: 'Calendar - Lunar - Mechanics',
+      renderStamp: 'lunar-mechanics:' + (st.calendarSystem || '') + ':' + moonSig,
+      render: function(){ return moonMechanicsHandoutHtml(); }
+    },
+    {
+      key: 'planar:unified',
+      subsystem: 'planar',
+      name: 'Calendar - Planar - 0 Unified',
+      legacyIdKeys: ['planesId'],
+      legacyNames: ['Calendar - Planes'],
+      renderStamp: 'planar-unified:' + today + ':' + planeSig,
+      render: function(){ return planesHandoutHtml(); }
+    },
+    {
+      key: 'planar:mechanics',
+      subsystem: 'planar',
+      name: 'Calendar - Planar - Mechanics',
+      renderStamp: 'planar-mechanics:' + (st.calendarSystem || '') + ':' + planeSig,
+      render: function(){ return planesMechanicsHandoutHtml(); }
+    },
+    {
+      key: 'weather:unified',
+      subsystem: 'weather',
+      name: 'Calendar - Weather',
+      legacyIdKeys: ['weatherId'],
+      renderStamp: 'weather-unified:' + today + ':' + weatherSig,
+      render: function(){ return weatherHandoutHtml(); }
+    },
+    {
+      key: 'weather:mechanics',
+      subsystem: 'weather',
+      name: 'Calendar - Weather - Mechanics',
+      renderStamp: 'weather-mechanics:' + (st.calendarSystem || '') + ':' + _hashJson({ location: getWeatherState().location || null }),
+      render: function(){ return weatherMechanicsHandoutHtml(); }
+    }
+  ];
+
+  if (moonSys && moonSys.moons && moonSys.moons.length){
+    for (var i = 0; i < moonSys.moons.length; i++){
+      (function(moon){
+        specs.push({
+          key: 'lunar:moon:' + _slugKey(moon.name),
+          subsystem: 'lunar',
+          name: 'Calendar - Lunar - ' + moon.name,
+          renderStamp: 'lunar-moon:' + today + ':' + moon.name + ':' + moonSig,
+          render: function(){ return moonIndividualHandoutHtml(moon.name, today); }
+        });
+      })(moonSys.moons[i]);
+    }
+  }
+
+  if (planes && planes.length){
+    for (var j = 0; j < planes.length; j++){
+      (function(plane){
+        specs.push({
+          key: 'planar:plane:' + _slugKey(plane.name),
+          subsystem: 'planar',
+          name: 'Calendar - Planar - ' + plane.name,
+          renderStamp: 'planar-plane:' + today + ':' + plane.name + ':' + planeSig,
+          render: function(){ return planeIndividualHandoutHtml(plane.name, today); }
+        });
+      })(planes[j]);
+    }
+  }
+
+  return specs;
+}
+
+function _handoutLayoutSignature(specs){
+  return (specs || []).map(function(spec){
+    return spec.key + '=' + spec.name;
+  }).join('|');
+}
+
+function _cleanupStaleHandouts(specs){
+  var hs = _handoutState();
+  var active = {};
+  (specs || []).forEach(function(spec){ active[spec.key] = 1; });
+  ['entries', 'entities'].forEach(function(storeName){
+    var store = hs[storeName] || {};
+    Object.keys(store).forEach(function(key){
+      if (active[key]) return;
+      var rec = store[key];
+      var handout = rec && rec.id ? getObj('handout', String(rec.id)) : null;
+      if (handout){
+        try { handout.remove(); } catch(e){}
+      }
+      delete store[key];
+    });
+  });
+}
+
+function _syncHandoutLayout(specs){
+  var pv = _rootState();
+  var nextSig = _handoutLayoutSignature(specs);
+  if (pv.handoutLayoutStamp && pv.handoutLayoutStamp !== nextSig){
+    _cleanupStaleHandouts(specs);
+    pv.setupComplete = false;
+    pv.folderInstructionsDismissed = false;
+    pv.folderInstructionsShownFor = '';
+  }
+  pv.handoutLayoutStamp = nextSig;
+}
+
+function _normalizeHandoutTarget(kind){
+  var token = String(kind || '').trim().toLowerCase();
+  if (!token) return '';
+  return HANDOUT_SUBSYSTEM_ALIASES[token] || token;
+}
+
+function _resolveHandoutSpecs(kinds, specs){
+  specs = specs || _buildHandoutSpecs();
+  if (kinds == null || (Array.isArray(kinds) && !kinds.length)) return specs.slice();
+  var requested = Array.isArray(kinds) ? kinds.slice() : [kinds];
+  var out = [];
+  var seen = {};
+
+  function pushSpec(spec){
+    if (!spec || seen[spec.key]) return;
+    seen[spec.key] = 1;
+    out.push(spec);
+  }
+
+  for (var i = 0; i < requested.length; i++){
+    var raw = String(requested[i] || '').trim();
+    if (!raw) continue;
+    var norm = _normalizeHandoutTarget(raw);
+    if (norm === 'all'){
+      specs.forEach(pushSpec);
+      continue;
+    }
+    if (PRIMARY_HANDOUT_KEYS[norm]){
+      for (var si = 0; si < specs.length; si++){
+        if (specs[si].subsystem === norm) pushSpec(specs[si]);
+      }
+      continue;
+    }
+    for (var sj = 0; sj < specs.length; sj++){
+      var spec = specs[sj];
+      if (spec.key === raw || spec.key === norm || String(spec.name || '').toLowerCase() === norm){
+        pushSpec(spec);
+      }
+    }
+  }
+  return out;
+}
+
+function _primaryHandoutSpec(kind, specs){
+  specs = specs || _buildHandoutSpecs();
+  var raw = String(kind || '').trim();
+  if (!raw) return null;
+  var norm = _normalizeHandoutTarget(raw);
+  var targetKey = PRIMARY_HANDOUT_KEYS[norm] || raw;
+  for (var i = 0; i < specs.length; i++){
+    if (specs[i].key === targetKey || specs[i].key === norm){
+      return specs[i];
+    }
+  }
+  return null;
 }
 
 function _idOf(obj){
@@ -388,15 +727,29 @@ export function showMoonPage(){
   };
 }
 
-function _ensureHandout(kind){
-  var spec = HANDOUT_SPECS[kind];
+function _ensureHandout(spec){
   if (!spec) return null;
 
-  var handoutState = _rootState().handouts;
-  var idKey = kind + 'Id';
-  var handout = handoutState[idKey] ? getObj('handout', String(handoutState[idKey])) : null;
+  var hs = _handoutState();
+  var rec = _handoutRecord(spec.key);
+  var handout = rec.id ? getObj('handout', String(rec.id)) : null;
+
+  if (!handout && Array.isArray(spec.legacyIdKeys)){
+    for (var i = 0; i < spec.legacyIdKeys.length; i++){
+      var legacyId = hs[spec.legacyIdKeys[i]];
+      if (!legacyId) continue;
+      handout = getObj('handout', String(legacyId));
+      if (handout) break;
+    }
+  }
   if (!handout){
     handout = _findByName('handout', spec.name);
+  }
+  if (!handout && Array.isArray(spec.legacyNames)){
+    for (var j = 0; j < spec.legacyNames.length; j++){
+      handout = _findByName('handout', spec.legacyNames[j]);
+      if (handout) break;
+    }
   }
   if (!handout){
     handout = createObj('handout', {
@@ -406,43 +759,191 @@ function _ensureHandout(kind){
     });
   }
   if (!handout) return null;
-  handoutState[idKey] = _idOf(handout);
+
+  rec.id = _idOf(handout);
+  rec.name = spec.name;
+  if (Array.isArray(spec.legacyIdKeys)){
+    for (var k = 0; k < spec.legacyIdKeys.length; k++){
+      hs[spec.legacyIdKeys[k]] = rec.id;
+    }
+  }
+
   handout.set({
     name: spec.name,
     inplayerjournals: 'all',
     archived: false
   });
-  return handout;
+  return { handout: handout, record: rec };
 }
 
-export function refreshHandout(kind){
-  var spec = HANDOUT_SPECS[kind];
-  if (!spec){
-    return { ok:false, reason:'unknown', message:'Unknown handout kind: ' + esc(String(kind || '')) + '.' };
-  }
-  var handout = _ensureHandout(kind);
-  if (!handout){
+function _refreshHandoutSpec(spec, opts){
+  opts = opts || {};
+  var ensured = _ensureHandout(spec);
+  if (!ensured || !ensured.handout){
     return { ok:false, reason:'missing', message:'Could not create or find handout <b>' + esc(spec.name) + '</b>.' };
   }
+  var handout = ensured.handout;
+  var rec = ensured.record;
+  var stamp = String(spec.renderStamp || '');
+
+  if (opts.force !== true && rec.renderStamp === stamp){
+    return {
+      ok: true,
+      skipped: true,
+      handoutId: _idOf(handout),
+      handoutName: spec.name,
+      handoutKey: spec.key
+    };
+  }
+
   handout.set('notes', spec.render());
-  return { ok:true, handoutId:_idOf(handout), handoutName:spec.name };
+  rec.renderStamp = stamp;
+  rec.lastRefreshSerial = todaySerial();
+  rec.name = spec.name;
+  return {
+    ok: true,
+    skipped: false,
+    handoutId: _idOf(handout),
+    handoutName: spec.name,
+    handoutKey: spec.key
+  };
 }
 
-export function refreshHandouts(kinds?){
-  var list = Array.isArray(kinds) && kinds.length ? kinds : Object.keys(HANDOUT_SPECS);
+function _folderInstructionsHtml(specs){
+  var lunarCount = specs.filter(function(spec){ return spec.subsystem === 'lunar'; }).length;
+  var planarCount = specs.filter(function(spec){ return spec.subsystem === 'planar'; }).length;
+  var weatherCount = specs.filter(function(spec){ return spec.subsystem === 'weather'; }).length;
+  var eventCount = specs.filter(function(spec){ return spec.subsystem === 'events'; }).length;
+  return (
+    '<div style="margin-bottom:6px;">I created <b>' + specs.length + '</b> calendar handouts at the Journal root. Roll20 cannot create folders via API, so create these folders manually and drag the matching handouts into them once.</div>' +
+    '<div style="font-family:monospace;white-space:pre-line;opacity:.88;">' +
+      'Calendar/\n' +
+      '  Lunar/   \u2014 ' + lunarCount + ' handouts\n' +
+      '  Planar/  \u2014 ' + planarCount + ' handouts\n' +
+      '  Weather/ \u2014 ' + weatherCount + ' handouts\n' +
+      '  Events/  \u2014 ' + eventCount + ' handouts' +
+    '</div>' +
+    '<div style="margin-top:6px;opacity:.8;">Unified handouts sort first as <code>0 Unified</code>. Mechanics handouts stay inside each subsystem folder.</div>' +
+    '<div style="margin-top:8px;">' + button('Done — Dismiss This Message', 'setup dismiss') + '</div>'
+  );
+}
+
+function _maybeNotifyFolderInstructions(specs){
+  if (!_calendarSetupIsComplete()) return;
+  var pv = _rootState();
+  if (pv.folderInstructionsDismissed === true) return;
+  var layoutSig = pv.handoutLayoutStamp || _handoutLayoutSignature(specs);
+  if (pv.folderInstructionsShownFor === layoutSig) return;
+  sendChat(script_name, '/w gm ' + _folderInstructionsHtml(specs), null, { noarchive: true });
+  pv.setupComplete = true;
+  pv.folderInstructionsShownFor = layoutSig;
+}
+
+export function dismissPersistentFolderInstructions(){
+  var pv = _rootState();
+  pv.folderInstructionsDismissed = true;
+  return {
+    ok: true,
+    message: 'Calendar handout folder instructions dismissed.'
+  };
+}
+
+export function getHandoutId(kind, opts?){
+  opts = opts || {};
+  var specs = _buildHandoutSpecs();
+  _syncHandoutLayout(specs);
+  var spec = _primaryHandoutSpec(kind, specs);
+  if (!spec) return '';
+
+  var rec = _handoutRecord(spec.key);
+  var handout = rec.id ? getObj('handout', String(rec.id)) : null;
+  if (!handout){
+    handout = _findByName('handout', spec.name);
+  }
+  if (!handout && Array.isArray(spec.legacyNames)){
+    for (var i = 0; i < spec.legacyNames.length; i++){
+      handout = _findByName('handout', spec.legacyNames[i]);
+      if (handout) break;
+    }
+  }
+  if (!handout && opts.createIfMissing){
+    var ensured = _ensureHandout(spec);
+    handout = ensured && ensured.handout;
+  }
+  if (!handout) return '';
+  rec.id = _idOf(handout);
+  return rec.id;
+}
+
+export function handoutButton(label, kind, opts?){
+  opts = opts || {};
+  var id = getHandoutId(kind, { createIfMissing: opts.createIfMissing !== false });
+  if (!id) return '';
+  return '[' + esc(String(label || 'Open Handout')) + '](' + HANDOUT_OPEN_BASE + id + ')';
+}
+
+export function refreshHandout(kind, opts?){
+  opts = opts || {};
+  var specs = _buildHandoutSpecs();
+  _syncHandoutLayout(specs);
+  var matches = _resolveHandoutSpecs([kind], specs);
+  if (!matches.length){
+    return { ok:false, reason:'unknown', message:'Unknown handout kind: ' + esc(String(kind || '')) + '.' };
+  }
+  if (matches.length === 1 && matches[0].key === String(kind || '')){
+    return _refreshHandoutSpec(matches[0], opts);
+  }
+  var out = {};
+  for (var i = 0; i < matches.length; i++){
+    out[matches[i].key] = _refreshHandoutSpec(matches[i], opts);
+  }
+  if (!opts.skipFolderNotice) _maybeNotifyFolderInstructions(specs);
+  return { ok:true, handouts:out };
+}
+
+export function refreshHandouts(kinds?, opts?){
+  opts = opts || {};
+  var specs = _buildHandoutSpecs();
+  _syncHandoutLayout(specs);
+  var list = _resolveHandoutSpecs(kinds, specs);
   var out = {};
   for (var i = 0; i < list.length; i++){
-    out[list[i]] = refreshHandout(list[i]);
+    out[list[i].key] = _refreshHandoutSpec(list[i], opts);
   }
+  if (!opts.skipFolderNotice) _maybeNotifyFolderInstructions(specs);
   return out;
+}
+
+export function refreshHandoutsBatched(kinds?, opts?){
+  opts = opts || {};
+  var specs = _buildHandoutSpecs();
+  _syncHandoutLayout(specs);
+  var list = _resolveHandoutSpecs(kinds, specs);
+  var queue = list.slice();
+  var delayMs = Math.max(0, parseInt(opts.delayMs, 10) || 50);
+
+  function next(){
+    if (!queue.length) return;
+    _refreshHandoutSpec(queue.shift(), { force: opts.force === true, skipFolderNotice: true });
+    if (queue.length) setTimeout(next, delayMs);
+  }
+
+  if (queue.length) next();
+  if (!opts.skipFolderNotice) _maybeNotifyFolderInstructions(specs);
+  return { ok:true, queued:list.length };
 }
 
 export function refreshAllPersistentViews(opts?){
   opts = opts || {};
+  var specs = _buildHandoutSpecs();
+  _syncHandoutLayout(specs);
   var out = {
     moonPage: refreshMoonPage({ autoBind: opts.autoBind !== false }),
-    handouts: refreshHandouts(opts.handoutKinds)
+    handouts: opts.batched
+      ? refreshHandoutsBatched(opts.handoutKinds, { delayMs: opts.batchDelayMs, force: opts.force === true, skipFolderNotice: true })
+      : refreshHandouts(opts.handoutKinds, { force: opts.force === true, skipFolderNotice: true })
   };
+  if (!opts.skipFolderNotice) _maybeNotifyFolderInstructions(specs);
   return out;
 }
 

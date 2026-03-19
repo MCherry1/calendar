@@ -7,7 +7,7 @@ import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWra
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
-import { bindMoonPageByName, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
+import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 
@@ -2157,6 +2157,10 @@ export function moonPanelParts(serialOverride?){
     button('📖 Lore','moon lore')+' '+
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>';
+  gmControls += '<div style="margin:4px 0;">' +
+    handoutButton('Open Lunar Handout', 'lunar') + ' ' +
+    handoutButton('Lunar Mechanics', 'lunar:mechanics') +
+    '</div>';
 
   gmControls += '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
     'Player tier: '+esc(tierLabel)+
@@ -2251,6 +2255,10 @@ export function moonPlayerPanelHtml(serialOverride?){
     button('🌌 Sky Now', 'moon sky') + ' ' +
     button('Prompt !cal moon on', 'moon on ?{Date|'+_serialToDateSpec(today)+'}') +
     '</div>';
+  body += '<div style="margin-top:6px;">' +
+    handoutButton('Open Lunar Handout', 'lunar') + ' ' +
+    handoutButton('Lunar Mechanics', 'lunar:mechanics') +
+    '</div>';
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
   if (srcLabel){
@@ -2280,6 +2288,142 @@ function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal, useRecentHist
     calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
   }
   return handoutWrap(calParts.join(''));
+}
+
+function _moonHandoutNextEventLine(moonName, serial, type){
+  var next = _moonNextEvent(moonName, serial, type);
+  if (!isFinite(next)) return 'Unknown';
+  var daySerial = Math.round(next);
+  var days = Math.max(0, daySerial - (serial|0));
+  return dateLabelFromSerial(daySerial) + ' (' + days + 'd)';
+}
+
+export function moonIndividualHandoutHtml(moonName, serialOverride?){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false){
+    return _menuBox('\uD83C\uDF19 ' + esc(moonName), '<div style="opacity:.7;">Moon system is not active.</div>');
+  }
+
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons || !sys.moons.length){
+    return _menuBox('\uD83C\uDF19 ' + esc(moonName), '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+
+  var moonDef = null;
+  for (var i = 0; i < sys.moons.length; i++){
+    if (sys.moons[i].name === moonName){
+      moonDef = sys.moons[i];
+      break;
+    }
+  }
+  if (!moonDef){
+    return _menuBox('\uD83C\uDF19 ' + esc(moonName), '<div style="opacity:.7;">Unknown moon.</div>');
+  }
+
+  var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
+  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
+  var ph = moonPhaseAt(moonName, today);
+  var phaseLabel = ph ? _moonPhaseLabel(ph.illum, ph.waxing) : 'Unknown';
+  var illumPct = ph ? Math.round(ph.illum * 100) : 0;
+  var monthName = moonDef.associatedMonth
+    ? (((getCal().months[moonDef.associatedMonth - 1] || {}).name) || String(moonDef.associatedMonth))
+    : 'None';
+  var lore = MOON_LORE[moonName];
+  var moonColor = moonDef.color || '#888888';
+  var headerTextColor = (_contrast(moonColor, '#FFFFFF') > 3) ? '#FFFFFF' : '#000000';
+
+  var totalMonths = getCal().months.filter(function(m){ return !m.leapEvery; }).length;
+  var followCount = Math.max(0, totalMonths - 2);
+  var months = rollingMonthWindow(today, 1, followCount);
+  var calParts = [];
+  for (var k = 0; k < months.length; k++){
+    var wm = months[k];
+    var events = _singleMoonMiniCalEvents(moonName, wm.start, wm.end);
+    var miniCal = _renderSyntheticMiniCal(null, wm.start, wm.end, events);
+    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
+  }
+
+  var body = '' +
+    '<div style="background:'+moonColor+';color:'+headerTextColor+';text-align:center;font-weight:bold;padding:4px 8px;border-radius:4px;">' +
+      esc(moonDef.name) + ' \u2014 ' + esc(moonDef.title || '') +
+    '</div>' +
+    '<div style="font-weight:bold;margin:6px 0 4px 0;">' + esc(dateLabelFromSerial(today)) + '</div>' +
+    '<div style="font-size:.84em;line-height:1.6;margin-bottom:6px;">' +
+      '<b>Current phase:</b> ' + esc(phaseLabel) + ' (' + illumPct + '%)<br>' +
+      '<b>Next full:</b> ' + esc(_moonHandoutNextEventLine(moonName, today, 'full')) + '<br>' +
+      '<b>Next new:</b> ' + esc(_moonHandoutNextEventLine(moonName, today, 'new')) + '<br>' +
+      '<b>Synodic period:</b> ' + esc(_moonLorePeriodLabel(moonDef.synodicPeriod)) + '<br>' +
+      '<b>Apparent size:</b> ' + esc(_moonLoreSizeLabel(moonDef)) + '<br>' +
+      '<b>Associated plane:</b> ' + esc(moonDef.plane || 'None') + '<br>' +
+      '<b>Associated month:</b> ' + esc(monthName) +
+      (moonDef.dragonmark ? '<br><b>Dragonmark:</b> ' + esc(moonDef.dragonmark) : '') +
+    '</div>';
+
+  if (lore && lore.blurb){
+    body += '<div style="font-size:.82em;opacity:.82;line-height:1.55;margin-bottom:8px;">' + esc(lore.blurb) + '</div>';
+  }
+
+  body += handoutWrap(calParts.join(''));
+  body += _legendLine(['Gold = full', 'Black = new', 'Grey = phase illumination']);
+
+  return _menuBox('\uD83C\uDF19 ' + esc(moonDef.name) + ' \u2014 ' + esc(dateLabelFromSerial(today)), body);
+}
+
+export function moonMechanicsHandoutHtml(){
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons || !sys.moons.length){
+    return _menuBox('\uD83C\uDF19 Lunar Mechanics', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+  }
+
+  var cal = getCal();
+  var rows = [];
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    var assocMonth = moon.associatedMonth
+      ? (((cal.months[moon.associatedMonth - 1] || {}).name) || String(moon.associatedMonth))
+      : '\u2014';
+    var dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+esc(moon.color || '#999')+';border:1px solid rgba(0,0,0,.28);"></span>';
+    rows.push(
+      '<tr>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">' + dot + ' <b>' + esc(moon.name) + '</b><br><span style="opacity:.65;">' + esc(moon.title || '') + '</span></td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(_moonLorePeriodLabel(moon.synodicPeriod)) + '</td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(String(moon.diameter || '\u2014')) + '</td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(moon.plane || '\u2014') + '</td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(assocMonth) + '</td>' +
+      '</tr>'
+    );
+  }
+
+  var blurbs = [];
+  for (var j = 0; j < sys.moons.length; j++){
+    var lore = MOON_LORE[sys.moons[j].name];
+    if (!lore || !lore.blurb) continue;
+    blurbs.push('<div style="margin:6px 0;"><b>' + esc(sys.moons[j].name) + ':</b> ' + esc(lore.blurb) + '</div>');
+  }
+
+  var body = '' +
+    '<div style="margin-bottom:6px;">This reference handout summarizes the lunar model for <b>' + esc(ensureSettings().calendarSystem || 'this calendar') + '</b>.</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84em;">' +
+      '<tr>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Moon</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Period</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Diameter (mi)</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Plane</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Month</th>' +
+      '</tr>' +
+      rows.join('') +
+    '</table>' +
+    '<div style="margin-top:8px;font-size:.84em;line-height:1.6;">' +
+      '<b>Long Shadows:</b> When Mabar turns coterminous, the nearest new moon to the winter midpoint is claimed and darkened.<br>' +
+      '<b>Eclipses:</b> The script derives solar, lunar, and transiting overlaps from the seeded moon model and reports them in the six time buckets used elsewhere in the calendar UI.<br>' +
+      '<b>Phase labels:</b> Handouts use the same illumination-driven phase labels and full/new peak markers as the chat panels.' +
+    '</div>';
+
+  if (blurbs.length){
+    body += '<div style="margin-top:10px;font-size:.82em;line-height:1.55;">' + blurbs.join('') + '</div>';
+  }
+
+  return _menuBox('\uD83C\uDF19 Lunar Mechanics', body);
 }
 
 export function moonHandoutHtml(serialOverride?){

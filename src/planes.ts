@@ -2,11 +2,11 @@
 import { state_name } from './constants.js';
 import { ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
-import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc } from './rendering.js';
+import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { _deliverTopLevelCalendarRange } from './events.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
-import { refreshHandout } from './persistent-views.js';
+import { handoutButton, refreshHandout } from './persistent-views.js';
 import { PLANAR_GENERATED_EVENT_PROFILE, _dN, _generatedEventAt, _generatedPhase, _nextGeneratedForecast, _rangeLabel, getLongShadowsMoons, isGeneratedShift } from './moon.js';
 
 
@@ -1517,6 +1517,10 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     gmControls += '<div style="margin:4px 0;">'+
       button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
       '</div>';
+    gmControls += '<div style="margin:4px 0;">' +
+      handoutButton('Open Planar Handout', 'planar') + ' ' +
+      handoutButton('Planar Mechanics', 'planar:mechanics') +
+      '</div>';
 
     gmControls += '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
       'CLI: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>'+
@@ -1561,6 +1565,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     var playerPlaneQueryOpts = planes.map(function(p){ return p.name; }).join('|');
     var playerControls = '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
       '<div style="margin:4px 0;">' + button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + playerPlaneQueryOpts + '}') + '</div>' +
+      '<div style="margin:4px 0;">' + handoutButton('Open Planar Handout', 'planar') + ' ' + handoutButton('Planar Mechanics', 'planar:mechanics') + '</div>' +
       '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
     var lastIdx = parts.length - 1;
     parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') + playerControls + '</div>';
@@ -1607,6 +1612,149 @@ export function planesHandoutHtml(){
   parts.push('<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:4px;">Forecast horizon: '+esc(_planeRangeLabel(viewHorizon))+'</div>');
 
   return _menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(dateLabel), parts.join(''));
+}
+
+function _planeRangeDurationLabel(days){
+  var total = Math.max(0, parseInt(days, 10) || 0);
+  var yearDays = _planarYearDays() || 336;
+  if (total >= yearDays * 2) return Math.round(total / yearDays) + ' years';
+  if (total >= 56) return Math.round(total / 28) + ' months';
+  return total + ' days';
+}
+
+function _planeIndividualMiniCalEvents(planeName, startSerial, endSerial){
+  var plane = _getPlaneData(planeName);
+  if (!plane) return [];
+  var out = [];
+  var start = startSerial|0;
+  var end = endSerial|0;
+  if (end < start){ var tmp = start; start = end; end = tmp; }
+
+  for (var ser = start; ser <= end; ser++){
+    var canon = getPlanarState(planeName, ser, { ignoreGenerated: true });
+    if (canon && (canon.phase === 'coterminous' || canon.phase === 'remote')){
+      out.push({
+        serial: ser,
+        name: plane.name + ' ' + (PLANE_PHASE_LABELS[canon.phase] || canon.phase),
+        color: plane.color || '#607D8B',
+        planeFill: true,
+        isRemote: canon.phase === 'remote'
+      });
+    }
+
+    var actual = getPlanarState(planeName, ser);
+    if (actual && _isGeneratedNote(actual.note) && (actual.phase === 'coterminous' || actual.phase === 'remote')){
+      out.push({
+        serial: ser,
+        name: 'Generated: ' + plane.name + ' ' + (PLANE_PHASE_LABELS[actual.phase] || actual.phase),
+        color: plane.color || '#607D8B',
+        dotOnly: true
+      });
+    }
+  }
+
+  return out;
+}
+
+function _planeIndividualHeaderBars(planeName, startSerial, endSerial){
+  var plane = _getPlaneData(planeName);
+  if (!plane) return [];
+  var mid = Math.floor(((startSerial|0) + (endSerial|0)) / 2);
+  var canon = getPlanarState(planeName, mid, { ignoreGenerated: true });
+  if (!canon || (canon.phase !== 'coterminous' && canon.phase !== 'remote')) return [];
+  if ((canon.phaseDuration || 0) <= PLANE_SHORT_EVENT_THRESHOLD) return [];
+  return [{
+    label: plane.name + ' ' + (PLANE_PHASE_LABELS[canon.phase] || canon.phase),
+    color: plane.color || '#607D8B',
+    phase: canon.phase,
+    tooltip: plane.name + ' ' + (PLANE_PHASE_LABELS[canon.phase] || canon.phase) + ' \u2014 ' + _planeRangeDurationLabel(canon.phaseDuration)
+  }];
+}
+
+export function planeIndividualHandoutHtml(planeName, serialOverride?){
+  var st = ensureSettings();
+  if (st.planesEnabled === false){
+    return _menuBox('\uD83C\uDF00 ' + esc(planeName), '<div style="opacity:.7;">Planar tracking is not active.</div>');
+  }
+
+  var plane = _getPlaneData(planeName);
+  if (!plane){
+    return _menuBox('\uD83C\uDF00 ' + esc(planeName), '<div style="opacity:.7;">Unknown plane.</div>');
+  }
+
+  var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
+  var ps = getPlanarState(plane.name, today);
+  var phaseLabel = PLANE_PHASE_LABELS[ps.phase] || ps.phase;
+  var phaseEmoji = PLANE_PHASE_EMOJI[ps.phase] || '\u26AA';
+  var totalMonths = getCal().months.filter(function(m){ return !m.leapEvery; }).length;
+  var followCount = Math.max(0, totalMonths - 2);
+  var months = rollingMonthWindow(today, 1, followCount);
+  var calParts = [];
+
+  for (var i = 0; i < months.length; i++){
+    var wm = months[i];
+    var events = _planeIndividualMiniCalEvents(plane.name, wm.start, wm.end);
+    var bars = _planeIndividualHeaderBars(plane.name, wm.start, wm.end);
+    var miniCal = _renderSyntheticMiniCal(null, wm.start, wm.end, events, bars);
+    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
+  }
+
+  var body = '' +
+    '<div style="font-weight:bold;margin:0 0 4px 0;">' + phaseEmoji + ' ' + esc(plane.name) + ' \u2014 ' + esc(phaseLabel) + '</div>' +
+    '<div style="font-size:.84em;line-height:1.6;margin-bottom:8px;">' +
+      (plane.title ? '<b>Title:</b> ' + esc(plane.title) + '<br>' : '') +
+      '<b>Current phase:</b> ' + esc(phaseLabel) + '<br>' +
+      (ps.daysIntoPhase != null ? '<b>Days into phase:</b> ' + ps.daysIntoPhase + '<br>' : '') +
+      (ps.daysUntilNextPhase != null && ps.nextPhase ? '<b>Next transition:</b> ' + esc(PLANE_PHASE_LABELS[ps.nextPhase] || ps.nextPhase) + ' in ' + ps.daysUntilNextPhase + 'd<br>' : '') +
+      (plane.associatedMoon ? '<b>Associated moon:</b> ' + esc(plane.associatedMoon) + '<br>' : '') +
+      (plane.orbitYears ? '<b>Orbit:</b> ' + plane.orbitYears + ' years<br>' : '<b>Orbit:</b> Fixed phase<br>') +
+      (plane.effects && plane.effects[ps.phase] ? '<b>Effects now:</b> ' + esc(plane.effects[ps.phase]) + '<br>' : '') +
+      (plane.note ? '<b>Notes:</b> ' + esc(plane.note) : '') +
+    '</div>';
+
+  body += handoutWrap(calParts.join(''));
+  body += _legendLine(['Cell fill = canonical active phase', 'Hatched = remote', '\u25CF Dot = generated shift']);
+
+  return _menuBox('\uD83C\uDF00 ' + esc(plane.name) + ' \u2014 ' + esc(dateLabelFromSerial(today)), body);
+}
+
+export function planesMechanicsHandoutHtml(){
+  var planes = _getAllPlaneData();
+  if (!planes || !planes.length){
+    return _menuBox('\uD83C\uDF00 Planar Mechanics', '<div style="opacity:.7;">No planar data for this calendar system.</div>');
+  }
+
+  var rows = [];
+  for (var i = 0; i < planes.length; i++){
+    var plane = planes[i];
+    rows.push(
+      '<tr>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;"><b>' + esc(plane.name) + '</b><br><span style="opacity:.65;">' + esc(plane.title || '') + '</span></td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(plane.type === 'fixed' ? 'Fixed' : String(plane.orbitYears || '\u2014')) + '</td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(plane.associatedMoon || '\u2014') + '</td>' +
+        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">' + esc(plane.note || '') + '</td>' +
+      '</tr>'
+    );
+  }
+
+  var body = '' +
+    '<div style="margin-bottom:6px;">This handout summarizes the canonical planar cycle data plus the seeded-generation rules used by the script.</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84em;">' +
+      '<tr>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Plane</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Orbit</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Moon</th>' +
+        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Notes</th>' +
+      '</tr>' +
+      rows.join('') +
+    '</table>' +
+    '<div style="margin-top:8px;font-size:.84em;line-height:1.6;">' +
+      '<b>Canonical vs generated:</b> Canonical coterminous/remote windows come from each plane\'s fixed cycle. Generated shifts add sparse off-cycle events without replacing the canonical schedule.<br>' +
+      '<b>Anchors and seeds:</b> Long-cycle planes use seeded anchors unless the GM pins an explicit anchor year or override. This is why setup-time seeding decisions matter for Eberron campaigns.<br>' +
+      '<b>Overrides:</b> GM overrides supersede canonical and generated states for the chosen duration, then expire back into the underlying schedule.' +
+    '</div>';
+
+  return _menuBox('\uD83C\uDF00 Planar Mechanics', body);
 }
 
 function _planesBroadcastSummaryHtml(viewTier, revealHorizonDays, generatedHorizonDays, serialOverride?){
