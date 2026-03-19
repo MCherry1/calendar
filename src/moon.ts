@@ -2891,7 +2891,7 @@ export function getLongShadowsMoons(year){
 //   - Plane-specific rarity profile (Mabar extremely rare, Kythri/Shavarath higher)
 //   - Short durations by default (Kythri can run longer)
 //   - GM overrides/anchors suppress flickering for that plane
-//   - For cyclic planes, only applies while waning/waxing (preserves canon anchors)
+//   - For cyclic planes, only applies while neutral (preserves canon anchors)
 //
 // Weather effects still flow through getActivePlanarEffects naturally.
 
