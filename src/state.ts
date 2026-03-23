@@ -669,7 +669,7 @@ export function refreshCalendarState(silent){
 
   cal.events.sort(compareEvents);
 
-  if (!silent) sendChat(script_name, '/w gm Calendar state refreshed ('+cal.events.length+' events).');
+  if (!silent) sendChat(script_name, '/w gm Calendar state refreshed ('+cal.events.length+' events).', null, { noarchive: true });
 }
 
 export function refreshAndSend(){
@@ -694,4 +694,3 @@ export function resetToDefaults(){
   }
   sendChat(script_name, '/w gm Calendar state wiped. Use <code>!cal</code> to begin setup.', null, { noarchive: true });
 }
-

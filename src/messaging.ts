@@ -14,7 +14,7 @@ export function send(opts, html){
   else if (opts.gmOnly) prefix = '/w gm ';
   else if (to)          prefix = '/w "' + to + '" ';
   else                  prefix = '/direct ';
-  var sendOpts = opts.noarchive ? { noarchive: true } : undefined;
+  var sendOpts = { noarchive: true };
   sendChat(script_name, prefix + html, null, sendOpts);
 }
 
@@ -35,5 +35,5 @@ export function whisperParts(to, parts){
     if (parts[i]) whisper(to, parts[i]);
   }
 }
-export function warnGM(msg){ sendChat(script_name, '/w gm ' + msg); }
+export function warnGM(msg){ sendChat(script_name, '/w gm ' + msg, null, { noarchive: true }); }
 export function warnGMUi(msg){ sendChat(script_name, '/w gm ' + msg, null, { noarchive: true }); }

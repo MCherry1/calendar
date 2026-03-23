@@ -7,13 +7,13 @@ import { sendToAll, sendUiToGM } from "../src/messaging.js";
 import { helpRootMenu } from "../src/ui.js";
 
 describe("Task-focused UI", () => {
-  it("keeps the transient helper on noarchive while archived broadcasts stay archived", () => {
+  it("routes both transient helpers and broadcasts through noarchive", () => {
     freshInstall();
     sendUiToGM("<div>GM menu</div>");
     sendToAll("<div>Story-facing content</div>");
     const log = (globalThis as any)._chatLog;
     assertEquals(log[0].opts.noarchive, true);
-    assertEquals(log[1].opts, null);
+    assertEquals(log[1].opts.noarchive, true);
   });
 
   it("renders the root help menu through the transient noarchive path with prompt buttons", () => {

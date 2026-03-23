@@ -2790,13 +2790,18 @@ function weatherTodayGmHtml(){
       '}') +
     '</div>';
 
+  var todayHandoutLinks = [
+    handoutButton('Open Weather Handout', 'weather'),
+    handoutButton('Weather Mechanics', 'weather:mechanics')
+  ].filter(Boolean).join(' ');
+
   return _menuBox("Today's Weather",
     dateLine + todLine + locLine + manifestLine + arythLine + body +
     lightLine + activeMechLine +
     tidalLine +
     extremeHtml +
     '<div style="margin-top:6px;">'+ button('📣 Send Revealed','weather send') +'</div>'+
-    '<div style="margin-top:4px;">' + handoutButton('Open Weather Handout', 'weather') + ' ' + handoutButton('Weather Mechanics', 'weather:mechanics') + '</div>' +
+    (todayHandoutLinks ? '<div style="margin-top:4px;">' + todayHandoutLinks + '</div>' : '') +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
     mediumRow + highRow + specificRow +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
@@ -3060,6 +3065,10 @@ function weatherForecastGmHtml(daysOverride?: any){
   if (!body){
     body = '<div style="opacity:.7;">No weather display mode selected.</div>';
   }
+  var forecastHandoutLinks = [
+    handoutButton('Open Weather Handout', 'weather'),
+    handoutButton('Weather Mechanics', 'weather:mechanics')
+  ].filter(Boolean).join(' ');
 
   return _menuBox(forecastDays+'-Day Forecast',
     topControls+
@@ -3070,10 +3079,7 @@ function weatherForecastGmHtml(daysOverride?: any){
     button('Reroll Today','weather reroll '+today)+' '+
     button('Regenerate All','weather generate')+
     '</div>' +
-    '<div style="margin-top:4px;">' +
-    handoutButton('Open Weather Handout', 'weather') + ' ' +
-    handoutButton('Weather Mechanics', 'weather:mechanics') +
-    '</div>'
+    (forecastHandoutLinks ? '<div style="margin-top:4px;">' + forecastHandoutLinks + '</div>' : '')
   );
 }
 

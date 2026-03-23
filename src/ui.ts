@@ -670,27 +670,27 @@ export function setDate(m, d, y, opts?){
 export function removeEvent(query){
   var cal = getCal(), events = cal.events;
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
-  if (!events.length){ sendChat(script_name, '/w gm No events to remove.'); return; }
+  if (!events.length){ sendChat(script_name, '/w gm No events to remove.', null, { noarchive: true }); return; }
 
   var toks = String(query||'').trim().split(/\s+/).filter(Boolean);
   var sub = (toks[0]||'').toLowerCase();
 
   if (sub === 'key'){
     var key = _decKey(toks.slice(1).join(' ').trim());
-    if (!key){ sendChat(script_name, '/w gm Usage: <code>!cal remove key &lt;KEY&gt;</code>'); return; }
+    if (!key){ sendChat(script_name, '/w gm Usage: <code>!cal remove key &lt;KEY&gt;</code>', null, { noarchive: true }); return; }
     var idx = eventIndexByKey(key);
-    if (idx < 0){ sendChat(script_name, '/w gm No event found for key: <code>'+esc(key)+'</code>'); return; }
+    if (idx < 0){ sendChat(script_name, '/w gm No event found for key: <code>'+esc(key)+'</code>', null, { noarchive: true }); return; }
     var removed = events.splice(idx, 1)[0];
     markSuppressedIfDefault(removed);
     refreshAndSend();
     var rName = eventDisplayName(removed) || removed.name || '(unnamed event)';
-    sendChat(script_name, '/w gm Removed: '+esc(rName)+'.');
+    sendChat(script_name, '/w gm Removed: '+esc(rName)+'.', null, { noarchive: true });
     return;
   }
 
   if (sub === 'series'){
     var sk = _decKey(toks.slice(1).join(' ').trim());
-    if (!sk){ sendChat(script_name, '/w gm Usage: <code>!cal remove series &lt;KEY&gt;</code>'); return; }
+    if (!sk){ sendChat(script_name, '/w gm Usage: <code>!cal remove series &lt;KEY&gt;</code>', null, { noarchive: true }); return; }
     var removedCount = 0;
     for (var i = events.length - 1; i >= 0; i--){
       if (_eventSeriesKey(events[i]) !== sk) continue;
@@ -699,15 +699,15 @@ export function removeEvent(query){
       removedCount++;
     }
     if (!removedCount){
-      sendChat(script_name, '/w gm No event series found for key: <code>'+esc(sk)+'</code>');
+      sendChat(script_name, '/w gm No event series found for key: <code>'+esc(sk)+'</code>', null, { noarchive: true });
       return;
     }
     refreshAndSend();
-    sendChat(script_name, '/w gm Removed '+removedCount+' recurring event'+(removedCount===1?'':'s')+'.');
+    sendChat(script_name, '/w gm Removed '+removedCount+' recurring event'+(removedCount===1?'':'s')+'.', null, { noarchive: true });
     return;
   }
 
-  sendChat(script_name, '/w gm Usage: <code>!cal remove [list | key &lt;KEY&gt; | series &lt;KEY&gt; | &lt;name fragment&gt;]</code>');
+  sendChat(script_name, '/w gm Usage: <code>!cal remove [list | key &lt;KEY&gt; | series &lt;KEY&gt; | &lt;name fragment&gt;]</code>', null, { noarchive: true });
 }
 
 export function _defaultDetailsForKey(key){

@@ -1954,10 +1954,13 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     gmControls += '<div style="margin:4px 0;">'+
       button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
       '</div>';
-    gmControls += '<div style="margin:4px 0;">' +
-      handoutButton('Open Planar Handout', 'planar') + ' ' +
-      handoutButton('Planar Mechanics', 'planar:mechanics') +
-      '</div>';
+    var gmHandoutLinks = [
+      handoutButton('Open Planar Handout', 'planar'),
+      handoutButton('Planar Mechanics', 'planar:mechanics')
+    ].filter(Boolean).join(' ');
+    if (gmHandoutLinks){
+      gmControls += '<div style="margin:4px 0;">' + gmHandoutLinks + '</div>';
+    }
 
     gmControls += '<div style="font-size:.75em;opacity:.4;margin-top:3px;">'+
       'CLI: <code>!cal planes send [low|medium|high] [1m|3m|6m|10m|Nd|Nw]</code>'+
@@ -2000,9 +2003,13 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   } else {
     // For players, add Specific Planes dropdown and back button
     var playerPlaneQueryOpts = planes.map(function(p){ return p.name; }).join('|');
+    var playerHandoutLinks = [
+      handoutButton('Open Planar Handout', 'planar'),
+      handoutButton('Planar Mechanics', 'planar:mechanics')
+    ].filter(Boolean).join(' ');
     var playerControls = '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
       '<div style="margin:4px 0;">' + button('🌀 Show Specific Plane', 'planes view ?{Select Plane|' + playerPlaneQueryOpts + '}') + '</div>' +
-      '<div style="margin:4px 0;">' + handoutButton('Open Planar Handout', 'planar') + ' ' + handoutButton('Planar Mechanics', 'planar:mechanics') + '</div>' +
+      (playerHandoutLinks ? '<div style="margin:4px 0;">' + playerHandoutLinks + '</div>' : '') +
       '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
     var lastIdx = parts.length - 1;
     parts[lastIdx] = parts[lastIdx].replace(/<\/div>$/, '') + playerControls + '</div>';

@@ -510,7 +510,7 @@ export function occurrencesInRange(startSerial, endSerial){
   occ.sort(function(a,b){
     return (a.serial - b.serial) || (a.m - b.m) || (a.d - b.d);
   });
-  if (capNotice){ sendChat(script_name,'/w gm Range capped at '+capYears+' years for performance.'); }
+  if (capNotice){ sendChat(script_name,'/w gm Range capped at '+capYears+' years for performance.', null, { noarchive: true }); }
   return occ;
 }
 
@@ -821,6 +821,5 @@ export function eventsListHTMLForRange(title, startSerial, endSerial, forceYearL
   }
   return out.join('');
 }
-
 
 

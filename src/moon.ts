@@ -2157,10 +2157,13 @@ export function moonPanelParts(serialOverride?){
     button('📖 Lore','moon lore')+' '+
     button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
     '</div>';
-  gmControls += '<div style="margin:4px 0;">' +
-    handoutButton('Open Lunar Handout', 'lunar') + ' ' +
-    handoutButton('Lunar Mechanics', 'lunar:mechanics') +
-    '</div>';
+  var gmHandoutLinks = [
+    handoutButton('Open Lunar Handout', 'lunar'),
+    handoutButton('Lunar Mechanics', 'lunar:mechanics')
+  ].filter(Boolean).join(' ');
+  if (gmHandoutLinks){
+    gmControls += '<div style="margin:4px 0;">' + gmHandoutLinks + '</div>';
+  }
 
   gmControls += '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
     'Player tier: '+esc(tierLabel)+
@@ -2255,10 +2258,13 @@ export function moonPlayerPanelHtml(serialOverride?){
     button('🌌 Sky Now', 'moon sky') + ' ' +
     button('Prompt !cal moon on', 'moon on ?{Date|'+_serialToDateSpec(today)+'}') +
     '</div>';
-  body += '<div style="margin-top:6px;">' +
-    handoutButton('Open Lunar Handout', 'lunar') + ' ' +
-    handoutButton('Lunar Mechanics', 'lunar:mechanics') +
-    '</div>';
+  var playerHandoutLinks = [
+    handoutButton('Open Lunar Handout', 'lunar'),
+    handoutButton('Lunar Mechanics', 'lunar:mechanics')
+  ].filter(Boolean).join(' ');
+  if (playerHandoutLinks){
+    body += '<div style="margin-top:6px;">' + playerHandoutLinks + '</div>';
+  }
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
   if (srcLabel){

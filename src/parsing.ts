@@ -236,7 +236,7 @@ export var DaySpec = (function(){
     if (isFinite(n)) return [clamp(n,1,maxDays)];
 
     if (typeof sendChat === 'function'){
-      sendChat(script_name, '/w gm Ignored malformed day spec: <code>'+String(spec).replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];})+'</code>');
+      sendChat(script_name, '/w gm Ignored malformed day spec: <code>'+String(spec).replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];})+'</code>', null, { noarchive: true });
     }
     return [];
   }
@@ -267,6 +267,5 @@ export var DaySpec = (function(){
 
   return { first:first, normalize:normalize, expand:expand, matches:matches, canonicalForKey:canonicalForKey };
 })();
-
 
 

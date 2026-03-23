@@ -3,7 +3,7 @@ import { ok as assert, strictEqual as assertEquals, notStrictEqual as assertNotE
 import { completeSetup, freshInstall } from "./helpers.js";
 import { stepDays } from "../src/ui.js";
 import { handleMoonCommand } from "../src/moon.js";
-import { bindMoonPageByName, getPersistentViewsState, refreshAllPersistentViews, refreshMoonPage, showMoonPage } from "../src/persistent-views.js";
+import { bindMoonPageByName, getPersistentViewsState, handoutButton, refreshAllPersistentViews, refreshMoonPage, showMoonPage } from "../src/persistent-views.js";
 
 function gmUser() {
   return { who: "GM (GM)", playerid: "GM" } as any;
@@ -74,73 +74,34 @@ describe("Persistent player surfaces", () => {
     assertEquals((globalThis as any).Campaign().get("playerpageid"), page.id);
   });
 
-  it("creates the structured handout hierarchy, and date changes update the unified lunar handout", () => {
+  it("does not create handouts while disabled, and date changes still update the Moon Phase page", () => {
     freshInstall();
     completeSetup();
 
     makeMoonPage("Moon Phase");
     bindMoonPageByName("Moon Phase");
-    refreshAllPersistentViews({ autoBind: true });
+    const refreshRes = refreshAllPersistentViews({ autoBind: true });
+    assertEquals(refreshRes.handouts.disabled, true);
+    assertEquals((((globalThis as any).findObjs({ _type: "handout" }) || []) as any[]).length, 0);
 
-    const eventsHandout = findHandoutByName("Calendar - Events");
-    const eventsMechanics = findHandoutByName("Calendar - Events - Mechanics");
-    const moonsHandout = findHandoutByName("Calendar - Lunar - 0 Unified");
-    const moonsMechanics = findHandoutByName("Calendar - Lunar - Mechanics");
-    const zarantyrHandout = findHandoutByName("Calendar - Lunar - Zarantyr");
-    const weatherHandout = findHandoutByName("Calendar - Weather");
-    const weatherMechanics = findHandoutByName("Calendar - Weather - Mechanics");
-    const planesHandout = findHandoutByName("Calendar - Planar - 0 Unified");
-    const planesMechanics = findHandoutByName("Calendar - Planar - Mechanics");
-    const daanviHandout = findHandoutByName("Calendar - Planar - Daanvi");
-
-    assert(eventsHandout);
-    assert(eventsMechanics);
-    assert(moonsHandout);
-    assert(moonsMechanics);
-    assert(zarantyrHandout);
-    assert(weatherHandout);
-    assert(weatherMechanics);
-    assert(planesHandout);
-    assert(planesMechanics);
-    assert(daanviHandout);
-
-    const beforeNotes = String(moonsHandout.get("notes") || "");
     const beforeStamp = String(getPersistentViewsState().moonPage.renderStamp || "");
 
     stepDays(1, { announce: false });
 
-    const afterNotes = String(moonsHandout.get("notes") || "");
     const afterStamp = String(getPersistentViewsState().moonPage.renderStamp || "");
-    assertNotEquals(afterNotes, beforeNotes);
     assertNotEquals(afterStamp, beforeStamp);
   });
 
-  it("migrates legacy moon and plane handout names to the new unified names", () => {
+  it("returns no handout links while handouts are disabled", () => {
     freshInstall();
     completeSetup();
 
-    const legacyMoon = (globalThis as any).createObj("handout", {
-      name: "Calendar - Moons",
-      inplayerjournals: "all",
-      archived: false
-    });
-    const legacyPlane = (globalThis as any).createObj("handout", {
-      name: "Calendar - Planes",
-      inplayerjournals: "all",
-      archived: false
-    });
-
-    refreshAllPersistentViews({ autoBind: true });
-
-    const renamedMoon = findHandoutByName("Calendar - Lunar - 0 Unified");
-    const renamedPlane = findHandoutByName("Calendar - Planar - 0 Unified");
-    assert(renamedMoon);
-    assert(renamedPlane);
-    assertEquals(renamedMoon.id, legacyMoon.id);
-    assertEquals(renamedPlane.id, legacyPlane.id);
+    assertEquals(handoutButton("Open Lunar Handout", "lunar"), "");
+    assertEquals(handoutButton("Open Weather Handout", "weather"), "");
+    assertEquals(handoutButton("Open Planar Handout", "planar"), "");
   });
 
-  it("moon state changes redraw the Moon Phase page and refresh the unified lunar handout", () => {
+  it("moon state changes redraw the Moon Phase page without creating handouts", () => {
     freshInstall();
     completeSetup();
 
@@ -148,15 +109,12 @@ describe("Persistent player surfaces", () => {
     bindMoonPageByName("Moon Phase");
     refreshAllPersistentViews({ autoBind: true });
 
-    const moonsHandout = findHandoutByName("Calendar - Lunar - 0 Unified");
-    const beforeNotes = String(moonsHandout.get("notes") || "");
     const beforeStamp = String(getPersistentViewsState().moonPage.renderStamp || "");
 
     handleMoonCommand(gmUser(), ["moon", "manage", "reseed"]);
 
-    const afterNotes = String(moonsHandout.get("notes") || "");
     const afterStamp = String(getPersistentViewsState().moonPage.renderStamp || "");
     assertNotEquals(afterStamp, beforeStamp);
-    assertNotEquals(afterNotes, beforeNotes);
+    assertEquals((((globalThis as any).findObjs({ _type: "handout" }) || []) as any[]).length, 0);
   });
 });

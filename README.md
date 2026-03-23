@@ -141,7 +141,7 @@ After setup is complete:
 
 Players who use `!cal` before the GM finishes setup get a waiting message instead of setup or admin controls.
 
-Setup prompts, help panels, and admin confirmations use Roll20's `noarchive` path so the chat archive stays focused on shared story-facing output.
+All script-emitted Roll20 chat output currently uses `noarchive`.
 
 </details>
 
@@ -173,13 +173,9 @@ Use `!cal show ...` or `!cal send ...` when you want the traditional month/year 
 
 ### Persistent Player Surfaces
 
-- The script now maintains a structured handout hierarchy automatically instead of the old flat four-handout model.
-- Unified handouts: `Calendar - Events`, `Calendar - Lunar - 0 Unified`, `Calendar - Weather`, and `Calendar - Planar - 0 Unified`.
-- Mechanics handouts: `Calendar - Events - Mechanics`, `Calendar - Lunar - Mechanics`, `Calendar - Weather - Mechanics`, and `Calendar - Planar - Mechanics`.
-- Entity handouts: one handout per moon (`Calendar - Lunar - <Moon>`) and one handout per plane (`Calendar - Planar - <Plane>`).
-- Roll20 cannot create Journal folders via API, so the script creates the handouts at the Journal root and whispers the GM one-time foldering instructions.
-- The unified lunar handout still preserves exact lived-through lunar results for the most recent 60 in-world days, then falls back to the normal reveal-tier view for older past dates.
-- The script can also keep a live Roll20 page updated for lunar display. Bind an existing page named `Moon Phase`, or bind any other existing page by name with the moon page commands below.
+- Roll20 handout creation and refresh are temporarily disabled.
+- Editable handout/reference content now lives in `Handouts/Events.md`, `Handouts/Weather.md`, `Handouts/Lunar.md`, and `Handouts/Planar.md`.
+- The script still supports the live Moon Phase page. Bind an existing page named `Moon Phase`, or bind any other existing page by name with the moon page commands below.
 - Player movement to the live Moon page is explicit: the page redraws automatically when state changes, but players are only moved there when the GM uses `!cal moon page show`.
 
 [Return to Table of Contents](#table-of-contents)
@@ -473,7 +469,7 @@ There are three types of planar events:
 - **GM Defined** — Force any plane coterminous, remote, or neither, for any duration desired.
 - **Generated** — Non-traditional coterminous/remote events using plane-specific dice profiles and durations. Can be toggled on/off independently. Never override active canonical or GM-defined periods.
 
-When a GM uses `!cal planes send ...`, players receive an archived non-interactive summary and the GM receives the full interactive panel back as a whisper.
+When a GM uses `!cal planes send ...`, players receive a non-interactive summary and the GM receives the full interactive panel back as a whisper. All of those messages currently use `noarchive`.
 
 Setting-specific plane lists, cycle structures, and generated-event profiles are in [Supported Settings](#supported-settings).
 
@@ -787,7 +783,7 @@ Examples:
 !cal planes send high 3m
 ```
 
-`!cal planes send ...` gives players an archived non-interactive summary and whispers the interactive control panel back to the GM.
+`!cal planes send ...` gives players a non-interactive summary and whispers the interactive control panel back to the GM. All of those messages currently use `noarchive`.
 
 #### GM plane controls
 

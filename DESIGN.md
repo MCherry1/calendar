@@ -601,11 +601,8 @@ Full candidate pool for future re-tuning and replacement analog research. The ac
 - `!cal moon sky [time]`, `!cal moon lore`, `!cal moon seed`, and GM phase anchoring commands (`full`/`new`/`reset`) are implemented but were not in earlier design doc drafts. They are documented in the commands list above.
 - Non-GM `!cal moon on <dateSpec>` is constrained by reveal horizon.
 - Moon crossing proximity output is modeled through the eclipse/conjunction engine but does not currently have a dedicated standalone command or named report.
-- The script now maintains a structured persistent-handout hierarchy: unified handouts (`Calendar - Events`, `Calendar - Lunar - 0 Unified`, `Calendar - Weather`, `Calendar - Planar - 0 Unified`), mechanics handouts for each subsystem, and one handout per moon / per plane.
-- Legacy unified handout names (`Calendar - Moons`, `Calendar - Planes`) are migrated in place to the new `Calendar - Lunar - 0 Unified` / `Calendar - Planar - 0 Unified` names on refresh.
-- Each persistent handout carries its own render stamp in `persistentViews.handouts`, so mechanics handouts and unchanged subsystem/entity handouts can be skipped during ordinary refreshes.
-- The unified lunar handout keeps exact derived lunar history for a rolling 60-day past window so lived-through dates stay exact without forcing a fresh high-tier recomputation across the full past month on every date change.
-- Roll20 journal folders still cannot be created by API, so the script creates the handouts at the root and whispers the GM one-time folder-placement instructions until dismissed.
+- Roll20 handout creation and refresh are temporarily disabled. The existing handout render code remains in place, but editable reference content now lives in `Handouts/*.md`.
+- Legacy handout naming/render-stamp logic remains in `persistentViews.handouts` for later reactivation.
 - The live Moon Phase page is redraw-only: it binds to an existing Roll20 page, redraws when the date or moon state changes, and only moves players there when the GM explicitly uses `!cal moon page show`.
 
 ---
@@ -895,7 +892,7 @@ Syntax-heavy workflows expose prompt buttons that submit the normal typed comman
 - `!cal planes on`
 - `!cal send`
 
-High-churn menus, confirmations, setup prompts, settings panels, and weather-location wizard flows use Roll20's `noarchive` path. Archived shared output remains reserved for substantive calendar, weather, moon, and planar reports.
+All script-emitted Roll20 chat output currently uses Roll20's `noarchive` path.
 
 Public broadcasts must never depend on command-button markup that `/direct` strips. If a GM shares an interactive control panel, the public version should be a non-interactive summary and the GM keeps the rich whispered control surface.
 

@@ -920,7 +920,7 @@ export function restoreDefaultEvents(query){
   var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
   var q = String(query||'').trim();
   if (!q){
-    sendChat(script_name, '/w gm Usage: <code>!cal restore [all] [exact] &lt;name...&gt; | restore key &lt;KEY&gt; | restore list</code>');
+    sendChat(script_name, '/w gm Usage: <code>!cal restore [all] [exact] &lt;name...&gt; | restore key &lt;KEY&gt; | restore list</code>', null, { noarchive: true });
     return;
   }
 
@@ -931,24 +931,24 @@ export function restoreDefaultEvents(query){
     state[state_name].suppressedDefaults = {};
     mergeInNewDefaultEvents(cal);
     refreshAndSend();
-    sendChat(script_name, '/w gm Restored all default events (sources left as-is).');
+    sendChat(script_name, '/w gm Restored all default events (sources left as-is).', null, { noarchive: true });
     return;
   }
 
   if (sub === 'key'){
     var key = _decKey(parts.slice(1).join(' ').trim());
-    if (!key){ sendChat(script_name, '/w gm Usage: <code>!cal restore key &lt;KEY&gt;</code>'); return; }
+    if (!key){ sendChat(script_name, '/w gm Usage: <code>!cal restore key &lt;KEY&gt;</code>', null, { noarchive: true }); return; }
     delete sup[key];
     mergeInNewDefaultEvents(cal);
     refreshAndSend();
-    sendChat(script_name, '/w gm Restored default for key: <code>'+esc(key)+'</code>.');
+    sendChat(script_name, '/w gm Restored default for key: <code>'+esc(key)+'</code>.', null, { noarchive: true });
     return;
   }
 
   var exact = false;
   if (sub === 'exact'){ exact = true; parts.shift(); }
   var needle = parts.join(' ').trim().toLowerCase();
-  if (!needle){ sendChat(script_name, '/w gm Usage: <code>!cal restore [exact] &lt;name...&gt;</code>'); return; }
+  if (!needle){ sendChat(script_name, '/w gm Usage: <code>!cal restore [exact] &lt;name...&gt;</code>', null, { noarchive: true }); return; }
 
   var keys = Object.keys(sup);
   var restored = 0;
@@ -963,6 +963,5 @@ export function restoreDefaultEvents(query){
 
   mergeInNewDefaultEvents(cal);
   refreshAndSend();
-  sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".');
+  sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".', null, { noarchive: true });
 }
-

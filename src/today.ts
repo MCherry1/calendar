@@ -1028,7 +1028,7 @@ export var commands = {
         return !defaultsSet[k];
       });
       refreshAndSend();
-      sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.');
+      sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.', null, { noarchive: true });
     }
 
     function enableSource(name){
@@ -1044,9 +1044,9 @@ export var commands = {
       mergeInNewDefaultEvents(getCal());
       refreshAndSend();
       if (autoSuppressedSources[key]){
-        sendChat(script_name, '/w gm Manual suppression cleared for "'+esc(name)+'", but the current calendar still auto-suppresses that source.');
+        sendChat(script_name, '/w gm Manual suppression cleared for "'+esc(name)+'", but the current calendar still auto-suppresses that source.', null, { noarchive: true });
       } else {
-        sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.');
+        sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.', null, { noarchive: true });
       }
     }
 

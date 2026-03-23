@@ -29,6 +29,10 @@ var PRIMARY_HANDOUT_KEYS = {
   lunar: 'lunar:unified',
   planar: 'planar:unified'
 };
+// TEMPORARY: Roll20 handouts are disabled while the Markdown files in
+// Handouts/ are the editable source of truth.
+var HANDOUTS_TEMPORARILY_DISABLED = true;
+var HANDOUTS_DISABLED_MESSAGE = 'Calendar handouts are temporarily disabled.';
 var _batchedHandoutRefreshTimer = null;
 var _batchedHandoutRefreshQueue = [];
 var _batchedHandoutRefreshDelayMs = 50;
@@ -85,6 +89,24 @@ function _calendarSetupIsComplete(){
 
 function _handoutState(){
   return _rootState().handouts;
+}
+
+function _handoutsDisabled(){
+  return HANDOUTS_TEMPORARILY_DISABLED === true;
+}
+
+function _handoutDisabledResult(extra?){
+  var out: any = {
+    ok: true,
+    disabled: true,
+    message: HANDOUTS_DISABLED_MESSAGE
+  };
+  if (extra && typeof extra === 'object'){
+    Object.keys(extra).forEach(function(key){
+      out[key] = extra[key];
+    });
+  }
+  return out;
 }
 
 function _slugKey(text){
@@ -833,6 +855,7 @@ function _folderInstructionsHtml(specs){
 }
 
 function _maybeNotifyFolderInstructions(specs){
+  if (_handoutsDisabled()) return;
   if (!_calendarSetupIsComplete()) return;
   var pv = _rootState();
   if (pv.folderInstructionsDismissed === true) return;
@@ -853,6 +876,7 @@ export function dismissPersistentFolderInstructions(){
 }
 
 export function getHandoutId(kind, opts?){
+  if (_handoutsDisabled()) return '';
   opts = opts || {};
   var specs = _buildHandoutSpecs();
   _syncHandoutLayout(specs);
@@ -880,6 +904,7 @@ export function getHandoutId(kind, opts?){
 }
 
 export function handoutButton(label, kind, opts?){
+  if (_handoutsDisabled()) return '';
   opts = opts || {};
   var id = getHandoutId(kind, { createIfMissing: opts.createIfMissing !== false });
   if (!id) return '';
@@ -887,6 +912,7 @@ export function handoutButton(label, kind, opts?){
 }
 
 export function refreshHandout(kind, opts?){
+  if (_handoutsDisabled()) return _handoutDisabledResult({ handoutKey: String(kind || '') });
   opts = opts || {};
   var specs = _buildHandoutSpecs();
   _syncHandoutLayout(specs);
@@ -906,6 +932,7 @@ export function refreshHandout(kind, opts?){
 }
 
 export function refreshHandouts(kinds?, opts?){
+  if (_handoutsDisabled()) return _handoutDisabledResult({ handouts:{} });
   opts = opts || {};
   var specs = _buildHandoutSpecs();
   _syncHandoutLayout(specs);
@@ -919,6 +946,7 @@ export function refreshHandouts(kinds?, opts?){
 }
 
 export function refreshHandoutsBatched(kinds?, opts?){
+  if (_handoutsDisabled()) return _handoutDisabledResult({ queued:0, handouts:{} });
   opts = opts || {};
   var specs = _buildHandoutSpecs();
   _syncHandoutLayout(specs);
@@ -950,15 +978,20 @@ export function refreshHandoutsBatched(kinds?, opts?){
 
 export function refreshAllPersistentViews(opts?){
   opts = opts || {};
-  var specs = _buildHandoutSpecs();
-  _syncHandoutLayout(specs);
+  var specs = null;
+  if (!_handoutsDisabled()){
+    specs = _buildHandoutSpecs();
+    _syncHandoutLayout(specs);
+  }
   var out = {
     moonPage: refreshMoonPage({ autoBind: opts.autoBind !== false }),
-    handouts: opts.batched
-      ? refreshHandoutsBatched(opts.handoutKinds, { delayMs: opts.batchDelayMs, force: opts.force === true, skipFolderNotice: true })
-      : refreshHandouts(opts.handoutKinds, { force: opts.force === true, skipFolderNotice: true })
+    handouts: _handoutsDisabled()
+      ? _handoutDisabledResult({ handouts:{} })
+      : (opts.batched
+        ? refreshHandoutsBatched(opts.handoutKinds, { delayMs: opts.batchDelayMs, force: opts.force === true, skipFolderNotice: true })
+        : refreshHandouts(opts.handoutKinds, { force: opts.force === true, skipFolderNotice: true }))
   };
-  if (!opts.skipFolderNotice) _maybeNotifyFolderInstructions(specs);
+  if (!opts.skipFolderNotice && specs) _maybeNotifyFolderInstructions(specs);
   return out;
 }
 
