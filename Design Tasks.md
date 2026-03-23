@@ -122,6 +122,17 @@ These tasks still need design direction before coding.
   - Decide whether this belongs in the main setup wizard, an Eberron-only advanced step, or a post-setup calibration flow.
   - Do not implement yet; this item exists to workshop the initialization design before coding.
 
+- **Calendar Initialization: planar mechanics and canon/generated split**
+  - Add a design/workshop task for planar setup so the GM can choose whether planar tracking is on without automatically opting into every canonical and generated cycle behavior.
+  - Work through a setup sequence shaped like:
+    - `Planes?`
+    - `Canon cycles?`
+    - `Additional generated cycles?`
+    - `Planar mechanics?`
+  - Decide how planar mechanics should behave when planes are enabled for flavor/calendar context but the GM does not want the mechanical weather and effect layer surfaced.
+  - Decide how this interacts with existing settings such as off-cycle/generated planes, canon seasonal planes, and any future onboarding defaults.
+  - Do not implement yet; this item exists to workshop the initialization/setup questions before coding.
+
 ---
 
 ## Acceptance Checks

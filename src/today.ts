@@ -8,10 +8,10 @@ import { DaySpec, Parse } from './parsing.js';
 import { _deliverTopLevelCalendarRange, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceHtml, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
-import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
+import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, WEATHER_SOURCE_LABELS, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _grantCommonWeatherReveals, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, _weatherRevealForSerial, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
 
@@ -57,9 +57,8 @@ function _timeOfDayMenuHtml(){
 function _timeOfDayActionButtonsHtml(){
   return '<div style="margin-top:6px;">' +
     button('Advance Time', 'time next') + ' ' +
-    button('Show', 'show') + ' ' +
-    button('Send', 'send') + ' ' +
-    button('Clear Time', 'time clear') +
+    button('Show', 'time show') + ' ' +
+    button('Send', 'time send') +
   '</div>';
 }
 
@@ -73,6 +72,101 @@ function _sendTimeOfDayStatus(who){
       _timeOfDayActionButtonsHtml()
     )
   );
+}
+
+function _todayEventSummaryHtml(serial){
+  try {
+    var occ = occurrencesInRange(serial, serial);
+    if (!occ.length){
+      return '<div style="font-size:.82em;opacity:.6;margin-top:2px;">🎉 No calendar events today.</div>';
+    }
+    var seenNames = {};
+    var names = [];
+    for (var oi = 0; oi < occ.length; oi++){
+      var nm = eventDisplayName(occ[oi].e);
+      var keyNm = String(nm || '').toLowerCase();
+      if (!seenNames[keyNm]){
+        seenNames[keyNm] = 1;
+        names.push(nm);
+      }
+    }
+    var shown = names.slice(0, 3).map(esc).join(', ');
+    var more = names.length > 3 ? (' <span style="opacity:.65;">+' + (names.length - 3) + ' more</span>') : '';
+    return '<div style="font-size:.82em;opacity:.75;margin-top:2px;">🎉 ' + shown + more + '</div>';
+  } catch(eOcc){
+    return '';
+  }
+}
+
+function _timeOfDayCurrentViewHtml(includeButtons){
+  var st = ensureSettings();
+  var today = todaySerial();
+  var lines = [];
+  var activeBucket = currentTimeBucket() || WEATHER_PRIMARY_PERIOD;
+
+  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+  if (isTimeOfDayActive()){
+    lines.push(_timeOfDayStatusHtml('font-size:.85em;opacity:.72;margin:0 0 2px 0;'));
+  }
+  var eventsHtml = _todayEventSummaryHtml(today);
+  if (eventsHtml) lines.push(eventsHtml);
+
+  if (st.weatherEnabled !== false){
+    try {
+      var ws = getWeatherState();
+      if (ws.location){
+        weatherEnsureForecast();
+        _grantCommonWeatherReveals(ws, today);
+        var rec = _weatherRecordForDisplay(_forecastRecord(today));
+        if (rec && rec.final){
+          var loc = rec.location || ws.location || {};
+          var periodVals = (rec.periods && rec.periods[activeBucket]) || rec.final;
+          var fogForPeriod = rec.fog && rec.fog[activeBucket];
+          var cond = _deriveConditions(periodVals, loc, activeBucket, rec.snowAccumulated, fogForPeriod);
+          var narr = _conditionsNarrative(periodVals, cond, activeBucket);
+          var reveal = _weatherRevealForSerial(ws, today, ws.location);
+          var sourceLabel = WEATHER_SOURCE_LABELS[reveal.source] || WEATHER_SOURCE_LABELS.common;
+          var sourceBits = [sourceLabel].concat(_weatherInfluenceTexts(rec) || []);
+
+          lines.push('<div style="font-size:.82em;opacity:.72;margin-top:2px;">📍 ' + esc(_weatherLocationLabel(loc)) + '</div>');
+          lines.push('<div style="font-size:.85em;opacity:.85;margin-top:2px;">' +
+            esc(_weatherPeriodIcon(activeBucket) + ' ' + _weatherPeriodLabel(activeBucket) + ': ' + narr) +
+            '</div>');
+
+          var mechHtml = _conditionsMechHtml(cond);
+          if (mechHtml){
+            lines.push('<div style="font-size:.82em;margin-top:4px;padding:3px 6px;background:rgba(0,0,0,.04);border-radius:3px;">' +
+              '<b>Mechanics:</b>' + mechHtml +
+              '</div>');
+          }
+          if (sourceBits.length){
+            lines.push('<div style="font-size:.76em;opacity:.58;margin-top:3px;">' +
+              '<b>' + (sourceBits.length > 1 ? 'Sources' : 'Source') + ':</b> ' +
+              sourceBits.map(esc).join(' · ') +
+              '</div>');
+          }
+        }
+      }
+    } catch(eWeather){}
+  }
+
+  if (isTimeOfDayActive()){
+    try {
+      var lightSnap = currentLightSnapshot(today);
+      if (lightSnap && lightSnap.mode !== 'day'){
+        lines.push('<div style="font-size:.82em;opacity:.68;margin-top:3px;">💡 ' +
+          esc(lightSnap.label || 'Unknown') +
+          (lightSnap.note ? ' — ' + esc(lightSnap.note) : '') +
+          '</div>');
+      }
+    } catch(eLight){}
+  }
+
+  if (includeButtons){
+    lines.push(_timeOfDayActionButtonsHtml());
+  }
+
+  return _menuBox('Current Conditions', lines.join(''));
 }
 
 export function _todayAllHtml(){
@@ -566,6 +660,14 @@ export var commands = {
     if (sub === 'clear' || sub === 'off' || sub === 'stop' || sub === 'disable'){
       clearTimeOfDay();
       return whisperUi(m.who, 'Time of day cleared for this date.');
+    }
+    if (sub === 'show'){
+      if (!currentTimeBucket()) return whisperUi(m.who, _timeOfDayMenuHtml());
+      return whisperUi(m.who, _timeOfDayCurrentViewHtml(true));
+    }
+    if (sub === 'send'){
+      if (!currentTimeBucket()) return whisperUi(m.who, _timeOfDayMenuHtml());
+      return send({ broadcast:true }, _timeOfDayCurrentViewHtml(false));
     }
     if (sub === 'next' || sub === 'advance' || sub === 'step'){
       var current = currentTimeBucket();
