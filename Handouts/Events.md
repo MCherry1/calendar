@@ -111,7 +111,71 @@ Default event packs are defined for Eberron. The current set is split into regio
 
 ## Forgotten Realms
 
-No default event packs are currently defined in the repo for the Faerunian calendar. The setting supports the event subsystem, but its defaults are presently empty.
+The Harptos calendar interleaves intercalary festival days among regular months. Month numbers below are 1-based indices into the full 18-slot structure array:
+
+| # | Name | Type |
+| --- | --- | --- |
+| 1 | Hammer | Regular (30 days) |
+| 2 | Midwinter | Intercalary (1 day) |
+| 3 | Alturiak | Regular (30 days) |
+| 4 | Ches | Regular (30 days) |
+| 5 | Tarsakh | Regular (30 days) |
+| 6 | Greengrass | Intercalary (1 day) |
+| 7 | Mirtul | Regular (30 days) |
+| 8 | Kythorn | Regular (30 days) |
+| 9 | Flamerule | Regular (30 days) |
+| 10 | Midsummer | Intercalary (1 day) |
+| 11 | Shieldmeet | Intercalary (1 day, leap years only) |
+| 12 | Eleasis | Regular (30 days) |
+| 13 | Eleint | Regular (30 days) |
+| 14 | Marpenoth | Regular (30 days) |
+| 15 | Uktar | Regular (30 days) |
+| 16 | Highharvestide | Intercalary (1 day) |
+| 17 | Nightal | Regular (30 days) |
+| 18 | Feast of the Moon | Intercalary (1 day) |
+
+### Harptos Festivals
+
+The five (six with Shieldmeet) universal intercalary festival days. Every Faerunian knows these. Source: FRCS 3e p.77.
+
+| Event | Month | Day Spec | Color | Source |
+| --- | --- | --- | --- | --- |
+| Midwinter | 2 | 1 | `#A8DADC` | `harptos` |
+| Greengrass | 6 | 1 | `#A8E6A3` | `harptos` |
+| Midsummer | 10 | 1 | `#FFD700` | `harptos` |
+| Shieldmeet | 11 | 1 | `#C0C0C0` | `harptos` |
+| Highharvestide | 16 | 1 | `#F4A261` | `harptos` |
+| Feast of the Moon | 18 | 1 | `#9370DB` | `harptos` |
+
+Note: Shieldmeet's month slot has `leapEvery: 4`, so the event only renders in leap years.
+
+### Sword Coast
+
+Regional holidays observed along the Sword Coast, primarily in Waterdeep. Sources: Volo's Guide to Waterdeep, SCAG p.29, Waterdeep: Dragon Heist.
+
+| Event | Month | Day Spec | Color | Source |
+| --- | --- | --- | --- | --- |
+| Deadwinter Day | 1 | 15 | `#B0BEC5` | `sword coast` |
+| Fleetswake | 3 | 1-5 | `#4682B4` | `sword coast` |
+| Waukeentide | 5 | 1-10 | `#DAA520` | `sword coast` |
+| Trolltide | 7 | 1 | `#556B2F` | `sword coast` |
+| Founders' Day | 8 | 1 | `#4169E1` | `sword coast` |
+| Sornyn | 8 | 20-21 | `#FF69B4` | `sword coast` |
+| Ahghairon's Day | 12 | 1 | `#4169E1` | `sword coast` |
+| Liar's Night | 14 | 30 | `#FF8C00` | `sword coast` |
+| Simril | 17 | 20 | `#87CEEB` | `sword coast` |
+
+### Faerunian Faiths
+
+Religious observances tied to specific deities. These often overlap with Harptos festival dates but carry distinct religious significance. Sources: Faiths and Pantheons, SCAG.
+
+| Event | Month | Day Spec | Color | Source |
+| --- | --- | --- | --- | --- |
+| Midwinter Prayers (Mystra) | 2 | 1 | `#7B68EE` | `faerunian faiths` |
+| Greengrass Rites (Chauntea) | 6 | 1 | `#228B22` | `faerunian faiths` |
+| Midsummer Revelry (Sune) | 10 | 1 | `#FF1493` | `faerunian faiths` |
+| Feast of the Moon (Kelemvor) | 18 | 1 | `#4B0082` | `faerunian faiths` |
+| Last Sheaf (Chauntea) | 15 | 20 | `#DAA520` | `faerunian faiths` |
 
 ## Earth
 
@@ -132,47 +196,68 @@ No default event packs are currently defined in the repo for the Faerunian calen
 
 ### Greyhawk Festivals
 
+Sources: World of Greyhawk boxed set (1983), Living Greyhawk Gazetteer.
+
 | Event | Month | Day Spec | Color | Source |
 | --- | --- | --- | --- | --- |
 | Needfest begins | 1 | 1 | `#E0C68A` | `greyhawk` |
+| Midwinter Night | 1 | 4 | `#A8DADC` | `greyhawk` |
 | Growfest begins | 4 | 1 | `#A8E6A3` | `greyhawk` |
+| Growfest Midsday | 4 | 4 | `#A8E6A3` | `greyhawk` |
 | Richfest begins | 7 | 1 | `#FFD700` | `greyhawk` |
 | Midsummer | 7 | 4 | `#FFD700` | `greyhawk` |
 | Brewfest begins | 10 | 1 | `#D2691E` | `greyhawk` |
+| Brewfest Midsday | 10 | 4 | `#D2691E` | `greyhawk` |
 
 ## Dragonlance
 
 ### Krynnish Calendar Events
 
+Sources: Dragonlance Campaign Setting (3e), Tales of the Lance.
+
 | Event | Month | Day Spec | Color | Source |
 | --- | --- | --- | --- | --- |
 | Yule | 1 | 1 | `#A8DADC` | `dragonlance` |
 | Spring Dawning | 3 | 1 | `#A8E6A3` | `dragonlance` |
+| Solamnic Oath Day | 5 | 1 | `#C0C0C0` | `dragonlance` |
 | Midsummer | 6 | 14 | `#FFD700` | `dragonlance` |
+| Kingfisher's Day | 9 | 1 | `#F4A261` | `dragonlance` |
 | Harvest Home | 9 | 14 | `#F4A261` | `dragonlance` |
+| Yuleve | 12 | 28 | `#A8DADC` | `dragonlance` |
 
 ## Exandria
 
 ### Exandrian Holidays
+
+Sources: Explorer's Guide to Wildemount p.12-13, Tal'Dorei Reborn.
 
 | Event | Month | Day Spec | Color | Source |
 | --- | --- | --- | --- | --- |
 | New Dawn | 1 | 1 | `#FFD700` | `exandria` |
 | Hillsgold | 1 | 27 | `#DAA520` | `exandria` |
 | Day of Challenging | 3 | 7 | `#CD5C5C` | `exandria` |
-| Harvest's Close | 8 | 3 | `#F4A261` | `exandria` |
+| Elvendawn | 3 | 20 | `#98FB98` | `exandria` |
+| Merryfrond's Day | 4 | 31 | `#32CD32` | `exandria` |
 | Zenith | 7 | 26 | `#FFD700` | `exandria` |
+| Harvest's Close | 8 | 3 | `#F4A261` | `exandria` |
+| Embertide | 8 | 8 | `#FF6347` | `exandria` |
+| Barren Eve | 10 | 2 | `#708090` | `exandria` |
 | The Crystalheart | 11 | 11 | `#87CEEB` | `exandria` |
 
 ## Mystara
 
 ### Mystaran Holidays
 
+Sources: GAZ series (Gazetteer), Rules Cyclopedia, Dawn of the Emperors.
+
 | Event | Month | Day Spec | Color | Source |
 | --- | --- | --- | --- | --- |
 | New Year | 1 | 1 | `#FFD700` | `mystara` |
+| Emperor's Day | 1 | 15 | `#FFD700` | `mystara` |
 | Vernal Equinox | 3 | 14 | `#A8E6A3` | `mystara` |
+| Valerias' Day | 4 | 14 | `#FF69B4` | `mystara` |
 | Summer Solstice | 6 | 14 | `#FFD166` | `mystara` |
+| Festival of Asterius | 9 | 1 | `#DAA520` | `mystara` |
 | Autumnal Equinox | 9 | 14 | `#F4A261` | `mystara` |
 | Winter Solstice | 12 | 14 | `#A8DADC` | `mystara` |
 
@@ -180,9 +265,14 @@ No default event packs are currently defined in the repo for the Faerunian calen
 
 ### Cerilian Festivals
 
+Sources: Birthright Campaign Setting boxed set, Player's Secrets series.
+
 | Event | Month | Day Spec | Color | Source |
 | --- | --- | --- | --- | --- |
 | Erntenir (Harvest Festival) | 2 | 1 | `#DAA520` | `birthright` |
+| Day of Deismaar | 3 | 1 | `#FF4500` | `birthright` |
 | Haelynir (Day of the Sun) | 5 | 1 | `#FFD700` | `birthright` |
+| Sword and Crown | 6 | 1 | `#C0C0C0` | `birthright` |
 | Midsummer | 8 | 1 | `#FF6347` | `birthright` |
+| Remembrance Day | 10 | 1 | `#4B0082` | `birthright` |
 | Midwinter | 11 | 1 | `#87CEEB` | `birthright` |
