@@ -495,7 +495,13 @@ function _eventsPanelHtml(serialArg){
   // Management (GM only)
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Management','events manage ?{Action|Add Single Event,add ?\\{Date DD or MM DD or MM DD YYYY\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Monthly Event,addmonthly ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Add Yearly Event,addyearly ?\\{Month MM\\} ?\\{Day DD\\} ?\\{Event Name\\} ?\\{Color|#50C878\\}|Source Controls,source|Remove/Restore,removeflow}') +
+    button('Add Event','add ?{Date DD or MM DD or MM DD YYYY} ?{Event Name} ?{Color (hex)|#50C878}') + ' ' +
+    button('Add Monthly','addmonthly ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') + ' ' +
+    button('Add Yearly','addyearly ?{Month MM} ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') +
+    '</div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Sources','events source') + ' ' +
+    button('Remove/Restore','events removeflow') +
     '</div>');
 
   return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
@@ -932,60 +938,43 @@ export var commands = {
         return rd !== 0 ? rd : a.localeCompare(b);
       });
 
+      // Filter out sources that are purely calendar-managed (auto-suppressed, not manually togglable)
+      var displayKeys = keys.filter(function(k){
+        var suppression = sourceSuppressionState(k);
+        return !suppression.auto || suppression.manual;
+      });
+
       var head = '<tr>'+
-        '<th style="'+STYLES.th+'">Priority</th>'+
         '<th style="'+STYLES.th+'">Source</th>'+
-        '<th style="'+STYLES.th+'">Status</th>'+
+        '<th style="'+STYLES.th+'">Current Status</th>'+
         '<th style="'+STYLES.th+'">Move</th>'+
-        '<th style="'+STYLES.th+'">Enable/Disable</th>'+
         '</tr>';
 
-      var rows = keys.map(function(k, i){
+      var rows = displayKeys.map(function(k, i){
         var label    = seen[k];
-        var rank     = pList.indexOf(k);
-        var rankCell = rank >= 0
-          ? String(rank + 1)
-          : '<span style="opacity:.5;">—</span>';
         var suppression = sourceSuppressionState(k);
         var upBtn    = i > 0
           ? button('↑', 'source up '   + label, {icon:''})
-          : '<span style="opacity:.25;">↑</span>';
-        var downBtn  = i < keys.length - 1
+          : '';
+        var downBtn  = i < displayKeys.length - 1
           ? button('↓', 'source down ' + label, {icon:''})
-          : '<span style="opacity:.25;">↓</span>';
-        var statusLabel = suppression.manual && suppression.auto
-          ? 'Off (manual + calendar)'
-          : suppression.manual
-            ? 'Off (manual)'
-            : suppression.auto
-              ? 'Off (calendar)'
-              : 'On';
-        var togBtn = '';
-        if (suppression.manual && suppression.auto){
-          togBtn = button('Enable Manual', 'source enable ' + label) +
-            '<div style="font-size:.72em;opacity:.55;margin-top:2px;">Calendar still hides it.</div>';
-        } else if (suppression.manual){
-          togBtn = button('Enable', 'source enable ' + label);
-        } else if (suppression.auto){
-          togBtn = '<span style="opacity:.5;">Calendar-managed</span>';
-        } else {
-          togBtn = button('Disable', 'source disable ' + label);
-        }
+          : '';
+        var isHidden = !!suppression.manual;
+        var statusCell = isHidden
+          ? 'Hidden<br>' + button('Show', 'source enable ' + label)
+          : 'Shown<br>' + button('Hide', 'source disable ' + label);
         return '<tr>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+rankCell+'</td>'+
           '<td style="'+STYLES.td+'">'+esc(label)+'</td>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+esc(statusLabel)+'</td>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+upBtn+' '+downBtn+'</td>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+togBtn+'</td>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+statusCell+'</td>'+
+          '<td style="'+STYLES.td+';text-align:center;">'+upBtn+(upBtn && downBtn ? ' ' : '')+downBtn+'</td>'+
           '</tr>';
       }).join('');
 
       whisper(m.who,
-        '<div style="margin:4px 0;"><b>Sources &amp; Priority</b></div>'+
+        '<div style="margin:4px 0;"><b>Sources</b></div>'+
         '<table style="'+STYLES.table+'">'+head+rows+'</table>'+
         '<div style="font-size:.8em;opacity:.7;margin-top:4px;">'+
-        'Priority 1 = primary event (sets cell color). Unranked sources (—) are tied last.<br>'+
-        'User-added events always rank first regardless of source.'+
+        'Order = priority. Top source sets cell color. User-added events always rank first.'+
         '</div>'
       );
     }

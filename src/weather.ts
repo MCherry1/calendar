@@ -1740,51 +1740,79 @@ export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulate
     (precipType === 'snow' && snowAccumulated)
   );
 
-  // -- Mechanics strings --
-  var mechLines: any[] = [];
+  // -- Categorized mechanics --
+  var mech: any = { visibility: [], movement: [], combat: [], exposure: [], other: [] };
+  var windLabel = CONFIG_WEATHER_LABELS.wind[wind] || '';
 
-  // Temperature
-  var tm = _weatherTempMechanics(temp);
-  if (tm) mechLines.push('<b>Temperature:</b> ' + esc(tm));
+  // Exposure (temperature)
+  var tInfo = _weatherTempInfo(temp);
+  if (tInfo.nominalDC != null){
+    var tempType = temp <= 3 ? 'Cold' : 'Heat';
+    var clothingReq = '';
+    if (tempType === 'Cold' && tInfo.coldRequirement && tInfo.coldRequirement !== 'none'){
+      if (tInfo.coldRequirement === 'special') clothingReq = 'Special Protection Req.';
+      else if (tInfo.coldRequirement === 'heavy_cwc') clothingReq = 'Heavy Clothing Req.';
+      else if (tInfo.coldRequirement === 'medium_cwc') clothingReq = 'Medium or Heavy Clothing Req.';
+      else if (tInfo.coldRequirement === 'light_cwc') clothingReq = 'Light, Medium, or Heavy Clothing Req.';
+      else if (tInfo.coldRequirement === 'warm') clothingReq = 'Warm Clothing Req.';
+    }
+    if (tempType === 'Heat' && tInfo.heatArmorDisadvantage && tInfo.heatArmorDisadvantage !== 'none'){
+      if (tInfo.heatArmorDisadvantage === 'heavy') clothingReq = 'No Heavy Armor';
+      else if (tInfo.heatArmorDisadvantage === 'medium_or_heavy') clothingReq = 'Light or No Armor Req.';
+      else if (tInfo.heatArmorDisadvantage === 'any_armor') clothingReq = 'No Armor Allowed';
+    }
+    var exposureLine = tempType + ', DC ' + tInfo.nominalDC + ' Con Save';
+    if (clothingReq) exposureLine += ', ' + clothingReq;
+    mech.exposure.push(exposureLine + ' (Temperature)');
+  }
 
-  // Wind
-  var wm = CONFIG_WEATHER_MECHANICS.wind[wind];
-  if (wm) mechLines.push('<b>Wind:</b> ' + esc(wm));
+  // Wind — split across categories
+  if (wind === 2){
+    mech.other.push('Fogs and gases dispersed (' + windLabel + ')');
+  } else if (wind === 3){
+    mech.combat.push('Disadvantage on ranged attack rolls (' + windLabel + ')');
+    mech.combat.push('Long range attacks automatically miss (' + windLabel + ')');
+    mech.movement.push('Flying costs an additional foot of movement (' + windLabel + ')');
+    mech.other.push('Open flames extinguished (' + windLabel + ')');
+  } else if (wind === 4){
+    mech.combat.push('Ranged attack rolls automatically miss (' + windLabel + ')');
+    mech.movement.push('Flying speeds reduced to 0 (' + windLabel + ')');
+    mech.movement.push('Walking costs an additional foot of movement (' + windLabel + ')');
+  } else if (wind >= 5){
+    mech.movement.push('DC 15 Strength check or fall prone (' + windLabel + ')');
+    mech.combat.push('Projectiles deal 2d6 bludgeoning, DC 10 Dex save (' + windLabel + ')');
+    mech.other.push('Small trees uprooted (' + windLabel + ')');
+  }
 
   // Visibility from precip/fog
   if (vis.tier !== 'none'){
-    var visStr = '';
-    if (vis.tier === 'C'){
-      visStr = 'Lightly Obscured. Heavily Obscured beyond 30ft. Perception at disadvantage.';
-    } else if (vis.tier === 'B'){
-      visStr = 'Lightly Obscured. Heavily Obscured beyond 60ft. Perception at disadvantage.';
-    } else {
-      visStr = 'Lightly Obscured. Perception at disadvantage.';
-    }
     var visSource = fog !== 'none' ? 'Fog' : 'Precipitation';
-    mechLines.push('<b>'+visSource+':</b> '+visStr);
+    mech.visibility.push('Lightly Obscured (' + visSource + ')');
+    if (vis.tier === 'C'){
+      mech.visibility.push('Heavily Obscured beyond 30 ft (' + visSource + ')');
+    } else if (vis.tier === 'B'){
+      mech.visibility.push('Heavily Obscured beyond 60 ft (' + visSource + ')');
+    }
   }
 
-  // Difficult terrain
+  // Difficult terrain → Movement
   if (difficultTerrain){
-    var dtReason = (precipType === 'snow' && snowAccumulated)
-      ? 'Difficult terrain on all surfaces (accumulated snow underfoot).'
-      : (precipType === 'blizzard')
-        ? 'Difficult terrain on all surfaces (rapidly accumulating snow).'
-        : 'Difficult terrain on all surfaces (ice).';
-    mechLines.push('<b>Terrain:</b> ' + dtReason);
+    var dtSource = (precipType === 'snow' && snowAccumulated) ? 'Accumulated Snow'
+      : (precipType === 'blizzard') ? 'Blizzard'
+      : (precipType === 'deluge') ? 'Deluge' : 'Ice';
+    mech.movement.push('Difficult terrain on all surfaces (' + dtSource + ')');
   }
 
-  // Special events (informational, not binding)
+  // Hazards → Other
   if (precipType === 'heavy_rain' || precipType === 'deluge' || precipType === 'blizzard' || precipType === 'ice_storm'){
     var hazardNote = (precipType === 'heavy_rain')
-      ? 'Risk of lightning and flash flooding. Soft ground may become difficult terrain at GM discretion.'
+      ? 'Risk of lightning and flash flooding (Heavy Rain)'
       : (precipType === 'deluge')
-        ? 'Extreme flooding. Rivers burst banks. Roads impassable. Shelter imperative.'
+        ? 'Extreme flooding, roads impassable (Deluge)'
         : (precipType === 'blizzard')
-        ? 'Risk of whiteout, avalanche (mountainous terrain), and hypothermia.'
-        : 'Risk of lightning, flash flooding, or falling ice.';
-    mechLines.push('<b>Hazards:</b> ' + hazardNote);
+        ? 'Risk of whiteout, avalanche, and hypothermia (Blizzard)'
+        : 'Risk of lightning, flash flooding, or falling ice (Ice Storm)';
+    mech.other.push(hazardNote);
   }
 
   return {
@@ -1792,15 +1820,34 @@ export function _deriveConditions(pv: any, loc: any, period: any, snowAccumulate
     fog:              fog,            // none|light|dense
     visibility:       vis,            // { tier:'none'|'A'|'B'|'C', beyond:null|30|60 }
     difficultTerrain: difficultTerrain,
-    mechanics:        mechLines       // array of HTML strings, ready to join
+    mechanics:        mech            // { visibility:[], movement:[], combat:[], exposure:[], other:[] }
   };
 }
 
 // Render conditions mechanics block as HTML (empty string if none).
 export function _conditionsMechHtml(cond: any){
   if (ensureSettings().weatherMechanicsEnabled === false) return '';
-  if (!cond.mechanics.length) return '';
-  return '<div style="font-size:.85em;margin-top:3px;">'+cond.mechanics.join('<br>')+'</div>';
+  var m = cond.mechanics;
+  var sections: string[] = [];
+  var cats = [
+    { key: 'visibility', label: 'Visibility' },
+    { key: 'movement',   label: 'Movement' },
+    { key: 'combat',     label: 'Combat' },
+    { key: 'exposure',   label: 'Exposure' },
+    { key: 'other',      label: 'Other' },
+  ];
+  for (var ci = 0; ci < cats.length; ci++){
+    var items = m[cats[ci].key];
+    if (items && items.length){
+      var bullets = '';
+      for (var bi = 0; bi < items.length; bi++){
+        bullets += '<li>' + esc(items[bi]) + '</li>';
+      }
+      sections.push('<b>' + cats[ci].label + '</b><ul style="margin:1px 0 3px 14px;padding:0;list-style:disc;">' + bullets + '</ul>');
+    }
+  }
+  if (!sections.length) return '';
+  return '<div style="font-size:.85em;margin-top:3px;">' + sections.join('') + '</div>';
 }
 
 // Full mechanical readout for today — whispered on demand via button.

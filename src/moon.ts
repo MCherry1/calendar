@@ -464,32 +464,28 @@ export function _siberysLoreHtml(){
   var eberronRadiusKm = 6400;
   var innerHeightKm = Math.max(0, r.innerEdge_km - eberronRadiusKm);
   var outerHeightKm = Math.max(0, r.outerEdge_km - eberronRadiusKm);
+  // Convert to mi (km) format
+  var kmToMi = function(km){ return Math.round(km * 0.621371); };
+  var fmtDist = function(km){ return kmToMi(km).toLocaleString() + ' mi (' + km.toLocaleString() + ' km)'; };
   var html = '<b style="font-size:1.1em;">The Ring of Siberys</b>' +
     ' — <i>The Blood of the Dragon Above</i>' +
     '<br><br>An equatorial ring of siberys dragonshards encircling Eberron, ' +
     'believed by sages at Arcanix to be the source of all arcane magic. ' +
     'Siberys shards that fall from the Ring are the rarest and most valuable ' +
     'dragonshards, used for dragonmark focus items and legendary artifacts.' +
-    '<br><br><b>Analog:</b> ' + esc(r.analog) +
-    '<br><b>Width:</b> ' + r.width_km.toLocaleString() + ' km' +
-    '<br><b>Thickness:</b> ' + r.thickness_m + ' meters' +
-    '<br><b>Orbit:</b> ' + r.innerEdge_km.toLocaleString() + ' – ' +
-      r.outerEdge_km.toLocaleString() + ' km (inside Zarantyr at 14,300 km)' +
+    '<br><br><b>Width:</b> ' + fmtDist(r.width_km) +
+    '<br><b>Thickness:</b> ' + Math.round(r.thickness_m * 3.281) + ' ft (' + r.thickness_m + ' m)' +
+    '<br><b>Orbit:</b> ' + fmtDist(r.innerEdge_km) + ' – ' + fmtDist(r.outerEdge_km) +
+      ' (inside Zarantyr at ' + fmtDist(14300) + ')' +
     '<br><b>Inclination:</b> ' + r.inclination + '° (equatorial)' +
-    '<br><b>Height Above Surface:</b> ' + innerHeightKm.toLocaleString() + ' – ' +
-      outerHeightKm.toLocaleString() + ' km' +
+    '<br><b>Height Above Surface:</b> ' + fmtDist(innerHeightKm) + ' – ' + fmtDist(outerHeightKm) +
     '<br><b>Albedo:</b> ' + r.albedo +
     '<br><b>Night-light Contribution:</b> ~0.008 lux from the ring alone (~0.010 lux ambient with starlight)' +
     '<br><br><b>Appearance:</b>' +
     '<br>&nbsp;&nbsp;Day: ' + esc(r.appearance.daylight) +
     '<br>&nbsp;&nbsp;Night: ' + esc(r.appearance.night) +
     '<br>&nbsp;&nbsp;Equator: ' + esc(r.appearance.equator) +
-    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles) +
-    '<br><br><b>Scale Notes:</b> inner edge sits above ISS-like orbital height; outer edge stretches well past the edge of a typical low-orbit band.';
-  html += '<br><br>';
-  for (var fi = 0; fi < r.facts.length; fi++){
-    html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">• ' + esc(r.facts[fi]) + '</div>';
-  }
+    '<br>&nbsp;&nbsp;Poles: ' + esc(r.appearance.poles);
   return _menuBox('💎 Ring of Siberys', html);
 }
 
@@ -1520,29 +1516,36 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
             'margin-right:3px;vertical-align:middle;"></span>';
   var nameStyle = '';
 
-  // Moon ascendancy: brighter when associated plane is coterminous, dimmer when remote
+  // Moon ascendancy: brighter when associated plane is coterminous, dimmer when remote.
+  // Lharvion (Xoriat) is never marked "dim" because Xoriat is always remote — there is
+  // no baseline vs dim distinction; it only has ascendant (named month) and normal.
+  // A moon can be both dim (plane remote) AND ascendant (named month) simultaneously.
   var ascendTag = '';
+  var planarTag = '';
+  var monthTag = '';
   if (moon.plane && ensureSettings().planesEnabled !== false){
     try {
       var _plSt = getPlanarState(moon.plane, today);
       if (_plSt && _plSt.phase === 'coterminous')
-        ascendTag = ' <span style="' +
+        planarTag = ' <span style="' +
           applyBg('font-size:.75em;padding:0 3px;border-radius:3px;', '#FFE8A3', CONTRAST_MIN_HEADER) +
           '" title="'+esc(moon.plane)+' coterminous">\u2728 ascendant</span>';
-      else if (_plSt && _plSt.phase === 'remote')
-        ascendTag = ' <span style="opacity:.4;font-size:.75em;" title="'+esc(moon.plane)+' remote">\u25CC dim</span>';
+      else if (_plSt && _plSt.phase === 'remote' && moon.name !== 'Lharvion')
+        planarTag = ' <span style="opacity:.4;font-size:.75em;" title="'+esc(moon.plane)+' remote">\u25CC dim</span>';
     } catch(e){ /* planar system not ready */ }
   }
   // Also ascendant during its associated month
-  if (!ascendTag && moon.associatedMonth){
+  if (moon.associatedMonth){
     try {
       var _curCal = getCal().current;
       if (_curCal && (_curCal.month + 1) === moon.associatedMonth)
-        ascendTag = ' <span style="' +
+        monthTag = ' <span style="' +
           applyBg('font-size:.75em;padding:0 3px;border-radius:3px;', '#FFE8A3', CONTRAST_MIN_HEADER) +
           '">\u2728 ascendant</span>';
     } catch(e){}
   }
+  // Combine: show both if both apply (dim plane + ascendant month)
+  ascendTag = planarTag + (monthTag && monthTag !== planarTag ? monthTag : (!planarTag ? monthTag : ''));
 
   // Lower reveal tiers: phase + next event.
   // High reveal tier: phase + illumination + secondary event.
@@ -1831,7 +1834,9 @@ export function _singleMoonMiniCalEvents(moonName, startSerial, endSerial){
     out.push({
       serial: ser,
       name: emoji + ' ' + label + ' (' + pct + '%)',
-      color: _moonPhaseCellColor(ph.illum)
+      color: _moonPhaseCellColor(ph.illum),
+      replaceNumeral: emoji,
+      dotOnly: true
     });
   }
   return out;
@@ -1985,7 +1990,6 @@ export function moonPanelParts(serialOverride?){
     return [_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>')];
   }
 
-  var displayMode = _normalizeDisplayMode(st.moonDisplayMode);
   var verbose = _subsystemIsVerbose();
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
@@ -1996,34 +2000,29 @@ export function moonPanelParts(serialOverride?){
 
   var parts = [];
 
-  // Part 1: Calendar grid (if shown)
-  if (displayMode !== 'list'){
+  // Calendar grid — always shown
+  {
     var mr = _monthRangeFromSerial(today);
     var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
     var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
     var calBody = navRow +
       _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
       moonMiniCal +
-      _legendLine(['🌕 Full', '🌑 New', '🌘 Eclipse/Occultation']);
+      _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New', '<span style="color:#9C27B0;">●</span> Eclipse/Occultation']);
     if (verbose){
       calBody += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
     }
     parts.push(_menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), calBody));
   }
 
-  // Part 2: Moon list rows (if shown)
-  if (displayMode !== 'calendar'){
+  // Part 2: Moon list rows — always appended below calendar
+  {
     var rows = sys.moons.map(function(moon){
       return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
     });
-    var listBody = (displayMode === 'list' ? navRow +
-      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) : '') +
+    var listBody =
       rows.join('');
-    parts.push(_menuBox(displayMode === 'list' ? '\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel) : '\uD83C\uDF19 Moon Phases', listBody));
-  }
-
-  if (!parts.length){
-    parts.push(_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No lunar display mode selected.</div>'));
+    parts.push(_menuBox('\uD83C\uDF19 Moon Phases', listBody));
   }
 
   // Part 2b: Eclipses, Ascendant/Dim Moons (appended to last content part)
@@ -2155,7 +2154,7 @@ export function moonPanelParts(serialOverride?){
   // Utility buttons
   gmControls += '<div style="margin:4px 0;">'+
     button('📖 Lore','moon lore')+' '+
-    button('View: '+_displayModeLabel(displayMode),'settings mode moon '+_nextDisplayMode(displayMode))+
+    button('📋 List','moon phases')+
     '</div>';
   var gmHandoutLinks = [
     handoutButton('Open Lunar Handout', 'lunar'),
@@ -2222,7 +2221,7 @@ export function moonPlayerPanelHtml(serialOverride?){
   var body = navRow;
   body += _moonTodaySummaryHtml(today, tier, horizon);
   body += pMoonMiniCal;
-  body += _legendLine(['🌕 Full', '🌑 New']);
+  body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
 
   // Compact notable list: only moons at full, new, or ascending right now
   // Each line includes the moon's title so players know what they're reading
@@ -2485,7 +2484,7 @@ export function moonHandoutHtml(serialOverride?){
   // its rolling window. Rendering the past month at forced high tier makes
   // every date change pay the expensive eclipse scan path.
   body += _moonMultiMonthHtml(today, tier, horizon, false, true);
-  body += _legendLine(['🌕 Full', '🌑 New']);
+  body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
 
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
   if (srcLabel){
@@ -2507,7 +2506,7 @@ export function moonHandoutGmHtml(){
   var body = '<div style="font-weight:bold;margin-bottom:6px;">GM Moon Reference — Full Reveal</div>';
   body += _moonTodaySummaryHtml(today, 'high', 9999);
   body += _moonMultiMonthHtml(today, 'high', 9999, true);
-  body += _legendLine(['🌕 Full', '🌑 New']);
+  body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
 
   var eclNotes = _eclipseNotableToday(today);
   if (eclNotes.length){
@@ -2570,24 +2569,19 @@ export var MOON_ORBITAL_DATA = {
 };
 
 // ---------------------------------------------------------------------------
-// 20g-i-b) Ring of Siberys — analog: Saturn's rings
+// 20g-i-b) Ring of Siberys
 // ---------------------------------------------------------------------------
 // The Ring of Siberys is the equatorial band of siberys dragonshards that
-// encircles Eberron. Saturn's rings provide the physical template:
-// 282,000 km wide but only ~10 meters thick — an aspect ratio like a
-// DVD scaled up to 30 km across. Composed of dragonshard fragments
-// ranging from dust to mountain-sized.
+// encircles Eberron. Composed of dragonshard fragments ranging from dust
+// to mountain-sized.
 //
 // The Ring is visible in daylight and dominates the night sky. Sages at
 // Arcanix believe all arcane magic may draw on energy radiating from the
 // Ring — the "Blood of Siberys." (Keith Baker, "Reaching For The Stars")
 
 export var RING_OF_SIBERYS = {
-  // A single equatorial ring of siberys dragonshards. Physical parameters
-  // derived from Saturn's rings but scaled to fit inside Zarantyr's orbit
-  // (14,300 km). Saturn's ring system spans ~1.1–2.3 planet radii; if
-  // Eberron is ~6,400 km radius, the ring fits at ~1.1–1.9 Eberron radii.
-  analog: "Saturn's rings",
+  // A single equatorial ring of siberys dragonshards, scaled to fit inside
+  // Zarantyr's orbit (~8,886 mi / 14,300 km).
   composition: 'Siberys dragonshards',
   innerEdge_km: 7000,          // just above atmosphere
   outerEdge_km: 12000,         // well inside Zarantyr at 14,300 km
@@ -2601,14 +2595,9 @@ export var RING_OF_SIBERYS = {
     daylight: 'A brilliant equatorial arc of golden-white light, visible even in full sunlight.',
     night: 'A sweeping band of light across the sky. Casts faint but real shadows on clear nights.',
     equator: 'Seen edge-on as a thin bright line directly overhead.',
-    poles: 'A wide luminous arch spanning the sky from horizon to horizon.'
+    poles: 'A luminous arch spanning ~15° of sky, sitting low on the horizon from pole to pole.'
   },
-  facts: [
-    'The Ring is 5,000 km wide but only ~10 meters thick.',
-    'If scaled to a dinner plate, the Ring would be thousands of times thinner than a sheet of paper.',
-    'Siberys shards that fall from the Ring are the rarest and most valuable dragonshards.',
-    'Ring particles orbit at different speeds: inner fragments orbit faster than outer ones.'
-  ]
+  facts: []
 };
 
 // ---------------------------------------------------------------------------
@@ -2619,9 +2608,9 @@ export var RING_OF_SIBERYS = {
 //
 //   Lux     | Condition        | D&D Equivalent
 //   --------|------------------|-----------------------
-//   > 0.25  | Bright moonlight | Dim light (no penalty)
-//   0.03–0.25 | Dim moonlight  | Dim light (disadvantage on Perception)
-//   < 0.03  | Near darkness    | Darkness (effectively blind w/o darkvision)
+//   >= 1.0  | Bright moonlight | Bright light (no restrictions)
+//   0.25–1.0| Dim moonlight    | Dim light (disadvantage on Perception)
+//   < 0.25  | Darkness         | Darkness (effectively blind w/o darkvision)
 //
 // Reference: Earth's full moon ≈ 0.25 lux at zenith (albedo 0.12,
 // angular diameter 0.5°). Our moons are much larger and closer, so
@@ -2676,12 +2665,14 @@ export function nighttimeLux(serial, precipStage){
 
     // Planar brightness modifier: +25% when associated plane is coterminous
     // (ascendant), -25% when remote (dim).
+    // Lharvion (Xoriat) is excluded from dim penalty: Xoriat is always remote,
+    // so there is no meaningful baseline vs dim distinction.
     var planarMod = 1.0;
     if (moon.plane && st.planesEnabled !== false){
       try {
         var _plSt = getPlanarState(moon.plane, serial);
         if (_plSt && _plSt.phase === 'coterminous') planarMod = 1.25;
-        else if (_plSt && _plSt.phase === 'remote') planarMod = 0.75;
+        else if (_plSt && _plSt.phase === 'remote' && moon.name !== 'Lharvion') planarMod = 0.75;
       } catch(e){ /* planar system not ready */ }
     }
     effectiveLux *= planarMod;
@@ -2738,20 +2729,14 @@ export function nighttimeLightCondition(lux){
       ? 'In shadow (trees, overhangs): dim light.'
       : 'In shadow: darkness. Darkvision or light source needed.'
   };
-  if (lux >= 0.30) return {
+  if (lux >= 0.25) return {
     condition: 'dim', label: 'Dim Moonlight', emoji: '🌗',
     note: 'Dim light. Enough to fight by. Disadvantage on Perception.',
     shadow: 'dark',
     shadowNote: 'In shadow: darkness. Darkvision or light source needed.'
   };
-  if (lux >= 0.03) return {
-    condition: 'dim', label: 'Faint Moonlight', emoji: '🌘',
-    note: 'Dim light (faint). Disadvantage on Perception. Hard to see detail.',
-    shadow: 'dark',
-    shadowNote: 'In shadow: darkness.'
-  };
   return {
-    condition: 'darkness', label: 'Near Darkness', emoji: '🌑',
+    condition: 'darkness', label: 'Darkness', emoji: '🌑',
     note: 'Darkness. Effectively blind without darkvision.',
     shadow: 'dark',
     shadowNote: 'Dark everywhere, open or covered.'
@@ -4474,13 +4459,12 @@ export function handleMoonCommand(m, args){
     var visHtml = _moonVisibilityHtml(today, timeFrac);
     if (!visHtml) visHtml = '<div style="opacity:.6;">No visibility data available.</div>';
     var timeButtons = [
-      button('Current','moon sky'),
-      button('Middle','moon sky middle_of_night'),
       button('Early','moon sky early_morning'),
       button('Morning','moon sky morning'),
       button('Afternoon','moon sky afternoon'),
       button('Evening','moon sky evening'),
-      button('Night','moon sky nighttime')
+      button('Night','moon sky nighttime'),
+      button('Middle','moon sky middle_of_night')
     ].join(' ');
     return whisper(m.who, _menuBox(
       '🌙 Sky at ' + esc(timeLabel) + ' — ' + esc(dateLabel),

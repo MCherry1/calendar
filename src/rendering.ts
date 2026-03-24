@@ -156,7 +156,25 @@ export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEv
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  var label = events.length ? events.map(eventDisplayName).filter(Boolean).join(', ') : '';
+  // Build tooltip: group by type (New/Full/Eclipse) with line breaks, or fallback to comma join
+  var label = '';
+  if (events.length){
+    var names = events.map(eventDisplayName).filter(Boolean);
+    var grouped = { 'New': [], 'Full': [], 'Eclipse': [], other: [] };
+    for (var ei = 0; ei < names.length; ei++){
+      var en = names[ei];
+      if (/^New:/.test(en)) grouped['New'].push(en.replace(/^New:\s*/, ''));
+      else if (/^Full:/.test(en)) grouped['Full'].push(en.replace(/^Full:\s*/, ''));
+      else if (/eclipse|occultation/i.test(en)) grouped['Eclipse'].push(en);
+      else grouped.other.push(en);
+    }
+    var parts = [];
+    if (grouped['New'].length) parts.push('New:\n  ' + grouped['New'].join('\n  '));
+    if (grouped['Full'].length) parts.push('Full:\n  ' + grouped['Full'].join('\n  '));
+    if (grouped['Eclipse'].length) parts.push('Eclipse:\n  ' + grouped['Eclipse'].join('\n  '));
+    if (grouped.other.length) parts.push(grouped.other.join(', '));
+    label = parts.length > 1 ? parts.join('\n') : (parts[0] || names.join(', '));
+  }
   return {
     y:y, mi:mi, d:d, serial:ser,
     isToday:  (ser === tSer),
@@ -762,23 +780,31 @@ export function _eventRowsForTables(evs){
   return rows;
 }
 
+function _allYearsNull(rows){
+  for (var i = 0; i < rows.length; i++){
+    if (rows[i].event && rows[i].event.year != null) return false;
+  }
+  return true;
+}
+
 export function listAllEventsTableHtml(){
   var cal = getCal(), evs = cal.events || [];
   if(!evs.length) return '<div style="opacity:.7;">No events.</div>';
 
   var listRows = _eventRowsForTables(evs);
+  var showYear = !_allYearsNull(listRows);
   var rows = listRows.map(function(row, i){
     var e = row.event;
     var dd = esc(String(e.day));
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-    var name = esc(eventDisplayName(e)) + (row.groupedCount > 1 ? ' <span style="opacity:.65;">(' + row.groupedCount + 'x)</span>' : '');
+    var name = esc(eventDisplayName(e));
     var sw = swatchHtml(getEventColor(e));
     return '<tr>'+
       '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
       '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ esc(row.mmLabel) +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>'+
+      (showYear ? '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>' : '')+
     '</tr>';
   });
 
@@ -787,7 +813,7 @@ export function listAllEventsTableHtml(){
     '<th style="'+STYLES.th+'">Event</th>'+
     '<th style="'+STYLES.th+'">MM</th>'+
     '<th style="'+STYLES.th+'">DD</th>'+
-    '<th style="'+STYLES.th+'">YYYY</th>'+
+    (showYear ? '<th style="'+STYLES.th+'">YYYY</th>' : '')+
   '</tr>';
 
   return '<div style="margin:4px 0;"><b>All Events (meta view)</b></div>'+
@@ -800,11 +826,12 @@ export function removeListHtml(){
   if(!evs.length) return '<div style="opacity:.7;">No events to remove.</div>';
 
   var listRows = _eventRowsForTables(evs);
+  var showYear = !_allYearsNull(listRows);
   var rows = listRows.map(function(row, i){
     var e = row.event;
     var dd = esc(String(e.day));
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-    var name = esc(eventDisplayName(e)) + (row.groupedCount > 1 ? ' <span style="opacity:.65;">(' + row.groupedCount + 'x)</span>' : '');
+    var name = esc(eventDisplayName(e));
     var sw = swatchHtml(getEventColor(e));
     var rm = button('Remove', row.removeCmd);
     return '<tr>'+
@@ -812,7 +839,7 @@ export function removeListHtml(){
       '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ esc(row.mmLabel) +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>'+
+      (showYear ? '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>' : '')+
       '<td style="'+STYLES.td+';text-align:center;">'+ rm +'</td>'+
     '</tr>';
   });
@@ -822,7 +849,7 @@ export function removeListHtml(){
     '<th style="'+STYLES.th+'">Event</th>'+
     '<th style="'+STYLES.th+'">MM</th>'+
     '<th style="'+STYLES.th+'">DD</th>'+
-    '<th style="'+STYLES.th+'">YYYY</th>'+
+    (showYear ? '<th style="'+STYLES.th+'">YYYY</th>' : '')+
     '<th style="'+STYLES.th+'">Action</th>'+
   '</tr>';
 
@@ -841,12 +868,13 @@ export function removeMatchesListHtml(needle){
   });
   if (!listRows.length){ return '<div style="opacity:.7;">No events matched "' + esc(needle) + '".</div>'; }
 
+  var showYear = !_allYearsNull(listRows);
   var head = '<tr>'+
     '<th style="'+STYLES.th+'">Index</th>'+
     '<th style="'+STYLES.th+'">Event</th>'+
     '<th style="'+STYLES.th+'">MM</th>'+
     '<th style="'+STYLES.th+'">DD</th>'+
-    '<th style="'+STYLES.th+'">YYYY</th>'+
+    (showYear ? '<th style="'+STYLES.th+'">YYYY</th>' : '')+
     '<th style="'+STYLES.th+'">Action</th>'+
   '</tr>';
 
@@ -854,7 +882,7 @@ export function removeMatchesListHtml(needle){
     var e = row.event;
     var dd = esc(String(e.day));
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
-    var name = esc(eventDisplayName(e)) + (row.groupedCount > 1 ? ' <span style="opacity:.65;">(' + row.groupedCount + 'x)</span>' : '');
+    var name = esc(eventDisplayName(e));
     var sw = swatchHtml(getEventColor(e));
     var rm = button('Remove', row.removeCmd);
     return '<tr>'+
@@ -862,7 +890,7 @@ export function removeMatchesListHtml(needle){
       '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ esc(row.mmLabel) +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>'+
+      (showYear ? '<td style="'+STYLES.td+';text-align:center;">'+ yyyy +'</td>' : '')+
       '<td style="'+STYLES.td+';text-align:center;">'+ rm +'</td>'+
     '</tr>';
   }).join('');
@@ -897,7 +925,6 @@ export function suppressedDefaultsListHtml(){
       '<td style="'+STYLES.td+'">'+sw+esc(info.name)+src+'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ dd +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">ALL</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ restorebutton +'</td>'+
     '</tr>';
   });
@@ -906,7 +933,6 @@ export function suppressedDefaultsListHtml(){
     '<th style="'+STYLES.th+'">Event</th>'+
     '<th style="'+STYLES.th+'">MM</th>'+
     '<th style="'+STYLES.th+'">DD</th>'+
-    '<th style="'+STYLES.th+'">YYYY</th>'+
     '<th style="'+STYLES.th+'">Action</th>'+
   '</tr>';
 
