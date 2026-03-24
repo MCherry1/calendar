@@ -5,6 +5,7 @@ import { freshInstall } from "./helpers.js";
 import { toSerial, todaySerial } from "../src/date-math.js";
 import { solarProfileForSerial } from "../src/time-of-day.js";
 import { setDate, stepDays } from "../src/ui.js";
+import { applyCalendarSystem } from "../src/state.js";
 import {
   MOON_HISTORY_DAYS,
   MOON_SYSTEMS, _moonHashStr, _eberronMoonCore,
@@ -19,7 +20,8 @@ import {
   _isLongShadowsOverride, _longShadowsWindow, _moonPeakPhaseDay,
   getLongShadowsMoons, _eclipseCandidateDistance, _getEclipsesBruteforce,
   _getEclipsesStaged, _eclipseRelativeSizeText, captureMoonHistoryDay,
-  captureMoonHistoryWindow
+  captureMoonHistoryWindow, _moonCompass16, _moonSkyPositionCategory,
+  _moonVisibilityAll, _moonVisibilityHtml
 } from "../src/moon.js";
 
 function eclipseDigest(events: any[]) {
@@ -232,6 +234,49 @@ describe("Moon System", () => {
 
     const average = fullDays / monthCount;
     assert(Math.abs(average - MOON_TARGET_FULL_DAYS_PER_28) < 0.1, `expected ~${MOON_TARGET_FULL_DAYS_PER_28}, got ${average}`);
+  });
+
+  it("renders the Eberron sky view as an altitude-sorted table with direction and motion", () => {
+    freshInstall();
+    const serial = todaySerial();
+    moonEnsureSequences(serial, 30);
+
+    const rows = _moonVisibilityAll(serial, 22 / 24);
+    assert(rows.length > 1, "expected multiple moons in the sky dataset");
+    assert(rows[0].altitudeExact >= rows[1].altitudeExact, "rows should be sorted by altitude");
+    assert(rows[0].direction.match(/^(N|NNE|NE|ENE|E|ESE|SE|SSE|S|SSW|SW|WSW|W|WNW|NW|NNW)$/));
+    assert(rows[0].motion === "Rising" || rows[0].motion === "Setting");
+
+    const html = _moonVisibilityHtml(serial, 22 / 24, "nighttime");
+    assert(html.includes('data-moon-sky-table="1"'));
+    assert(html.includes("✨ 🌙 Sky View 🌙 ✨"));
+    assert(html.includes("Nighttime (~10pm)"));
+    assert(html.includes("Moon (% Full)"));
+    assert(html.includes("Sky Position"));
+    assert(html.includes(", Rising") || html.includes(", Setting"));
+  });
+
+  it("renders non-Eberron sky view rows without the Eberron table", () => {
+    freshInstall();
+    applyCalendarSystem("faerunian");
+    const serial = todaySerial();
+    moonEnsureSequences(serial, 30);
+
+    const html = _moonVisibilityHtml(serial, 22 / 24, "nighttime");
+    assert(!html.includes('data-moon-sky-table="1"'));
+    assert(html.includes('data-moon-sky-row="1"'));
+    assert(html.includes(" is "));
+  });
+
+  it("classifies peeking and compass buckets with the new sky-position helpers", () => {
+    freshInstall();
+    assertEquals(_moonSkyPositionCategory(-0.1, 1.0), "peeking");
+    assertEquals(_moonSkyPositionCategory(0.1, 1.0), "peeking");
+    assertEquals(_moonSkyPositionCategory(0.3, 0.6), "horizon");
+    assertEquals(_moonSkyPositionCategory(-1, 0.5), "below");
+    assertEquals(_moonSkyPositionCategory(75, 0.5), "high");
+    assertEquals(_moonCompass16(67.5), "ENE");
+    assertEquals(_moonCompass16(180), "S");
   });
 });
 

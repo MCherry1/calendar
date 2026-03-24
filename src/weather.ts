@@ -678,6 +678,14 @@ export function _weatherLocationLabel(loc: any){
   return climate + ' / ' + geography + ' / ' + terrain;
 }
 
+export function _weatherLocationTransparentLabel(loc: any){
+  if (!loc) return _weatherLocationLabel(loc);
+  var detail = _weatherLocationLabel(loc);
+  var name = String(loc.name || '').trim();
+  if (name && name.toLowerCase() !== detail.toLowerCase()) return name + ' (' + detail + ')';
+  return detail;
+}
+
 export function _normalizeWeatherLocation(loc: any){
   if (!loc) return null;
   var out: any = {

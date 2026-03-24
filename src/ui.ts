@@ -10,8 +10,8 @@ import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
-import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
-import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextEvent, _moonPeakPhaseDay, _moonPhaseEmoji, captureMoonHistoryWindow, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory, tidalLabel } from './moon.js';
+import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherLocationTransparentLabel, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
+import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory, tidalLabel } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getActivePlanarEffects, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
@@ -276,6 +276,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
   var dashboardEmptyEventsLineStyle = dashboard
     ? 'font-size:.94em;color:#000;margin-top:3px;'
     : 'font-size:.82em;opacity:.6;margin-top:2px;';
+  var locationLine = '';
 
   // Events this month (labeled only when events exist)
   var eventsBlock = (function(){
@@ -303,32 +304,24 @@ export function sendCurrentDate(to, gmOnly, opts?){
           // Full or New right now? Use peak detection for single-day reports.
           var _peakType = _moonPeakPhaseDay(moon.name, todaySer);
           if (_peakType === 'full'){
-            _notable.push(emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is Full');
+            _notable.push(emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is Full' + esc(_moonPhaseSpanSuffix(moon.name, todaySer)));
             _thisNotable = true;
             return;
           }
           if (_peakType === 'new'){
             var newLabel = ph.longShadows
-              ? emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' goes dark (Long Shadows)'
-              : emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is New';
+              ? emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' goes dark' + esc(_moonPhaseSpanSuffix(moon.name, todaySer)) + ' (Long Shadows)'
+              : emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is New' + esc(_moonPhaseSpanSuffix(moon.name, todaySer));
             _notable.push(newLabel);
             _thisNotable = true;
             return;
           }
 
-          // Full or New arriving within 2 days?
-          var nFull = _moonNextEvent(moon.name, todaySer, 'full');
-          var nNew  = _moonNextEvent(moon.name, todaySer, 'new');
-          var dFull = nFull ? Math.ceil(nFull - todaySer) : 999;
-          var dNew  = nNew  ? Math.ceil(nNew  - todaySer) : 999;
-
-          if (dFull <= 2){
-            var fEmoji = '\uD83C\uDF15'; // 🌕
-            _notable.push(fEmoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' Full ' + (dFull === 1 ? 'tomorrow' : 'in 2 days'));
-            _thisNotable = true;
-          } else if (dNew <= 2){
-            var nEmoji = '\uD83C\uDF11'; // 🌑
-            _notable.push(nEmoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' New ' + (dNew === 1 ? 'tomorrow' : 'in 2 days'));
+          var nextEntry = _moonNextThresholdEntry(moon.name, todaySer, 2);
+          if (nextEntry){
+            var phaseWord = nextEntry.type === 'full' ? 'Full' : 'New';
+            var phaseEmoji = nextEntry.type === 'full' ? '\uD83C\uDF15' : '\uD83C\uDF11';
+            _notable.push(phaseEmoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' ' + phaseWord + ' ' + (nextEntry.days === 1 ? 'tomorrow' : 'in 2 days'));
             _thisNotable = true;
           }
 
@@ -364,6 +357,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
       var _ws = getWeatherState();
       // Only show weather if a location has been configured
       if (_ws.location){
+        locationLine = '<div style="' + dashboardShortLineStyle + '">📍 ' + esc(_weatherLocationTransparentLabel(_ws.location)) + '</div>';
         weatherEnsureForecast();
         var _wxRec    = _weatherRecordForDisplay(_forecastRecord(todaySer));
         if (_wxRec && _wxRec.final){
@@ -433,13 +427,13 @@ export function sendCurrentDate(to, gmOnly, opts?){
 
   var msgCore;
   if (dashboard){
-    msgCore = calHtml + dateLine + timeLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
+    msgCore = calHtml + dateLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
   } else if (compact){
     msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
-      dateLine + timeLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
+      dateLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
       '</div>';
   } else {
-    msgCore = calHtml + dateLine + timeLine + moonLine + weatherLine + lightingLine + planesLine + eventsBlock;
+    msgCore = calHtml + dateLine + timeLine + locationLine + moonLine + weatherLine + lightingLine + planesLine + eventsBlock;
   }
 
   var controls = '';

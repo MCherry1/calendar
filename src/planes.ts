@@ -1226,7 +1226,7 @@ export function getActivePlanarEffects(serial){
 // ---------------------------------------------------------------------------
 
 // Returns array of HTML strings for planes worth mentioning today.
-// Criteria: currently coterminous/remote, or transitioning within 3 days.
+// Criteria: currently coterminous/remote, or transitioning within 2 days.
 // Excludes: fixed planes (always the same), and phases longer than 1 year (too routine to note daily).
 export function _planarNotableToday(serial){
   var planes = _getAllPlaneData();
@@ -1246,29 +1246,32 @@ export function _planarNotableToday(serial){
     var name = ps.plane.name;
 
     if (ps.phase === 'coterminous'){
-      var remaining = ps.daysUntilNextPhase;
-      var tag = (remaining != null && remaining <= 3)
-        ? ' <span style="opacity:.6;">('+remaining+'d left)</span>'
-        : '';
-      notes.push('\uD83D\uDD34 <b>'+esc(name)+'</b> coterminous'+tag);
+      notes.push((PLANE_PHASE_EMOJI.coterminous || '\uD83D\uDFE2') + ' <b>'+esc(name)+'</b> is ' + esc(PLANE_PHASE_LABELS.coterminous || 'Coterminous') + _planarDaySpanTag(ps));
     }
     else if (ps.phase === 'remote'){
-      var remRem = ps.daysUntilNextPhase;
-      var remTag = (remRem != null && remRem <= 3)
-        ? ' <span style="opacity:.6;">('+remRem+'d left)</span>'
-        : '';
-      notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote'+remTag);
+      notes.push((PLANE_PHASE_EMOJI.remote || '\uD83D\uDD34') + ' <b>'+esc(name)+'</b> is ' + esc(PLANE_PHASE_LABELS.remote || 'Remote') + _planarDaySpanTag(ps));
     }
     // Neutral phases with imminent transition: hint at what's coming
-    else if (ps.phase === 'neutral' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 3 && ps.nextPhase){
+    else if (ps.phase === 'neutral' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 2 && ps.nextPhase){
       if (ps.nextPhase === 'coterminous')
-        notes.push('\uD83D\uDD34 <b>'+esc(name)+'</b> coterminous in '+ps.daysUntilNextPhase+'d');
+        notes.push((PLANE_PHASE_EMOJI.coterminous || '\uD83D\uDFE2') + ' <b>'+esc(name)+'</b> ' + esc(PLANE_PHASE_LABELS.coterminous || 'Coterminous') + ' ' + _planarInDaysLabel(ps.daysUntilNextPhase));
       else if (ps.nextPhase === 'remote')
-        notes.push('\uD83D\uDD35 <b>'+esc(name)+'</b> remote in '+ps.daysUntilNextPhase+'d');
+        notes.push((PLANE_PHASE_EMOJI.remote || '\uD83D\uDD34') + ' <b>'+esc(name)+'</b> ' + esc(PLANE_PHASE_LABELS.remote || 'Remote') + ' ' + _planarInDaysLabel(ps.daysUntilNextPhase));
     }
   }
 
   return notes;
+}
+
+function _planarDaySpanTag(ps){
+  if (!ps || ps.phaseDuration == null || ps.daysIntoPhase == null || ps.phaseDuration <= 1) return '';
+  return ' <span style="opacity:.72;">(Day ' + (ps.daysIntoPhase + 1) + ' of ' + ps.phaseDuration + ')</span>';
+}
+
+function _planarInDaysLabel(days){
+  var d = Math.max(0, days|0);
+  if (d === 1) return 'tomorrow';
+  return 'in ' + d + ' days';
 }
 
 // ---------------------------------------------------------------------------

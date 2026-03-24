@@ -186,6 +186,23 @@ describe("Weather management routing", () => {
 });
 
 describe("Moon management routing", () => {
+  it("routes today-options moon and moon phases into the canonical moon overview", () => {
+    freshInstall();
+    completeSetup();
+
+    handleInput(gmMessage("!cal today options moon"));
+    let log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
+    assert(log.includes("Moon Overview"));
+    assert(!log.includes("Current Phases"));
+    assert(!log.includes("📋 List"));
+
+    (globalThis as any)._chatLog.length = 0;
+    handleMoonCommand(gmUser(), ["moon", "phases"]);
+    log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
+    assert(log.includes("Moon Overview"));
+    assert(!log.includes("Current Phases"));
+  });
+
   it("emits real moon management actions with moon-name input and reseeds successfully", () => {
     freshInstall();
 
@@ -198,6 +215,7 @@ describe("Moon management routing", () => {
     assert(msg.includes("Bind Moon Page,page bind"));
     assert(msg.includes("Refresh Moon Page,page refresh"));
     assert(msg.includes("Show Moon Page,page show"));
+    assert(!msg.includes("moon phases"));
 
     const beforeSeed = getMoonState().systemSeed;
     handleMoonCommand(gmUser(), ["moon", "manage", "reseed"]);

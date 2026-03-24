@@ -1,5 +1,5 @@
 // Section 20: Moon System
-import { CONTRAST_MIN_HEADER, state_name } from './constants.js';
+import { CONTRAST_MIN_HEADER, STYLES, state_name } from './constants.js';
 import { defaults, ensureSettings, getCal, titleCase } from './state.js';
 import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
@@ -1375,6 +1375,28 @@ export function _moonPhaseSpan(moonName, serial){
   return { dayNum: dayNum, totalDays: totalDays, type: type };
 }
 
+export function _moonPhaseSpanSuffix(moonName, serial){
+  var span = _moonPhaseSpan(moonName, serial);
+  if (!span || span.totalDays <= 1) return '';
+  return ' (Day ' + span.dayNum + ' of ' + span.totalDays + ')';
+}
+
+export function _moonNextThresholdEntry(moonName, serial, maxDays){
+  maxDays = Math.max(0, maxDays|0);
+  for (var d = 1; d <= maxDays; d++){
+    var prev = moonPhaseAt(moonName, serial + d - 1);
+    var next = moonPhaseAt(moonName, serial + d);
+    if (!next) continue;
+    if (_isFullMoonIllum(next.illum) && (!prev || !_isFullMoonIllum(prev.illum))){
+      return { type:'full', days:d };
+    }
+    if (_isNewMoonIllum(next.illum) && (!prev || !_isNewMoonIllum(prev.illum))){
+      return { type:'new', days:d };
+    }
+  }
+  return null;
+}
+
 export var MOON_TARGET_FULL_DAYS_PER_28 = 19;
 
 export function _phaseThresholdForCoverage(targetDays, monthDays, moonCount){
@@ -2020,51 +2042,46 @@ export function moonPanelParts(serialOverride?){
     var rows = sys.moons.map(function(moon){
       return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
     });
-    var listBody =
-      rows.join('');
-    parts.push(_menuBox('\uD83C\uDF19 Moon Phases', listBody));
-  }
+    var listSections = [rows.join('')];
 
-  // Part 2b: Eclipses, Ascendant/Dim Moons (appended to last content part)
-  var extraInfo = '';
-  // Eclipses (GM always sees high tier)
-  var eclipseLines = _eclipseNotableToday(today);
-  if (eclipseLines.length){
-    extraInfo += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
-      '<b>Eclipses:</b><br>' + eclipseLines.join('<br>') + '</div>';
-  }
-
-  // Ascendant Moons / Dim Moons (Eberron only — planes associated with moons)
-  if (ensureSettings().planesEnabled !== false){
-    var ascendantMoons = [];
-    var dimMoons = [];
-    for (var ai = 0; ai < sys.moons.length; ai++){
-      var aMoon = sys.moons[ai];
-      if (!aMoon.plane) continue;
-      try {
-        var plSt = getPlanarState(aMoon.plane, today);
-        if (plSt && plSt.phase === 'coterminous') ascendantMoons.push(aMoon.name);
-        else if (plSt && plSt.phase === 'remote') dimMoons.push(aMoon.name);
-      } catch(ea){}
+    // Eclipses (GM always sees high tier)
+    var eclipseLines = _eclipseNotableToday(today);
+    if (eclipseLines.length){
+      listSections.push(
+        '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
+          '<b>Eclipses:</b><br>' + eclipseLines.join('<br>') +
+        '</div>'
+      );
     }
-    // Also check month-associated ascendancy
-    for (var ai2 = 0; ai2 < sys.moons.length; ai2++){
-      var aMoon2 = sys.moons[ai2];
-      if (aMoon2.associatedMonth && (cur.month + 1) === aMoon2.associatedMonth){
-        if (ascendantMoons.indexOf(aMoon2.name) < 0) ascendantMoons.push(aMoon2.name);
+
+    // Ascendant Moons / Dim Moons (Eberron only — planes associated with moons)
+    if (ensureSettings().planesEnabled !== false){
+      var ascendantMoons = [];
+      var dimMoons = [];
+      for (var ai = 0; ai < sys.moons.length; ai++){
+        var aMoon = sys.moons[ai];
+        if (!aMoon.plane) continue;
+        try {
+          var plSt = getPlanarState(aMoon.plane, today);
+          if (plSt && plSt.phase === 'coterminous') ascendantMoons.push(aMoon.name);
+          else if (plSt && plSt.phase === 'remote') dimMoons.push(aMoon.name);
+        } catch(ea){}
+      }
+      for (var ai2 = 0; ai2 < sys.moons.length; ai2++){
+        var aMoon2 = sys.moons[ai2];
+        if (aMoon2.associatedMonth && (cur.month + 1) === aMoon2.associatedMonth){
+          if (ascendantMoons.indexOf(aMoon2.name) < 0) ascendantMoons.push(aMoon2.name);
+        }
+      }
+      if (ascendantMoons.length){
+        listSections.push('<div style="font-size:.85em;margin-top:4px;">✨ <b>Ascendant Moons:</b> ' + ascendantMoons.map(esc).join(', ') + '</div>');
+      }
+      if (dimMoons.length){
+        listSections.push('<div style="font-size:.85em;margin-top:2px;opacity:.7;">◌ <b>Dim Moons:</b> ' + dimMoons.map(esc).join(', ') + '</div>');
       }
     }
-    if (ascendantMoons.length){
-      extraInfo += '<div style="font-size:.85em;margin-top:4px;">✨ <b>Ascendant Moons:</b> ' + ascendantMoons.map(esc).join(', ') + '</div>';
-    }
-    if (dimMoons.length){
-      extraInfo += '<div style="font-size:.85em;margin-top:2px;opacity:.7;">◌ <b>Dim Moons:</b> ' + dimMoons.map(esc).join(', ') + '</div>';
-    }
-  }
 
-  if (extraInfo && parts.length > 0){
-    // Append to the last content part before GM controls
-    parts[parts.length - 1] = parts[parts.length - 1].replace(/<\/div>$/, '') + extraInfo + '</div>';
+    parts.push(_menuBox('\uD83C\uDF19 Moon Overview', listSections.join('')));
   }
 
   // Part 3: GM controls (always separate message to stay within size limits)
@@ -2101,11 +2118,6 @@ export function moonPanelParts(serialOverride?){
   // Sky button
   gmControls += '<div style="margin:4px 0;">' +
     button('🌌 Sky','moon sky') +
-    '</div>';
-
-  // Current Phases
-  gmControls += '<div style="margin:4px 0;">' +
-    button('Current Phases','moon phases') +
     '</div>';
 
   // Specific Moons dropdown
@@ -2153,8 +2165,7 @@ export function moonPanelParts(serialOverride?){
 
   // Utility buttons
   gmControls += '<div style="margin:4px 0;">'+
-    button('📖 Lore','moon lore')+' '+
-    button('📋 List','moon phases')+
+    button('📖 Lore','moon lore')+
     '</div>';
   var gmHandoutLinks = [
     handoutButton('Open Lunar Handout', 'lunar'),
@@ -2988,19 +2999,21 @@ export function _degSeparation(a, b){
 
 export var OBSERVER_LATITUDE = 30;  // degrees N — Sharn equivalent
 
+export function _moonHourAngleDeg(moon, serial, timeFrac){
+  var skyLong = _moonSkyLong(moon, serial);
+  var sunLong = _sunSkyLong(serial);
+  var ha = (skyLong - sunLong - 180 + timeFrac * 360) % 360;
+  if (ha < 0) ha += 360;
+  if (ha > 180) ha = ha - 360;
+  return ha;
+}
+
 // Returns altitude in degrees (-90 to +90) for a moon at given time.
 // Negative = below horizon.
 export function _moonAltitude(moon, serial, timeFrac){
   if (!moon) return -90;
-  var skyLong = _moonSkyLong(moon, serial);
   var eclLat  = _moonEclipticLat(moon, serial);
-  var sunLong = _sunSkyLong(serial);
-  // Hour angle: how far the moon is from the local meridian.
-  // At midnight (timeFrac=0), the anti-sun point is overhead.
-  // Moon's hour angle = (skyLong - sunLong - 180) + timeFrac*360
-  var ha = (skyLong - sunLong - 180 + timeFrac * 360) % 360;
-  if (ha < 0) ha += 360;
-  if (ha > 180) ha = ha - 360;  // -180..180, 0=on meridian
+  var ha = _moonHourAngleDeg(moon, serial, timeFrac);
   var haRad = ha * Math.PI / 180;
   var latRad = OBSERVER_LATITUDE * Math.PI / 180;
   var decRad = eclLat * Math.PI / 180;  // declination ≈ ecliptic latitude
@@ -3008,6 +3021,51 @@ export function _moonAltitude(moon, serial, timeFrac){
   var sinAlt = Math.sin(latRad) * Math.sin(decRad) +
                Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
   return Math.asin(Math.max(-1, Math.min(1, sinAlt))) * 180 / Math.PI;
+}
+
+export function _moonAzimuthDeg(moon, serial, timeFrac){
+  if (!moon) return 0;
+  var eclLat = _moonEclipticLat(moon, serial);
+  var ha = _moonHourAngleDeg(moon, serial, timeFrac) * Math.PI / 180;
+  var lat = OBSERVER_LATITUDE * Math.PI / 180;
+  var dec = eclLat * Math.PI / 180;
+  var az = Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(lat) - Math.tan(dec) * Math.cos(lat));
+  var deg = (az * 180 / Math.PI + 180) % 360;
+  return deg < 0 ? deg + 360 : deg;
+}
+
+export function _moonCompass16(azimuthDeg){
+  var labels = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  var idx = Math.round((((azimuthDeg % 360) + 360) % 360) / 22.5) % labels.length;
+  return labels[idx];
+}
+
+export function _moonAngularDiameterDeg(moon, serial){
+  if (!moon) return 0;
+  var op = _moonOrbitalParams(moon.name, serial);
+  var sizeVsSun = (op && isFinite(op.apparentSize)) ? op.apparentSize : 1;
+  return Math.max(0.01, sizeVsSun * _SUN_ANGULAR_DIAM_DEG);
+}
+
+export function _moonMotionLabel(moon, serial, timeFrac){
+  var step = 1 / 96; // 15 minutes — enough to determine rise vs set direction.
+  var altNow = _moonAltitude(moon, serial, timeFrac);
+  var altSoon = _moonAltitude(moon, serial, (timeFrac + step) % 1);
+  return altSoon >= altNow ? 'Rising' : 'Setting';
+}
+
+export function _moonSkyPositionCategory(altDeg, angularDiameterDeg){
+  var radius = Math.max(0.01, angularDiameterDeg || 0) / 2;
+  var visibleFraction = Math.max(0, Math.min(1, (altDeg + radius) / Math.max(0.0001, angularDiameterDeg || 0)));
+  if (altDeg > 80) return 'overhead';
+  if (altDeg >= 60) return 'high';
+  if (altDeg >= 30) return 'mid';
+  if (altDeg >= 10) return 'low';
+  if (altDeg >= 0){
+    return visibleFraction <= (2/3) ? 'peeking' : 'horizon';
+  }
+  if (altDeg + radius > 0) return 'peeking';
+  return 'below';
 }
 
 // Visibility category from altitude.
@@ -3032,57 +3090,95 @@ export var MOON_VIS_LABELS = {
 // sorted by altitude descending. `timeFrac` defaults to 0 (midnight).
 export function _moonVisibilityAll(serial, timeFrac){
   if (timeFrac == null) timeFrac = 0;  // default midnight
-  var st = ensureSettings();
   var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
   var results = [];
   for (var i = 0; i < sys.moons.length; i++){
     var moon = sys.moons[i];
     var alt = _moonAltitude(moon, serial, timeFrac);
-    var cat = _moonVisCategory(alt);
+    var az = _moonAzimuthDeg(moon, serial, timeFrac);
+    var angularDiameterDeg = _moonAngularDiameterDeg(moon, serial);
+    var cat = _moonSkyPositionCategory(alt, angularDiameterDeg);
     var ph = moonPhaseAt(moon.name, serial);
     results.push({
       moon: moon,
       altitude: Math.round(alt),
+      altitudeExact: alt,
+      azimuth: az,
+      direction: _moonCompass16(az),
+      motion: _moonMotionLabel(moon, serial, timeFrac),
+      angularDiameterDeg: angularDiameterDeg,
       category: cat,
-      vis: MOON_VIS_LABELS[cat],
-      phase: ph
+      phase: ph,
+      pctFull: Math.round((ph && ph.illum ? ph.illum : 0) * 100)
     });
   }
-  results.sort(function(a, b){ return b.altitude - a.altitude; });
+  results.sort(function(a, b){ return b.altitudeExact - a.altitudeExact; });
   return results;
 }
 
 // Build HTML panel for "which moons are visible now"
-export function _moonVisibilityHtml(serial, timeFrac){
+export function _moonVisibilityHtml(serial, timeFrac, bucket?){
   var all = _moonVisibilityAll(serial, timeFrac);
   if (!all.length) return '';
-  var groups = {};
-  var catOrder = ['overhead','high','visible','horizon','below'];
-  for (var ci = 0; ci < catOrder.length; ci++) groups[catOrder[ci]] = [];
-  for (var i = 0; i < all.length; i++){
-    var r = all[i];
-    groups[r.category].push(r);
-  }
-  var html = '';
-  for (var gi = 0; gi < catOrder.length; gi++){
-    var cat = catOrder[gi];
-    var g = groups[cat];
-    if (!g.length) continue;
-    var vis = MOON_VIS_LABELS[cat];
-    html += '<div style="margin:3px 0;"><b>' + vis.icon + ' ' + esc(vis.label) + '</b>';
-    var names = [];
-    for (var mi = 0; mi < g.length; mi++){
-      var r = g[mi];
-      var ph = r.phase;
-      var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
-      var pct = Math.round(ph.illum * 100);
-      names.push(emoji + ' ' + esc(r.moon.name) + ' <span style="opacity:.5;">(' + pct + '%)</span>');
+  var dateLabel = dateLabelFromSerial(serial);
+  var timeLabel = bucketLabel(bucket || '');
+  var approxHour = Math.round((((timeFrac % 1) + 1) % 1) * 24) % 24;
+  var hour12 = approxHour % 12 || 12;
+  var ampm = approxHour >= 12 ? 'pm' : 'am';
+  var head = '<div data-moon-sky-view="1" style="text-align:center;margin-bottom:6px;">' +
+    '<div style="font-weight:bold;">✨ 🌙 Sky View 🌙 ✨</div>' +
+    '<div style="margin-top:2px;">' + esc(dateLabel) + '</div>' +
+    '<div style="margin-top:2px;">' + esc((timeLabel || 'Nighttime') + ' (~' + hour12 + ampm + ')') + '</div>' +
+    '</div>';
+
+  var sys = _getMoonSys();
+  if (sys && sys.id === 'eberron'){
+    var rows = [];
+    for (var i = 0; i < all.length; i++){
+      var row = all[i];
+      var ph = row.phase || { illum:0, waxing:true };
+      rows.push(
+        '<tr data-moon-sky-row="1">' +
+          '<td style="' + STYLES.td + 'vertical-align:top;">' + esc(_moonPhaseEmoji(ph.illum, ph.waxing) + ' ' + row.moon.name + ' (' + row.pctFull + '% Full)') + '</td>' +
+          '<td style="' + STYLES.td + 'vertical-align:top;">' + esc(_moonSkyLabel(row)) + '</td>' +
+        '</tr>'
+      );
     }
-    html += '<div style="margin-left:12px;font-size:.88em;">' + names.join(', ') + '</div>';
-    html += '</div>';
+    return head +
+      '<table data-moon-sky-table="1" style="' + STYLES.table + '">' +
+      '<tr><th style="' + STYLES.th + '">Moon (% Full)</th><th style="' + STYLES.th + '">Sky Position</th></tr>' +
+      rows.join('') +
+      '</table>';
   }
-  return html;
+  var lines = [];
+  for (var li = 0; li < all.length; li++){
+    var r = all[li];
+    var rph = r.phase || { illum:0, waxing:true };
+    lines.push('<div data-moon-sky-row="1" style="margin:3px 0;">' +
+      esc(_moonPhaseEmoji(rph.illum, rph.waxing) + ' ' + r.moon.name + ' (' + r.pctFull + '% Full)') +
+      ' is ' + esc(_moonSkySentenceLabel(r)) +
+      '.</div>');
+  }
+  return head + lines.join('');
+}
+
+function _moonSkyLabel(row){
+  return _moonSkyCategoryLabel(row.category) + ', ' + row.direction + ', ' + row.motion;
+}
+
+function _moonSkySentenceLabel(row){
+  return _moonSkyCategoryLabel(row.category).toLowerCase() + ', ' + row.direction + ', ' + row.motion;
+}
+
+function _moonSkyCategoryLabel(category){
+  if (category === 'overhead') return 'Overhead';
+  if (category === 'high') return 'High';
+  if (category === 'mid') return 'Mid';
+  if (category === 'low') return 'Low';
+  if (category === 'horizon') return 'On Horizon';
+  if (category === 'peeking') return 'Peeking Over';
+  return 'Below Horizon';
 }
 
 export function _clamp01(x){
@@ -4371,6 +4467,10 @@ export function handleMoonCommand(m, args){
   var sub = String(args[1] || '').toLowerCase();
   var st  = ensureSettings();
 
+  // Temporary compatibility alias. Keep silent for now, then prune once
+  // downstream notes/buttons stop pointing at the older branch.
+  if (sub === 'phases') sub = '';
+
   // Anyone can view — players see their tier, GM sees exact
   if (!sub || sub === 'show'){
     moonEnsureSequences();
@@ -4408,44 +4508,6 @@ export function handleMoonCommand(m, args){
     return whisper(m.who, loreHtml);
   }
 
-  // !cal moon phases — whispers current phase of each moon + upcoming new/full
-  if (sub === 'phases'){
-    moonEnsureSequences();
-    var phSys = _getMoonSys();
-    if (!phSys || !phSys.moons) return whisper(m.who, 'No moon data available.');
-    var phToday = todaySerial();
-    var phLines = [];
-    phSys.moons.forEach(function(moon){
-      var ph = moonPhaseAt(moon.name, phToday);
-      if (!ph) return;
-      var phLabel = _moonPhaseLabel(ph.illum, ph.waxing);
-      var dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'+
-        'background:'+esc(moon.color||'#aaa')+';border:1px solid rgba(0,0,0,.3);'+
-        'vertical-align:middle;margin-right:4px;"></span>';
-      var line = dot + '<b>' + esc(moon.name) + '</b>';
-      line += '<br>&nbsp;&nbsp;&nbsp;Phase: ' + esc(phLabel);
-      // Find next full and new
-      var nFull = _moonNextEvent(moon.name, phToday, 'full');
-      var nNew = _moonNextEvent(moon.name, phToday, 'new');
-      if (nFull){
-        var dFull = Math.ceil(nFull - phToday);
-        var fDate = fromSerial(Math.round(nFull));
-        var fLabel = _displayMonthDayParts(fDate.mi, fDate.day).label;
-        line += '<br>&nbsp;&nbsp;&nbsp;Full in ' + dFull + ' days (' + esc(fLabel) + ')';
-      }
-      if (nNew){
-        var dNew = Math.ceil(nNew - phToday);
-        var nDate = fromSerial(Math.round(nNew));
-        var nLabel = _displayMonthDayParts(nDate.mi, nDate.day).label;
-        line += '<br>&nbsp;&nbsp;&nbsp;New in ' + dNew + ' days (' + esc(nLabel) + ')';
-      }
-      phLines.push('<div style="margin-bottom:6px;font-size:.85em;">' + line + '</div>');
-    });
-    return whisper(m.who, _menuBox('🌙 Current Phases — ' + esc(dateLabelFromSerial(phToday)),
-      phLines.join('')
-    ));
-  }
-
   // !cal moon sky [time] — available to everyone, shows which moons are visible
   // time: active bucket when set, otherwise nighttime; explicit aliases like
   // midnight/dawn/noon/dusk still normalize into the six canonical buckets.
@@ -4454,9 +4516,7 @@ export function handleMoonCommand(m, args){
     var today = todaySerial();
     var bucket = normalizeTimeBucketKey(args.slice(2).join(' ')) || effectiveTimeBucket('nighttime');
     var timeFrac = bucketMidpointTimeFrac(bucket);
-    var timeLabel = bucketLabel(bucket);
-    var dateLabel = dateLabelFromSerial(today);
-    var visHtml = _moonVisibilityHtml(today, timeFrac);
+    var visHtml = _moonVisibilityHtml(today, timeFrac, bucket);
     if (!visHtml) visHtml = '<div style="opacity:.6;">No visibility data available.</div>';
     var timeButtons = [
       button('Early','moon sky early_morning'),
@@ -4467,7 +4527,7 @@ export function handleMoonCommand(m, args){
       button('Middle','moon sky middle_of_night')
     ].join(' ');
     return whisper(m.who, _menuBox(
-      '🌙 Sky at ' + esc(timeLabel) + ' — ' + esc(dateLabel),
+      '🌙 Sky View',
       visHtml +
       '<div style="margin-top:6px;font-size:.82em;">' + timeButtons + '</div>'
     ));
