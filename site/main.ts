@@ -201,9 +201,9 @@ function _renderCalendarGallery(){
       monthIndex: world.defaultDate.month
     });
     var weekdayCount = preview.weekdayLabels.length;
-    var cardClass = weekdayCount > 7 ? 'calendar-card calendar-card--wide' : 'calendar-card';
+    var cardBasis = _calendarCardBasis(weekdayCount);
     return (
-      '<article class="' + cardClass + '">' +
+      '<article class="calendar-card" style="--calendar-card-basis:' + cardBasis + ';">' +
         '<div class="calendar-card-header">' +
           '<div>' +
             '<small>' + _esc(world.calendar.label) + '</small>' +
@@ -245,6 +245,12 @@ function _festivalRail(items: string[]){
       }).join('') +
     '</div>'
   );
+}
+
+function _calendarCardBasis(weekdayCount: number){
+  var safeCount = Math.max(1, weekdayCount | 0);
+  if (safeCount <= 7) return '270px';
+  return 'calc(270px * ' + safeCount + ' / 7)';
 }
 
 function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
