@@ -32,6 +32,8 @@ jobs:
         run: npm test
       - name: Build calendar.js
         run: npm run build
+      - name: Build showcase site
+        run: npm run build:site
       - name: Smoke-check built bundle
         run: node ./test/calendar_smoke.mjs
       - name: Upload calendar.js artifact
@@ -40,5 +42,13 @@ jobs:
         with:
           name: calendar-js
           path: calendar.js
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload showcase site artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcase-site
+          path: dist-site
           if-no-files-found: error
           retention-days: 30

@@ -1,0 +1,475 @@
+:root {
+  --bg-night: #09111d;
+  --bg-deep: #10233d;
+  --bg-paper: rgba(12, 23, 38, 0.84);
+  --line-soft: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(248, 229, 189, 0.2);
+  --text-main: #f7f2e8;
+  --text-muted: #c7d6e6;
+  --text-faint: #92a6be;
+  --gold: #e6b85c;
+  --rose: #d97a68;
+  --sea: #7fc4d8;
+  --card-shadow: 0 24px 70px rgba(2, 10, 22, 0.55);
+  --serif: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --sans: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(92, 133, 168, 0.16), transparent 32%),
+    linear-gradient(180deg, #050912 0%, #08111c 40%, #0c1726 100%);
+  color: var(--text-main);
+  font-family: var(--sans);
+}
+
+body {
+  position: relative;
+  overflow-x: hidden;
+}
+
+.backdrop {
+  position: fixed;
+  inset: auto auto 0 0;
+  pointer-events: none;
+  filter: blur(0);
+}
+
+.backdrop-one {
+  width: 48rem;
+  height: 48rem;
+  left: -10rem;
+  top: 8rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(130, 181, 201, 0.18), transparent 64%);
+}
+
+.backdrop-two {
+  width: 54rem;
+  height: 54rem;
+  right: -20rem;
+  top: -6rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(230, 184, 92, 0.14), transparent 62%);
+}
+
+.site-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1400px, calc(100vw - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(380px, 1.2fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.hero-copy,
+.hero-panel,
+.feature-strip article,
+.calendar-card {
+  border: 1px solid var(--line-soft);
+  background: var(--bg-paper);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--card-shadow);
+}
+
+.hero-copy {
+  padding: 2rem;
+  border-radius: 32px;
+}
+
+.eyebrow,
+.panel-kicker,
+.feature-kicker,
+.readout-label,
+.scene-card-label {
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  color: var(--gold);
+}
+
+.hero-copy h1,
+.hero-panel h2,
+.section-heading h2,
+.feature-strip h3 {
+  margin: 0;
+  font-family: var(--serif);
+  line-height: 0.95;
+}
+
+.hero-copy h1 {
+  font-size: clamp(3rem, 7vw, 5.8rem);
+  max-width: 10ch;
+}
+
+.lede,
+.section-heading p,
+.feature-strip p,
+.scene-card p,
+#scene-subtitle {
+  color: var(--text-muted);
+}
+
+.lede {
+  margin: 1rem 0 1.6rem;
+  max-width: 52ch;
+  line-height: 1.6;
+}
+
+.hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-bottom: 1.4rem;
+}
+
+.stat-pill,
+.festival-chip,
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.cta,
+.ghost-button,
+.play-button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.8rem 1.15rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.cta.primary,
+.play-button {
+  background: linear-gradient(135deg, rgba(230, 184, 92, 0.2), rgba(127, 196, 216, 0.2));
+  border-color: rgba(230, 184, 92, 0.38);
+}
+
+.cta:hover,
+.ghost-button:hover,
+.play-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(230, 184, 92, 0.55);
+}
+
+.hero-panel {
+  padding: 1.4rem;
+  border-radius: 30px;
+}
+
+.panel-header,
+.scene-readout,
+.calendar-card-header,
+.calendar-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 1.2rem 0 1rem;
+}
+
+.control-grid label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-faint);
+  font-size: 0.92rem;
+}
+
+.control-grid label.wide {
+  grid-column: span 2;
+}
+
+.control-grid select,
+.control-grid input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(5, 14, 24, 0.9);
+  color: var(--text-main);
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+}
+
+.control-grid output {
+  color: var(--text-main);
+  font-size: 0.88rem;
+}
+
+.playback-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.playback-row > * {
+  flex: 1;
+}
+
+.hero-scene {
+  margin-top: 0.8rem;
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(12, 32, 52, 0.94), rgba(7, 13, 24, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#sky-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 44 / 31;
+}
+
+.scene-readout {
+  padding: 1rem 1.2rem 1.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.scene-readout h3 {
+  margin: 0.1rem 0;
+  font-size: 1.35rem;
+  font-family: var(--serif);
+}
+
+.scene-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.scene-card {
+  border-radius: 22px;
+  padding: 1rem;
+  background: rgba(5, 15, 27, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.moon-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.moon-row:first-child {
+  border-top: 0;
+}
+
+.moon-chip {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.moon-main {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.moon-main strong {
+  font-size: 0.98rem;
+}
+
+.moon-main span,
+.moon-meta,
+.calendar-card p,
+.festival-rail {
+  color: var(--text-faint);
+  font-size: 0.88rem;
+}
+
+.moon-meta {
+  text-align: right;
+}
+
+.feature-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.feature-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.6rem 0;
+}
+
+.feature-strip article {
+  padding: 1.25rem;
+  border-radius: 24px;
+}
+
+.section-heading {
+  margin: 0 0 1.2rem;
+}
+
+.section-heading h2 {
+  font-size: clamp(2.1rem, 4vw, 3.8rem);
+  margin-bottom: 0.5rem;
+}
+
+.calendar-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 1rem;
+}
+
+.calendar-card {
+  border-radius: 26px;
+  padding: 1rem;
+}
+
+.calendar-card h3,
+.calendar-card h4 {
+  margin: 0;
+  font-family: var(--serif);
+}
+
+.calendar-card h4 {
+  font-size: 1.2rem;
+}
+
+.calendar-card small {
+  color: var(--text-faint);
+}
+
+.calendar-card-meta {
+  margin: 0.8rem 0 0.9rem;
+  flex-wrap: wrap;
+}
+
+.mini-calendar {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mini-weekdays,
+.mini-cells {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.mini-weekdays {
+  grid-template-columns: repeat(var(--weekday-count), minmax(0, 1fr));
+}
+
+.mini-cells {
+  grid-template-columns: repeat(var(--weekday-count), minmax(0, 1fr));
+}
+
+.mini-weekdays span,
+.mini-cell {
+  display: grid;
+  place-items: center;
+  min-height: 2rem;
+  border-radius: 12px;
+}
+
+.mini-weekdays span {
+  color: var(--text-faint);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mini-cell {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  font-size: 0.88rem;
+}
+
+.mini-cell.empty {
+  background: rgba(255, 255, 255, 0.02);
+  color: transparent;
+}
+
+.festival-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+@media (max-width: 1080px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-strip,
+  .scene-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-shell {
+    width: min(100vw - 1rem, 1400px);
+    padding-top: 0.75rem;
+  }
+
+  .hero-copy,
+  .hero-panel,
+  .calendar-card,
+  .feature-strip article {
+    border-radius: 24px;
+  }
+
+  .hero-copy {
+    padding: 1.35rem;
+  }
+
+  .hero-panel {
+    padding: 1rem;
+  }
+
+  .control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .control-grid label.wide {
+    grid-column: span 2;
+  }
+}

@@ -1,4 +1,5 @@
 node_modules/
 calendar.js
+dist-site/
 .obsidian/
 .DS_Store

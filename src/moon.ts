@@ -10,6 +10,7 @@ import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
+import { buildSkySceneFromResolved, moonAltitudeDeg, moonAzimuthDeg, moonCompass16, moonHourAngleDeg, moonSkyPositionCategory } from './showcase/sky-scene.js';
 
 
 /* ============================================================================
@@ -3087,32 +3088,16 @@ export function _moonHourAngleDeg(moon, serial, timeFrac){
 // Negative = below horizon.
 export function _moonAltitude(moon, serial, timeFrac){
   if (!moon) return -90;
-  var eclLat  = _moonEclipticLat(moon, serial);
-  var ha = _moonHourAngleDeg(moon, serial, timeFrac);
-  var haRad = ha * Math.PI / 180;
-  var latRad = OBSERVER_LATITUDE * Math.PI / 180;
-  var decRad = eclLat * Math.PI / 180;  // declination ≈ ecliptic latitude
-  // Altitude formula: sin(alt) = sin(lat)sin(dec) + cos(lat)cos(dec)cos(ha)
-  var sinAlt = Math.sin(latRad) * Math.sin(decRad) +
-               Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
-  return Math.asin(Math.max(-1, Math.min(1, sinAlt))) * 180 / Math.PI;
+  return moonAltitudeDeg(OBSERVER_LATITUDE, _moonEclipticLat(moon, serial), _moonHourAngleDeg(moon, serial, timeFrac));
 }
 
 export function _moonAzimuthDeg(moon, serial, timeFrac){
   if (!moon) return 0;
-  var eclLat = _moonEclipticLat(moon, serial);
-  var ha = _moonHourAngleDeg(moon, serial, timeFrac) * Math.PI / 180;
-  var lat = OBSERVER_LATITUDE * Math.PI / 180;
-  var dec = eclLat * Math.PI / 180;
-  var az = Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(lat) - Math.tan(dec) * Math.cos(lat));
-  var deg = (az * 180 / Math.PI + 180) % 360;
-  return deg < 0 ? deg + 360 : deg;
+  return moonAzimuthDeg(OBSERVER_LATITUDE, _moonEclipticLat(moon, serial), _moonHourAngleDeg(moon, serial, timeFrac));
 }
 
 export function _moonCompass16(azimuthDeg){
-  var labels = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  var idx = Math.round((((azimuthDeg % 360) + 360) % 360) / 22.5) % labels.length;
-  return labels[idx];
+  return moonCompass16(azimuthDeg);
 }
 
 export function _moonAngularDiameterDeg(moon, serial){
@@ -3130,17 +3115,7 @@ export function _moonMotionLabel(moon, serial, timeFrac){
 }
 
 export function _moonSkyPositionCategory(altDeg, angularDiameterDeg){
-  var radius = Math.max(0.01, angularDiameterDeg || 0) / 2;
-  var visibleFraction = Math.max(0, Math.min(1, (altDeg + radius) / Math.max(0.0001, angularDiameterDeg || 0)));
-  if (altDeg > 80) return 'overhead';
-  if (altDeg >= 60) return 'high';
-  if (altDeg >= 30) return 'mid';
-  if (altDeg >= 10) return 'low';
-  if (altDeg >= 0){
-    return visibleFraction <= (2/3) ? 'peeking' : 'horizon';
-  }
-  if (altDeg + radius > 0) return 'peeking';
-  return 'below';
+  return moonSkyPositionCategory(altDeg, angularDiameterDeg);
 }
 
 // Visibility category from altitude.
@@ -3167,29 +3142,25 @@ export function _moonVisibilityAll(serial, timeFrac){
   if (timeFrac == null) timeFrac = 0;  // default midnight
   var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
-  var results = [];
-  for (var i = 0; i < sys.moons.length; i++){
-    var moon = sys.moons[i];
-    var alt = _moonAltitude(moon, serial, timeFrac);
-    var az = _moonAzimuthDeg(moon, serial, timeFrac);
-    var angularDiameterDeg = _moonAngularDiameterDeg(moon, serial);
-    var cat = _moonSkyPositionCategory(alt, angularDiameterDeg);
-    var ph = moonPhaseAt(moon.name, serial);
-    results.push({
-      moon: moon,
-      altitude: Math.round(alt),
-      altitudeExact: alt,
-      azimuth: az,
-      direction: _moonCompass16(az),
-      motion: _moonMotionLabel(moon, serial, timeFrac),
-      angularDiameterDeg: angularDiameterDeg,
-      category: cat,
-      phase: ph,
-      pctFull: Math.round((ph && ph.illum ? ph.illum : 0) * 100)
-    });
-  }
-  results.sort(function(a, b){ return b.altitudeExact - a.altitudeExact; });
-  return results;
+  return buildSkySceneFromResolved({
+    worldId: ensureSettings().calendarSystem,
+    serial: serial,
+    timeFrac: timeFrac,
+    observerLatitude: OBSERVER_LATITUDE,
+    moons: sys.moons,
+    phaseAt: function(moon, sceneSerial){
+      return moonPhaseAt(moon.name, sceneSerial);
+    },
+    skyLongAt: function(moon, sceneSerial){
+      return _moonSkyLong(moon, sceneSerial);
+    },
+    eclipticLatAt: function(moon, sceneSerial){
+      return _moonEclipticLat(moon, sceneSerial);
+    },
+    angularDiameterDegAt: function(moon, sceneSerial){
+      return _moonAngularDiameterDeg(moon, sceneSerial);
+    }
+  }).moons;
 }
 
 // Build HTML panel for "which moons are visible now"

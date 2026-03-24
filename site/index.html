@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Calendar Showcase</title>
+    <meta
+      name="description"
+      content="A GitHub-hosted showcase for the Roll20 fantasy calendar script: animated moon skies, compact calendar previews, and subsystem highlights."
+    >
+    <link rel="stylesheet" href="./assets/styles.css">
+  </head>
+  <body>
+    <div class="backdrop backdrop-one"></div>
+    <div class="backdrop backdrop-two"></div>
+    <main class="site-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Roll20 Script Showcase</p>
+          <h1>Fantasy calendars with a living sky.</h1>
+          <p class="lede">
+            This microsite advertises the project outside Roll20: an animated sky scene, compact calendar cards for every supported world, and a quick read on the moons, weather, and planes systems.
+          </p>
+          <div class="hero-stats" id="hero-stats"></div>
+          <div class="cta-row">
+            <a class="cta primary" href="https://github.com/mcherry1/calendar" target="_blank" rel="noreferrer">View Repository</a>
+            <a class="cta" href="https://github.com/mcherry1/calendar/releases" target="_blank" rel="noreferrer">Browse Releases</a>
+            <a class="cta" href="https://github.com/mcherry1/calendar/actions" target="_blank" rel="noreferrer">Get CI Artifact</a>
+          </div>
+        </div>
+
+        <div class="hero-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Animated Hero Sky</p>
+              <h2 id="hero-world-label">Eberron</h2>
+            </div>
+            <button class="ghost-button" id="copy-link" type="button">Copy Scene URL</button>
+          </div>
+
+          <div class="control-grid">
+            <label>
+              <span>World</span>
+              <select id="hero-world"></select>
+            </label>
+            <label>
+              <span>Year</span>
+              <input id="hero-year" type="number" step="1">
+            </label>
+            <label>
+              <span>Month / Festival</span>
+              <select id="hero-slot"></select>
+            </label>
+            <label>
+              <span>Day</span>
+              <input id="hero-day" type="number" min="1" step="1">
+            </label>
+            <label class="wide">
+              <span>Time</span>
+              <input id="hero-time" type="range" min="0" max="1439" step="10">
+              <output id="hero-time-label"></output>
+            </label>
+            <label>
+              <span>Playback</span>
+              <div class="playback-row">
+                <button class="play-button" id="play-toggle" type="button">Play</button>
+                <select id="hero-speed">
+                  <option value="1">1 hr/s</option>
+                  <option value="4" selected>4 hr/s</option>
+                  <option value="12">12 hr/s</option>
+                  <option value="24">24 hr/s</option>
+                  <option value="72">72 hr/s</option>
+                </select>
+              </div>
+            </label>
+          </div>
+
+          <div class="hero-scene">
+            <canvas id="sky-canvas" width="880" height="620" aria-label="Animated sky scene"></canvas>
+            <div class="scene-readout">
+              <div>
+                <p class="readout-label">Current Scene</p>
+                <h3 id="scene-date-label"></h3>
+              </div>
+              <p id="scene-subtitle"></p>
+            </div>
+          </div>
+
+          <div class="scene-grid">
+            <div class="scene-card">
+              <p class="scene-card-label">Moon Positions</p>
+              <div id="moon-list"></div>
+            </div>
+            <div class="scene-card">
+              <p class="scene-card-label">What This Demo Shows</p>
+              <div class="feature-list">
+                <p>2D animated sky rendering driven by the same moon-position math the script can expose in Roll20.</p>
+                <p>Shareable URLs with `world`, `date`, and `time` query params.</p>
+                <p>Calendar cards generated from structured world definitions instead of chat markup.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="feature-strip">
+        <article>
+          <p class="feature-kicker">Moons</p>
+          <h3>Sky state, not flavor text</h3>
+          <p>Phases, apparent size, rise and set direction, and positional sorting all come from explicit model data.</p>
+        </article>
+        <article>
+          <p class="feature-kicker">Weather</p>
+          <h3>Readable forecast surfaces</h3>
+          <p>Location-based generated weather supports narrative-only and mechanics-aware campaign play.</p>
+        </article>
+        <article>
+          <p class="feature-kicker">Planes</p>
+          <h3>Eberron-specific motion</h3>
+          <p>Coterminous and remote windows can reshape moon presentation and calendar context for the GM.</p>
+        </article>
+      </section>
+
+      <section class="gallery-section">
+        <div class="section-heading">
+          <p class="eyebrow">Calendar Gallery</p>
+          <h2>One compact preview for every supported world.</h2>
+          <p>These cards are generated from shared calendar definitions, not hand-authored screenshots.</p>
+        </div>
+        <div class="calendar-gallery" id="calendar-gallery"></div>
+      </section>
+    </main>
+    <script type="module" src="./assets/main.js"></script>
+  </body>
+</html>

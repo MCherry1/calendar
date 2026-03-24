@@ -12,5 +12,5 @@
     "sourceMap": false,
     "allowJs": false
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "site/**/*.ts", "test/**/*.ts"]
 }
