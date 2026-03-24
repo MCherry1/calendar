@@ -37,7 +37,9 @@ describe("Redesigned panel routing", () => {
     const msg = String(lastChat().msg);
     assert(msg.includes("Events"));
     assert(msg.includes("Send to Players"));
-    assert(msg.includes("events manage ?{Action|Add Single Event"));
+    assert(msg.includes("Add Event"));
+    assert(msg.includes("events source"));
+    assert(msg.includes("events removeflow"));
   });
 
   it("keeps the Events send button aligned to the displayed month", () => {
@@ -57,7 +59,7 @@ describe("Redesigned panel routing", () => {
 
     handleInput(gmMessage("!cal events manage source"));
     let msg = String(lastChat().msg);
-    assert(msg.includes("Sources &amp; Priority"));
+    assert(msg.includes("Sources"));
     assert(msg.includes("source"));
 
     handleInput(gmMessage("!cal events manage removeflow"));
