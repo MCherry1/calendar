@@ -495,13 +495,7 @@ function _eventsPanelHtml(serialArg){
   // Management (GM only)
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Add Event','add ?{Date DD or MM DD or MM DD YYYY} ?{Event Name} ?{Color (hex)|#50C878}') + ' ' +
-    button('Add Monthly','addmonthly ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') + ' ' +
-    button('Add Yearly','addyearly ?{Month MM} ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') +
-    '</div>');
-  btns.push('<div style="margin:3px 0;">' +
-    button('Sources','events source') + ' ' +
-    button('Remove/Restore','events removeflow') +
+    button('Management', 'events manage ?{Action|Add Single Event,add ?\{Date DD or MM DD or MM DD YYYY\} ?\{Event Name\} ?\{Color (hex)\|#50C878\}|Add Monthly Event,addmonthly ?\{Day DD\} ?\{Event Name\} ?\{Color (hex)\|#50C878\}|Add Yearly Event,addyearly ?\{Month MM\} ?\{Day DD\} ?\{Event Name\} ?\{Color (hex)\|#50C878\}|Source Controls,source|Remove/Restore,removeflow}') +
     '</div>');
 
   return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
@@ -971,7 +965,7 @@ export var commands = {
       }).join('');
 
       whisper(m.who,
-        '<div style="margin:4px 0;"><b>Sources</b></div>'+
+        '<div style="margin:4px 0;"><b>Sources &amp; Priority</b></div>'+
         '<table style="'+STYLES.table+'">'+head+rows+'</table>'+
         '<div style="font-size:.8em;opacity:.7;margin-top:4px;">'+
         'Order = priority. Top source sets cell color. User-added events always rank first.'+
