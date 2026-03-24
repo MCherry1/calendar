@@ -335,7 +335,7 @@ export function _todayAllHtml(){
 export var USAGE = {
   'events.add':     'Usage: !cal add [MM DD [YYYY] | <MonthName> DD [YYYY] | DD] NAME [#COLOR|color] (DD may be an ordinal like 1st or fourteenth)',
   'events.remove':  'Usage: !cal remove [list | key <KEY> | series <KEY> | <name fragment>]',
-  'events.restore': 'Usage: !cal restore [all] [exact] <name...> | restore key <KEY>',
+  'events.restore': 'Usage: !cal restore [all] [exact] <name...> | restore key <KEY> | restore series <KEY>',
   'date.set':       'Usage: !cal set [MM] DD [YYYY] or !cal set <MonthName> DD [YYYY] (DD may be an ordinal like 1st or fourteenth)'
 };
 
@@ -621,15 +621,16 @@ export var commands = {
       if (choice === 'moon')   return handleMoonCommand(m, ['moon']);
       if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
       if (choice === 'planes') return handlePlanesCommand(m, ['planes']);
-      return whisper(m.who, helpRootMenu(m));
+      if (choice === 'admin' || choice === 'help') return helpRootMenu(m);
+      return helpRootMenu(m);
     }
     // !cal today manage <action> — GM-only Management dropdown
     if (sub === 'manage'){
       var mAction = (a[3] || '').toLowerCase();
-      if (!mAction) return whisper(m.who, helpRootMenu(m));
+      if (!mAction) return helpRootMenu(m);
       // Route management actions to their existing handlers
       var mRest = a.slice(3);
-      return commands[mAction] ? (typeof commands[mAction] === 'function' ? commands[mAction](m, ['!cal'].concat(mRest)) : commands[mAction].run(m, ['!cal'].concat(mRest))) : whisper(m.who, helpRootMenu(m));
+      return commands[mAction] ? (typeof commands[mAction] === 'function' ? commands[mAction](m, ['!cal'].concat(mRest)) : commands[mAction].run(m, ['!cal'].concat(mRest))) : helpRootMenu(m);
     }
     // Both GMs and players get the consolidated Today view.
     // sendCurrentDate handles audience-appropriate output internally.
@@ -951,7 +952,7 @@ export var commands = {
         '</tr>';
 
       var rows = displayKeys.map(function(k, i){
-        var label    = seen[k];
+        var label    = titleCase(seen[k]);
         var suppression = sourceSuppressionState(k);
         var upBtn    = i > 0
           ? button('↑', 'source up '   + label, {icon:''})
@@ -961,8 +962,8 @@ export var commands = {
           : '';
         var isHidden = !!suppression.manual;
         var statusCell = isHidden
-          ? 'Hidden<br>' + button('Show', 'source enable ' + label)
-          : 'Shown<br>' + button('Hide', 'source disable ' + label);
+          ? 'Hidden<br>' + button('Show', 'source enable ' + label, {icon:''})
+          : 'Shown<br>' + button('Hide', 'source disable ' + label, {icon:''});
         return '<tr>'+
           '<td style="'+STYLES.td+'">'+esc(label)+'</td>'+
           '<td style="'+STYLES.td+';text-align:center;">'+statusCell+'</td>'+

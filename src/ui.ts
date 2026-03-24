@@ -250,18 +250,32 @@ export function sendCurrentDate(to, gmOnly, opts?){
   // Date headline: weekday, date, year, season
   var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
   var currentDate = currentDateLabel();
-  var timeLine = _timeOfDayStatusHtml(compact
-    ? 'font-size:.82em;opacity:.72;margin:0 0 3px 0;'
-    : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;');
+  var timeLine = _timeOfDayStatusHtml(dashboard
+    ? 'font-size:.94em;color:#000;margin:0 0 5px 0;'
+    : (compact
+      ? 'font-size:.82em;opacity:.72;margin:0 0 3px 0;'
+      : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;'));
   var dateLine = compact
-    ? '<div style="font-weight:bold;margin:2px 0 3px 0;">' +
+    ? '<div style="font-weight:bold;margin:2px 0 3px 0;' + (dashboard ? 'font-size:1.02em;color:#000;' : '') + '">' +
       esc(currentDate) +
-      (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;">— ' + esc(_seasonLabel) + '</span>' : '') +
+      (_seasonLabel ? ' &nbsp;<span style="' + (dashboard ? 'color:#000;font-weight:normal;' : 'opacity:.7;font-weight:normal;') + '">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>'
-    : '<div style="font-weight:bold;margin:3px 0;">' +
+    : '<div style="font-weight:bold;margin:3px 0;' + (dashboard ? 'font-size:1.06em;color:#000;' : '') + '">' +
       esc(currentDate) +
-      (_seasonLabel ? ' &nbsp;<span style="opacity:.7;font-weight:normal;font-size:.9em;">— ' + esc(_seasonLabel) + '</span>' : '') +
+      (_seasonLabel ? ' &nbsp;<span style="' + (dashboard ? 'color:#000;font-weight:normal;font-size:.96em;' : 'opacity:.7;font-weight:normal;font-size:.9em;') + '">— ' + esc(_seasonLabel) + '</span>' : '') +
       '</div>';
+  var dashboardInfoLineStyle = dashboard
+    ? 'font-size:.92em;color:#000;margin-top:3px;line-height:1.6;'
+    : 'font-size:.82em;opacity:.7;margin-top:3px;line-height:1.6;';
+  var dashboardShortLineStyle = dashboard
+    ? 'font-size:.92em;color:#000;margin-top:3px;'
+    : 'font-size:.82em;opacity:.65;margin-top:2px;';
+  var dashboardEventsLineStyle = dashboard
+    ? 'font-size:.94em;color:#000;margin-top:3px;'
+    : 'font-size:.82em;opacity:.75;margin-top:2px;';
+  var dashboardEmptyEventsLineStyle = dashboard
+    ? 'font-size:.94em;color:#000;margin-top:3px;'
+    : 'font-size:.82em;opacity:.6;margin-top:2px;';
 
   // Events this month (labeled only when events exist)
   var eventsBlock = (function(){
@@ -322,7 +336,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
         });
 
         if (_notable.length){
-          moonLine = '<div style="font-size:.82em;opacity:.7;margin-top:3px;line-height:1.6;">' +
+          moonLine = '<div style="' + dashboardInfoLineStyle + '">' +
             _notable.join('<br>') +
             '</div>';
         }
@@ -332,7 +346,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
           var _eclNotes = _eclipseNotableToday(todaySer);
           if (_eclNotes.length){
             moonLine += '<div style="' +
-              applyBg('font-size:.82em;opacity:.9;margin-top:2px;display:inline-block;padding:1px 4px;border-radius:3px;',
+              applyBg((dashboard ? 'font-size:.9em;color:#000;margin-top:3px;display:inline-block;padding:1px 4px;border-radius:3px;' : 'font-size:.82em;opacity:.9;margin-top:2px;display:inline-block;padding:1px 4px;border-radius:3px;'),
                       '#FFE8A3', CONTRAST_MIN_HEADER) +
               '">' +
               _eclNotes.join(' &nbsp;&middot;&nbsp; ') +
@@ -358,7 +372,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
           var _wxLoc   = _wxRec.location || {};
           var _wxCond  = _deriveConditions(_f, _wxLoc, WEATHER_PRIMARY_PERIOD, _wxRec.snowAccumulated, _weatherPrimaryFog(_wxRec));
           var _wxNarr = _conditionsNarrative(_f, _wxCond, WEATHER_PRIMARY_PERIOD);
-          weatherLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
+          weatherLine = '<div style="' + dashboardShortLineStyle + '">' +
             '\u2601\uFE0F ' + esc(_wxNarr) +
             '</div>';
           // Auto-record low-tier common-knowledge reveal for the short common window.
@@ -374,7 +388,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
     try {
       var _lightSnap = currentLightSnapshot(todaySer);
       if (_lightSnap && _lightSnap.mode !== 'day'){
-        lightingLine = '<div style="font-size:.82em;opacity:.65;margin-top:2px;">' +
+        lightingLine = '<div style="' + dashboardShortLineStyle + '">' +
           '\uD83D\uDCA1 ' + esc(_lightSnap.label || 'Unknown') +
           (_lightSnap.note ? ' \u2014 ' + esc(_lightSnap.note) : '') +
           '</div>';
@@ -388,7 +402,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
     try {
       var _plNotes = _planarNotableToday(todaySer);
       if (_plNotes.length){
-        planesLine = '<div style="font-size:.82em;opacity:.7;margin-top:2px;line-height:1.6;">' +
+        planesLine = '<div style="' + dashboardInfoLineStyle + '">' +
           _plNotes.join('<br>') +
           '</div>';
       }
@@ -410,10 +424,10 @@ export function sendCurrentDate(to, gmOnly, opts?){
         }
       }
       var shown = names.slice(0, 3).map(esc).join(', ');
-      var more = names.length > 3 ? (' <span style="opacity:.65;">+' + (names.length - 3) + ' more</span>') : '';
-      todayEventsLine = '<div style="font-size:.82em;opacity:.75;margin-top:2px;">🎉 ' + shown + more + '</div>';
+      var more = names.length > 3 ? (' <span style="' + (dashboard ? 'color:#000;' : 'opacity:.65;') + '">+' + (names.length - 3) + ' more</span>') : '';
+      todayEventsLine = '<div style="' + dashboardEventsLineStyle + '">🎉 ' + shown + more + '</div>';
     } else if (dashboard) {
-      todayEventsLine = '<div style="font-size:.82em;opacity:.6;margin-top:2px;">🎉 No calendar events today.</div>';
+      todayEventsLine = '<div style="' + dashboardEmptyEventsLineStyle + '">🎉 No calendar events today.</div>';
     }
   } catch(e4){}
 
@@ -838,7 +852,7 @@ export function gmButtonsHtml(){
   rows.push('<div>'+mb('📣 Send To Players','send')+'</div>');
 
   // Additional Options dropdown
-  rows.push('<div>'+mb('Additional Options','today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,help root}')+'</div>');
+  rows.push('<div>'+mb('Additional Options','today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,admin}')+'</div>');
 
   return rows.join('');
 }

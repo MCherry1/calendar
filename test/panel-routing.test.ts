@@ -1,9 +1,10 @@
 import { describe, it } from "node:test";
 import { ok as assert, strictEqual as assertEquals, notStrictEqual as assertNotEquals } from "node:assert/strict";
 import { freshInstall, completeSetup } from "./helpers.js";
-import { ensureSettings } from "../src/state.js";
+import { ensureSettings, getCal } from "../src/state.js";
 import { toSerial } from "../src/date-math.js";
 import { handleInput } from "../src/boot-register.js";
+import { eventKey } from "../src/events.js";
 import { getWeatherState, handleWeatherCommand, weatherEnsureForecast } from "../src/weather.js";
 import { getMoonState, handleMoonCommand } from "../src/moon.js";
 import { getPlanesState, handlePlanesCommand } from "../src/planes.js";
@@ -67,6 +68,53 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Remove / Restore Events"));
     assert(msg.includes("!cal events remove list"));
     assert(msg.includes("!cal events restore list"));
+  });
+
+  it("routes Today additional-options Admin into the GM menu without undefined output", () => {
+    freshInstall();
+    completeSetup();
+
+    handleInput(gmMessage("!cal today options admin"));
+
+    const log = (globalThis as any)._chatLog;
+    const msg = String(lastChat().msg);
+    assert(msg.includes("GM Admin"));
+    assert(!log.some((entry: any) => String(entry.msg) === "undefined"));
+  });
+
+  it("renders source controls in the default priority order with plain Show/Hide labels", () => {
+    freshInstall();
+    completeSetup();
+
+    handleInput(gmMessage("!cal source list"));
+
+    const msg = String(lastChat().msg);
+    const order = ["Khorvaire", "Sovereign Host", "Sharn", "Dark Six", "Silver Flame", "Stormreach"];
+    for (let i = 1; i < order.length; i++) {
+      assert(msg.indexOf(order[i - 1]) < msg.indexOf(order[i]));
+    }
+    assert(msg.includes("[Hide](!cal source disable Khorvaire"));
+    assert(!msg.includes("[📅 Hide]"));
+    assert(!msg.includes("[📅 Show]"));
+  });
+
+  it("shows hide/show controls directly in the event list", () => {
+    freshInstall();
+    completeSetup();
+
+    handleInput(gmMessage("!cal list"));
+    let msg = String(lastChat().msg);
+    assert(msg.includes("Current Status"));
+    assert(msg.includes("[Hide](!cal remove "));
+
+    const evt = getCal().events.find((entry: any) => entry.source === "khorvaire");
+    assert(evt);
+    handleInput(gmMessage("!cal remove key " + encodeURIComponent(eventKey(evt))));
+    handleInput(gmMessage("!cal list"));
+
+    msg = String(lastChat().msg);
+    assert(msg.includes("Hidden"));
+    assert(msg.includes("[Show](!cal restore key "));
   });
 });
 

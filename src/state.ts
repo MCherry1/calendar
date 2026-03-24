@@ -157,6 +157,32 @@ export function sourceSuppressionState(sourceKey){
   };
 }
 
+var DEFAULT_EVENT_SOURCE_PRIORITY_BY_SYSTEM = {
+  eberron: ['khorvaire', 'sovereign host', 'sharn', 'dark six', 'silver flame', 'stormreach']
+};
+
+function _defaultEventSourcePriorityForSystem(calendarSystem){
+  var key = String(calendarSystem || CONFIG_DEFAULTS.calendarSystem).toLowerCase();
+  return (DEFAULT_EVENT_SOURCE_PRIORITY_BY_SYSTEM[key] || []).slice();
+}
+
+function _normalizeEventSourcePriority(priority, calendarSystem){
+  var out = [];
+  var seen = {};
+  (Array.isArray(priority) ? priority : []).forEach(function(sourceKey){
+    var key = String(sourceKey || '').trim().toLowerCase();
+    if (!key || seen[key]) return;
+    out.push(key);
+    seen[key] = 1;
+  });
+  _defaultEventSourcePriorityForSystem(calendarSystem).forEach(function(sourceKey){
+    if (seen[sourceKey]) return;
+    out.push(sourceKey);
+    seen[sourceKey] = 1;
+  });
+  return out;
+}
+
 export function ensureSettings(){
   var root = state[state_name];
   if (!root.settings){
@@ -175,7 +201,7 @@ export function ensureSettings(){
       planesDisplayMode:   CONFIG_DEFAULTS.planesDisplayMode,
       subsystemVerbosity:  CONFIG_DEFAULTS.subsystemVerbosity,
       weatherForecastViewDays: CONFIG_DEFAULTS.weatherForecastViewDays,
-      eventSourcePriority: []
+      eventSourcePriority: _defaultEventSourcePriorityForSystem(CONFIG_DEFAULTS.calendarSystem)
     };
   }
   var s = root.settings;
@@ -211,7 +237,7 @@ export function ensureSettings(){
   if (!s.calendarVariant)     s.calendarVariant     = CONFIG_DEFAULTS.calendarVariant;
   if (!s.seasonVariant)       s.seasonVariant       = CONFIG_DEFAULTS.seasonVariant;
   if (!s.hemisphere)          s.hemisphere          = CONFIG_DEFAULTS.hemisphere;
-  if (!s.eventSourcePriority) s.eventSourcePriority = [];
+  s.eventSourcePriority = _normalizeEventSourcePriority(s.eventSourcePriority, s.calendarSystem || CONFIG_DEFAULTS.calendarSystem);
   if (s.uiDensity !== 'compact' && s.uiDensity !== 'normal') s.uiDensity = CONFIG_DEFAULTS.uiDensity;
   if (s.autoButtons   === undefined) s.autoButtons   = CONFIG_DEFAULTS.autoButtons;
   if (s.eventsEnabled  === undefined) s.eventsEnabled  = CONFIG_DEFAULTS.eventsEnabled;
@@ -467,6 +493,7 @@ export function applyCalendarSystem(sysKey, varKey?){
   var _prevSys = st.calendarSystem || '';
   st.calendarSystem  = sysKey;
   st.calendarVariant = vk;
+  st.eventSourcePriority = _normalizeEventSourcePriority(st.eventSourcePriority, sysKey);
 
   // Auto-toggle subsystems based on world capabilities when switching.
   // Only auto-toggle if the previous toggle was also automatic (not manual).
