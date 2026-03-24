@@ -27,40 +27,40 @@ Live/generated outputs are intentionally excluded here: no rolling forecast wind
 
 ### Temperature Bands
 
-| Band | Range (F) | Label | Nominal DC | Cold Gear | Heat Armor Rule |
-| --- | --- | --- | --- | --- | --- |
-| -5 | `<= -46` | Unholy Cold | 30 | Special protection required | None |
-| -4 | `-45 to -36` | Soul-Freezing | 25 | Heavy cold-weather clothing required | None |
-| -3 | `-35 to -26` | Brutal Cold | 25 | Heavy cold-weather clothing required | None |
-| -2 | `-25 to -16` | Bitter Cold | 20 | Medium cold-weather clothing required | None |
-| -1 | `-15 to -6` | Biting Cold | 20 | Medium cold-weather clothing required | None |
-| 0 | `-5 to 4` | Hard Freeze | 15 | Light cold-weather clothing required | None |
-| 1 | `5 to 14` | Frigid | 15 | Light cold-weather clothing required | None |
-| 2 | `15 to 24` | Very Cold | 10 | Warm clothing required | None |
-| 3 | `25 to 34` | Freezing | 10 | Warm clothing required | None |
-| 4 | `35 to 44` | Chilly | — | None normally | None |
-| 5 | `45 to 54` | Cool | — | None | None |
-| 6 | `55 to 64` | Mild | — | None | None |
-| 7 | `65 to 74` | Temperate | — | None | None |
-| 8 | `75 to 84` | Warm | — | None | None |
-| 9 | `85 to 94` | Hot | — | None | None |
-| 10 | `95 to 104` | Sweltering | 10 | None | None |
-| 11 | `105 to 114` | Brutal Heat | 15 | None | Disadvantage if wearing heavy armor |
-| 12 | `115 to 124` | Scorching | 20 | None | Disadvantage if wearing medium or heavy armor |
-| 13 | `125 to 134` | Searing | 25 | None | Disadvantage if wearing any armor at all |
-| 14 | `135 to 144` | Hellish | 25 | None | Disadvantage if wearing any armor at all |
-| 15 | `>= 145` | Infernal | 30 | Special protection required | Disadvantage if wearing any armor at all |
+| Band | Range (F)    | Label       | Nominal DC | Cold Gear                             | Heat Armor Rule                               |
+| ---- | ------------ | ----------- | ---------- | ------------------------------------- | --------------------------------------------- |
+| -5   | `<= -46`     |             | 30         | Special protection required           | None                                          |
+| -4   | `-45 to -36` |             | 25         | Heavy cold-weather clothing required  | None                                          |
+| -3   | `-35 to -26` |             | 25         | Heavy cold-weather clothing required  | None                                          |
+| -2   | `-25 to -16` |             | 20         | Medium cold-weather clothing required | None                                          |
+| -1   | `-15 to -6`  |             | 20         | Medium cold-weather clothing required | None                                          |
+| 0    | `-5 to 4`    |             | 15         | Light cold-weather clothing required  | None                                          |
+| 1    | `5 to 14`    |             | 15         | Light cold-weather clothing required  | None                                          |
+| 2    | `15 to 24`   |             | 10         | Warm clothing required                | None                                          |
+| 3    | `25 to 34`   | Freezing    | 10         | Warm clothing required                | None                                          |
+| 4    | `35 to 44`   | Cold        | —          | None normally                         | None                                          |
+| 5    | `45 to 54`   | Cool        | —          | None                                  | None                                          |
+| 6    | `55 to 64`   | Mild        | —          | None                                  | None                                          |
+| 7    | `65 to 74`   | Temperate   | —          | None                                  | None                                          |
+| 8    | `75 to 84`   | Warm        | —          | None                                  | None                                          |
+| 9    | `85 to 94`   | Hot         | —          | None                                  | None                                          |
+| 10   | `95 to 104`  | Sweltering  | 10         | None                                  | None                                          |
+| 11   | `105 to 114` | Brutal Heat | 15         | None                                  | Disadvantage if wearing heavy armor           |
+| 12   | `115 to 124` | Scorching   | 20         | None                                  | Disadvantage if wearing medium or heavy armor |
+| 13   | `125 to 134` | Searing     | 25         | None                                  | Disadvantage if wearing any armor at all      |
+| 14   | `135 to 144` | Hellish     | 25         | None                                  | Disadvantage if wearing any armor at all      |
+| 15   | `>= 145`     | Infernal    | 30         | Special protection required           | Disadvantage if wearing any armor at all      |
 
 ### Wind Bands
 
-| Band | Label | Mechanical Effect |
-| --- | --- | --- |
-| 0 | Calm | No special mechanical effect by default. |
-| 1 | Breezy | No special mechanical effect by default. |
-| 2 | Moderate Wind | Fogs and gases dispersed. |
-| 3 | Strong Winds | Disadvantage on ranged attack rolls. Long-range attacks automatically miss. Flying costs extra movement. Open flames extinguished. |
-| 4 | Gale | Ranged attack rolls automatically miss. Flying speeds reduced to 0. Walking costs extra movement. |
-| 5 | Storm | DC 15 Strength check or fall prone. Small trees uprooted. Projectiles deal `2d6` bludgeoning on a failed DC 10 Dex save. Severe hazard. |
+| Band | Label         | Mechanical Effect                                                                                                                       |
+| ---- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Calm          | No special mechanical effect by default.                                                                                                |
+| 1    | Breeze        | No special mechanical effect by default.                                                                                                |
+| 2    | Moderate Wind | Fogs and gases dispersed.                                                                                                               |
+| 3    | Strong Wind   | Disadvantage on ranged attack rolls. Long-range attacks automatically miss. Flying costs extra movement. Open flames extinguished.      |
+| 4    | Gale          | Ranged attack rolls automatically miss. Flying speeds reduced to 0. Walking costs extra movement.                                       |
+| 5    | Storm         | DC 15 Strength check or fall prone. Small trees uprooted. Projectiles deal `2d6` bludgeoning on a failed DC 10 Dex save. Severe hazard. |
 
 ### Extreme Events
 
