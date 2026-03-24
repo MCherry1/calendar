@@ -352,13 +352,17 @@ body {
 
 .calendar-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
   gap: 1rem;
 }
 
 .calendar-card {
   border-radius: 26px;
   padding: 1rem;
+}
+
+.calendar-card--wide {
+  grid-column: span 2;
 }
 
 .calendar-card h3,
@@ -414,6 +418,11 @@ body {
   letter-spacing: 0.08em;
 }
 
+.calendar-card--wide .mini-weekdays span {
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
 .mini-cell {
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -441,6 +450,10 @@ body {
   .feature-strip,
   .scene-grid {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-card--wide {
+    grid-column: auto;
   }
 }
 
@@ -471,5 +484,9 @@ body {
 
   .control-grid label.wide {
     grid-column: span 2;
+  }
+
+  .calendar-card--wide {
+    grid-column: auto;
   }
 }

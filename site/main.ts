@@ -11,8 +11,14 @@ type ShowcaseState = {
   speedHoursPerSecond: number;
 };
 
+var DETAIL_SYNC_INTERVAL_MS = 160;
+var URL_SYNC_INTERVAL_MS = 800;
+
 var state: ShowcaseState = _initialState();
 var lastFrame = performance.now();
+var lastDetailSync = 0;
+var lastUrlSync = 0;
+var lastMoonListHtml = '';
 
 var worldSelect = _must<HTMLSelectElement>('hero-world');
 var yearInput = _must<HTMLInputElement>('hero-year');
@@ -38,7 +44,7 @@ _renderWorldOptions();
 _renderCalendarGallery();
 _syncControlsFromState();
 _bindEvents();
-_render();
+_render(true, true, performance.now());
 requestAnimationFrame(_tick);
 
 function _initialState(): ShowcaseState {
@@ -59,7 +65,7 @@ function _initialState(): ShowcaseState {
     serial: serial,
     timeFrac: _parseTimeParam(url.searchParams.get('time')),
     playing: false,
-    speedHoursPerSecond: 4
+    speedHoursPerSecond: 12
   };
 }
 
@@ -72,7 +78,7 @@ function _bindEvents(){
     state.serial = toWorldSerial(next, world.defaultDate.year, regularMonthIndexToSlotIndex(next, world.defaultDate.month), world.defaultDate.day);
     state.timeFrac = 22 / 24;
     _syncControlsFromState();
-    _render();
+    _render(true, true, performance.now());
   });
 
   yearInput.addEventListener('change', _updateStateFromControls);
@@ -81,16 +87,23 @@ function _bindEvents(){
   timeInput.addEventListener('input', function(){
     state.timeFrac = (parseInt(timeInput.value, 10) || 0) / 1440;
     _syncControlsFromState();
-    _render();
+    _render(true, true, performance.now());
   });
 
   playToggle.addEventListener('click', function(){
     state.playing = !state.playing;
+    if (state.playing) {
+      lastDetailSync = 0;
+      lastUrlSync = 0;
+    }
     playToggle.textContent = state.playing ? 'Pause' : 'Play';
+    _render(true, true, performance.now());
   });
 
   speedSelect.addEventListener('change', function(){
-    state.speedHoursPerSecond = parseFloat(speedSelect.value) || 4;
+    state.speedHoursPerSecond = parseFloat(speedSelect.value) || 12;
+    _syncControlsFromState();
+    _render(true, true, performance.now());
   });
 
   copyLinkButton.addEventListener('click', async function(){
@@ -116,7 +129,7 @@ function _updateStateFromControls(){
   var day = clampDayForSlot(state.worldId, slotIndex, parseInt(dayInput.value, 10) || 1);
   state.serial = toWorldSerial(state.worldId, year, slotIndex, day);
   _syncControlsFromState();
-  _render();
+  _render(true, true, performance.now());
 }
 
 function _renderWorldOptions(){
@@ -140,7 +153,11 @@ function _syncControlsFromState(){
   worldSelect.value = state.worldId;
   worldLabel.textContent = world.label;
   yearInput.value = String(date.year);
-  _renderSlotOptions(state.worldId, date.slotIndex);
+  if (slotSelect.dataset.worldId !== state.worldId) {
+    _renderSlotOptions(state.worldId, date.slotIndex);
+    slotSelect.dataset.worldId = state.worldId;
+  }
+  slotSelect.value = String(date.slotIndex);
   dayInput.max = String(Math.max(1, getWorldCalendarSlots(state.worldId)[date.slotIndex].days | 0));
   dayInput.value = String(date.day);
   var totalMinutes = Math.round(state.timeFrac * 1440) % 1440;
@@ -150,11 +167,13 @@ function _syncControlsFromState(){
   playToggle.textContent = state.playing ? 'Pause' : 'Play';
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   sceneSubtitle.textContent = world.description;
-  heroStats.innerHTML = _buildHeroStats(state.worldId);
-  _updateUrl();
+  if (heroStats.dataset.worldId !== state.worldId) {
+    heroStats.innerHTML = _buildHeroStats(state.worldId);
+    heroStats.dataset.worldId = state.worldId;
+  }
 }
 
-function _render(){
+function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   var scene = buildSkyScene({
     worldId: state.worldId,
     serial: state.serial,
@@ -163,18 +182,14 @@ function _render(){
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   _drawScene(scene);
-  moonList.innerHTML = scene.moons.map(function(row){
-    return (
-      '<div class="moon-row">' +
-        '<span class="moon-chip" style="background:' + _esc(row.color || '#d9dee8') + ';"></span>' +
-        '<div class="moon-main">' +
-          '<strong>' + _esc(row.name) + '</strong>' +
-          '<span>' + _esc(row.skyLabel) + '</span>' +
-        '</div>' +
-        '<div class="moon-meta">' + _esc(row.pctFull + '% · ' + row.direction) + '</div>' +
-      '</div>'
-    );
-  }).join('');
+  if (forceDetails || (now - lastDetailSync) >= DETAIL_SYNC_INTERVAL_MS) {
+    _renderMoonList(scene);
+    lastDetailSync = now;
+  }
+  if (forceUrl || (now - lastUrlSync) >= URL_SYNC_INTERVAL_MS) {
+    _updateUrl();
+    lastUrlSync = now;
+  }
 }
 
 function _renderCalendarGallery(){
@@ -186,8 +201,9 @@ function _renderCalendarGallery(){
       monthIndex: world.defaultDate.month
     });
     var weekdayCount = preview.weekdayLabels.length;
+    var cardClass = weekdayCount > 7 ? 'calendar-card calendar-card--wide' : 'calendar-card';
     return (
-      '<article class="calendar-card">' +
+      '<article class="' + cardClass + '">' +
         '<div class="calendar-card-header">' +
           '<div>' +
             '<small>' + _esc(world.calendar.label) + '</small>' +
@@ -229,6 +245,25 @@ function _festivalRail(items: string[]){
       }).join('') +
     '</div>'
   );
+}
+
+function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
+  var nextHtml = scene.moons.map(function(row){
+    return (
+      '<div class="moon-row">' +
+        '<span class="moon-chip" style="background:' + _esc(row.color || '#d9dee8') + ';"></span>' +
+        '<div class="moon-main">' +
+          '<strong>' + _esc(row.name) + '</strong>' +
+          '<span>' + _esc(row.skyLabel) + '</span>' +
+        '</div>' +
+        '<div class="moon-meta">' + _esc(row.pctFull + '% · ' + row.direction) + '</div>' +
+      '</div>'
+    );
+  }).join('');
+  if (nextHtml !== lastMoonListHtml) {
+    moonList.innerHTML = nextHtml;
+    lastMoonListHtml = nextHtml;
+  }
 }
 
 function _drawScene(scene: ReturnType<typeof buildSkyScene>){
@@ -372,7 +407,7 @@ function _tick(now: number){
     state.serial = Math.floor(totalDays);
     state.timeFrac = totalDays - state.serial;
     _syncControlsFromState();
-    _render();
+    _render(false, false, now);
   }
   requestAnimationFrame(_tick);
 }
