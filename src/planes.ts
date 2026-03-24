@@ -4,7 +4,7 @@ import { deepClone, ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { _deliverTopLevelCalendarRange } from './events.js';
-import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
+import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { handoutButton, refreshHandout } from './persistent-views.js';
 import { PLANAR_GENERATED_EVENT_PROFILE, _dN, _generatedEventAt, _generatedPhase, _nextGeneratedForecast, _rangeLabel, getLongShadowsMoons, isGeneratedShift } from './moon.js';
@@ -530,6 +530,29 @@ function _planeAnchorWizardHtml(planeName){
 // Calculate the current phase of a cyclic plane at a given serial day.
 // opts.ignoreGenerated=true returns canonical cycle state without seeded flickers.
 // Returns { phase, daysIntoPhase, daysUntilNextPhase, phaseDuration, nextPhase }
+function _generatedPhaseMetadata(planeName, serial, evt){
+  if (!evt) return null;
+  var duration = Math.max(1, parseInt(evt.durationDays, 10) || 1);
+  var remaining = Math.max(1, evt.endSerial - serial + 1);
+  var meta = {
+    daysIntoPhase: Math.max(0, serial - evt.startSerial),
+    daysUntilNextPhase: remaining,
+    phaseDuration: duration,
+    nextPhase: 'neutral'
+  };
+  var nextCanonical = getPlanarState(planeName, evt.endSerial + 1, { ignoreGenerated: true });
+  if (!nextCanonical) return meta;
+  meta.nextPhase = nextCanonical.phase || 'neutral';
+  if (nextCanonical.phase === evt.phase){
+    var carryDuration = Math.max(0, parseInt(nextCanonical.phaseDuration, 10) || 0);
+    var carryRemaining = Math.max(0, parseInt(nextCanonical.daysUntilNextPhase, 10) || carryDuration);
+    meta.phaseDuration += carryDuration;
+    meta.daysUntilNextPhase += carryRemaining;
+    meta.nextPhase = nextCanonical.nextPhase || 'neutral';
+  }
+  return meta;
+}
+
 export function getPlanarState(planeName, serial, opts?){
   opts = opts || {};
   var ignoreGenerated = !!opts.ignoreGenerated;
@@ -644,6 +667,10 @@ export function getPlanarState(planeName, serial, opts?){
       var cyclicPhase = ph.name;
       var cyclicPhaseIdx = idx;
       var cyclicNote = '';
+      var resolvedDaysInto = Math.floor(into);
+      var resolvedDaysUntilNext = Math.ceil(ph.dur - into);
+      var resolvedPhaseDuration = Math.floor(ph.dur);
+      var resolvedNextPhase = phases[nextIdx].name;
 
       // Off-cycle generated shift: can override neutral to coterminous/remote
       // Only triggers during neutral phases (not when already coterminous/remote)
@@ -765,11 +792,24 @@ export function getPlanarState(planeName, serial, opts?){
           if (_offsetInOrbit >= _cotStart && _offsetInOrbit < _cotEnd){
             cyclicPhase = 'coterminous';
             cyclicPhaseIdx = 0;
-            into = _offsetInOrbit - _cotStart;
+            resolvedDaysInto = _offsetInOrbit - _cotStart;
+            resolvedPhaseDuration = Math.max(1, coterminousDays);
+            resolvedDaysUntilNext = _cotEnd - _offsetInOrbit;
+            resolvedNextPhase = 'neutral';
+          } else if (_offsetInOrbit < _cotStart) {
+            cyclicPhase = 'neutral';
+            cyclicPhaseIdx = 1;
+            resolvedDaysInto = _offsetInOrbit;
+            resolvedPhaseDuration = Math.max(1, _cotStart);
+            resolvedDaysUntilNext = _cotStart - _offsetInOrbit;
+            resolvedNextPhase = 'coterminous';
           } else {
             cyclicPhase = 'neutral';
             cyclicPhaseIdx = 1;
-            into = _offsetInOrbit < _cotStart ? _offsetInOrbit : _offsetInOrbit - _cotEnd;
+            resolvedDaysInto = _offsetInOrbit - _cotEnd;
+            resolvedPhaseDuration = Math.max(1, _halfOrbit - _cotEnd);
+            resolvedDaysUntilNext = _halfOrbit - _offsetInOrbit;
+            resolvedNextPhase = 'remote';
           }
         } else {
           // Second half: remote then neutral
@@ -778,12 +818,35 @@ export function getPlanarState(planeName, serial, opts?){
           if (_offsetInOrbit >= _remStart && _offsetInOrbit < _remEnd){
             cyclicPhase = 'remote';
             cyclicPhaseIdx = 2;
-            into = _offsetInOrbit - _remStart;
+            resolvedDaysInto = _offsetInOrbit - _remStart;
+            resolvedPhaseDuration = Math.max(1, remoteDays);
+            resolvedDaysUntilNext = _remEnd - _offsetInOrbit;
+            resolvedNextPhase = 'neutral';
+          } else if (_offsetInOrbit < _remStart) {
+            cyclicPhase = 'neutral';
+            cyclicPhaseIdx = 3;
+            resolvedDaysInto = _offsetInOrbit - _halfOrbit;
+            resolvedPhaseDuration = Math.max(1, _remStart - _halfOrbit);
+            resolvedDaysUntilNext = _remStart - _offsetInOrbit;
+            resolvedNextPhase = 'remote';
           } else {
             cyclicPhase = 'neutral';
             cyclicPhaseIdx = 3;
-            into = _offsetInOrbit < _remStart ? _offsetInOrbit - _halfOrbit : _offsetInOrbit - _remEnd;
+            resolvedDaysInto = _offsetInOrbit - _remEnd;
+            resolvedPhaseDuration = Math.max(1, orbitDays - _remEnd);
+            resolvedDaysUntilNext = orbitDays - _offsetInOrbit;
+            resolvedNextPhase = 'coterminous';
           }
+        }
+      }
+
+      if (_isGeneratedNote(cyclicNote)){
+        var genMeta = _generatedPhaseMetadata(plane.name, serial, _generatedEventAt(plane.name, serial));
+        if (genMeta){
+          resolvedDaysInto = genMeta.daysIntoPhase;
+          resolvedDaysUntilNext = genMeta.daysUntilNextPhase;
+          resolvedPhaseDuration = genMeta.phaseDuration;
+          resolvedNextPhase = genMeta.nextPhase;
         }
       }
 
@@ -791,10 +854,10 @@ export function getPlanarState(planeName, serial, opts?){
         plane: plane,
         phase: cyclicPhase,
         phaseIndex: cyclicPhaseIdx,
-        daysIntoPhase: Math.floor(into),
-        daysUntilNextPhase: Math.ceil(ph.dur - into),
-        phaseDuration: Math.floor(ph.dur),
-        nextPhase: phases[nextIdx].name,
+        daysIntoPhase: Math.max(0, Math.floor(resolvedDaysInto)),
+        daysUntilNextPhase: Math.max(0, Math.ceil(resolvedDaysUntilNext)),
+        phaseDuration: Math.max(0, Math.floor(resolvedPhaseDuration)),
+        nextPhase: resolvedNextPhase,
         overridden: false,
         note: cyclicNote || '',
         sourceLabel: _isGeneratedNote(cyclicNote) ? 'generated' : 'traditional',
@@ -1649,6 +1712,64 @@ export function _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon){
   return '<div style="font-size:.8em;opacity:.72;margin:2px 0 6px 0;">'+esc(bits.join(' · '))+'</div>';
 }
 
+function _planarSummaryLinesForAudience(today, isGM, viewTier, genHorizon){
+  var planes = _getAllPlaneData();
+  var notes = [];
+  var ignoreGenerated = (!isGM && (viewTier === 'low' || genHorizon <= 0));
+  for (var i = 0; i < planes.length; i++){
+    if (planes[i].type === 'fixed') continue;
+    var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated:true } : null);
+    if (!ps) continue;
+    if (ps.phase === 'coterminous'){
+      notes.push((PLANE_PHASE_EMOJI.coterminous || '\uD83D\uDFE2') + ' <b>' + esc(ps.plane.name) + '</b> is ' + esc(PLANE_PHASE_LABELS.coterminous || 'Coterminous') + _planarDaySpanTag(ps));
+    } else if (ps.phase === 'remote'){
+      notes.push((PLANE_PHASE_EMOJI.remote || '\uD83D\uDD34') + ' <b>' + esc(ps.plane.name) + '</b> is ' + esc(PLANE_PHASE_LABELS.remote || 'Remote') + _planarDaySpanTag(ps));
+    } else if (ps.phase === 'neutral' && ps.daysUntilNextPhase != null && ps.daysUntilNextPhase <= 2 && ps.nextPhase){
+      if (ps.nextPhase === 'coterminous'){
+        notes.push((PLANE_PHASE_EMOJI.coterminous || '\uD83D\uDFE2') + ' <b>' + esc(ps.plane.name) + '</b> ' + esc(PLANE_PHASE_LABELS.coterminous || 'Coterminous') + ' ' + _planarInDaysLabel(ps.daysUntilNextPhase));
+      } else if (ps.nextPhase === 'remote'){
+        notes.push((PLANE_PHASE_EMOJI.remote || '\uD83D\uDD34') + ' <b>' + esc(ps.plane.name) + '</b> ' + esc(PLANE_PHASE_LABELS.remote || 'Remote') + ' ' + _planarInDaysLabel(ps.daysUntilNextPhase));
+      }
+    }
+  }
+  return notes;
+}
+
+export function planesSummaryHtml(isGM, serialOverride?){
+  var st = ensureSettings();
+  if (st.planesEnabled === false){
+    return _menuBox('\uD83C\uDF00 Planar Summary',
+      '<div style="opacity:.7;">Planar system is disabled.</div>' +
+      (isGM ? '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings planes on</code></div>' : '')
+    );
+  }
+
+  var psView = getPlanesState();
+  var viewTier = isGM ? 'high' : _normalizePlaneRevealTier(psView.revealTier || 'medium');
+  var viewHorizon = parseInt(psView.revealHorizonDays, 10);
+  if (!isFinite(viewHorizon) || viewHorizon < 1) viewHorizon = _planarYearDays();
+  var genHorizon = 0;
+  if (isGM) genHorizon = PLANE_GENERATED_LOOKAHEAD.gmDays;
+  else if (viewTier === 'high') genHorizon = viewHorizon;
+  else if (viewTier === 'medium') genHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
+
+  var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
+  var lines = _planarSummaryLinesForAudience(today, isGM, viewTier, genHorizon);
+  var planeQueryOpts = _getAllPlaneData().map(function(p){ return p.name; }).join('|');
+  var body = '<div style="font-weight:bold;margin:0 0 4px 0;">' + esc(formalDateLabelFromSerial(today)) + '</div>';
+  body += _planesTodaySummaryHtml(today, isGM, viewTier, viewHorizon);
+  if (lines.length){
+    body += '<div style="font-size:.85em;line-height:1.6;">' + lines.join('<br>') + '</div>';
+  } else {
+    body += '<div style="font-size:.82em;opacity:.55;">No active planar phases today.</div>';
+  }
+  body += '<div style="margin-top:6px;">' +
+    button('Full View', 'planes') + ' ' +
+    button('Specific Plane', 'planes view ?{Select Plane|' + planeQueryOpts + '}') +
+  '</div>';
+  return _menuBox('\uD83C\uDF00 Planar Summary \u2014 ' + esc(formalDateLabelFromSerial(today)), body);
+}
+
 // ---------------------------------------------------------------------------
 // 21f) Panel HTML — GM and player views
 // ---------------------------------------------------------------------------
@@ -1955,7 +2076,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Utility buttons
     gmControls += '<div style="margin:4px 0;">'+
-      button('📋 List','planes phases')+
+      button('📋 Summary','planes summary')+
       '</div>';
     var gmHandoutLinks = [
       handoutButton('Open Planar Handout', 'planar'),
@@ -2246,10 +2367,18 @@ export function handlePlanesCommand(m, args){
   var sub = String(args[1] || '').toLowerCase();
   var isGM = playerIsGM(m.playerid);
 
+  // Temporary compatibility alias. Keep silent for now, then prune once
+  // downstream notes/buttons stop pointing at the older branch.
+  if (sub === 'phases') sub = 'summary';
+
   var psView = getPlanesState();
   var playerTier = _normalizePlaneRevealTier(psView.revealTier || 'medium');
   var playerHorizon = parseInt(psView.revealHorizonDays, 10) || _planarYearDays();
   var playerGenHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
+
+  if (sub === 'summary'){
+    return whisper(m.who, planesSummaryHtml(isGM));
+  }
 
   if (!sub || sub === 'show'){
     return whisperParts(m.who, isGM ? planesPanelHtml(true) : planesPanelHtml(false, playerTier, null, playerHorizon, playerGenHorizon));

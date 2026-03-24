@@ -151,6 +151,22 @@ describe("Task-focused UI", () => {
     msg = String((globalThis as any)._chatLog.slice(-1)[0].msg);
     assert(msg.includes(`${planePreview.plane}</b> ${planePreview.phase} ${planePreview.days === 1 ? "tomorrow" : "in 2 days"}`));
   });
+
+  it("uses the formal dashboard header and avoids bogus neutral-span day counts", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    ws.location = { name: "Temperate / River Valley / Swamp", climate: "temperate", geography: "river_valley", terrain: "swamp", sig: "temperate/river_valley/swamp" } as any;
+
+    setDate(9, 18, 998);
+    _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);
+    const msg = String((globalThis as any)._chatLog.slice(-1)[0].msg);
+
+    assert(msg.includes("Wir, 18th of Rhaan, 998 YK"));
+    assert(msg.includes("Early autumn"));
+    assert(!msg.includes("— Early autumn"));
+    assert(msg.includes("📅 No calendar events today."));
+    assert(!msg.includes("Day 72 of 161"));
+  });
 });
 
 function todayLikeStart() {

@@ -8,7 +8,7 @@ import { DaySpec, Parse } from './parsing.js';
 import { _deliverTopLevelCalendarRange, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, WEATHER_SOURCE_LABELS, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _grantCommonWeatherReveals, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, _weatherRevealForSerial, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
@@ -41,7 +41,7 @@ function _timeOfDayMenuHtml(){
     }
     return _menuBox('Time of Day',
       '<div style="opacity:.8;margin-bottom:5px;">Time of day is inactive for this date.</div>' +
-      '<div style="margin-bottom:4px;"><b>' + esc(currentDateLabel()) + '</b></div>' +
+      '<div style="margin-bottom:4px;"><b>' + esc(formalCurrentDateLabel()) + '</b></div>' +
       '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Choose a starting bucket:</div>' +
       startButtons.join(' ')
     );
@@ -49,7 +49,7 @@ function _timeOfDayMenuHtml(){
 
   return _menuBox('Time of Day',
     '<div style="font-weight:bold;">Current time: ' + esc(bucketLabel(bucket)) + '</div>' +
-    '<div style="opacity:.75;margin-top:2px;">' + esc(currentDateLabel()) + '</div>' +
+    '<div style="opacity:.75;margin-top:2px;">' + esc(formalCurrentDateLabel()) + '</div>' +
     _timeOfDayActionButtonsHtml()
   );
 }
@@ -68,7 +68,7 @@ function _sendTimeOfDayStatus(who){
   whisperUi(who,
     _menuBox('Time of Day',
       '<div style="font-weight:bold;">Current time: ' + esc(label) + '</div>' +
-      '<div style="opacity:.75;margin-top:2px;">' + esc(currentDateLabel()) + '</div>' +
+      '<div style="opacity:.75;margin-top:2px;">' + esc(formalCurrentDateLabel()) + '</div>' +
       _timeOfDayActionButtonsHtml()
     )
   );
@@ -78,7 +78,7 @@ function _todayEventSummaryHtml(serial){
   try {
     var occ = occurrencesInRange(serial, serial);
     if (!occ.length){
-      return '<div style="font-size:.82em;opacity:.6;margin-top:2px;">🎉 No calendar events today.</div>';
+      return '<div style="font-size:.82em;opacity:.6;margin-top:2px;">📅 No calendar events today.</div>';
     }
     var seenNames = {};
     var names = [];
@@ -104,7 +104,7 @@ function _timeOfDayCurrentViewHtml(includeButtons){
   var lines = [];
   var activeBucket = currentTimeBucket() || WEATHER_PRIMARY_PERIOD;
 
-  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(formalCurrentDateLabel()) + '</div>');
   if (isTimeOfDayActive()){
     lines.push(_timeOfDayStatusHtml('font-size:.85em;opacity:.72;margin:0 0 2px 0;'));
   }
@@ -189,7 +189,7 @@ export function _todayAllHtml(){
 
   // ── Text Info ──────────────────────────────────────────────────────────
   // Current Date
-  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(formalCurrentDateLabel()) + '</div>');
 
   // Time of Day (if active)
   if (isTimeOfDayActive()){
@@ -618,9 +618,9 @@ export var commands = {
     if (sub === 'options'){
       var choice = (a[3] || '').toLowerCase();
       if (choice === 'events') return invokeEventSub(m, 'panel', []);
-      if (choice === 'moon')   return handleMoonCommand(m, ['moon']);
+      if (choice === 'moon')   return handleMoonCommand(m, ['moon', 'summary']);
       if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
-      if (choice === 'planes') return handlePlanesCommand(m, ['planes']);
+      if (choice === 'planes') return handlePlanesCommand(m, ['planes', 'summary']);
       if (choice === 'admin' || choice === 'help') return helpRootMenu(m);
       return helpRootMenu(m);
     }

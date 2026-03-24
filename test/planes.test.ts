@@ -173,4 +173,23 @@ describe("Planes regressions", () => {
     assertEquals(ps.seedOverrides.Risia, 996);
     assertEquals(ps.ferniaRisiaLinkMode, "independent");
   });
+
+  it("recomputes generated phase metadata from the resolved active phase", () => {
+    freshInstall();
+    const start = toSerial(998, 0, 1);
+    let match: any = null;
+    for (let serial = start; serial <= start + 336 && !match; serial++) {
+      for (const plane of _getAllPlaneData()) {
+        const state = getPlanarState(plane.name, serial);
+        if (state && state.sourceLabel === "generated" && (state.phase === "coterminous" || state.phase === "remote")) {
+          match = state;
+          break;
+        }
+      }
+    }
+
+    assert(match, "expected at least one active generated planar phase in the first year");
+    assert(match.phaseDuration != null && match.phaseDuration < 40, "generated span should not reuse the long neutral duration");
+    assert(match.daysIntoPhase != null && match.phaseDuration != null && match.daysIntoPhase < match.phaseDuration, "daysIntoPhase should be bounded by the resolved active span");
+  });
 });

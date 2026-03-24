@@ -32,6 +32,13 @@ export function currentDateLabel(){
          cur.year + " " + LABELS.era;
 }
 
+export function formalCurrentDateLabel(){
+  var cal = getCal(), cur = cal.current;
+  var wd = cal.weekdays[cur.day_of_the_week];
+  var base = formatDateLabel(cur.year, cur.month, cur.day_of_the_month, true);
+  return wd ? (wd + ', ' + base) : base;
+}
+
 export function currentTimeOfDayLabel(){
   var bucket = currentTimeBucket();
   return bucket ? bucketLabel(bucket) : '';
@@ -65,6 +72,14 @@ export function dateLabelFromSerial(serial){
   var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
   var datePart = _displayMonthDayParts(d.mi, d.day).label;
   return wd + ", " + datePart + ", " + d.year + " " + LABELS.era;
+}
+
+export function formalDateLabelFromSerial(serial){
+  var cal = getCal();
+  var d = fromSerial(serial);
+  var wd = cal.weekdays[weekdayIndex(d.year, d.mi, d.day)];
+  var base = formatDateLabel(d.year, d.mi, d.day, true);
+  return wd ? (wd + ', ' + base) : base;
 }
 
 export function nextForDayOnly(cur, day, monthsLen){
@@ -247,23 +262,22 @@ export function sendCurrentDate(to, gmOnly, opts?){
     calHtml = buildCalendarsHtmlForSpec(spec);
   }
 
-  // Date headline: weekday, date, year, season
+  // Date headline: formal date line + season line
   var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
-  var currentDate = currentDateLabel();
+  var currentDate = formalCurrentDateLabel();
   var timeLine = _timeOfDayStatusHtml(dashboard
     ? 'font-size:.94em;color:#000;margin:0 0 5px 0;'
     : (compact
       ? 'font-size:.82em;opacity:.72;margin:0 0 3px 0;'
       : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;'));
   var dateLine = compact
-    ? '<div style="font-weight:bold;margin:2px 0 3px 0;' + (dashboard ? 'font-size:1.02em;color:#000;' : '') + '">' +
-      esc(currentDate) +
-      (_seasonLabel ? ' &nbsp;<span style="' + (dashboard ? 'color:#000;font-weight:normal;' : 'opacity:.7;font-weight:normal;') + '">— ' + esc(_seasonLabel) + '</span>' : '') +
-      '</div>'
-    : '<div style="font-weight:bold;margin:3px 0;' + (dashboard ? 'font-size:1.06em;color:#000;' : '') + '">' +
-      esc(currentDate) +
-      (_seasonLabel ? ' &nbsp;<span style="' + (dashboard ? 'color:#000;font-weight:normal;font-size:.96em;' : 'opacity:.7;font-weight:normal;font-size:.9em;') + '">— ' + esc(_seasonLabel) + '</span>' : '') +
-      '</div>';
+    ? '<div style="font-weight:bold;margin:2px 0 1px 0;' + (dashboard ? 'font-size:1.02em;color:#000;' : '') + '">' + esc(currentDate) + '</div>'
+    : '<div style="font-weight:bold;margin:3px 0 1px 0;' + (dashboard ? 'font-size:1.06em;color:#000;' : '') + '">' + esc(currentDate) + '</div>';
+  var seasonLine = _seasonLabel
+    ? (compact
+      ? '<div style="' + (dashboard ? 'font-size:.94em;color:#000;margin:0 0 4px 0;' : 'font-size:.82em;opacity:.7;margin:0 0 3px 0;') + '">' + esc(_seasonLabel) + '</div>'
+      : '<div style="' + (dashboard ? 'font-size:.98em;color:#000;margin:0 0 4px 0;' : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;') + '">' + esc(_seasonLabel) + '</div>')
+    : '';
   var dashboardInfoLineStyle = dashboard
     ? 'font-size:.92em;color:#000;margin-top:3px;line-height:1.6;'
     : 'font-size:.82em;opacity:.7;margin-top:3px;line-height:1.6;';
@@ -421,19 +435,19 @@ export function sendCurrentDate(to, gmOnly, opts?){
       var more = names.length > 3 ? (' <span style="' + (dashboard ? 'color:#000;' : 'opacity:.65;') + '">+' + (names.length - 3) + ' more</span>') : '';
       todayEventsLine = '<div style="' + dashboardEventsLineStyle + '">🎉 ' + shown + more + '</div>';
     } else if (dashboard) {
-      todayEventsLine = '<div style="' + dashboardEmptyEventsLineStyle + '">🎉 No calendar events today.</div>';
+      todayEventsLine = '<div style="' + dashboardEmptyEventsLineStyle + '">📅 No calendar events today.</div>';
     }
   } catch(e4){}
 
   var msgCore;
   if (dashboard){
-    msgCore = calHtml + dateLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
+    msgCore = calHtml + dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
   } else if (compact){
     msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
-      dateLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
+      dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
       '</div>';
   } else {
-    msgCore = calHtml + dateLine + timeLine + locationLine + moonLine + weatherLine + lightingLine + planesLine + eventsBlock;
+    msgCore = calHtml + dateLine + seasonLine + timeLine + locationLine + moonLine + weatherLine + lightingLine + planesLine + eventsBlock;
   }
 
   var controls = '';

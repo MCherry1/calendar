@@ -186,21 +186,20 @@ describe("Weather management routing", () => {
 });
 
 describe("Moon management routing", () => {
-  it("routes today-options moon and moon phases into the canonical moon overview", () => {
+  it("routes today-options moon and moon phases into the compact moon summary", () => {
     freshInstall();
     completeSetup();
 
     handleInput(gmMessage("!cal today options moon"));
     let log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
-    assert(log.includes("Moon Overview"));
-    assert(!log.includes("Current Phases"));
-    assert(!log.includes("📋 List"));
+    assert(log.includes("Moon Summary"));
+    assert(!log.includes("Moon Overview"));
 
     (globalThis as any)._chatLog.length = 0;
     handleMoonCommand(gmUser(), ["moon", "phases"]);
     log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
-    assert(log.includes("Moon Overview"));
-    assert(!log.includes("Current Phases"));
+    assert(log.includes("Moon Summary"));
+    assert(!log.includes("Moon Overview"));
   });
 
   it("emits real moon management actions with moon-name input and reseeds successfully", () => {
@@ -245,6 +244,22 @@ describe("Moon management routing", () => {
 });
 
 describe("Planes management routing", () => {
+  it("routes today-options planes and planes phases into the compact planes summary", () => {
+    freshInstall();
+    completeSetup();
+
+    handleInput(gmMessage("!cal today options planes"));
+    let log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
+    assert(log.includes("Planar Summary"));
+    assert(!log.includes("Planar Phases"));
+
+    (globalThis as any)._chatLog.length = 0;
+    handlePlanesCommand(gmUser(), ["planes", "phases"]);
+    log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
+    assert(log.includes("Planar Summary"));
+    assert(!log.includes("Planes: <code>!cal planes</code>"));
+  });
+
   it("emits supported planes management actions and toggles generated events", () => {
     freshInstall();
 
@@ -255,6 +270,8 @@ describe("Planes management routing", () => {
     assert(msg.includes("Clear Override,clear"));
     assert(msg.includes("Set Anchor,anchorwizard"));
     assert(msg.includes("Seed Override,seed"));
+    assert(msg.includes("📋 Summary"));
+    assert(!msg.includes("📋 List"));
 
     const before = ensureSettings().offCyclePlanes !== false;
     handlePlanesCommand(gmUser(), ["planes", "manage", "generated"]);

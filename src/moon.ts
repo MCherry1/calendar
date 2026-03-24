@@ -5,7 +5,7 @@ import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
-import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
+import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
@@ -1983,6 +1983,81 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
   }
   if (!bits.length) return '';
   return '<div style="font-size:.8em;opacity:.72;margin:2px 0 6px 0;">'+esc(bits.join(' · '))+'</div>';
+}
+
+function _moonCompactStatusLines(today){
+  var sys = _getMoonSys();
+  if (!sys || !sys.moons || !sys.moons.length) return [];
+  var lines = [];
+  for (var i = 0; i < sys.moons.length; i++){
+    var moon = sys.moons[i];
+    var ph = moonPhaseAt(moon.name, today);
+    if (!ph) continue;
+    var emoji = _moonPhaseEmoji(ph.illum, ph.waxing);
+    var peakType = _moonPeakPhaseDay(moon.name, today);
+    if (peakType === 'full'){
+      lines.push(emoji + ' <b>' + esc(moon.name) + '</b> is Full' + esc(_moonPhaseSpanSuffix(moon.name, today)));
+      continue;
+    }
+    if (peakType === 'new'){
+      lines.push(
+        (ph.longShadows
+          ? emoji + ' <b>' + esc(moon.name) + '</b> goes dark' + esc(_moonPhaseSpanSuffix(moon.name, today)) + ' (Long Shadows)'
+          : emoji + ' <b>' + esc(moon.name) + '</b> is New' + esc(_moonPhaseSpanSuffix(moon.name, today)))
+      );
+      continue;
+    }
+    var nextEntry = _moonNextThresholdEntry(moon.name, today, 2);
+    if (nextEntry){
+      lines.push(
+        (nextEntry.type === 'full' ? '🌕' : '🌑') +
+        ' <b>' + esc(moon.name) + '</b> ' +
+        (nextEntry.type === 'full' ? 'Full ' : 'New ') +
+        (nextEntry.days === 1 ? 'tomorrow' : 'in 2 days')
+      );
+    }
+  }
+  return lines;
+}
+
+export function moonSummaryHtml(isGM, serialOverride?){
+  var st = ensureSettings();
+  if (st.moonsEnabled === false){
+    return _menuBox('\uD83C\uDF19 Moon Summary',
+      '<div style="opacity:.7;">Moon system is disabled.</div>' +
+      (isGM ? '<div style="margin-top:4px;font-size:.85em;">Enable: <code>!cal settings moons on</code></div>' : '')
+    );
+  }
+
+  var ms = getMoonState();
+  var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
+  var tier = isGM ? 'high' : _normalizeMoonRevealTier(ms.revealTier || 'medium');
+  var horizon = isGM
+    ? MOON_PREDICTION_LIMITS.highMaxDays
+    : (parseInt(ms.revealHorizonDays, 10) || MOON_PREDICTION_LIMITS.lowDays);
+  moonEnsureSequences(today, Math.max(horizon + 30, MOON_PREDICTION_LIMITS.lowDays + 30));
+
+  var body = '<div style="font-weight:bold;margin:0 0 4px 0;">' + esc(formalDateLabelFromSerial(today)) + '</div>';
+  body += _moonTodaySummaryHtml(today, tier, horizon);
+
+  var notableLines = _moonCompactStatusLines(today);
+  if (notableLines.length){
+    body += '<div style="font-size:.85em;line-height:1.6;">' + notableLines.join('<br>') + '</div>';
+  } else {
+    body += '<div style="font-size:.82em;opacity:.55;">No moons at full or new today.</div>';
+  }
+
+  if ((isGM || tier === 'high') && _eclipseNotableToday(today).length){
+    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' + _eclipseNotableToday(today).join('<br>') + '</div>';
+  }
+
+  body += '<div style="margin-top:6px;">' +
+    button('Full View', 'moon') + ' ' +
+    button('Sky Now', 'moon sky') + ' ' +
+    button('Moon Lore', 'moon lore') +
+  '</div>';
+
+  return _menuBox('\uD83C\uDF19 Moon Summary \u2014 ' + esc(formalDateLabelFromSerial(today)), body);
 }
 
 // ---------------------------------------------------------------------------
@@ -4469,7 +4544,12 @@ export function handleMoonCommand(m, args){
 
   // Temporary compatibility alias. Keep silent for now, then prune once
   // downstream notes/buttons stop pointing at the older branch.
-  if (sub === 'phases') sub = '';
+  if (sub === 'phases') sub = 'summary';
+
+  if (sub === 'summary'){
+    moonEnsureSequences();
+    return whisper(m.who, moonSummaryHtml(playerIsGM(m.playerid)));
+  }
 
   // Anyone can view — players see their tier, GM sees exact
   if (!sub || sub === 'show'){
