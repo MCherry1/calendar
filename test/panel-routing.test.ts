@@ -119,6 +119,26 @@ describe("Redesigned panel routing", () => {
 });
 
 describe("Weather management routing", () => {
+  it("routes bare weather and forecast into the new calendar-first weather surfaces", () => {
+    freshInstall();
+    completeSetup();
+    const ws = getWeatherState();
+    ws.location = { name: "Test Town", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate-inland-open" } as any;
+    weatherEnsureForecast();
+
+    handleWeatherCommand(gmUser(), ["weather"]);
+    let msg = String(lastChat().msg);
+    assert(msg.includes('data-weather-view="today-calendar-gm"'));
+    assert(msg.includes('data-weather-tod-grid="1"'));
+    assert(!msg.includes("View: "));
+
+    handleInput(gmMessage("!cal forecast"));
+    msg = String(lastChat().msg);
+    assert(msg.includes('data-weather-view="forecast-calendar-gm"'));
+    assert(msg.includes('data-weather-forecast-grid="1"'));
+    assert(!msg.includes("View: "));
+  });
+
   it("emits supported weather management actions including the hazards toggle", () => {
     freshInstall();
     const ws = getWeatherState();
@@ -130,6 +150,8 @@ describe("Weather management routing", () => {
     const msg = String(lastChat().msg);
     assert(msg.includes("weather manage ?{Action|Toggle Weather On/Off,toggleweather|Toggle Extreme Hazards,togglehazards|Toggle Mechanics,togglemechanics"));
     assert(msg.includes("Reseed Weather,reseed"));
+    assert(msg.includes("Lock Specific Day"));
+    assert(!msg.includes("Lock Day,lock ?\\{Day serial"));
   });
 
   it("toggles weather from the management dispatcher", () => {

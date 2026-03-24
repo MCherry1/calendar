@@ -222,7 +222,16 @@ export function tdHtmlForDay(ctx, monthColor, baseStyle, numeralStyle){
   var numWrap = '<div style="'+numStyle+'">'+numeral+'</div>';
   var isDotOnly = ctx.events.length > 0 && (ctx.events[0] as any).dotOnly;
   var dots = _eventDotsHtml(ctx.events, isDotOnly);
-  return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(numWrap+dots)+'</td>';
+  var bandStyle = 'height:.6em;min-height:.6em;display:flex;align-items:center;justify-content:center;line-height:1;overflow:hidden;';
+  var middleBandStyle = 'flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;';
+  // Reserve equal top/bottom bands in every cell so the numeral stays centered
+  // even when no event dots are rendered below it.
+  var inner = [
+    '<div style="'+bandStyle+'">&nbsp;</div>',
+    '<div style="'+middleBandStyle+'">'+numWrap+'</div>',
+    '<div style="'+bandStyle+'">'+(dots || '&nbsp;')+'</div>'
+  ].join('');
+  return '<td'+titleAttr+' style="'+style+'">'+_calendarCellInnerHtml(inner, 'padding:0;align-items:stretch;justify-content:flex-start;')+'</td>';
 }
 
 export function _renderHarptosFestivalStrip(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, edgeMode){

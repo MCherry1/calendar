@@ -649,9 +649,9 @@ export var commands = {
     whisperUi(m.who, 'Setup is already complete.');
   },
 
-  // Player shortcut: !cal forecast shows their revealed weather forecast
-  forecast: function(m){
-    handleWeatherCommand(m, ['weather','forecast']);
+  // Shortcut: !cal forecast mirrors the weather forecast surface and forwards args.
+  forecast: function(m, a){
+    handleWeatherCommand(m, ['weather','forecast'].concat((a || []).slice(2)));
   },
 
   effects: { gm:true, run:function(m){

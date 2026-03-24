@@ -10,7 +10,7 @@ import {
   _bestTier, _locSig, _weatherRevealBucket, _recordReveal,
   _weatherRevealForSerial, _grantCommonWeatherReveals,
   _parseWeatherRevealDayToken, _parseWeatherRevealDateSpec,
-  weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml
+  weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml, weatherMechanicsHandoutHtml
 } from "../src/weather.js";
 import { _subsystemIsVerbose, _subsystemVerbosityValue, _displayMonthDayParts, currentDateLabel } from "../src/ui.js";
 import { _todayAllHtml, _todayWeatherIsStable } from "../src/today.js";
@@ -18,6 +18,23 @@ import { SEASON_SETS, CALENDAR_STRUCTURE_SETS } from "../src/constants.js";
 import { CALENDAR_SYSTEMS } from "../src/config.js";
 import { _ordinal } from "../src/rendering.js";
 import { moonEnsureSequences } from "../src/moon.js";
+
+function gmUser() {
+  return { who: "GM (GM)", playerid: "GM" } as any;
+}
+
+function playerUser() {
+  return { who: "Player", playerid: "P1" } as any;
+}
+
+function lastChatMsg() {
+  const log = (globalThis as any)._chatLog || [];
+  return String(log[log.length - 1]?.msg || "");
+}
+
+function countOccurrences(haystack: string, needle: string) {
+  return (haystack.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length;
+}
 
 // ============================================================================
 // 8) WEATHER SYSTEM
@@ -446,6 +463,81 @@ describe("Weather: common weather reveals", () => {
       const rev = _weatherRevealForSerial(ws, today + d);
       assertEquals(rev.tier, "low", `day +${d} should have low tier`);
     }
+  });
+});
+
+describe("Weather calendar surfaces", () => {
+  function setupWeather() {
+    const ws = getWeatherState();
+    ws.location = { name: "Test Town", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate/inland/open" } as any;
+    weatherEnsureForecast();
+    return ws;
+  }
+
+  it("renders the GM today weather view as the new calendar surface", () => {
+    freshInstall();
+    setupWeather();
+
+    handleWeatherCommand(gmUser(), ["weather"]);
+
+    const msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="today-calendar-gm"'));
+    assert(msg.includes('data-weather-tod-grid="1"'));
+    assert(msg.includes("0-4a"));
+    assert(msg.includes("8-12p"));
+    assert(msg.includes("Active Mechanics"));
+    assert(msg.includes('data-weather-forecast-grid="1"'));
+    assert(!msg.includes("View: "));
+  });
+
+  it("renders the GM forecast as an equal-weight calendar grid", () => {
+    freshInstall();
+    setupWeather();
+
+    handleWeatherCommand(gmUser(), ["weather", "forecast"]);
+
+    const msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="forecast-calendar-gm"'));
+    assert(msg.includes('data-weather-forecast-grid="1"'));
+    assert(!msg.includes("<b>Today:</b>"));
+    assert(!msg.includes("View: "));
+    assertEquals(ensureSettings().weatherForecastViewDays, 9);
+  });
+
+  it("caps the player embedded forecast to two future days at common reveal", () => {
+    freshInstall();
+    setupWeather();
+
+    handleWeatherCommand(playerUser(), ["weather"]);
+
+    const msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="today-calendar-player"'));
+    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 2);
+  });
+
+  it("expands the player weather and forecast calendars after a high reveal", () => {
+    freshInstall();
+    setupWeather();
+
+    handleWeatherCommand(gmUser(), ["weather", "reveal", "high", "10"]);
+    handleWeatherCommand(playerUser(), ["weather"]);
+    let msg = lastChatMsg();
+    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 9);
+
+    handleWeatherCommand(playerUser(), ["weather", "forecast"]);
+    msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="forecast-calendar-player"'));
+    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 10);
+  });
+
+  it("includes the precipitation table in the mechanics handout", () => {
+    freshInstall();
+
+    const html = weatherMechanicsHandoutHtml();
+
+    assert(html.includes("Precipitation Stages"));
+    assert(html.includes("Light Precipitation"));
+    assert(html.includes("Derived Outcome"));
   });
 });
 

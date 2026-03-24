@@ -48,7 +48,7 @@ export var CONFIG_DEFAULTS: Record<string, any> = {
   weatherDisplayMode:'calendar', // 'calendar' | 'list' | 'both'
   planesDisplayMode:'calendar',  // 'calendar' | 'list' | 'both'
   subsystemVerbosity:'normal',  // 'normal' | 'minimal'
-  weatherForecastViewDays: 10,  // GM weather forecast display span (1-20)
+  weatherForecastViewDays: 9,   // GM weather forecast display span (1-20)
   uiDensity:       'normal',    // 'compact' or 'normal'
   autoButtons:     false        // false = suppress auto action buttons on !cal
 };

@@ -133,6 +133,14 @@ var WEATHER_PERIOD_META: any = {
   afternoon:     { label:'Afternoon',     shortLabel:'Afternoon', icon:'☁' },
   evening:       { label:'Evening',       shortLabel:'Evening', icon:'🌆' }
 };
+var WEATHER_TOD_MINICAL_LABELS: any = {
+  middle_of_night: '0-4a',
+  early_morning: '4-8a',
+  morning: '8-12p',
+  afternoon: '12-4p',
+  evening: '4-8p',
+  nighttime: '8-12a'
+};
 
 export function _weatherPeriodLabel(period: any){
   var meta = WEATHER_PERIOD_META[period] || {};
@@ -2641,6 +2649,22 @@ export function weatherMechanicsHandoutHtml(){
     '</tr>';
   }).join('');
 
+  var precipNotes: any = {
+    0: 'No precipitation. Clear sky baseline.',
+    1: 'Cloud build-up only. Used for partly cloudy conditions and light sky cover.',
+    2: 'Overcast baseline. Often combines with fog or low light but is not precipitation by itself.',
+    3: 'Light precipitation. Usually drizzle, light rain, flurries, or light sleet depending on temperature.',
+    4: 'Moderate precipitation. Often rain, snow, or sleet with meaningful visibility and travel pressure.',
+    5: 'Heavy precipitation. Used for heavy rain, deluge, blizzard, or ice-storm outcomes after temperature conversion.'
+  };
+  var precipRows = CONFIG_WEATHER_LABELS.precip.map(function(label: any, idx: any){
+    return '<tr>' +
+      '<td style="'+STYLES.td+';text-align:center;">' + idx + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(label) + '</td>' +
+      '<td style="'+STYLES.td+'">' + esc(precipNotes[idx] || 'Derived from temperature and fog.') + '</td>' +
+    '</tr>';
+  }).join('');
+
   var extremeRows = Object.keys(EXTREME_EVENTS).map(function(key: any){
     var evt = EXTREME_EVENTS[key];
     return '<tr>' +
@@ -2674,6 +2698,15 @@ export function weatherMechanicsHandoutHtml(){
       '</tr>' +
       windRows +
     '</table>' +
+    '<div style="font-weight:bold;margin:10px 0 4px 0;">Precipitation Stages</div>' +
+    '<table style="'+STYLES.table+'">' +
+      '<tr>' +
+        '<th style="'+STYLES.th+'">Stage</th>' +
+        '<th style="'+STYLES.th+'">Label</th>' +
+        '<th style="'+STYLES.th+'">Derived Outcome</th>' +
+      '</tr>' +
+      precipRows +
+    '</table>' +
     '<div style="margin-top:10px;font-size:.84em;line-height:1.6;">' +
       '<b>Visibility and fog:</b> <code>_deriveConditions()</code> turns precipitation and fog into the three obscurity tiers used elsewhere in the system. Dense fog and the worst precipitation collapse visibility first, then difficult terrain and hazard tags are layered on top.<br>' +
       '<b>Tides:</b> Coastal and island locations use the current tidal index from the moon system, with Zarantyr carrying the dominant effect.<br>' +
@@ -2698,25 +2731,21 @@ function _refreshWeatherHandout(){
 
 // Build whispered player forecast from their stored reveal state.
 function playerForecastWhisper(m: any){
-  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
-  if (!view){
+  var data = _playerWeatherKnownData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!data){
     whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
     return;
   }
-  whisper(m.who, _menuBox('Your Weather Forecast \u2014 '+view.locationLabel,
-    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>'+view.summaryHtml + view.body
-  ));
+  whisper(m.who, _menuBox('Your Weather Forecast — ' + data.locationLabel, _playerForecastListBody(data)));
 }
 
 function sendRevealedForecast(m: any){
-  var view = _playerForecastViewData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
-  if (!view){
+  var data = _playerWeatherKnownData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!data){
     warnGM('No revealed weather is currently available to send.');
     return;
   }
-  sendToAll(_menuBox('Weather Forecast \u2014 '+view.locationLabel,
-    '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Date anchor: <b>'+view.titleDate+'</b></div>'+view.summaryHtml + view.body
-  ));
+  sendToAll(_menuBox('Weather Forecast — ' + data.locationLabel, _playerForecastCalendarHtml(data)));
   warnGM('Sent the currently revealed weather forecast to players.');
 }
 
@@ -2821,21 +2850,7 @@ function weatherTodayGmHtml(){
     } catch(e){}
   }
 
-  // Management dropdown
-  var managementBtn =
-    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
-    '<div style="margin:4px 0;">' +
-    button('Management','weather manage ?{Action|' +
-      'Toggle Weather On/Off,toggleweather|' +
-      'Toggle Extreme Hazards,togglehazards|' +
-      'Toggle Mechanics,togglemechanics|' +
-      'Reseed Weather,reseed|' +
-      'History,history|' +
-      'Reset Weather,reset|' +
-      'Reroll Today,reroll|' +
-      'Lock Day,lock ?\\{Day serial|' + ser + '\\}' +
-      '}') +
-    '</div>';
+  var managementBtn = _weatherManagementControlsHtml(ser);
 
   var todayHandoutLinks = [
     handoutButton('Open Weather Handout', 'weather'),
@@ -2847,7 +2862,12 @@ function weatherTodayGmHtml(){
     lightLine + activeMechLine +
     tidalLine +
     extremeHtml +
-    '<div style="margin-top:6px;">'+ button('📣 Send Revealed','weather send') +'</div>'+
+    '<div style="margin-top:6px;">'+
+      button('Calendar','weather') + ' ' +
+      button('Forecast','weather forecast '+_weatherViewDays(st.weatherForecastViewDays)) + ' ' +
+      button('Forecast List','weather forecast list') + ' ' +
+      button('📣 Send Revealed','weather send') +
+    '</div>'+
     (todayHandoutLinks ? '<div style="margin-top:4px;">' + todayHandoutLinks + '</div>' : '') +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>'+
     mediumRow + highRow + specificRow +
@@ -2884,12 +2904,33 @@ function _weatherDayTempRange(rec: any){
   return { lowF: loF, highF: hiF };
 }
 
-function _weatherEmojiForRecord(rec: any){
+function _weatherToDHeaderLabel(period: any){
+  return WEATHER_TOD_MINICAL_LABELS[period] || _weatherPeriodShortLabel(period);
+}
+
+function _weatherBandDisplayTempF(band: any, seed: any){
+  var info = _weatherTempInfo(band);
+  var roll = Math.abs(parseInt(seed, 10) || 0) % 10;
+  if (info.minF == null && info.maxF == null) return null;
+  if (info.minF == null) return (info.maxF as number) - 9 + roll;
+  if (info.maxF == null) return info.minF + roll;
+  return info.minF + roll;
+}
+
+function _weatherPeriodTempF(rec: any, period: any){
   rec = _weatherRecordForDisplay(rec);
-  if (!rec || !rec.final) return '🌥️';
-  var loc = rec.location || {};
-  var cond = _deriveConditions(rec.final, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
-  if (!cond || !cond.precipType) return '🌥️';
+  if (!rec) return null;
+  var pv = (rec.periods && rec.periods[period]) || _weatherPrimaryValues(rec) || rec.final;
+  if (!pv) return null;
+  var idx = Math.max(0, WEATHER_DAY_PERIODS.indexOf(period));
+  return _weatherBandDisplayTempF(pv.temp, ((rec.serial || 0) * 37) + ((idx + 1) * 19));
+}
+
+function _weatherEmojiForValues(pv: any, cond: any){
+  if (!pv) return '🌥️';
+  cond = cond || { precipType: 'none' };
+  if ((pv.wind|0) >= ((pv.precip|0) + 2) && (pv.precip|0) <= 3) return '💨';
+  if (!cond.precipType) return '🌥️';
   if (cond.precipType === 'blizzard')    return '🌨️';
   if (cond.precipType === 'snow')        return '❄️';
   if (cond.precipType === 'snow_light')  return '🌤️';
@@ -2900,9 +2941,222 @@ function _weatherEmojiForRecord(rec: any){
   if (cond.precipType === 'heavy_rain')  return '⛈️';
   if (cond.precipType === 'rain')        return '🌧️';
   if (cond.precipType === 'rain_light')  return '🌦️';
-  if ((rec.final.wind|0) >= 3)          return '💨';
-  if (cond.precipType === 'none' && (rec.final.precip|0) >= 1) return '⛅';
+  if ((pv.wind|0) >= 3) return '💨';
+  if ((pv.precip|0) >= 2) return '☁️';
+  if ((pv.precip|0) >= 1) return '⛅';
   return '☀️';
+}
+
+function _weatherEmojiForRecord(rec: any){
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec || !rec.final) return '🌥️';
+  var loc = rec.location || {};
+  var cond = _deriveConditions(rec.final, loc, WEATHER_PRIMARY_PERIOD, rec.snowAccumulated, _weatherPrimaryFog(rec));
+  return _weatherEmojiForValues(rec.final, cond);
+}
+
+function _weatherEmojiForPeriod(rec: any, period: any){
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec) return '🌥️';
+  var loc = rec.location || {};
+  var pv = (rec.periods && rec.periods[period]) || _weatherPrimaryValues(rec) || rec.final;
+  var cond = _deriveConditions(pv, loc, period, rec.snowAccumulated, rec.fog && rec.fog[period]);
+  return _weatherEmojiForValues(pv, cond);
+}
+
+function _weatherPhraseState(pv: any, cond: any){
+  pv = pv || {};
+  cond = cond || { precipType: 'none', fog: 'none' };
+  if (cond.fog === 'dense' && (pv.precip|0) <= 1) return { phrase: 'dense fog', weight: 4 };
+  if (cond.fog === 'light' && (pv.precip|0) <= 1) return { phrase: 'patchy fog', weight: 2 };
+  switch (cond.precipType){
+    case 'blizzard':    return { phrase: 'blizzard conditions', weight: 6 };
+    case 'ice_storm':   return { phrase: 'an ice storm', weight: 6 };
+    case 'deluge':      return { phrase: 'a deluge', weight: 6 };
+    case 'heavy_rain':  return { phrase: 'heavy rain', weight: 5 };
+    case 'snow':        return { phrase: 'snow', weight: 4 };
+    case 'sleet':       return { phrase: 'sleet', weight: 4 };
+    case 'rain':        return { phrase: 'steady rain', weight: 4 };
+    case 'snow_light':  return { phrase: 'light snow', weight: 3 };
+    case 'sleet_light': return { phrase: 'light sleet', weight: 3 };
+    case 'rain_light':  return { phrase: 'light rain', weight: 3 };
+  }
+  if ((pv.wind|0) >= 3) return { phrase: 'storm winds', weight: 4 };
+  if ((pv.wind|0) >= 2) return { phrase: 'breezy conditions', weight: 2 };
+  if ((pv.precip|0) >= 2) return { phrase: 'overcast skies', weight: 2 };
+  if ((pv.precip|0) >= 1) return { phrase: 'partly cloudy skies', weight: 1 };
+  if ((pv.temp|0) <= 2) return { phrase: 'clear, cold weather', weight: 1 };
+  if ((pv.temp|0) >= 10) return { phrase: 'clear, hot weather', weight: 1 };
+  return { phrase: 'clear skies', weight: 0 };
+}
+
+function _weatherTransitionSentence(rec: any){
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec) return '';
+  var earlyPeriod = (rec.periods && rec.periods.morning) ? 'morning' : 'early_morning';
+  var latePeriod = (rec.periods && rec.periods.evening) ? 'evening' : 'nighttime';
+  var loc = rec.location || {};
+  var earlyVals = (rec.periods && rec.periods[earlyPeriod]) || _weatherPrimaryValues(rec) || rec.final;
+  var lateVals = (rec.periods && rec.periods[latePeriod]) || _weatherPrimaryValues(rec) || rec.final;
+  var earlyCond = _deriveConditions(earlyVals, loc, earlyPeriod, rec.snowAccumulated, rec.fog && rec.fog[earlyPeriod]);
+  var lateCond = _deriveConditions(lateVals, loc, latePeriod, rec.snowAccumulated, rec.fog && rec.fog[latePeriod]);
+  var earlyState = _weatherPhraseState(earlyVals, earlyCond);
+  var lateState = _weatherPhraseState(lateVals, lateCond);
+  if (earlyState.phrase === lateState.phrase){
+    return titleCase(earlyState.phrase) + ' holds through the day.';
+  }
+  var connector = (lateState.weight > earlyState.weight) ? 'gives way to' : 'turns to';
+  return titleCase(earlyState.phrase) + ' in the morning ' + connector + ' ' + lateState.phrase + ' by evening.';
+}
+
+function _weatherWeekdayLabelForSerial(serial: any){
+  var cal = getCal();
+  var wdCount = Math.max(1, weekLength()|0);
+  var base = parseInt(cal.current.day_of_the_week, 10) || 0;
+  var today = todaySerial();
+  var idx = ((base + ((serial|0) - today)) % wdCount + wdCount) % wdCount;
+  return cal.weekdays[idx] || ('Day ' + (idx + 1));
+}
+
+function _weatherForecastRows(serials: any[], rowPlan?: any){
+  var rows: any[] = [];
+  var idx = 0;
+  var plan = Array.isArray(rowPlan) ? rowPlan.slice() : [];
+  for (var pi = 0; pi < plan.length && idx < serials.length; pi++){
+    var size = Math.max(1, parseInt(plan[pi], 10) || 1);
+    rows.push(serials.slice(idx, idx + size));
+    idx += size;
+  }
+  while (idx < serials.length){
+    rows.push(serials.slice(idx, idx + 3));
+    idx += 3;
+  }
+  return rows;
+}
+
+function _weatherForecastCellHtml(serial: any){
+  var rec = _weatherRecordForDisplay(_forecastRecord(serial));
+  var d = fromSerial(serial);
+  var dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);
+  if (!rec || !rec.final){
+    return '<div data-weather-forecast-cell="empty" style="min-height:74px;display:flex;flex-direction:column;justify-content:center;opacity:.55;">' +
+      '<div style="font-size:.74em;line-height:1.1;">' + dateLabel + '</div>' +
+      '<div style="margin-top:5px;">No forecast</div>' +
+      '</div>';
+  }
+  var temps = _weatherDayTempRange(rec);
+  var title = _weatherMiniCellTitle(serial);
+  var titleAttr = title ? ' title="' + esc(title) + '" aria-label="' + esc(title) + '"' : '';
+  var lowText = temps ? (temps.lowF + 'F') : '—';
+  var highText = temps ? (temps.highF + 'F') : '—';
+  return '<div data-weather-forecast-cell="1"' + titleAttr + ' style="min-height:74px;display:flex;flex-direction:column;justify-content:space-between;">' +
+    '<div style="font-size:.72em;opacity:.7;line-height:1.1;">' + dateLabel + '</div>' +
+    '<div style="font-size:1.3em;line-height:1;text-align:center;margin:5px 0 8px 0;">' + _weatherEmojiForRecord(rec) + '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:.8em;font-weight:bold;">' +
+      '<span style="color:#1565C0;">' + esc(lowText) + '</span>' +
+      '<span style="color:#B71C1C;">' + esc(highText) + '</span>' +
+    '</div>' +
+    '</div>';
+}
+
+function _weatherForecastGridHtml(serials: any[], opts?: any){
+  opts = opts || {};
+  if (!serials || !serials.length){
+    return '<div data-weather-forecast-grid="empty" style="opacity:.65;margin-top:4px;">No forecast available.</div>';
+  }
+  var rows = _weatherForecastRows(serials, opts.rowPlan);
+  var out = ['<div data-weather-forecast-grid="1" style="margin-top:' + (opts.tight ? '4px' : '6px') + ';">'];
+  if (opts.title !== false){
+    out.push('<div style="font-weight:bold;margin:4px 0 4px 0;">' + esc(opts.title || 'Forecast') + '</div>');
+  }
+  for (var ri = 0; ri < rows.length; ri++){
+    var row = rows[ri];
+    out.push('<table style="' + STYLES.table + 'width:100%;table-layout:fixed;margin:0 0 6px 0;" data-weather-forecast-row="' + (ri + 1) + '">');
+    out.push('<tr>');
+    for (var hi = 0; hi < row.length; hi++){
+      out.push('<th style="' + STYLES.th + 'padding:4px 2px;">' + esc(_weatherWeekdayLabelForSerial(row[hi])) + '</th>');
+    }
+    out.push('</tr><tr>');
+    for (var ci = 0; ci < row.length; ci++){
+      var cellStyle = STYLES.td + ((opts.highlightToday && row[ci] === todaySerial()) ? STYLES.today : '') + 'vertical-align:top;padding:4px 5px;';
+      out.push('<td style="' + cellStyle + '">' + _weatherForecastCellHtml(row[ci]) + '</td>');
+    }
+    out.push('</tr></table>');
+  }
+  out.push('</div>');
+  return out.join('');
+}
+
+function _weatherDetailedMechanicsHtml(cond: any){
+  if (ensureSettings().weatherMechanicsEnabled === false) return '';
+  return _conditionsMechHtml(cond);
+}
+
+function _weatherActiveMechanicsSectionHtml(rec: any, opts?: any){
+  opts = opts || {};
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec) return '<div data-weather-mechanics="active" style="margin-top:6px;"><b>Active Mechanics</b><div style="opacity:.65;margin-top:3px;">No weather data.</div></div>';
+  var period = opts.period || (isTimeOfDayActive() ? currentTimeBucket() : WEATHER_PRIMARY_PERIOD);
+  var pv = (rec.periods && rec.periods[period]) || _weatherPrimaryValues(rec) || rec.final || {};
+  var cond = _deriveConditions(pv, rec.location || {}, period, rec.snowAccumulated, rec.fog && rec.fog[period]);
+  var lines: any[] = [];
+  try {
+    var lightSnap = currentLightSnapshot(rec.serial, pv.precip || 0);
+    if (!isTimeOfDayActive()){
+      if (lightSnap && lightSnap.label) lines.push('Nighttime Lighting: ' + lightSnap.label + ' (Moonlight)');
+    } else if (lightSnap && lightSnap.mode !== 'day'){
+      lines.push('Lighting: ' + lightSnap.label + ' (Moonlight)');
+    }
+  } catch(eLight){}
+  var tempInfo = _weatherTempInfo(pv.temp);
+  if (tempInfo && tempInfo.nominalDC != null && tempInfo.nominalDC >= 15){
+    lines.push(((pv.temp|0) <= 3 ? 'Extreme Cold' : 'Extreme Heat') + ' (Temperature)');
+  }
+  var out = ['<div data-weather-mechanics="active" style="margin-top:6px;">'];
+  out.push('<div style="font-weight:bold;">Active Mechanics</div>');
+  if (opts.sourceLabel){
+    out.push('<div style="font-size:.78em;opacity:.55;font-style:italic;margin-top:1px;">' + esc(opts.sourceLabel) + '</div>');
+  }
+  if (lines.length){
+    out.push('<ul style="margin:4px 0 0 16px;padding:0;list-style:disc;">');
+    for (var li = 0; li < lines.length; li++){
+      out.push('<li>' + esc(lines[li]) + '</li>');
+    }
+    out.push('</ul>');
+  }
+  if (opts.allowDetailed && ensureSettings().weatherMechanicsEnabled !== false){
+    var detailed = _weatherDetailedMechanicsHtml(cond);
+    if (detailed) out.push(detailed);
+  } else if (!lines.length){
+    out.push('<div style="font-size:.82em;opacity:.65;margin-top:3px;">No special weather mechanics currently active.</div>');
+  }
+  out.push('</div>');
+  return out.join('');
+}
+
+function _weatherTodayGridHtml(rec: any){
+  rec = _weatherRecordForDisplay(rec);
+  if (!rec) return '<div data-weather-tod-grid="empty" style="opacity:.65;">No weather generated for today.</div>';
+  var activePeriod = isTimeOfDayActive() ? currentTimeBucket() : null;
+  var head: any[] = ['<tr>'];
+  var cells: any[] = ['<tr>'];
+  for (var i = 0; i < WEATHER_DAY_PERIODS.length; i++){
+    var period = WEATHER_DAY_PERIODS[i];
+    var pv = (rec.periods && rec.periods[period]) || _weatherPrimaryValues(rec) || rec.final || {};
+    var tempF = _weatherPeriodTempF(rec, period);
+    var cellStyle = STYLES.td + 'vertical-align:top;padding:4px 2px;' + ((activePeriod && activePeriod === period) ? STYLES.today : '');
+    var tooltip = esc(_conditionsNarrative(pv, _deriveConditions(pv, rec.location || {}, period, rec.snowAccumulated, rec.fog && rec.fog[period]), period));
+    head.push('<th style="' + STYLES.th + 'padding:4px 2px;" data-weather-tod-header="' + period + '">' + esc(_weatherToDHeaderLabel(period)) + '</th>');
+    cells.push('<td style="' + cellStyle + '" data-weather-period="' + period + '" title="' + tooltip + '" aria-label="' + tooltip + '">' +
+      '<div style="min-height:66px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;">' +
+      '<div style="font-size:1.25em;line-height:1;">' + _weatherEmojiForPeriod(rec, period) + '</div>' +
+      '<div style="font-size:.86em;font-weight:bold;">' + esc(tempF == null ? '—' : (tempF + 'F')) + '</div>' +
+      '</div></td>');
+  }
+  head.push('</tr>');
+  cells.push('</tr>');
+  return '<table style="' + STYLES.table + 'width:100%;table-layout:fixed;margin:4px 0 8px 0;" data-weather-tod-grid="1">' +
+    head.join('') + cells.join('') + '</table>';
 }
 
 function _weatherMiniCellTitle(serial: any){
@@ -3037,15 +3291,304 @@ function _weatherTodaySummaryHtml(serial: any, detailTier: any, includeInfluence
     (includeInfluence ? _weatherInfluenceHtml(rec) : '');
 }
 
+function _weatherForecastFootprint(tier: any){
+  if (tier === 'high') return 9;
+  if (tier === 'medium') return 5;
+  return 2;
+}
+
+function _weatherEmbeddedForecastRowPlan(limit: any){
+  limit = Math.max(1, parseInt(limit, 10) || 1);
+  if (limit <= 2) return [limit];
+  if (limit <= 5) return [2, Math.max(1, limit - 2)];
+  return [3, 3, 3];
+}
+
+function _playerWeatherKnownData(maxDays: any){
+  var ws = getWeatherState();
+  var today = todaySerial();
+  var capDays = Math.max(1, parseInt(maxDays, 10) || CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+
+  weatherEnsureForecast();
+  _grantCommonWeatherReveals(ws, today);
+
+  var days: any[] = [];
+  var bestFutureTier: any = null;
+  for (var i = 0; i < capDays; i++){
+    var ser = today + i;
+    var rev = _weatherRevealForSerial(ws, ser, ws.location);
+    if (!rev.tier) continue;
+    var rec = _forecastRecord(ser);
+    if (!rec) continue;
+    days.push({
+      serial: ser,
+      rec: rec,
+      rev: rev,
+      sourceLabel: WEATHER_SOURCE_LABELS[rev.source] || null
+    });
+    if (ser > today){
+      bestFutureTier = bestFutureTier ? _bestTier(bestFutureTier, rev.tier) : rev.tier;
+    }
+  }
+
+  if (!days.length) return null;
+
+  return {
+    ws: ws,
+    today: today,
+    todayDay: days[0],
+    todayTier: days[0].rev.tier || 'low',
+    days: days,
+    futureDays: days.filter(function(day: any){ return day.serial > today; }),
+    bestFutureTier: bestFutureTier || 'low',
+    locationLabel: _weatherLocationLabel(ws.location)
+  };
+}
+
+function playerWeatherListWhisper(m: any){
+  var data = _playerWeatherKnownData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!data || !data.todayDay){
+    whisper(m.who, _menuBox("Today's Weather", '<div style="opacity:.7;">Conditions not available.</div>'));
+    return;
+  }
+  whisper(m.who, _menuBox("Today's Weather",
+    _playerDayHtml(data.todayDay.rec, data.todayTier, true, data.todayDay.sourceLabel) +
+    '<div style="margin-top:4px;">' +
+      button('Calendar', 'weather') + ' ' +
+      button('Forecast', 'weather forecast') + ' ' +
+      button('Forecast List', 'weather forecast list') +
+    '</div>'
+  ));
+}
+
+function _playerForecastListBody(data: any){
+  var blocks: any[] = [];
+  for (var i = 0; i < data.days.length; i++){
+    var day = data.days[i];
+    blocks.push(_playerDayHtml(day.rec, day.rev.tier, day.serial === data.today, day.sourceLabel));
+  }
+  blocks.push('<div style="margin-top:4px;">' +
+    button('Calendar', 'weather forecast') + ' ' +
+    button('Today', 'weather') +
+  '</div>');
+  return blocks.join('');
+}
+
+function _playerWeatherCalendarHtml(data: any){
+  var forecastCap = _weatherForecastFootprint(data.bestFutureTier);
+  var futureSerials = data.futureDays.slice(0, forecastCap).map(function(day: any){ return day.serial; });
+  var forecastHtml = futureSerials.length
+    ? _weatherForecastGridHtml(futureSerials, { title: 'Forecast', rowPlan: _weatherEmbeddedForecastRowPlan(forecastCap), tight: true })
+    : '<div data-weather-forecast-grid="empty" style="opacity:.65;margin-top:6px;">No future forecast is currently revealed.</div>';
+  var rec = _weatherRecordForDisplay(data.todayDay.rec);
+  return '' +
+    '<div data-weather-view="today-calendar-player">' +
+      '<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>' +
+      '<div style="font-size:.85em;opacity:.75;">📍 ' + esc(data.locationLabel) + '</div>' +
+      _weatherTodayGridHtml(rec) +
+      '<div style="font-size:.86em;font-style:italic;margin:0 0 4px 0;">' + esc(_weatherTransitionSentence(rec)) + '</div>' +
+      _weatherActiveMechanicsSectionHtml(rec, {
+        allowDetailed: data.todayTier !== 'low',
+        sourceLabel: data.todayDay.sourceLabel
+      }) +
+      forecastHtml +
+      '<div style="font-size:.78em;opacity:.6;margin-top:4px;">Only revealed future weather is shown.</div>' +
+      '<div style="margin-top:6px;">' +
+        button('List', 'weather list') + ' ' +
+        button('Forecast', 'weather forecast') + ' ' +
+        button('Forecast List', 'weather forecast list') +
+      '</div>' +
+    '</div>';
+}
+
+function playerWeatherCalendarWhisper(m: any){
+  var data = _playerWeatherKnownData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!data || !data.todayDay){
+    whisper(m.who, _menuBox("Today's Weather", '<div style="opacity:.7;">Conditions not available.</div>'));
+    return;
+  }
+  whisper(m.who, _menuBox("Today's Weather", _playerWeatherCalendarHtml(data)));
+}
+
+function _playerForecastCalendarHtml(data: any){
+  var serials = data.days.map(function(day: any){ return day.serial; });
+  return '' +
+    '<div data-weather-view="forecast-calendar-player">' +
+      '<div style="font-size:.85em;opacity:.75;margin-bottom:2px;">📍 ' + esc(data.locationLabel) + '</div>' +
+      _weatherForecastGridHtml(serials, { title: 'Forecast' }) +
+      '<div style="font-size:.78em;opacity:.6;margin-top:2px;">Only revealed days are shown.</div>' +
+      '<div style="margin-top:6px;">' +
+        button('Today', 'weather') + ' ' +
+        button('List', 'weather forecast list') +
+      '</div>' +
+    '</div>';
+}
+
+function playerForecastCalendarWhisper(m: any){
+  var data = _playerWeatherKnownData(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS);
+  if (!data){
+    whisper(m.who, _menuBox('Weather Forecast', '<div style="opacity:.7;">No forecast has been shared with you yet.</div>'));
+    return;
+  }
+  whisper(m.who, _menuBox('Your Weather Forecast — ' + data.locationLabel, _playerForecastCalendarHtml(data)));
+}
+
+function _weatherManagementControlsHtml(serial: any){
+  return '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+    '<div style="margin:4px 0;">' +
+      button('Management', 'weather manage ?{Action|' +
+        'Toggle Weather On/Off,toggleweather|' +
+        'Toggle Extreme Hazards,togglehazards|' +
+        'Toggle Mechanics,togglemechanics|' +
+        'Reseed Weather,reseed|' +
+        'History,history|' +
+        'Reset Weather,reset|' +
+        'Reroll Today,reroll' +
+      '}') +
+    '</div>' +
+    '<div style="margin:4px 0;">' +
+      button('Lock Today', 'weather lock ' + serial) + ' ' +
+      button('Lock Specific Day', 'weather lock ?{Day serial|' + serial + '}') +
+    '</div>';
+}
+
+function weatherTodayCalendarGmHtml(){
+  var st  = ensureSettings();
+  var ws  = getWeatherState();
+  var ser = todaySerial();
+  var rec = _weatherRecordForDisplay(_forecastRecord(ser));
+  var loc = ws.location;
+
+  if (!loc){
+    return _menuBox('Weather',
+      '<div style="opacity:.7;">No location set.</div>' +
+      '<div style="margin-top:4px;">' + button('Set Location', 'weather location') + '</div>'
+    );
+  }
+
+  var manifestEntries = _activeManifestZoneEntries();
+  var manifestLine = manifestEntries.length
+    ? '<div style="font-size:.82em;opacity:.7;margin-top:2px;">Manifest zones: <b>' + esc(_manifestZoneStatusLabel(manifestEntries)) + '</b></div>'
+    : '';
+  var arythLine = _isArythFull(ser)
+    ? '<div style="font-size:.8em;opacity:.65;margin-top:2px;">Aryth is full. Consider a manifest zone.</div>'
+    : '';
+  var tidalLine = '';
+  var geo = (loc.geography || 'inland').toLowerCase();
+  if (geo === 'coastal' || geo === 'island' || geo === 'coastal_bluff'){
+    try {
+      var tideIdx = getTidalIndex(ser);
+      tidalLine = '<div style="font-size:.82em;opacity:.75;margin-top:2px;">🌊 Tides: <b>' + esc(tidalLabel(tideIdx)) + '</b> (' + tideIdx + '/10)</div>';
+    } catch(eTide){}
+  }
+  var summaryLine = rec
+    ? '<div style="font-size:.86em;font-style:italic;margin:0 0 4px 0;">' + esc(_weatherTransitionSentence(rec)) + '</div>'
+    : '<div style="opacity:.6;margin-top:4px;">No weather generated for today.</div>';
+  var forecastSerials: any[] = [];
+  for (var i = 1; i <= 9; i++){
+    if (_forecastRecord(ser + i)) forecastSerials.push(ser + i);
+  }
+  var todayHandoutLinks = [
+    handoutButton('Open Weather Handout', 'weather'),
+    handoutButton('Weather Mechanics', 'weather:mechanics')
+  ].filter(Boolean).join(' ');
+  var mediumRow =
+    '<div style="margin-top:4px;font-size:.85em;opacity:.8;">Medium Forecast:</div>' +
+    '<div>' +
+      button('1 day', 'weather reveal medium 1') + ' ' +
+      button('3 days', 'weather reveal medium 3') + ' ' +
+      button('6 days', 'weather reveal medium 6') + ' ' +
+      button('10 days', 'weather reveal medium 10') +
+    '</div>';
+  var highRow =
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">High Forecast:</div>' +
+    '<div>' +
+      button('1 day', 'weather reveal high 1') + ' ' +
+      button('3 days', 'weather reveal high 3') + ' ' +
+      button('6 days', 'weather reveal high 6') + ' ' +
+      button('10 days', 'weather reveal high 10') +
+    '</div>';
+  var specificRow =
+    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Reveal exact date(s):</div>' +
+    '<div>' + button('Custom Range', 'weather reveal ?{Date or range|14-17}') + '</div>';
+  var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
+
+  return _menuBox("Today's Weather",
+    '<div data-weather-view="today-calendar-gm">' +
+      '<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>' +
+      (isTimeOfDayActive() ? '<div style="font-size:.85em;opacity:.72;margin:0 0 2px 0;">' + esc(currentTimeOfDayLabel()) + '</div>' : '') +
+      '<div style="font-size:.85em;opacity:.75;">📍 ' + esc(_weatherLocationLabel(loc)) + '</div>' +
+      manifestLine +
+      arythLine +
+      tidalLine +
+      _weatherTodayGridHtml(rec) +
+      summaryLine +
+      _weatherActiveMechanicsSectionHtml(rec, { allowDetailed: true }) +
+      _weatherForecastGridHtml(forecastSerials, { title: 'Forecast', rowPlan: [3, 3, 3], tight: true }) +
+      extremeHtml +
+      '<div style="margin-top:6px;">' +
+        button('List', 'weather list') + ' ' +
+        button('Forecast', 'weather forecast ' + _weatherViewDays(st.weatherForecastViewDays)) + ' ' +
+        button('Forecast List', 'weather forecast list') + ' ' +
+        button('📣 Send Revealed', 'weather send') +
+      '</div>' +
+      (todayHandoutLinks ? '<div style="margin-top:4px;">' + todayHandoutLinks + '</div>' : '') +
+      '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+      mediumRow + highRow + specificRow +
+      '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+      '<div style="margin:4px 0;">' +
+        button('Set Location', 'weather location') + ' ' +
+        button('Set Manifest Zone', 'weather manifest') + ' ' +
+        button('Reroll Today', 'weather reroll ' + ser) + ' ' +
+        button('History', 'weather history') +
+      '</div>' +
+      _weatherManagementControlsHtml(ser) +
+    '</div>'
+  );
+}
+
+function weatherForecastCalendarGmHtml(daysOverride?: any){
+  var st = ensureSettings();
+  var ws = getWeatherState();
+  var today = todaySerial();
+  var forecastDays = _weatherViewDays(daysOverride != null ? daysOverride : st.weatherForecastViewDays);
+  st.weatherForecastViewDays = forecastDays;
+  var serials: any[] = [];
+  for (var i = 0; i < forecastDays; i++){
+    serials.push(today + i);
+  }
+  var forecastHandoutLinks = [
+    handoutButton('Open Weather Handout', 'weather'),
+    handoutButton('Weather Mechanics', 'weather:mechanics')
+  ].filter(Boolean).join(' ');
+
+  return _menuBox(forecastDays + '-Day Forecast',
+    '<div data-weather-view="forecast-calendar-gm">' +
+      '<div style="font-size:.85em;opacity:.75;margin-bottom:2px;">📍 ' + esc(_weatherLocationLabel(ws.location)) + '</div>' +
+      _weatherForecastGridHtml(serials, { title: 'Forecast' }) +
+      '<div style="margin-top:6px;">' +
+        button('Today', 'weather') + ' ' +
+        button('List', 'weather forecast list') + ' ' +
+        button('5d', 'weather forecast 5') + ' ' +
+        button('9d', 'weather forecast 9') + ' ' +
+        button('20d', 'weather forecast 20') +
+      '</div>' +
+      '<div style="margin-top:4px;">' +
+        (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics', 'weather mechanics') + ' ' : '') +
+        button('Reroll Today', 'weather reroll ' + today) + ' ' +
+        button('Regenerate All', 'weather generate') +
+      '</div>' +
+      (forecastHandoutLinks ? '<div style="margin-top:4px;">' + forecastHandoutLinks + '</div>' : '') +
+    '</div>'
+  );
+}
+
 function weatherForecastGmHtml(daysOverride?: any){
   var st    = ensureSettings();
   var today = todaySerial();
-  var cal   = getCal();
   var rows: any[]  = [];
   var forecastDays = _weatherViewDays(daysOverride != null ? daysOverride : st.weatherForecastViewDays);
   st.weatherForecastViewDays = forecastDays;
-  var weatherMiniCal = _weatherForecastMiniCalHtml(today, forecastDays);
-  var displayMode = _normalizeDisplayMode(st.weatherDisplayMode);
 
   for (var i=0; i<forecastDays; i++){
     var ser = today + i;
@@ -3097,21 +3640,13 @@ function weatherForecastGmHtml(daysOverride?: any){
     '</tr>';
 
   var topControls = '<div style="margin:3px 0 6px 0;">'+
-    button('10d','weather forecast 10')+' '+
+    button('Calendar','weather forecast '+forecastDays)+' '+
+    button('5d','weather forecast 5')+' '+
+    button('9d','weather forecast 9')+' '+
     button('20d','weather forecast 20')+' '+
-    button('View: '+_displayModeLabel(displayMode),'settings mode weather '+_nextDisplayMode(displayMode))+
+    button('Today','weather')+
     '</div>';
-  var body = '';
-  if (displayMode !== 'list'){
-    body += weatherMiniCal;
-    body += _legendLine(['Emoji = afternoon outlook', 'Hover for details']);
-  }
-  if (displayMode !== 'calendar'){
-    body += '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>';
-  }
-  if (!body){
-    body = '<div style="opacity:.7;">No weather display mode selected.</div>';
-  }
+  var body = '<table style="'+STYLES.table+'">'+head+rows.join('')+'</table>';
   var forecastHandoutLinks = [
     handoutButton('Open Weather Handout', 'weather'),
     handoutButton('Weather Mechanics', 'weather:mechanics')
@@ -3119,7 +3654,7 @@ function weatherForecastGmHtml(daysOverride?: any){
 
   return _menuBox(forecastDays+'-Day Forecast',
     topControls+
-    _weatherTodaySummaryHtml(today, null, displayMode === 'calendar')+
+    _weatherTodaySummaryHtml(today, null, false)+
     body+
     '<div style="margin-top:6px;">'+
     (st.weatherMechanicsEnabled !== false ? button('📋 Today\'s Mechanics','weather mechanics')+' ' : '')+
@@ -3470,24 +4005,12 @@ export function handleWeatherCommand(m, args){
 
   if (!playerIsGM(m.playerid)){
     if (sub === 'forecast'){
-      playerForecastWhisper(m);
+      if (String(args[2] || '').toLowerCase() === 'list') playerForecastWhisper(m);
+      else playerForecastCalendarWhisper(m);
+    } else if (sub === 'list' || (sub === 'today' && String(args[2] || '').toLowerCase() === 'list')){
+      playerWeatherListWhisper(m);
     } else {
-      var ws0   = getWeatherState();
-      var tSer  = todaySerial();
-      weatherEnsureForecast();
-      _grantCommonWeatherReveals(ws0, tSer);
-      var rec0  = _forecastRecord(tSer);
-      var rev0  = _weatherRevealForSerial(ws0, tSer, ws0.location);
-      var tier0 = rev0.tier || 'low';
-      var src0  = WEATHER_SOURCE_LABELS[rev0.source] || null;
-      if (!rec0){
-        whisper(m.who, _menuBox("Today's Weather", '<div style="opacity:.7;">Conditions not available.</div>'));
-      } else {
-        whisper(m.who, _menuBox("Today's Weather",
-          _playerDayHtml(rec0, tier0, true, src0)+
-          '<div style="margin-top:4px;">'+button('Full Forecast','weather forecast')+'</div>'
-        ));
-      }
+      playerWeatherCalendarWhisper(m);
     }
     return;
   }
@@ -3496,21 +4019,31 @@ export function handleWeatherCommand(m, args){
     case '':
     case 'today':
       weatherEnsureForecast();
+      whisper(m.who, String(args[2] || '').toLowerCase() === 'list' ? weatherTodayGmHtml() : weatherTodayCalendarGmHtml());
+      break;
+
+    case 'list':
+      weatherEnsureForecast();
       whisper(m.who, weatherTodayGmHtml());
       break;
 
     case 'forecast':
-      var viewTok = String(args[2] || '').trim();
+      var viewTok = String(args[2] || '').trim().toLowerCase();
+      if (viewTok === 'list'){
+        weatherEnsureForecast();
+        whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
+        break;
+      }
       if (viewTok){
         var viewDays = parseInt(viewTok, 10);
         if (!/^\d+$/.test(viewTok) || viewDays < 1 || viewDays > CONFIG_WEATHER_FORECAST_DAYS){
-          warnGM('Usage: weather forecast [1-'+CONFIG_WEATHER_FORECAST_DAYS+']');
+          warnGM('Usage: weather forecast [list|1-'+CONFIG_WEATHER_FORECAST_DAYS+']');
           break;
         }
         ensureSettings().weatherForecastViewDays = _weatherViewDays(viewDays);
       }
       weatherEnsureForecast();
-      whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
+      whisper(m.who, weatherForecastCalendarGmHtml(ensureSettings().weatherForecastViewDays));
       break;
 
     case 'history':
@@ -3539,11 +4072,11 @@ export function handleWeatherCommand(m, args){
     case 'send': {
       if (!args[2]){
         sendRevealedForecast(m);
-        whisper(m.who, weatherTodayGmHtml());
+        whisper(m.who, weatherTodayCalendarGmHtml());
         break;
       }
       warnGM('Usage: weather send');
-      whisper(m.who, weatherTodayGmHtml());
+      whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
 
@@ -3560,14 +4093,14 @@ export function handleWeatherCommand(m, args){
         sendSpecificWeatherReveal(m, args.slice(2));
       }
       _refreshWeatherHandout();
-      whisper(m.who, weatherTodayGmHtml());
+      whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
 
     case 'event': {
       if (!_weatherHazardsEnabled()){
         warnGM('Extreme hazards are disabled. Re-enable them with !cal settings hazards on.');
-        whisper(m.who, weatherTodayGmHtml());
+        whisper(m.who, weatherTodayCalendarGmHtml());
         break;
       }
       var evtSub = String(args[2]||'').toLowerCase();
@@ -3649,7 +4182,7 @@ export function handleWeatherCommand(m, args){
       var cnt = _generateForecast(todaySerial(), n, true);
       _refreshWeatherHandout();
       whisper(m.who, 'Generated '+cnt+' day'+(cnt===1?'':'s')+' of weather.');
-      whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
+      whisper(m.who, weatherForecastCalendarGmHtml(ensureSettings().weatherForecastViewDays));
       break;
 
     case 'reroll': {
@@ -3683,7 +4216,7 @@ export function handleWeatherCommand(m, args){
         }
       }
       _refreshWeatherHandout();
-      whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
+      whisper(m.who, weatherForecastCalendarGmHtml(ensureSettings().weatherForecastViewDays));
       break;
     }
 
@@ -3696,7 +4229,7 @@ export function handleWeatherCommand(m, args){
       lockRec.generatedAt = todaySerial();
       _refreshWeatherHandout();
       warnGM('Forecast for day '+lockSer+' locked.');
-      whisper(m.who, weatherForecastGmHtml(ensureSettings().weatherForecastViewDays));
+      whisper(m.who, weatherForecastCalendarGmHtml(ensureSettings().weatherForecastViewDays));
       break;
     }
 
@@ -3707,7 +4240,7 @@ export function handleWeatherCommand(m, args){
       weatherEnsureForecast();
       _refreshWeatherHandout();
       warnGM('Weather reseeded. Forecast and history cleared, new forecast generated.');
-      whisper(m.who, weatherTodayGmHtml());
+      whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
 
@@ -3721,7 +4254,7 @@ export function handleWeatherCommand(m, args){
       weatherEnsureForecast();
       _refreshWeatherHandout();
       warnGM('Weather reset. Forecast regenerated for current location. Player reveal tags preserved.');
-      whisper(m.who, weatherTodayGmHtml());
+      whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
 
@@ -3734,19 +4267,19 @@ export function handleWeatherCommand(m, args){
       if (manageAction === 'toggleweather'){
         ensureSettings().weatherEnabled = (ensureSettings().weatherEnabled === false);
         _refreshWeatherHandout();
-        whisper(m.who, weatherTodayGmHtml());
+        whisper(m.who, weatherTodayCalendarGmHtml());
         break;
       }
       if (manageAction === 'togglehazards'){
         ensureSettings().weatherHazardsEnabled = (ensureSettings().weatherHazardsEnabled === false);
         _refreshWeatherHandout();
-        whisper(m.who, weatherTodayGmHtml());
+        whisper(m.who, weatherTodayCalendarGmHtml());
         break;
       }
       if (manageAction === 'togglemechanics'){
         ensureSettings().weatherMechanicsEnabled = (ensureSettings().weatherMechanicsEnabled === false);
         _refreshWeatherHandout();
-        whisper(m.who, weatherTodayGmHtml());
+        whisper(m.who, weatherTodayCalendarGmHtml());
         break;
       }
       return handleWeatherCommand(m, ['weather', manageAction].concat(args.slice(3)));
@@ -3858,7 +4391,7 @@ export function handleWeatherCommand(m, args){
     }
 
     default:
-      whisper(m.who, weatherTodayGmHtml());
+      whisper(m.who, weatherTodayCalendarGmHtml());
       break;
   }
 }
