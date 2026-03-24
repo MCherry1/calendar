@@ -1952,7 +1952,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Utility buttons
     gmControls += '<div style="margin:4px 0;">'+
-      button('View: '+_displayModeLabel(displayMode),'settings mode planes '+_nextDisplayMode(displayMode))+
+      button('📋 List','planes phases')+
       '</div>';
     var gmHandoutLinks = [
       handoutButton('Open Planar Handout', 'planar'),

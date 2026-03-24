@@ -76,7 +76,7 @@ export function _eventDotsHtml(events, dotOnly?){
     var col = getEventColor(e);
     return '<span style="color:'+col+';line-height:1;">&#9679;</span>';
   });
-  return '<div style="font-size:.45em;line-height:1;margin-top:1px;">'+dots.join('&thinsp;')+'</div>';
+  return '<div style="font-size:.45em;line-height:1;position:absolute;bottom:1px;left:0;right:0;text-align:center;">'+dots.join('&thinsp;')+'</div>';
 }
 
 export function _relLum(hex){

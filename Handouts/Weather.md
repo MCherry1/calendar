@@ -62,6 +62,17 @@ Live/generated outputs are intentionally excluded here: no rolling forecast wind
 | 4    | Gale          | Ranged attack rolls automatically miss. Flying speeds reduced to 0. Walking costs extra movement.                                       |
 | 5    | Storm         | DC 15 Strength check or fall prone. Small trees uprooted. Projectiles deal `2d6` bludgeoning on a failed DC 10 Dex save. Severe hazard. |
 
+### Precipitation Bands
+
+| Band | Cold (Temp ≤ 3) | Near Freezing (Temp 4) | Warm (Temp ≥ 5) | Visibility Effect |
+| ---- | --------------- | ---------------------- | --------------- | ----------------- |
+| 0    | Clear           | Clear                  | Clear           | None              |
+| 1    | Light Snow      | Light Sleet            | Light Rain      | None              |
+| 2    | Light Snow      | Light Sleet            | Light Rain      | None              |
+| 3    | Snow            | Sleet                  | Rain            | Lightly Obscured  |
+| 4    | Blizzard        | Ice Storm              | Heavy Rain      | Lightly Obscured; Heavily Obscured beyond 60 ft |
+| 5    | Blizzard        | Ice Storm              | Deluge          | Lightly Obscured; Heavily Obscured beyond 30 ft |
+
 ### Extreme Events
 
 | Event | Typical Trigger | Duration | Mechanics | Aftermath |
