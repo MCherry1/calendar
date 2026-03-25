@@ -275,8 +275,8 @@ export function sendCurrentDate(to, gmOnly, opts?){
     : '<div style="font-weight:bold;margin:3px 0 1px 0;' + (dashboard ? 'font-size:1.06em;color:#000;' : '') + '">' + esc(currentDate) + '</div>';
   var seasonLine = _seasonLabel
     ? (compact
-      ? '<div style="' + (dashboard ? 'font-size:.94em;color:#000;margin:0 0 4px 0;' : 'font-size:.82em;opacity:.7;margin:0 0 3px 0;') + '">' + esc(_seasonLabel) + '</div>'
-      : '<div style="' + (dashboard ? 'font-size:.98em;color:#000;margin:0 0 4px 0;' : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;') + '">' + esc(_seasonLabel) + '</div>')
+      ? '<div style="' + (dashboard ? 'font-size:.94em;color:#000;margin:0 0 4px 0;font-style:italic;' : 'font-size:.82em;opacity:.7;margin:0 0 3px 0;') + '">' + esc(_seasonLabel) + '</div>'
+      : '<div style="' + (dashboard ? 'font-size:.98em;color:#000;margin:0 0 4px 0;font-style:italic;' : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;') + '">' + esc(_seasonLabel) + '</div>')
     : '';
   var dashboardInfoLineStyle = dashboard
     ? 'font-size:.92em;color:#000;margin-top:3px;line-height:1.6;'
@@ -689,10 +689,26 @@ export function setDate(m, d, y, opts?){
   sendCurrentDate(null, true);
 }
 
+function _eventActionSummary(prefix, names){
+  var uniq = [];
+  var seen = {};
+  (names || []).forEach(function(name){
+    var label = String(name || '').trim();
+    if (!label) return;
+    var key = label.toLowerCase();
+    if (seen[key]) return;
+    seen[key] = 1;
+    uniq.push(label);
+  });
+  if (!uniq.length) return prefix + '.';
+  if (uniq.length === 1) return prefix + ': ' + esc(uniq[0]) + '.';
+  return prefix + ': ' + uniq.map(esc).join('; ') + '.';
+}
+
 export function removeEvent(query){
   var cal = getCal(), events = cal.events;
   if (!state[state_name].suppressedDefaults) state[state_name].suppressedDefaults = {};
-  if (!events.length){ sendChat(script_name, '/w gm No events to remove.', null, { noarchive: true }); return; }
+  if (!events.length){ sendChat(script_name, '/w gm No events to hide.', null, { noarchive: true }); return; }
 
   var toks = String(query||'').trim().split(/\s+/).filter(Boolean);
   var sub = (toks[0]||'').toLowerCase();
@@ -706,7 +722,7 @@ export function removeEvent(query){
     markSuppressedIfDefault(removed);
     refreshAndSend();
     var rName = eventDisplayName(removed) || removed.name || '(unnamed event)';
-    sendChat(script_name, '/w gm Removed: '+esc(rName)+'.', null, { noarchive: true });
+    sendChat(script_name, '/w gm ' + _eventActionSummary('Hidden Event', [rName]), null, { noarchive: true });
     return;
   }
 
@@ -714,18 +730,20 @@ export function removeEvent(query){
     var sk = _decKey(toks.slice(1).join(' ').trim());
     if (!sk){ sendChat(script_name, '/w gm Usage: <code>!cal remove series &lt;KEY&gt;</code>', null, { noarchive: true }); return; }
     var removedCount = 0;
+    var removedNames = [];
     for (var i = events.length - 1; i >= 0; i--){
       if (_eventSeriesKey(events[i]) !== sk) continue;
       var removedSeries = events.splice(i, 1)[0];
       markSuppressedIfDefault(removedSeries);
       removedCount++;
+      removedNames.push(eventDisplayName(removedSeries) || removedSeries.name || '(unnamed event)');
     }
     if (!removedCount){
       sendChat(script_name, '/w gm No event series found for key: <code>'+esc(sk)+'</code>', null, { noarchive: true });
       return;
     }
     refreshAndSend();
-    sendChat(script_name, '/w gm Removed '+removedCount+' recurring event'+(removedCount===1?'':'s')+'.', null, { noarchive: true });
+    sendChat(script_name, '/w gm ' + _eventActionSummary('Hidden Event', removedNames), null, { noarchive: true });
     return;
   }
 
@@ -1094,8 +1112,7 @@ export function helpRootMenu(m){
   var isGMNew = playerIsGM(m.playerid);
   var rowsNew = [helpStatusSummaryHtml()];
   var todaySpec = _serialToDateSpec(todaySerial());
-  var promptSet = button('Prompt !cal set', 'set ?{Date|' + todaySpec + '}');
-  var promptSend = button('Prompt !cal send', 'send ?{Calendar range|this month}');
+  var promptSet = button('Set Date', 'set ?{Set Date (mm dd yyyy)|' + todaySpec + '}');
   var promptAdd = button('Prompt !cal add', 'add ?{Date|' + todaySpec + '} ?{Event name|New Event} ?{Color|#50C878}');
   var promptMonthly = button('Prompt !cal addmonthly', 'addmonthly ?{Day spec|first Sul} ?{Event name|Monthly Event} ?{Color|#50C878}');
   var promptYearly = button('Prompt !cal addyearly', 'addyearly ?{Month|Zarantyr} ?{Day|1} ?{Event name|Annual Event} ?{Color|#50C878}');
@@ -1109,8 +1126,7 @@ export function helpRootMenu(m){
       mbP(m,'Today','today'),
       mbP(m,'Show Month','show month'),
       mbP(m,'Show Year','show year'),
-      promptSet,
-      isGMNew ? promptSend : ''
+      promptSet
     ],
     'Typed forms: <code>!cal show month</code>, <code>!cal show year</code>, <code>!cal set &lt;dateSpec&gt;</code>.'
   ));

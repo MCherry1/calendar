@@ -74,6 +74,22 @@ describe("Setup onboarding", () => {
     assertEquals(msg.opts.noarchive, true);
   });
 
+  it("shows the updated initialized summary without action buttons after setup is complete", () => {
+    freshInstall();
+    completeSetup();
+    notifySetupStatusOnReady();
+    const msg = lastChat();
+    assert(msg);
+    assert(msg.msg.includes("Calendar Script Initialized"));
+    assert(msg.msg.includes("Galifar Calendar is ready."));
+    assert(msg.msg.includes("Current date: <b>1st of Zarantyr, 998 YK</b>"));
+    assert(msg.msg.includes("Use <code>!cal</code> to start."));
+    assert(msg.msg.includes("Use <code>!cal help</code> for the command list."));
+    assert(!msg.msg.includes("!cal show"));
+    assert(!msg.msg.includes("[📅 Show]"));
+    assert(!msg.msg.includes("[❔ Help]"));
+  });
+
   it("dismissal stores dismissed state and sends the exact follow-up", () => {
     freshInstall();
     handleInput(gmMsg("!cal setup dismiss"));

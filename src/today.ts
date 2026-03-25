@@ -5,7 +5,7 @@ import { applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoS
 import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
-import { _deliverTopLevelCalendarRange, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
+import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
@@ -392,10 +392,6 @@ export var EVENT_SUB = {
     usage: null,
     run: function(m){ return commands.source.run(m, ['!cal', 'source', 'list']); }
   },
-  removeflow: {
-    usage: null,
-    run: function(m){ whisper(m.who, _eventsRemoveRestoreHtml()); }
-  },
   panel: {
     usage: null,
     run: function(m, args){
@@ -405,8 +401,12 @@ export var EVENT_SUB = {
   ranges: {
     usage: null,
     run: function(m, args){
-      // Route to deliverTopLevelCalendarRange for Additional Ranges
-      _deliverTopLevelCalendarRange({ who: m.who, args: args, dest: 'whisper' });
+      _deliverAdditionalCalendarRange({
+        who: m.who,
+        args: args,
+        dest: 'whisper',
+        render: _eventsRangeHtml
+      });
     }
   },
   manage: {
@@ -485,11 +485,9 @@ function _eventsPanelHtml(serialArg){
   btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ' + mobj.name + ' ' + dd.year) + '</div>');
 
   // Additional Ranges
-  var monthCount = cal.months.length;
-  var remaining = monthCount - dd.mi;
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Additional Ranges','events ranges ?{Range|Full Year,year|Upcoming ' + remaining + ' months,upcoming|Specific Month,month ?\\{MM or MM YYYY\\}|Specific Year,year ?\\{YYYY\\}}') +
+    button('Additional Ranges', buildAdditionalRangesCommand('events ranges', displaySerial)) +
     '</div>');
 
   // Management (GM only)
@@ -501,7 +499,7 @@ function _eventsPanelHtml(serialArg){
     '</div>');
   btns.push('<div style="margin:3px 0;">' +
     button('Sources','events source') + ' ' +
-    button('Remove/Restore','events removeflow') +
+    button('Hide / Show','events list', { icon:'' }) +
     '</div>');
 
   return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
@@ -556,32 +554,24 @@ export function eventsHandoutHtml(serialArg?){
   return _menuBox('Events — ' + esc(currentDateLabel()), lines.join('') + calHtml);
 }
 
+function _eventsRangeHtml(spec){
+  var rangeSpec = Object.assign({}, spec, { includeAdjacentStrips: false });
+  return _menuBox('Events — ' + esc(spec.title || 'Range'),
+    buildCalendarsHtmlForSpec(rangeSpec));
+}
+
 export function eventsMechanicsHandoutHtml(){
   return _menuBox('Events Mechanics',
     '<div style="margin-bottom:6px;">Reference handout for the live event list, management workflows, and source-priority behavior.</div>' +
     '<div style="font-size:.84em;line-height:1.6;margin-bottom:8px;">' +
       '<b>Adding events:</b> Single, monthly, and yearly events all resolve into the live event table shown below.<br>' +
-      '<b>Removing events:</b> Custom events can be removed directly; default events are suppressed and can be restored later.<br>' +
-      '<b>Source priority:</b> Default canon, generated content, and manual additions are tracked separately so suppression and restore flows stay deterministic.' +
+      '<b>Hiding events:</b> Default events can be hidden and later shown again; hiding a custom event removes it because custom events are not kept in a hidden list.<br>' +
+      '<b>Source priority:</b> Default canon, generated content, and manual additions are tracked separately so hide/show flows stay deterministic.' +
     '</div>' +
     listAllEventsTableHtml() +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:8px 0 6px 0;"></div>' +
     removeListHtml() +
     '<div style="border-top:1px solid rgba(0,0,0,.08);margin:8px 0 6px 0;"></div>' +
-    suppressedDefaultsListHtml()
-  );
-}
-
-function _eventsRemoveRestoreHtml(){
-  return _menuBox('Remove / Restore Events',
-    '<div style="opacity:.8;margin-bottom:6px;">Open the matching workflow for custom-event removal or suppressed-default restoration.</div>' +
-    '<div style="margin-bottom:6px;">' +
-      button('Remove Custom Events', 'events remove list') + ' ' +
-      button('Restore Default Events', 'events restore list') +
-    '</div>' +
-    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
-    removeListHtml() +
-    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
     suppressedDefaultsListHtml()
   );
 }

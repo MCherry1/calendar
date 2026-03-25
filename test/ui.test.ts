@@ -25,18 +25,20 @@ describe("Task-focused UI", () => {
     assertEquals(log[1].opts.noarchive, true);
   });
 
-  it("renders the root help menu through the transient noarchive path with prompt buttons", () => {
+  it("renders the root help menu through the transient noarchive path with updated date wording", () => {
     freshInstall();
     helpRootMenu({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = (globalThis as any)._chatLog.slice(-1)[0];
     assertEquals(msg.opts.noarchive, true);
-    assert(msg.msg.includes("Prompt !cal set"));
+    assert(msg.msg.includes("Set Date"));
+    assert(msg.msg.includes("?{Set Date (mm dd yyyy)|"));
     assert(msg.msg.includes("Prompt !cal add"));
     assert(msg.msg.includes("Prompt !cal addmonthly"));
     assert(msg.msg.includes("Prompt !cal addyearly"));
     assert(msg.msg.includes("Prompt !cal moon on"));
     assert(msg.msg.includes("Prompt !cal planes on"));
-    assert(msg.msg.includes("Prompt !cal send"));
+    assert(!msg.msg.includes("Prompt !cal set"));
+    assert(!msg.msg.includes("Prompt !cal send"));
   });
 
   it("uses the current-month minical as the default root view", () => {
@@ -163,6 +165,7 @@ describe("Task-focused UI", () => {
 
     assert(msg.includes("Wir, 18th of Rhaan, 998 YK"));
     assert(msg.includes("Early autumn"));
+    assert(/font-style:italic[^"]*">Early autumn<\/div>/.test(msg));
     assert(!msg.includes("— Early autumn"));
     assert(msg.includes("📅 No calendar events today."));
     assert(!msg.includes("Day 72 of 161"));

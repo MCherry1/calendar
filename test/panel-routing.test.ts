@@ -40,7 +40,8 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Send to Players"));
     assert(msg.includes("Add Event"));
     assert(msg.includes("events source"));
-    assert(msg.includes("events removeflow"));
+    assert(msg.includes("events list"));
+    assert(!msg.includes("events removeflow"));
   });
 
   it("keeps the Events send button aligned to the displayed month", () => {
@@ -54,7 +55,7 @@ describe("Redesigned panel routing", () => {
     assert(!msg.includes("send ?{Calendar range|this month}"));
   });
 
-  it("opens Source Controls and Remove/Restore from Events management", () => {
+  it("opens Source Controls and the real list workflow from Events management", () => {
     freshInstall();
     completeSetup();
 
@@ -63,11 +64,11 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Sources"));
     assert(msg.includes("source"));
 
-    handleInput(gmMessage("!cal events manage removeflow"));
+    handleInput(gmMessage("!cal events manage list"));
     msg = String(lastChat().msg);
-    assert(msg.includes("Remove / Restore Events"));
-    assert(msg.includes("!cal events remove list"));
-    assert(msg.includes("!cal events restore list"));
+    assert(msg.includes("Current Status"));
+    assert(msg.includes("[➖ Hide](!cal remove "));
+    assert(!msg.includes("events removeflow"));
   });
 
   it("routes Today additional-options Admin into the GM menu without undefined output", () => {
@@ -105,7 +106,7 @@ describe("Redesigned panel routing", () => {
     handleInput(gmMessage("!cal list"));
     let msg = String(lastChat().msg);
     assert(msg.includes("Current Status"));
-    assert(msg.includes("[Hide](!cal remove "));
+    assert(msg.includes("[➖ Hide](!cal remove "));
 
     const evt = getCal().events.find((entry: any) => entry.source === "khorvaire");
     assert(evt);
@@ -114,7 +115,40 @@ describe("Redesigned panel routing", () => {
 
     msg = String(lastChat().msg);
     assert(msg.includes("Hidden"));
-    assert(msg.includes("[Show](!cal restore key "));
+    assert(msg.includes("[➕ Show](!cal restore key "));
+  });
+
+  it("builds viewed-date Additional Ranges commands for events and renders year, rolling, and month ranges", () => {
+    freshInstall();
+    completeSetup();
+
+    const serial = toSerial(998, 1, 12);
+    handleInput(gmMessage("!cal events panel " + serial));
+
+    let msg = String(lastChat().msg);
+    assert(msg.includes("Full Calendar Year (998),year 998"));
+    assert(msg.includes("Rolling 12 Months,rolling " + serial));
+    assert(msg.includes("Olarune 998,month Olarune 998"));
+    assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
+
+    handleInput(gmMessage("!cal events ranges year 998"));
+    msg = String(lastChat().msg);
+    assert(msg.includes("Events — Full Calendar Year (998)"));
+    assert(msg.includes("Zarantyr"));
+    assert(!msg.includes("Calendar Jump Syntax"));
+    assert(!msg.includes("997 YK"));
+
+    handleInput(gmMessage("!cal events ranges rolling " + serial));
+    msg = String(lastChat().msg);
+    assert(msg.includes("Events — Rolling 12 Months"));
+    assert(msg.includes("Zarantyr"));
+    assert(msg.includes("Vult"));
+    assert(!msg.includes("Calendar Jump Syntax"));
+
+    handleInput(gmMessage("!cal events ranges month Zarantyr 999"));
+    msg = String(lastChat().msg);
+    assert(msg.includes("Events — Zarantyr 999 YK"));
+    assert(!msg.includes("Calendar Jump Syntax"));
   });
 });
 
@@ -241,6 +275,35 @@ describe("Moon management routing", () => {
     handleMoonCommand(gmUser(), ["moon", "page", "show"]);
     assertEquals((globalThis as any).Campaign().get("playerpageid"), page.id);
   });
+
+  it("renders moon Additional Ranges against the viewed date and resolves real range output", () => {
+    freshInstall();
+    completeSetup();
+
+    const serial = toSerial(998, 1, 12);
+    handleMoonCommand(gmUser(), ["moon", "on", "Olarune", "12", "998"]);
+
+    let msg = String(lastChat().msg);
+    assert(msg.includes("Full Calendar Year (998),year 998"));
+    assert(msg.includes("Rolling 12 Months,rolling " + serial));
+    assert(msg.includes("Olarune 998,month Olarune 998"));
+    assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
+
+    handleMoonCommand(gmUser(), ["moon", "ranges", "year", "998"]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Moons — Full Calendar Year (998)"));
+    assert(!msg.includes("Moon: <code>!cal moon"));
+
+    handleMoonCommand(gmUser(), ["moon", "ranges", "rolling", String(serial)]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Moons — Rolling 12 Months"));
+    assert(!msg.includes("Moon: <code>!cal moon"));
+
+    handleMoonCommand(gmUser(), ["moon", "ranges", "month", "Zarantyr", "999"]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Moons — Zarantyr 999 YK"));
+    assert(!msg.includes("Moon: <code>!cal moon"));
+  });
 });
 
 describe("Planes management routing", () => {
@@ -300,5 +363,34 @@ describe("Planes management routing", () => {
     assert(msg.includes("Set First Coterminous Start"));
     assert(msg.includes("!cal planes anchor Fernia coterminous ?{Fernia cycle: coterminous 28 days every 5 years."));
     assert(msg.includes("When should the first coterminous phase begin? This defines the cycle for all time."));
+  });
+
+  it("renders plane Additional Ranges against the viewed date and resolves real range output", () => {
+    freshInstall();
+    completeSetup();
+
+    const serial = toSerial(998, 1, 12);
+    handlePlanesCommand(gmUser(), ["planes", "on", "Olarune", "12", "998"]);
+
+    let msg = String(lastChat().msg);
+    assert(msg.includes("Full Calendar Year (998),year 998"));
+    assert(msg.includes("Rolling 12 Months,rolling " + serial));
+    assert(msg.includes("Olarune 998,month Olarune 998"));
+    assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
+
+    handlePlanesCommand(gmUser(), ["planes", "ranges", "year", "998"]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Planes — Full Calendar Year (998)"));
+    assert(!msg.includes("Calendar Jump Syntax"));
+
+    handlePlanesCommand(gmUser(), ["planes", "ranges", "rolling", String(serial)]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Planes — Rolling 12 Months"));
+    assert(!msg.includes("Calendar Jump Syntax"));
+
+    handlePlanesCommand(gmUser(), ["planes", "ranges", "month", "Zarantyr", "999"]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Planes — Zarantyr 999 YK"));
+    assert(!msg.includes("Calendar Jump Syntax"));
   });
 });

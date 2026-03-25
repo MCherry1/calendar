@@ -3,6 +3,7 @@ import { CONTRAST_MIN_HEADER, STYLES, state_name } from './constants.js';
 import { defaults, ensureSettings, getCal, titleCase } from './state.js';
 import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
+import { _deliverAdditionalCalendarRange, buildAdditionalRangesCommand } from './events.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
@@ -2224,11 +2225,8 @@ export function moonPanelParts(serialOverride?){
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
 
   // Additional Ranges
-  var monthCount = getCal().months.length;
-  var curMi = getCal().current.month;
-  var remaining = monthCount - curMi;
   gmControls += '<div style="margin:4px 0;">' +
-    button('Additional Ranges','moon ranges ?{Range|Full Year,year|Upcoming ' + remaining + ' months,upcoming|Specific Month,specific ?\\{MM or MM YYYY\\}|Specific Year,year ?\\{YYYY\\}}') +
+    button('Additional Ranges', buildAdditionalRangesCommand('moon ranges', today)) +
     '</div>';
 
   // Spacer
@@ -2380,6 +2378,36 @@ function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal, useRecentHist
     calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
   }
   return handoutWrap(calParts.join(''));
+}
+
+function _moonRangeHtml(spec, isGM){
+  var ms = getMoonState();
+  var tier = isGM ? 'high' : _normalizeMoonRevealTier(ms.revealTier || 'medium');
+  var horizon = isGM
+    ? MOON_PREDICTION_LIMITS.highMaxDays
+    : (parseInt(ms.revealHorizonDays, 10) || MOON_PREDICTION_LIMITS.lowDays);
+  moonEnsureSequences(spec.start, Math.max(horizon + 30, (spec.end - spec.start + 30)));
+
+  var calParts = [];
+  var months = spec.months || [];
+  for (var i = 0; i < months.length; i++){
+    var wm = months[i];
+    var month = getCal().months[wm.mi] || {};
+    var start = toSerial(wm.y, wm.mi, 1);
+    var end = toSerial(wm.y, wm.mi, month.days|0);
+    var events = _moonMiniCalEvents(start, end, tier, horizon);
+    var miniCal = _renderSyntheticMiniCal(null, start, end, events);
+    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
+  }
+
+  var body = handoutWrap(calParts.join('')) +
+    _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New', '<span style="color:#9C27B0;">●</span> Eclipse/Occultation']);
+  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
+  if (srcLabel){
+    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
+  }
+
+  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(spec.title || 'Range'), body);
 }
 
 function _moonHandoutNextEventLine(moonName, serial, type){
@@ -4529,6 +4557,15 @@ export function handleMoonCommand(m, args){
   if (sub === 'summary'){
     moonEnsureSequences();
     return whisper(m.who, moonSummaryHtml(playerIsGM(m.playerid)));
+  }
+
+  if (sub === 'ranges'){
+    return _deliverAdditionalCalendarRange({
+      who: m.who,
+      args: args.slice(2),
+      dest: 'whisper',
+      render: function(spec){ return _moonRangeHtml(spec, playerIsGM(m.playerid)); }
+    });
   }
 
   // Anyone can view — players see their tier, GM sees exact

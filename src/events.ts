@@ -324,6 +324,119 @@ export function _calendarYearRange(y, title){
   };
 }
 
+function _activeMonthCountForYear(year){
+  var months = getCal().months;
+  var count = 0;
+  for (var i = 0; i < months.length; i++){
+    var m = months[i];
+    if (!m.leapEvery || _isLeapMonth(m, year)) count++;
+  }
+  return Math.max(1, count);
+}
+
+function _nextSpecificMonthOccurrence(anchorSerial, targetMi){
+  var cal = getCal();
+  var anchor = fromSerial(anchorSerial|0);
+  var year = anchor.year;
+  if (targetMi < anchor.mi) year++;
+  while (true){
+    var month = cal.months[targetMi];
+    if (!month.leapEvery || _isLeapMonth(month, year)){
+      return { y: year, mi: targetMi };
+    }
+    year++;
+  }
+}
+
+function _rollingCalendarRange(anchorSerial){
+  var anchor = fromSerial(anchorSerial|0);
+  var activeCount = _activeMonthCountForYear(anchor.year);
+  var prev = _prevActiveMi(anchor.mi, anchor.year);
+  var months = [{ y: prev.y, mi: prev.mi }, { y: anchor.year, mi: anchor.mi }];
+  var cursorY = anchor.year;
+  var cursorMi = anchor.mi;
+  var followCount = Math.max(0, activeCount - 2);
+  for (var i = 0; i < followCount; i++){
+    var next = _nextActiveMi(cursorMi, cursorY);
+    cursorY = next.y;
+    cursorMi = next.mi;
+    months.push({ y: cursorY, mi: cursorMi });
+  }
+  var first = months[0];
+  var last = months[months.length - 1];
+  var lastMonth = getCal().months[last.mi];
+  return {
+    title: 'Rolling ' + activeCount + ' Months',
+    start: toSerial(first.y, first.mi, 1),
+    end: toSerial(last.y, last.mi, lastMonth.days|0),
+    months: months
+  };
+}
+
+function _specificMonthPromptOptions(anchorSerial){
+  var cal = getCal();
+  var opts = [];
+  for (var i = 0; i < cal.months.length; i++){
+    var next = _nextSpecificMonthOccurrence(anchorSerial, i);
+    var label = cal.months[i].name + ' ' + next.y;
+    opts.push(label + ',month ' + label);
+  }
+  return opts.join('|');
+}
+
+export function buildAdditionalRangesCommand(commandPrefix, anchorSerial?){
+  var anchor = isFinite(parseInt(anchorSerial, 10)) ? (parseInt(anchorSerial, 10)|0) : todaySerial();
+  var year = fromSerial(anchor).year;
+  var activeCount = _activeMonthCountForYear(year);
+  return String(commandPrefix || '').trim() +
+    ' ?{Range|Full Calendar Year (' + year + '),year ' + year +
+    '|Rolling ' + activeCount + ' Months,rolling ' + anchor +
+    '|Specific Month,?\\{Month|' + _specificMonthPromptOptions(anchor) + '\\}}';
+}
+
+export function resolveAdditionalRangeSpec(args, anchorSerial?){
+  var tokens = _tokenizeRangeArgs(args);
+  var anchor = isFinite(parseInt(anchorSerial, 10)) ? (parseInt(anchorSerial, 10)|0) : todaySerial();
+  var sub = String(tokens[0] || '').toLowerCase();
+
+  if (sub === 'year'){
+    var explicitYear = parseInt(tokens[1], 10);
+    var year = isFinite(explicitYear) ? explicitYear : fromSerial(anchor).year;
+    return _calendarYearRange(year, 'Full Calendar Year (' + year + ')');
+  }
+
+  if (sub === 'rolling' || sub === 'upcoming'){
+    var rollingAnchor = parseInt(tokens[1], 10);
+    if (!isFinite(rollingAnchor)) rollingAnchor = anchor;
+    return _rollingCalendarRange(rollingAnchor);
+  }
+
+  if (sub === 'month' || sub === 'specific'){
+    var monthSpec = _parseTopLevelCalendarSpec(tokens.slice(1));
+    if (monthSpec) return monthSpec;
+    return null;
+  }
+
+  if (tokens.length === 1 && /^-?\d+$/.test(tokens[0])){
+    return _calendarYearRange(parseInt(tokens[0], 10), 'Full Calendar Year (' + parseInt(tokens[0], 10) + ')');
+  }
+
+  return _parseTopLevelCalendarSpec(tokens);
+}
+
+export function _deliverAdditionalCalendarRange(opts){
+  opts = opts || {};
+  var spec = resolveAdditionalRangeSpec(opts.args || [], opts.anchorSerial);
+  if (!spec){
+    if (opts.who) whisper(opts.who, _topLevelCalendarGuidanceHtml(opts.args || []));
+    return false;
+  }
+  var html = (typeof opts.render === 'function') ? opts.render(spec) : buildCalendarsHtmlForSpec(spec);
+  if (opts.dest === 'broadcast') sendToAll(html);
+  else whisper(opts.who, html);
+  return true;
+}
+
 export function _parseTopLevelCalendarSpec(tokens){
   tokens = _tokenizeRangeArgs(tokens);
   var cal = getCal();
@@ -695,13 +808,14 @@ export function buildCalendarsHtmlForSpec(spec){
   var out = ['<div style="text-align:left;">'];
   var extraEventsFn = (typeof spec.extraEventsFn === 'function') ? spec.extraEventsFn : null;
   var includeCalendarEvents = !(spec.includeCalendarEvents === false);
+  var includeAdjacentStrips = !(spec.includeAdjacentStrips === false);
 
   var present = {};
   for (var i=0; i<months.length; i++){
     present[ months[i].y + '|' + months[i].mi ] = 1;
   }
 
-  var boundary = adjacentPartialMonths(spec);
+  var boundary = includeAdjacentStrips ? adjacentPartialMonths(spec) : { prev:null, next:null };
   var today = todaySerial();
   var td = fromSerial(today);
 
@@ -821,5 +935,3 @@ export function eventsListHTMLForRange(title, startSerial, endSerial, forceYearL
   }
   return out.join('');
 }
-
-

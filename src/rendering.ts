@@ -785,6 +785,22 @@ function _tableActionButton(label, cmd){
   return button(label, cmd, { icon:'' });
 }
 
+function _eventActionSummaryText(prefix, names){
+  var uniq = [];
+  var seen = {};
+  (names || []).forEach(function(name){
+    var label = String(name || '').trim();
+    if (!label) return;
+    var key = label.toLowerCase();
+    if (seen[key]) return;
+    seen[key] = 1;
+    uniq.push(label);
+  });
+  if (!uniq.length) return prefix + '.';
+  if (uniq.length === 1) return prefix + ': ' + esc(uniq[0]) + '.';
+  return prefix + ': ' + uniq.map(esc).join('; ') + '.';
+}
+
 export function _eventRowsForTables(evs){
   var cal = getCal();
   var monthCount = Math.max(1, cal.months.length);
@@ -909,9 +925,7 @@ export function listAllEventsTableHtml(){
       dd: esc(String(e.day)),
       year: (e.year==null) ? null : esc(String(e.year)),
       status: 'Shown',
-      action: isDefaultEvent(e)
-        ? _tableActionButton('Hide', row.removeCmd)
-        : _tableActionButton('Remove', row.removeCmd)
+      action: _tableActionButton('➖ Hide', row.removeCmd)
     };
   });
   var hiddenRows = _suppressedDefaultRowsForTables().map(function(row){
@@ -924,7 +938,7 @@ export function listAllEventsTableHtml(){
       dd: esc(String(info.day)),
       year: null,
       status: 'Hidden',
-      action: _tableActionButton('Show', row.actionCmd)
+      action: _tableActionButton('➕ Show', row.actionCmd)
     };
   });
   var listRows = activeRows.concat(hiddenRows);
@@ -955,12 +969,12 @@ export function listAllEventsTableHtml(){
 
   return '<div style="margin:4px 0;"><b>Events</b></div>'+
          '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>'+
-         '<div style="opacity:.7;margin-top:4px;">Default events can be hidden and shown here. Custom events use Remove because they are not kept in a hidden list. All-month recurring entries stay grouped into one row.</div>';
+         '<div style="opacity:.7;margin-top:4px;">Default events can be hidden and shown here. Hiding a custom event removes it because custom events are not kept in a hidden list. All-month recurring entries stay grouped into one row.</div>';
 }
 
 export function removeListHtml(){
   var cal = getCal(), evs = cal.events || [];
-  if(!evs.length) return '<div style="opacity:.7;">No events to remove.</div>';
+  if(!evs.length) return '<div style="opacity:.7;">No events to hide.</div>';
 
   var listRows = _eventRowsForTables(evs);
   var showYear = !_allYearsNull(listRows);
@@ -970,7 +984,7 @@ export function removeListHtml(){
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
     var name = esc(eventDisplayName(e));
     var sw = swatchHtml(getEventColor(e));
-    var rm = button('Remove', row.removeCmd);
+    var rm = _tableActionButton('➖ Hide', row.removeCmd);
     return '<tr>'+
       '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
       '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
@@ -990,9 +1004,9 @@ export function removeListHtml(){
     '<th style="'+STYLES.th+'">Action</th>'+
   '</tr>';
 
-  return '<div style="margin:4px 0;"><b>Remove Events</b></div>'+
+  return '<div style="margin:4px 0;"><b>Hide Events</b></div>'+
          '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>'+
-         '<div style="opacity:.7;margin-top:4px;">Recurring events that span every month are grouped into one remove button.</div>';
+         '<div style="opacity:.7;margin-top:4px;">Recurring events that span every month are grouped into one hide button.</div>';
 }
 
 export function removeMatchesListHtml(needle){
@@ -1021,7 +1035,7 @@ export function removeMatchesListHtml(needle){
     var yyyy = (e.year==null) ? 'ALL' : esc(String(e.year));
     var name = esc(eventDisplayName(e));
     var sw = swatchHtml(getEventColor(e));
-    var rm = button('Remove', row.removeCmd);
+    var rm = _tableActionButton('➖ Hide', row.removeCmd);
     return '<tr>'+
       '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
       '<td style="'+STYLES.td+'">'+ sw + name +'</td>'+
@@ -1032,15 +1046,15 @@ export function removeMatchesListHtml(needle){
     '</tr>';
   }).join('');
 
-  return '<div style="margin:4px 0;"><b>Remove Matches for "' + esc(needle) + '"</b></div>'+
+  return '<div style="margin:4px 0;"><b>Hide Matches for "' + esc(needle) + '"</b></div>'+
          '<table style="'+STYLES.table+'">'+ head + rows +'</table>'+
-         '<div style="opacity:.7;margin-top:4px;">Recurring all-month events are grouped into one remove button.</div>';
+         '<div style="opacity:.7;margin-top:4px;">Recurring all-month events are grouped into one hide button.</div>';
 }
 
 export function suppressedDefaultsListHtml(){
   var sup = state[state_name].suppressedDefaults || {};
   var keys = Object.keys(sup);
-  if (!keys.length){ return '<div style="opacity:.7;">No suppressed default events.</div>'; }
+  if (!keys.length){ return '<div style="opacity:.7;">No hidden default events.</div>'; }
 
   keys.sort(function(a,b){
     var pa=a.split('|'), pb=b.split('|');
@@ -1057,7 +1071,7 @@ export function suppressedDefaultsListHtml(){
     var dd = esc(String(info.day));
     var sw = swatchHtml(info.color || autoColorForEvent({name:info.name}));
     var src = info.source ? ' <span style="opacity:.7">('+esc(titleCase(info.source))+')</span>' : '';
-    var restorebutton = button('Restore', 'restore key '+_encKey(k));
+    var restorebutton = _tableActionButton('➕ Show', 'restore key '+_encKey(k));
     return '<tr>'+
       '<td style="'+STYLES.td+'">'+sw+esc(info.name)+src+'</td>'+
       '<td style="'+STYLES.td+';text-align:center;">'+ mm +'</td>'+
@@ -1073,8 +1087,8 @@ export function suppressedDefaultsListHtml(){
     '<th style="'+STYLES.th+'">Action</th>'+
   '</tr>';
 
-  return '<div style="margin:4px 0;"><b>Suppressed Default Events</b></div>'+
-         '<div style="margin:2px 0;">'+button('Restore All', 'restore all')+'</div>'+
+  return '<div style="margin:4px 0;"><b>Hidden Default Events</b></div>'+
+         '<div style="margin:2px 0;">'+_tableActionButton('➕ Show All', 'restore all')+'</div>'+
          '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>';
 }
 
@@ -1091,20 +1105,28 @@ export function restoreDefaultEvents(query){
   var sub = (parts[0]||'').toLowerCase();
 
   if (sub === 'all'){
+    var allNames = Object.keys(sup).map(function(key){
+      return (_defaultDetailsForKey(key) || {}).name;
+    });
+    if (!allNames.length){
+      sendChat(script_name, '/w gm No hidden default events.', null, { noarchive: true });
+      return;
+    }
     state[state_name].suppressedDefaults = {};
     mergeInNewDefaultEvents(cal);
     refreshAndSend();
-    sendChat(script_name, '/w gm Restored all default events (sources left as-is).', null, { noarchive: true });
+    sendChat(script_name, '/w gm ' + _eventActionSummaryText('Shown Events', allNames), null, { noarchive: true });
     return;
   }
 
   if (sub === 'key'){
     var key = _decKey(parts.slice(1).join(' ').trim());
     if (!key){ sendChat(script_name, '/w gm Usage: <code>!cal restore key &lt;KEY&gt;</code>', null, { noarchive: true }); return; }
+    var keyInfo = _defaultDetailsForKey(key);
     delete sup[key];
     mergeInNewDefaultEvents(cal);
     refreshAndSend();
-    sendChat(script_name, '/w gm Restored default for key: <code>'+esc(key)+'</code>.', null, { noarchive: true });
+    sendChat(script_name, '/w gm ' + _eventActionSummaryText('Shown Event', [keyInfo && keyInfo.name]), null, { noarchive: true });
     return;
   }
 
@@ -1112,8 +1134,10 @@ export function restoreDefaultEvents(query){
     var sk = _decKey(parts.slice(1).join(' ').trim());
     if (!sk){ sendChat(script_name, '/w gm Usage: <code>!cal restore series &lt;KEY&gt;</code>', null, { noarchive: true }); return; }
     var restoredSeries = 0;
+    var restoredNames = [];
     Object.keys(sup).forEach(function(key){
       if (_suppressedDefaultSeriesKey(key) !== sk) return;
+      restoredNames.push((_defaultDetailsForKey(key) || {}).name);
       delete sup[key];
       restoredSeries++;
     });
@@ -1123,7 +1147,7 @@ export function restoreDefaultEvents(query){
     }
     mergeInNewDefaultEvents(cal);
     refreshAndSend();
-    sendChat(script_name, '/w gm Restored '+restoredSeries+' recurring default event'+(restoredSeries===1?'':'s')+'.', null, { noarchive: true });
+    sendChat(script_name, '/w gm ' + _eventActionSummaryText('Shown Event', restoredNames), null, { noarchive: true });
     return;
   }
 
@@ -1134,16 +1158,22 @@ export function restoreDefaultEvents(query){
 
   var keys = Object.keys(sup);
   var restored = 0;
+  var restoredNames2 = [];
   keys.forEach(function(k){
     var info = _defaultDetailsForKey(k);
     var nm = String(info.name||'').toLowerCase();
     if ((exact && nm === needle) || (!exact && nm.indexOf(needle) !== -1)){
       delete sup[k];
       restored++;
+      restoredNames2.push(info.name);
     }
   });
+  if (!restored){
+    sendChat(script_name, '/w gm No hidden default events matched "'+esc(needle)+'".', null, { noarchive: true });
+    return;
+  }
 
   mergeInNewDefaultEvents(cal);
   refreshAndSend();
-  sendChat(script_name, '/w gm Restored '+restored+' default event'+(restored===1?'':'s')+' matching "'+esc(needle)+'".', null, { noarchive: true });
+  sendChat(script_name, '/w gm ' + _eventActionSummaryText('Shown Event', restoredNames2), null, { noarchive: true });
 }

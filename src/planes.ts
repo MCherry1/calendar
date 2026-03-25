@@ -3,7 +3,7 @@ import { state_name } from './constants.js';
 import { deepClone, ensureSettings, getCal, titleCase } from './state.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
-import { _deliverTopLevelCalendarRange } from './events.js';
+import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand } from './events.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { handoutButton, refreshHandout } from './persistent-views.js';
@@ -2059,11 +2059,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
     gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
 
     // Additional Ranges
-    var plMonthCount = getCal().months.length;
-    var plCurMi = getCal().current.month;
-    var plRemaining = plMonthCount - plCurMi;
     gmControls += '<div style="margin:4px 0;">' +
-      button('Additional Ranges','planes ranges ?{Range|Full Year,year|Upcoming ' + plRemaining + ' months,upcoming|Specific Month,specific ?\\{MM or MM YYYY\\}|Specific Year,year ?\\{YYYY\\}}') +
+      button('Additional Ranges', buildAdditionalRangesCommand('planes ranges', today)) +
       '</div>';
 
     // Spacer
@@ -2145,6 +2142,38 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 // Legacy single-string wrapper
 export function planesPanelHtmlSingle(isGM, revealTier?, serialOverride?, revealHorizonDays?, generatedHorizonDays?){
   return planesPanelHtml(isGM, revealTier, serialOverride, revealHorizonDays, generatedHorizonDays).join('');
+}
+
+function _planesRangeHtml(spec, isGM){
+  var psView = getPlanesState();
+  var viewTier = isGM ? 'high' : _normalizePlaneRevealTier(psView.revealTier || 'medium');
+  var generatedHorizon = parseInt(psView.generatedHorizonDays, 10) || 0;
+  var today = todaySerial();
+  var months = spec.months || [];
+  var calParts = [];
+
+  for (var i = 0; i < months.length; i++){
+    var wm = months[i];
+    var month = getCal().months[wm.mi] || {};
+    var start = toSerial(wm.y, wm.mi, 1);
+    var end = toSerial(wm.y, wm.mi, month.days|0);
+    var generatedCutoff = null;
+    if (viewTier === 'high') generatedCutoff = end;
+    else if (generatedHorizon > 0) generatedCutoff = Math.min(end, today + generatedHorizon);
+    var events = _planesMiniCalEvents(start, end, generatedCutoff);
+    var bars = _planesHeaderBars(start, end);
+    var miniCal = _renderSyntheticMiniCal(null, start, end, events, bars);
+    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
+  }
+
+  var body = handoutWrap(calParts.join('')) +
+    _legendLine(['Cell fill = short event', 'Hatched = remote', '\u25CF Dot = generated']);
+  var srcLabel = isGM ? '' : (PLANE_SOURCE_LABELS[viewTier] || '');
+  if (srcLabel){
+    body += '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:6px;">'+esc(srcLabel)+'</div>';
+  }
+
+  return _menuBox('\uD83C\uDF00 Planes \u2014 ' + esc(spec.title || 'Range'), body);
 }
 
 export function planesHandoutHtml(){
@@ -2784,7 +2813,12 @@ export function handlePlanesCommand(m, args){
   // !cal planes ranges <rangeArgs>  — Additional Ranges (same as events/moons)
   if (sub === 'ranges'){
     var rangeArgs = args.slice(2);
-    return _deliverTopLevelCalendarRange({ who: m.who, args: rangeArgs, dest: 'whisper' });
+    return _deliverAdditionalCalendarRange({
+      who: m.who,
+      args: rangeArgs,
+      dest: 'whisper',
+      render: function(spec){ return _planesRangeHtml(spec, playerIsGM(m.playerid)); }
+    });
   }
 
   // !cal planes reveal <rangeSpec>  — Reveal Custom Range
