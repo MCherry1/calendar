@@ -32,6 +32,10 @@ export function _todayWeatherIsStable(wxRec){
   return true;
 }
 
+function _timeOfDayStatusBoxHtml(inner){
+  return '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:6px 0;">' + inner + '</div>';
+}
+
 function _timeOfDayMenuHtml(){
   var bucket = currentTimeBucket();
   if (!bucket){
@@ -47,18 +51,16 @@ function _timeOfDayMenuHtml(){
     );
   }
 
-  return _menuBox('Time of Day',
-    '<div style="font-weight:bold;">Current time: ' + esc(bucketLabel(bucket)) + '</div>' +
-    '<div style="opacity:.75;margin-top:2px;">' + esc(formalCurrentDateLabel()) + '</div>' +
+  return _timeOfDayStatusBoxHtml(
+    '<div>Current time: ' + esc(bucketLabel(bucket)) + '</div>' +
     _timeOfDayActionButtonsHtml()
   );
 }
 
 function _timeOfDayActionButtonsHtml(){
   return '<div style="margin-top:6px;">' +
-    button('Advance Time', 'time next') + ' ' +
-    button('Show', 'time show') + ' ' +
-    button('Send', 'time send') +
+    button('🕒 ⏩ Advance Time', 'time next') + ' ' +
+    button('📅 Show', 'show') +
   '</div>';
 }
 
@@ -66,9 +68,8 @@ function _sendTimeOfDayStatus(who){
   var bucket = currentTimeBucket();
   var label = bucket ? bucketLabel(bucket) : currentTimeOfDayLabel();
   whisperUi(who,
-    _menuBox('Time of Day',
-      '<div style="font-weight:bold;">Current time: ' + esc(label) + '</div>' +
-      '<div style="opacity:.75;margin-top:2px;">' + esc(formalCurrentDateLabel()) + '</div>' +
+    _timeOfDayStatusBoxHtml(
+      '<div>Current time: ' + esc(label) + '</div>' +
       _timeOfDayActionButtonsHtml()
     )
   );
@@ -304,9 +305,9 @@ export function _todayAllHtml(){
 
   // Time of Day: advance if active, enable if weather is active
   if (isTimeOfDayActive()){
-    btns.push(button('⏩ Time of Day ⏩','time next'));
+    btns.push(button('🕒 ⏩ Advance Time','time next'));
   } else if (st.weatherEnabled !== false){
-    btns.push(button('Enable Time of Day','time start middle_of_night'));
+    btns.push(button('🕒 Enable Time of Day','time start middle_of_night'));
   }
   btns.push('</div>');
 
@@ -754,9 +755,12 @@ export var commands = {
         return whisperUi(m.who,'Usage: <code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code>');
       }
       if (sysTok === 'moon' || sysTok === 'lunar') st.moonDisplayMode = modeTok;
-      if (sysTok === 'weather') st.weatherDisplayMode = modeTok;
+      if (sysTok === 'weather') st.weatherDisplayMode = 'calendar';
       if (sysTok === 'planes' || sysTok === 'plane' || sysTok === 'planar') st.planesDisplayMode = modeTok;
       refreshAndSend();
+      if (sysTok === 'weather'){
+        return whisperUi(m.who,'Weather display is now <b>Calendar</b>-only.');
+      }
       return whisperUi(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
     if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|extremehazards|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){

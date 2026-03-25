@@ -41,6 +41,7 @@ type MoonLike = {
   title?: string;
   color?: string;
   synodicPeriod?: number;
+  siderealPeriod?: number;
   baseCycleDays?: number;
   diameter?: number;
   distance?: number;
@@ -53,6 +54,14 @@ type MoonLike = {
   epochSeed?: { defaultSeed?: string; referenceDate?: { year: number; month: number; day: number } };
   motionTuning?: Record<string, any>;
   orbitalData?: Record<string, any>;
+  fixedAnchor?: {
+    referenceDate?: { year: number; month: number; day: number };
+    timeFrac?: number;
+    phaseAngleDeg?: number;
+    skyLongDeg?: number;
+    overheadAtAnchor?: boolean;
+    observerLatitudeDeg?: number;
+  };
 };
 
 type BuildSkySceneResolvedInput = {
@@ -260,20 +269,62 @@ function moonMotionLabel(observerLatitude: number, moon: MoonLike, serial: numbe
 function _normalizeMoon(worldId: string, body: MoonLike): MoonLike {
   var override = (SHOWCASE_MOON_OVERRIDES[worldId] || {})[body.name] || {};
   var data = Object.assign({}, body.data || {}, override.data || {});
-  var useLunaFallback = worldId !== 'eberron';
   return Object.assign({}, body, override, {
     key: body.key || String(body.name || '').toLowerCase(),
-    synodicPeriod: useLunaFallback ? LUNA_ANALOG.synodicPeriod : (override.synodicPeriod || body.synodicPeriod || body.baseCycleDays || 28),
-    diameter: override.diameter || body.diameter || data.diameter || (useLunaFallback ? LUNA_ANALOG.diameter : 1000),
-    distance: override.distance || body.distance || data.distance || (useLunaFallback ? LUNA_ANALOG.distance : 100000),
-    inclination: override.inclination || body.inclination || data.inclination || (useLunaFallback ? LUNA_ANALOG.inclination : 5),
-    eccentricity: override.eccentricity || body.eccentricity || data.eccentricity || (useLunaFallback ? LUNA_ANALOG.eccentricity : 0.03),
-    albedo: override.albedo || body.albedo || data.albedo || (useLunaFallback ? LUNA_ANALOG.albedo : 0.12),
+    synodicPeriod: override.synodicPeriod || body.synodicPeriod || body.baseCycleDays || LUNA_ANALOG.synodicPeriod,
+    siderealPeriod: override.siderealPeriod || body.siderealPeriod || data.siderealPeriod || null,
+    diameter: override.diameter || body.diameter || data.diameter || LUNA_ANALOG.diameter,
+    distance: override.distance || body.distance || data.distance || LUNA_ANALOG.distance,
+    inclination: override.inclination || body.inclination || data.inclination || LUNA_ANALOG.inclination,
+    eccentricity: override.eccentricity || body.eccentricity || data.eccentricity || LUNA_ANALOG.eccentricity,
+    albedo: override.albedo || body.albedo || data.albedo || LUNA_ANALOG.albedo,
     epochSeed: override.epochSeed || body.epochSeed || data.epochSeed || null,
     orbitalData: override.orbitalData || body.orbitalData || null,
     motionTuning: override.motionTuning || body.motionTuning || null,
+    fixedAnchor: override.fixedAnchor || body.fixedAnchor || data.fixedAnchor || null,
     data: data
   });
+}
+
+function _resolvedFixedAnchor(worldId: string, moon: MoonLike){
+  var anchor = moon.fixedAnchor || null;
+  if (!anchor || !anchor.referenceDate) return null;
+  try {
+    var referenceSerial = toWorldSerialFromRegularDate(
+      worldId,
+      anchor.referenceDate.year,
+      Math.max(0, (anchor.referenceDate.month || 1) - 1),
+      anchor.referenceDate.day || 1
+    ) + (Number(anchor.timeFrac) || 0);
+    var timeFrac = Number(anchor.timeFrac) || 0;
+    var skyLongDeg = anchor.skyLongDeg;
+    if (!isFinite(Number(skyLongDeg)) && anchor.overheadAtAnchor){
+      skyLongDeg = _normDeg(sunSkyLong(referenceSerial, worldId) + 180 - (timeFrac * 360));
+    }
+    return {
+      referenceSerial: referenceSerial,
+      timeFrac: timeFrac,
+      phaseAngleDeg: _normDeg(Number(anchor.phaseAngleDeg == null ? 180 : anchor.phaseAngleDeg)),
+      skyLongDeg: isFinite(Number(skyLongDeg)) ? _normDeg(Number(skyLongDeg)) : null,
+      overheadAtAnchor: anchor.overheadAtAnchor === true,
+      observerLatitudeDeg: isFinite(Number(anchor.observerLatitudeDeg)) ? Number(anchor.observerLatitudeDeg) : DEFAULT_OBSERVER_LATITUDE
+    };
+  } catch (_err){
+    return null;
+  }
+}
+
+function _cyclePosForAngle(cycleDays: number, phaseAngleDeg: number){
+  return (_normDeg(phaseAngleDeg - 180) / 360) * cycleDays;
+}
+
+function _baseMoonSkyLong(moon: MoonLike, serial: number, worldId: string){
+  var cycleDays = Math.max(1, Number(moon.synodicPeriod || moon.baseCycleDays || 28));
+  var cyclePos = ((_cycleOffset(worldId, moon, serial) % cycleDays) + cycleDays) % cycleDays;
+  var angle = _normDeg((cyclePos / cycleDays) * 360 + 180);
+  var op = _orbitalParams(worldId, moon, serial);
+  if (op && op.retrograde) angle = _normDeg(360 - angle);
+  return angle;
 }
 
 function _phaseAt(worldId: string, moon: MoonLike, serial: number): SkyScenePhase {
@@ -297,18 +348,23 @@ function _phaseAt(worldId: string, moon: MoonLike, serial: number): SkyScenePhas
 }
 
 function _moonSkyLong(moon: MoonLike, serial: number, worldId: string){
-  var cycleDays = Math.max(1, Number(moon.synodicPeriod || moon.baseCycleDays || 28));
-  var cyclePos = ((_cycleOffset(worldId, moon, serial) % cycleDays) + cycleDays) % cycleDays;
-  var angle = _normDeg((cyclePos / cycleDays) * 360 + 180);
-  var op = _orbitalParams(worldId, moon, serial);
-  if (op && op.retrograde) angle = _normDeg(360 - angle);
-  return angle;
+  var angle = _baseMoonSkyLong(moon, serial, worldId);
+  var fixed = _resolvedFixedAnchor(worldId, moon);
+  if (!fixed || fixed.skyLongDeg == null) return angle;
+  var anchorAngle = _baseMoonSkyLong(moon, fixed.referenceSerial, worldId);
+  return _normDeg(angle + (fixed.skyLongDeg - anchorAngle));
 }
 
 function _moonEclipticLat(moon: MoonLike, serial: number, skyLongDeg: number, worldId: string){
   var op = _orbitalParams(worldId, moon, serial);
   var relLong = skyLongDeg - op.ascendingNode;
-  return op.inclination * Math.sin(relLong * Math.PI / 180);
+  var latitude = op.inclination * Math.sin(relLong * Math.PI / 180);
+  var fixed = _resolvedFixedAnchor(worldId, moon);
+  if (!fixed || !fixed.overheadAtAnchor) return latitude;
+  var anchorSkyLong = _moonSkyLong(moon, fixed.referenceSerial, worldId);
+  var anchorRelLong = anchorSkyLong - op.ascendingNode;
+  var anchorLatitude = op.inclination * Math.sin(anchorRelLong * Math.PI / 180);
+  return latitude + (fixed.observerLatitudeDeg - anchorLatitude);
 }
 
 function _moonAngularDiameterDeg(moon: MoonLike, serial: number, worldId: string){
@@ -372,6 +428,11 @@ function _cycleOffset(worldId: string, moon: MoonLike, serial: number){
 }
 
 function _referenceSerial(worldId: string, moon: MoonLike){
+  var fixed = _resolvedFixedAnchor(worldId, moon);
+  if (fixed){
+    var fixedCycleDays = Math.max(1, Number(moon.synodicPeriod || moon.baseCycleDays || 28));
+    return fixed.referenceSerial - _cyclePosForAngle(fixedCycleDays, fixed.phaseAngleDeg);
+  }
   var epoch = moon.epochSeed || null;
   if (epoch && epoch.referenceDate){
     var ref = epoch.referenceDate;
@@ -412,7 +473,7 @@ export function moonPhasesForDay(worldId: string, serial: number, systemSeed?: s
   for (var i = 0; i < bodies.length; i++){
     var body = _normalizeMoon(worldId, bodies[i]);
     var overriddenBody = body;
-    if (systemSeed){
+    if (systemSeed && !body.fixedAnchor){
       var overrideSeed = systemSeed + '::' + body.name;
       overriddenBody = Object.assign({}, body, {
         epochSeed: body.epochSeed

@@ -80,11 +80,14 @@ describe("Setup onboarding", () => {
     notifySetupStatusOnReady();
     const msg = lastChat();
     assert(msg);
-    assert(msg.msg.includes("Calendar Script Initialized"));
-    assert(msg.msg.includes("Galifar Calendar is ready."));
+    assert(msg.msg.startsWith("/direct "));
+    assert(msg.msg.includes("Galifar Calendar Initialized"));
+    assert(msg.msg.includes("font-style:italic"));
     assert(msg.msg.includes("Current date: <b>1st of Zarantyr, 998 YK</b>"));
     assert(msg.msg.includes("Use <code>!cal</code> to start."));
     assert(msg.msg.includes("Use <code>!cal help</code> for the command list."));
+    assert(!msg.msg.includes("Calendar Script Initialized"));
+    assert(!msg.msg.includes("Galifar Calendar is ready."));
     assert(!msg.msg.includes("!cal show"));
     assert(!msg.msg.includes("[📅 Show]"));
     assert(!msg.msg.includes("[❔ Help]"));

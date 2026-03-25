@@ -2,7 +2,7 @@ import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS, CONFIG_START_
 import { COLOR_THEMES, SEASON_SETS, state_name } from './constants.js';
 import { _invalidateSerialCache, toSerial } from './date-math.js';
 import { mergeInNewDefaultEvents } from './events.js';
-import { cleanWho, sendUiToGM, whisperUi } from './messaging.js';
+import { cleanWho, sendUiToAll, sendUiToGM, whisperUi } from './messaging.js';
 import { Parse } from './parsing.js';
 import { _getPlaneData, getPlanesState, resolveEberronPlanarInitialization, resolveFerniaRisiaLinkModeChoice } from './planes.js';
 import { button, esc } from './rendering.js';
@@ -835,6 +835,12 @@ function _applySetupDraft(m){
   getSetupState().draft = {};
   whisperUi(cleanWho(m.who), _menuBox('Calendar Setup', '<div>Setup applied. Calendar is ready.</div>'));
   if (planarSummaryHtml) whisperUi(cleanWho(m.who), planarSummaryHtml);
+  if (sysKey === 'dragonlance' && String(draft.extra_nightOfTheEye || '') === 'manual'){
+    whisperUi(cleanWho(m.who), _menuBox('Night of the Eye',
+      '<div style="margin-bottom:6px;">Dragonlance is using the built-in Night of the Eye by default. Override it any time with:</div>' +
+      '<code>!cal moon eye &lt;dateSpec&gt;</code>'
+    ));
+  }
   sendCurrentDate(cleanWho(m.who), false, { playerid: m.playerid, dashboard: true, includeButtons: true });
 }
 
@@ -908,7 +914,7 @@ export function notifySetupStatusOnReady(){
     var sys = CALENDAR_SYSTEMS[st.calendarSystem] || {};
     var variant = ((sys.variants || {})[st.calendarVariant]) || {};
     var calLabel = String(variant.label || sys.label || 'Calendar');
-    sendUiToGM(_menuBox('Calendar Script Initialized', _bootSummaryHtml(calLabel, sys)));
+    sendUiToAll(_bootSummaryHtml(calLabel));
     return;
   }
   var setup = getSetupState();
@@ -920,14 +926,15 @@ export function notifySetupStatusOnReady(){
   sendUiToGM(_setupWelcomeHtml());
 }
 
-function _bootSummaryHtml(calLabel, sys){
+function _bootSummaryHtml(calLabel){
   var cal = getCal();
   var cur = cal.current;
   var dateLine = dateLabelFromSerial(toSerial(cur.year, cur.month, cur.day_of_the_month));
-  var html = '<div style="margin-bottom:4px;">' + esc(calLabel) + ' is ready.</div>';
-  html += '<div style="opacity:.85;">Current date: <b>' + esc(dateLine) + '</b></div>';
-  html += '<div style="margin-top:6px;">Use <code>!cal</code> to start. Use <code>!cal help</code> for the command list.</div>';
-  return html;
+  return '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:6px 0;">' +
+    '<div style="font-style:italic;margin-bottom:4px;">' + esc(calLabel) + ' Initialized</div>' +
+    '<div style="opacity:.85;">Current date: <b>' + esc(dateLine) + '</b></div>' +
+    '<div style="margin-top:6px;">Use <code>!cal</code> to start. Use <code>!cal help</code> for the command list.</div>' +
+  '</div>';
 }
 
 export function maybeHandleSetupGate(msg, args){

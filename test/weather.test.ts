@@ -12,7 +12,7 @@ import {
   _parseWeatherRevealDayToken, _parseWeatherRevealDateSpec,
   weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml, weatherMechanicsHandoutHtml
 } from "../src/weather.js";
-import { _subsystemIsVerbose, _subsystemVerbosityValue, _displayMonthDayParts, currentDateLabel } from "../src/ui.js";
+import { _subsystemIsVerbose, _subsystemVerbosityValue, _displayMonthDayParts, currentDateLabel, stepDays } from "../src/ui.js";
 import { _todayAllHtml, _todayWeatherIsStable } from "../src/today.js";
 import { SEASON_SETS, CALENDAR_STRUCTURE_SETS } from "../src/constants.js";
 import { CALENDAR_SYSTEMS } from "../src/config.js";
@@ -487,6 +487,10 @@ describe("Weather calendar surfaces", () => {
     assert(msg.includes("8-12p"));
     assert(msg.includes("Active Mechanics"));
     assert(msg.includes('data-weather-forecast-grid="1"'));
+    assert(msg.includes("Reveal Medium Forecast"));
+    assert(msg.includes("Reveal High Forecast"));
+    assert(!msg.includes("Forecast List"));
+    assert(!msg.includes("[📋 List]"));
     assert(!msg.includes("View: "));
   });
 
@@ -500,11 +504,12 @@ describe("Weather calendar surfaces", () => {
     assert(msg.includes('data-weather-view="forecast-calendar-gm"'));
     assert(msg.includes('data-weather-forecast-grid="1"'));
     assert(!msg.includes("<b>Today:</b>"));
+    assert(!msg.includes("!cal weather forecast list"));
+    assert(!msg.includes("!cal weather"));
     assert(!msg.includes("View: "));
-    assertEquals(ensureSettings().weatherForecastViewDays, 9);
   });
 
-  it("caps the player embedded forecast to two future days at common reveal", () => {
+  it("shows the player embedded forecast as a revealed calendar including today", () => {
     freshInstall();
     setupWeather();
 
@@ -512,7 +517,8 @@ describe("Weather calendar surfaces", () => {
 
     const msg = lastChatMsg();
     assert(msg.includes('data-weather-view="today-calendar-player"'));
-    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 2);
+    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 3);
+    assert(!msg.includes("Forecast List"));
   });
 
   it("expands the player weather and forecast calendars after a high reveal", () => {
@@ -522,12 +528,54 @@ describe("Weather calendar surfaces", () => {
     handleWeatherCommand(gmUser(), ["weather", "reveal", "high", "10"]);
     handleWeatherCommand(playerUser(), ["weather"]);
     let msg = lastChatMsg();
-    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 9);
+    assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 10);
 
     handleWeatherCommand(playerUser(), ["weather", "forecast"]);
     msg = lastChatMsg();
     assert(msg.includes('data-weather-view="forecast-calendar-player"'));
     assertEquals(countOccurrences(msg, 'data-weather-forecast-cell="1"'), 10);
+  });
+
+  it("keeps displayed period temperatures within the smoothed intraday swing range", () => {
+    freshInstall();
+    setupWeather();
+
+    const rec = _forecastRecord(todaySerial());
+    let prev: number | null = null;
+    for (const period of WEATHER_DAY_PERIODS) {
+      const html = handlePeriodTemp(rec, period);
+      if (prev != null) assert(Math.abs(html - prev) <= 12);
+      prev = html;
+    }
+
+    function handlePeriodTemp(dayRec: any, period: string) {
+      handleWeatherCommand(gmUser(), ["weather"]);
+      const msg = lastChatMsg();
+      const match = msg.match(new RegExp(`data-weather-period="${period}"[\\s\\S]*?(\\d+)F`));
+      assert(match, `expected temperature for ${period}`);
+      return Number(match[1]);
+    }
+  });
+
+  it("uses calendar output for legacy list routes and history", () => {
+    freshInstall();
+    setupWeather();
+
+    handleWeatherCommand(gmUser(), ["weather", "list"]);
+    let msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="today-calendar-gm"'));
+    assert(!msg.includes("Forecast List"));
+
+    handleWeatherCommand(gmUser(), ["weather", "forecast", "list"]);
+    msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="forecast-calendar-gm"'));
+    assert(!msg.includes("Forecast List"));
+
+    stepDays(1, { announce: false });
+    weatherEnsureForecast();
+    handleWeatherCommand(gmUser(), ["weather", "history"]);
+    msg = lastChatMsg();
+    assert(msg.includes('data-weather-view="history-calendar-gm"'));
   });
 
   it("includes the precipitation table in the mechanics handout", () => {

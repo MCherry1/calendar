@@ -86,6 +86,52 @@ describe("Moon System", () => {
     }
   });
 
+  it("uses the default Dragonlance Night of the Eye anchor for phase and sky alignment", () => {
+    freshInstall();
+    applyCalendarSystem("dragonlance", "standard");
+    invalidateMoonModel(false);
+
+    const anchorSerial = toSerial(346, 6, 7);
+    moonEnsureSequences(anchorSerial, 60);
+
+    for (const moonName of ["Solinari", "Lunitari", "Nuitari"]) {
+      const phase = moonPhaseAt(moonName, anchorSerial);
+      assert(phase.illum > 0.99, `${moonName} should be full on the default Night of the Eye`);
+    }
+
+    const visible = _moonVisibilityAll(anchorSerial, 0);
+    assertEquals(visible.length, 3);
+    for (const moon of visible) {
+      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead on the default Night of the Eye`);
+    }
+    assertEquals(new Set(visible.map((moon: any) => moon.direction)).size, 1);
+  });
+
+  it("lets a manual Night of the Eye override supersede the default anchor", () => {
+    freshInstall();
+    applyCalendarSystem("dragonlance", "standard");
+    invalidateMoonModel(false);
+
+    handleMoonCommand({ who: "GM", playerid: "GM" } as any, ["moon", "eye", "7", "14", "346"]);
+
+    const overrideSerial = toSerial(346, 6, 14);
+    moonEnsureSequences(overrideSerial, 60);
+
+    for (const moonName of ["Solinari", "Lunitari", "Nuitari"]) {
+      const phase = moonPhaseAt(moonName, overrideSerial);
+      assert(phase.illum > 0.99, `${moonName} should be full on the overridden Night of the Eye`);
+    }
+
+    const visible = _moonVisibilityAll(overrideSerial, 0);
+    assertEquals(visible.length, 3);
+    for (const moon of visible) {
+      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead on the overridden Night of the Eye`);
+    }
+
+    const ms = getMoonState();
+    assertEquals(ms.systemAnchors.dragonlanceNightOfTheEye.serial, overrideSerial);
+  });
+
   it("treats retrograde moons as reverse-motion with physically bounded inclination", () => {
     freshInstall();
     const dravago = MOON_SYSTEMS.eberron.moons.find((moon: any) => moon.name === "Dravago") as any;

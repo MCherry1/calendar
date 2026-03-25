@@ -12,6 +12,7 @@ import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, sho
 import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 import { buildSkySceneFromResolved, moonAltitudeDeg, moonAzimuthDeg, moonCompass16, moonHourAngleDeg, moonSkyPositionCategory } from './showcase/sky-scene.js';
+import { getWorld } from './worlds/index.js';
 
 
 /* ============================================================================
@@ -348,7 +349,122 @@ export var MOON_SYSTEMS = {
  */
 export function _getMoonSys(sysKeyOverride?){
   var key = sysKeyOverride || ensureSettings().calendarSystem;
+  var world = getWorld(String(key || '').toLowerCase());
+  if (world && world.moons && Array.isArray(world.moons.bodies) && world.moons.bodies.length){
+    var legacy = MOON_SYSTEMS[key] || null;
+    var legacyByName = Object.create(null);
+    if (legacy && Array.isArray(legacy.moons)){
+      legacy.moons.forEach(function(moon){
+        legacyByName[moon.name] = moon;
+      });
+    }
+    return {
+      id: (legacy && legacy.id) || key,
+      name: (legacy && legacy.name) || world.label,
+      description: (legacy && legacy.description) || world.description,
+      moons: world.moons.bodies.map(function(body: any){
+        var prior = legacyByName[body.name] || {};
+        var mergedData = Object.assign({}, prior.data || {}, body.data || {});
+        return Object.assign({}, prior, mergedData, body, {
+          key: body.key || prior.key || String(body.name || '').toLowerCase(),
+          name: body.name || prior.name,
+          title: body.title || prior.title,
+          color: body.color || prior.color,
+          associatedMonth: body.associatedMonth == null ? (prior.associatedMonth == null ? null : prior.associatedMonth) : body.associatedMonth,
+          synodicPeriod: Number(body.synodicPeriod || body.baseCycleDays || prior.synodicPeriod || prior.baseCycleDays || 28),
+          siderealPeriod: body.siderealPeriod || prior.siderealPeriod || null,
+          baseCycleDays: Number(body.baseCycleDays || body.synodicPeriod || prior.baseCycleDays || prior.synodicPeriod || 28),
+          phaseMode: body.phaseMode || prior.phaseMode || 'standard_phase',
+          cycleMode: body.cycleMode || prior.cycleMode || 'fixed',
+          visibilityMode: body.visibilityMode || prior.visibilityMode || 'normal',
+          cycleFormula: body.cycleFormula || prior.cycleFormula || null,
+          diameter: body.diameter || prior.diameter,
+          distance: body.distance || prior.distance,
+          inclination: body.inclination || prior.inclination,
+          eccentricity: body.eccentricity || prior.eccentricity,
+          albedo: body.albedo || prior.albedo,
+          epochSeed: body.epochSeed || prior.epochSeed || mergedData.epochSeed || null,
+          orbitalData: body.orbitalData || prior.orbitalData || mergedData.orbitalData || null,
+          motionTuning: body.motionTuning || prior.motionTuning || mergedData.motionTuning || null,
+          fixedAnchor: body.fixedAnchor || prior.fixedAnchor || mergedData.fixedAnchor || null,
+          data: mergedData
+        });
+      })
+    };
+  }
   return MOON_SYSTEMS[key] || null;
+}
+
+function _moonBodyByName(moonName, sysKeyOverride?){
+  var sys = _getMoonSys(sysKeyOverride);
+  if (!sys || !Array.isArray(sys.moons)) return null;
+  for (var i = 0; i < sys.moons.length; i++){
+    if (sys.moons[i].name === moonName) return sys.moons[i];
+  }
+  return null;
+}
+
+function _moonAngularSizeVsSun(diameter, distance){
+  if (!(diameter > 0) || !(distance > 0)) return null;
+  var angularDeg = 2 * Math.atan((diameter / 2) / distance) * 180 / Math.PI;
+  return angularDeg / _SUN_ANGULAR_DIAM_DEG;
+}
+
+function _moonOrbitalCanon(moonName){
+  var activeMoon = _moonBodyByName(moonName);
+  var canon = MOON_ORBITAL_DATA[moonName] || null;
+  if (!activeMoon) return canon;
+  var dynamicCanon = null;
+  if ((activeMoon.orbitalData && typeof activeMoon.orbitalData === 'object') || (activeMoon.diameter && activeMoon.distance)){
+    dynamicCanon = Object.assign({}, activeMoon.orbitalData || {});
+    if (!isFinite(dynamicCanon.angularSizeVsSun)){
+      dynamicCanon.angularSizeVsSun = _moonAngularSizeVsSun(activeMoon.diameter, activeMoon.distance);
+    }
+    if (!isFinite(dynamicCanon.diameter) && isFinite(activeMoon.diameter)) dynamicCanon.diameter = activeMoon.diameter;
+    if (!isFinite(dynamicCanon.distance) && isFinite(activeMoon.distance)) dynamicCanon.distance = activeMoon.distance;
+    if (!isFinite(dynamicCanon.albedo) && isFinite(activeMoon.albedo)) dynamicCanon.albedo = activeMoon.albedo;
+  }
+  var merged = Object.assign({}, canon || {}, dynamicCanon || {});
+  return Object.keys(merged).length ? merged : null;
+}
+
+function _dragonlanceNightOfTheEyeOverride(){
+  var st = ensureSettings();
+  if (String(st.calendarSystem || '').toLowerCase() !== 'dragonlance') return null;
+  var ms = getMoonState();
+  var override = ms.systemAnchors && ms.systemAnchors.dragonlanceNightOfTheEye;
+  if (!override || !isFinite(override.serial)) return null;
+  var timeFrac = Number(override.timeFrac) || 0;
+  return {
+    referenceSerial: Number(override.serial) + timeFrac,
+    timeFrac: timeFrac,
+    phaseAngleDeg: 180,
+    skyLongDeg: _normDeg(_sunSkyLong(Number(override.serial)) + 180 - (timeFrac * 360)),
+    overheadAtAnchor: true,
+    observerLatitudeDeg: isFinite(Number(override.observerLatitudeDeg)) ? Number(override.observerLatitudeDeg) : OBSERVER_LATITUDE
+  };
+}
+
+function _cyclePosForAngleLegacy(period, phaseAngleDeg){
+  return (_normDeg((phaseAngleDeg == null ? 180 : phaseAngleDeg) - 180) / 360) * period;
+}
+
+function _resolvedMoonFixedAnchor(moon){
+  if (!moon) return null;
+  var dragonlanceOverride = _dragonlanceNightOfTheEyeOverride();
+  if (dragonlanceOverride && /^(Solinari|Lunitari|Nuitari)$/.test(String(moon.name || ''))){
+    return dragonlanceOverride;
+  }
+  var anchor = moon.fixedAnchor || null;
+  if (!anchor || !anchor.referenceDate) return null;
+  return {
+    referenceSerial: toSerial(anchor.referenceDate.year, Math.max(0, (anchor.referenceDate.month || 1) - 1), anchor.referenceDate.day || 1) + (Number(anchor.timeFrac) || 0),
+    timeFrac: Number(anchor.timeFrac) || 0,
+    phaseAngleDeg: Number(anchor.phaseAngleDeg == null ? 180 : anchor.phaseAngleDeg),
+    skyLongDeg: isFinite(Number(anchor.skyLongDeg)) ? _normDeg(Number(anchor.skyLongDeg)) : (anchor.overheadAtAnchor ? _normDeg(_sunSkyLong(toSerial(anchor.referenceDate.year, Math.max(0, (anchor.referenceDate.month || 1) - 1), anchor.referenceDate.day || 1)) + 180 - ((Number(anchor.timeFrac) || 0) * 360)) : null),
+    overheadAtAnchor: anchor.overheadAtAnchor === true,
+    observerLatitudeDeg: isFinite(Number(anchor.observerLatitudeDeg)) ? Number(anchor.observerLatitudeDeg) : OBSERVER_LATITUDE
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -500,6 +616,7 @@ export function getMoonState(){
   if (!root.moons) root.moons = {
     sequences: {},     // moonName -> array of { serial, type, retro }
     systemSeed: null,  // single global seed word for the entire lunar system
+    systemAnchors: {}, // world-specific anchor overrides (e.g. Dragonlance Night of the Eye)
     gmAnchors: {},     // moonName -> [{ serial, type }]  GM-forced phase events
     generatedFrom: null,  // serial day from which sequences were generated
     generatedThru: 0,  // serial day up to which sequences have been generated
@@ -514,6 +631,7 @@ export function getMoonState(){
   };
   var ms = root.moons;
   if (!ms.gmAnchors) ms.gmAnchors = {};
+  if (!ms.systemAnchors || typeof ms.systemAnchors !== 'object') ms.systemAnchors = {};
   if (ms.systemSeed === undefined) ms.systemSeed = null;
   if (!isFinite(ms.generatedFrom)) ms.generatedFrom = null;
   ms.modelRevision = parseInt(ms.modelRevision, 10);
@@ -985,7 +1103,10 @@ export function _generateStandardSequence(moon, startSerial, endSerial, seedOver
   // Determine epoch: serial of a known full moon to start counting from.
   // All moons now use epochSeed for their starting point.
   var epochSerial;
-  if (moon.epochSeed){
+  var fixedAnchor = _resolvedMoonFixedAnchor(moon);
+  if (fixedAnchor){
+    epochSerial = fixedAnchor.referenceSerial - _cyclePosForAngleLegacy(period, fixedAnchor.phaseAngleDeg);
+  } else if (moon.epochSeed){
     var seedWord  = seedOverride || (moon.epochSeed.defaultSeed) || 'storm';
     var refD      = moon.epochSeed.referenceDate;
     var refSerial = toSerial(refD.year, refD.month - 1, refD.day);
@@ -2233,8 +2354,13 @@ export function moonPanelParts(serialOverride?){
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
 
   // Management dropdown
+  var manageChoices = 'Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}';
+  if (String(st.calendarSystem || '').toLowerCase() === 'dragonlance'){
+    manageChoices += '|Set Night of the Eye,eye ?\\{Date dd or mm dd or mm dd yyyy\\}|Reset Night of the Eye,eye reset';
+  }
+  manageChoices += '|Bind Moon Page,page bind ?\\{Moon Phase page name|Moon Phase\\}|Refresh Moon Page,page refresh|Show Moon Page,page show';
   gmControls += '<div style="margin:4px 0;">' +
-    button('Management','moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Bind Moon Page,page bind ?\\{Moon Phase page name|Moon Phase\\}|Refresh Moon Page,page refresh|Show Moon Page,page show}') +
+    button('Management','moon manage ?{Action|' + manageChoices + '}') +
     '</div>';
 
   // Utility buttons
@@ -2768,7 +2894,7 @@ export function nighttimeLux(serial, precipStage){
     var ph = moonPhaseAt(moon.name, serial);
     if (!ph || ph.illum < 0.01) continue; // too dim to matter
 
-    var orb = MOON_ORBITAL_DATA[moon.name];
+    var orb = _moonOrbitalCanon(moon.name);
     if (!orb) continue;
 
     var angSq = orb.angularSizeVsSun * orb.angularSizeVsSun;
@@ -2997,8 +3123,9 @@ export function _normDeg(n){
 
 export function _moonOrbitalParams(moonName, serial){
   serial = serial || 0;
-  var canon = MOON_ORBITAL_DATA[moonName] || null;
-  var tune  = MOON_MOTION_TUNING[moonName] || null;
+  var activeMoon = _moonBodyByName(moonName);
+  var canon = _moonOrbitalCanon(moonName) || null;
+  var tune  = (activeMoon && activeMoon.motionTuning) || MOON_MOTION_TUNING[moonName] || null;
 
   if (canon && tune){
     var ypd = _moonYearDays() || 336;
@@ -3062,7 +3189,6 @@ export function _moonDistanceAt(moon, serial){
 // Based on synodic period: the moon completes one full 360° sky circuit per period.
 // We use the same phase data but convert to angular position.
 export function _moonSkyLong(moon, serial){
-  var period = moon.synodicPeriod || 28;
   // Use phase to derive sky longitude: 0° = new (conjunction with sun), 180° = full (opposition)
   var ph = moonPhaseAt(moon.name, serial);
   // Illumination goes 0→1→0 over the cycle; we need continuous angle.
@@ -3076,7 +3202,11 @@ export function _moonSkyLong(moon, serial){
   // Retrograde orbit affects night-to-night drift direction, not instantaneous
   // sky position. The synodic phase already encodes the correct sun-moon geometry
   // regardless of orbital direction (planet rotation dominates apparent motion).
-  return angle % 360;
+  angle = angle % 360;
+  var fixedAnchor = _resolvedMoonFixedAnchor(moon);
+  if (!fixedAnchor || fixedAnchor.skyLongDeg == null) return angle;
+  var anchorPhaseAngle = _normDeg(Number(fixedAnchor.phaseAngleDeg == null ? 180 : fixedAnchor.phaseAngleDeg));
+  return _normDeg(angle + (fixedAnchor.skyLongDeg - anchorPhaseAngle));
 }
 
 // Sun's ecliptic longitude: advances ~1° per day in a 336-day year
@@ -3091,7 +3221,13 @@ export function _moonEclipticLat(moon, serial){
   var skyLong = _moonSkyLong(moon, serial);
   // Latitude oscillates with inclination as moon orbits
   var relLong = skyLong - op.ascendingNode;
-  return op.inclination * Math.sin(relLong * Math.PI / 180);
+  var latitude = op.inclination * Math.sin(relLong * Math.PI / 180);
+  var fixedAnchor = _resolvedMoonFixedAnchor(moon);
+  if (!fixedAnchor || !fixedAnchor.overheadAtAnchor) return latitude;
+  var anchorSkyLong = _moonSkyLong(moon, fixedAnchor.referenceSerial);
+  var anchorRelLong = anchorSkyLong - op.ascendingNode;
+  var anchorLatitude = op.inclination * Math.sin(anchorRelLong * Math.PI / 180);
+  return latitude + (fixedAnchor.observerLatitudeDeg - anchorLatitude);
 }
 
 export function _degSeparation(a, b){
@@ -4827,6 +4963,57 @@ export function handleMoonCommand(m, args){
     return whisper(m.who, 'System moon seed set to <b>'+esc(word)+'</b>. Sequences regenerated.');
   }
 
+  // !cal moon eye <dateSpec>
+  // !cal moon eye reset
+  if (sub === 'eye' || sub === 'nightoftheeye'){
+    if (String(st.calendarSystem || '').toLowerCase() !== 'dragonlance'){
+      return whisper(m.who, 'Night of the Eye anchoring is only available for Dragonlance.');
+    }
+    if (String(args[2] || '').toLowerCase() === 'reset'){
+      var msEyeReset = getMoonState();
+      delete msEyeReset.systemAnchors.dragonlanceNightOfTheEye;
+      ['Solinari', 'Lunitari', 'Nuitari'].forEach(function(name){
+        msEyeReset.gmAnchors[name] = (msEyeReset.gmAnchors[name] || []).filter(function(anchor){
+          return !anchor.eyeAnchor;
+        });
+      });
+      invalidateMoonModel(false);
+      moonEnsureSequences();
+      _refreshMoonPersistentViews();
+      return whisper(m.who, 'Night of the Eye override reset. Dragonlance has returned to the default anchor.');
+    }
+
+    var eyeDateToks = args.slice(2).map(function(t){ return String(t || '').trim(); }).filter(Boolean);
+    var eyePref = parseDatePrefixForAdd(eyeDateToks);
+    if (!eyePref){
+      return whisper(m.who, 'Usage: <code>!cal moon eye &lt;dateSpec&gt;</code> or <code>!cal moon eye reset</code>');
+    }
+
+    var eyeSerial = toSerial(eyePref.year, eyePref.mHuman - 1, eyePref.day);
+    var msEye = getMoonState();
+    msEye.systemAnchors.dragonlanceNightOfTheEye = {
+      serial: eyeSerial,
+      timeFrac: 0,
+      observerLatitudeDeg: OBSERVER_LATITUDE
+    };
+    ['Solinari', 'Lunitari', 'Nuitari'].forEach(function(name){
+      msEye.gmAnchors[name] = (msEye.gmAnchors[name] || []).filter(function(anchor){
+        return !anchor.eyeAnchor;
+      });
+      msEye.gmAnchors[name].push({ serial: eyeSerial, type: 'full', eyeAnchor: true });
+    });
+    invalidateMoonModel(false);
+    moonEnsureSequences();
+    _refreshMoonPersistentViews();
+
+    var eyeMonthName = _displayMonthDayParts(eyePref.mHuman - 1, eyePref.day).monthName;
+    return whisper(
+      m.who,
+      'Night of the Eye anchored to <b>' + esc(String(eyePref.day)) + ' ' + esc(eyeMonthName) + ' ' + esc(String(eyePref.year)) + '</b> at midnight.<br>' +
+      '<span style="opacity:.6;font-size:.85em;">Solinari, Lunitari, and Nuitari will align overhead on that date.</span>'
+    );
+  }
+
   // !cal moon full <MoonName> <dateSpec>
   // !cal moon new  <MoonName> <dateSpec>
   // dateSpec uses the same smart rules as !cal add:
@@ -4912,12 +5099,16 @@ export function handleMoonCommand(m, args){
     var ms3 = getMoonState();
     if (mName3){
       ms3.gmAnchors[mName3] = [];
+      if (/^(Solinari|Lunitari|Nuitari)$/.test(String(mName3 || ''))){
+        delete ms3.systemAnchors.dragonlanceNightOfTheEye;
+      }
       invalidateMoonModel(false);
       moonEnsureSequences();
       _refreshMoonPersistentViews();
       return whisper(m.who, 'Phase overrides reset for <b>'+esc(mName3)+'</b>.');
     } else {
       ms3.gmAnchors = {};
+      delete ms3.systemAnchors.dragonlanceNightOfTheEye;
       invalidateMoonModel(false);
       moonEnsureSequences();
       _refreshMoonPersistentViews();
@@ -4934,6 +5125,7 @@ export function handleMoonCommand(m, args){
     '<code>!cal moon page refresh</code> &nbsp;·&nbsp; '+
     '<code>!cal moon page show</code> &nbsp;·&nbsp; '+
     '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
+    '<code>!cal moon eye &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
     '<code>!cal moon reset [&lt;name&gt;]</code>'
   );

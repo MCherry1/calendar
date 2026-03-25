@@ -185,6 +185,8 @@ describe("Weather management routing", () => {
     assert(msg.includes("weather manage ?{Action|Toggle Weather On/Off,toggleweather|Toggle Extreme Hazards,togglehazards|Toggle Mechanics,togglemechanics"));
     assert(msg.includes("Reseed Weather,reseed"));
     assert(msg.includes("Lock Specific Day"));
+    assert(msg.includes("freezes that forecast record"));
+    assert(!msg.includes("Forecast List"));
     assert(!msg.includes("Lock Day,lock ?\\{Day serial"));
   });
 

@@ -4,7 +4,7 @@ import { freshInstall } from "./helpers.js";
 import { ensureSettings, getCal } from "../src/state.js";
 import { todaySerial, toSerial } from "../src/date-math.js";
 import { setDate, stepDays } from "../src/ui.js";
-import { commands } from "../src/today.js";
+import { _todayAllHtml, commands } from "../src/today.js";
 import { _forecastRecord, getWeatherState, weatherEnsureForecast } from "../src/weather.js";
 import {
   activateTimeOfDay,
@@ -132,16 +132,18 @@ describe("Time of Day", () => {
     assertEquals(currentTimeBucket(), null);
   });
 
-  it("time next whisper keeps follow-up controls", () => {
+  it("time next whisper keeps the new follow-up controls", () => {
     freshInstall();
     activateTimeOfDay("morning");
     (commands.time as any).run({ who: "GM (GM)", playerid: "GM" }, ["!cal", "time", "next"]);
     const log = (globalThis as any)._chatLog;
     const last = log[log.length - 1];
     assert(last && typeof last.msg === "string");
+    assert(last.msg.includes("🕒 ⏩ Advance Time"));
     assert(last.msg.includes("!cal time next"));
-    assert(last.msg.includes("!cal time show"));
-    assert(last.msg.includes("!cal time send"));
+    assert(last.msg.includes("!cal show"));
+    assert(!last.msg.includes("!cal time show"));
+    assert(!last.msg.includes("!cal time send"));
     assert(!last.msg.includes("!cal time clear"));
   });
 
@@ -159,7 +161,9 @@ describe("Time of Day", () => {
     assert(last.msg.includes("Mechanics:"));
     assert(last.msg.includes("Source:") || last.msg.includes("Sources:"));
     assert(last.msg.includes("!cal time next"));
-    assert(last.msg.includes("!cal time send"));
+    assert(last.msg.includes("!cal show"));
+    assert(!last.msg.includes("!cal time show"));
+    assert(!last.msg.includes("!cal time send"));
     assert(!last.msg.includes("!cal time clear"));
   });
 
@@ -179,5 +183,16 @@ describe("Time of Day", () => {
     assert(last.msg.includes("Source:") || last.msg.includes("Sources:"));
     assert(!last.msg.includes("!cal time next"));
     assert(!last.msg.includes("!cal time send"));
+  });
+
+  it("default dashboard uses the clock-labeled time controls", () => {
+    freshInstall();
+    ensureSettings().weatherEnabled = true;
+    let html = _todayAllHtml();
+    assert(html.includes("🕒 Enable Time of Day"));
+
+    activateTimeOfDay("morning");
+    html = _todayAllHtml();
+    assert(html.includes("🕒 ⏩ Advance Time"));
   });
 });

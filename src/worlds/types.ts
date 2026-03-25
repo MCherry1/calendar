@@ -97,6 +97,39 @@ export type MoonVisibilityMode =
   | 'visible_window'      // only visible during part of cycle (Ruidus)
   | 'gm_only';            // never shown to players
 
+export type MoonAnchorDate = {
+  year: number;
+  month: number; // 1-based regular month index
+  day: number;
+};
+
+export type MoonFixedAnchorDefinition = {
+  referenceDate: MoonAnchorDate;
+  timeFrac?: number;          // 0 = midnight, 0.5 = noon
+  phaseAngleDeg?: number;     // 180 = full, 0 = new
+  skyLongDeg?: number;        // absolute sky longitude target at the anchor
+  overheadAtAnchor?: boolean; // force the body onto the meridian/zenith at the anchor
+  observerLatitudeDeg?: number;
+};
+
+export type MoonOrbitalDataDefinition = {
+  angularSizeVsSun?: number;
+};
+
+export type MoonMotionTuningDefinition = {
+  inclinationBase?: number;
+  inclinationAmp?: number;
+  inclinationPeriodDays?: number;
+  ascendingNode?: number;
+  nodePrecessionDegPerYear?: number;
+  distanceSwingPct?: number;
+  distancePeriodDays?: number;
+  apsisAngle?: number;
+  apsisPrecessionDegPerYear?: number;
+  retrograde?: boolean;
+  orbitDirection?: 'prograde' | 'retrograde';
+};
+
 export type MoonBodyDefinition = {
   key: string;
   name: string;
@@ -108,6 +141,16 @@ export type MoonBodyDefinition = {
   baseCycleDays: number;
   cycleFormula?: string;
   visibilityMode: MoonVisibilityMode;
+  synodicPeriod?: number;
+  siderealPeriod?: number;
+  diameter?: number;
+  distance?: number;
+  inclination?: number;
+  eccentricity?: number;
+  albedo?: number;
+  orbitalData?: MoonOrbitalDataDefinition;
+  motionTuning?: MoonMotionTuningDefinition;
+  fixedAnchor?: MoonFixedAnchorDefinition;
   data?: Record<string, unknown>;
 };
 

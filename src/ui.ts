@@ -866,9 +866,9 @@ export function gmButtonsHtml(){
 
   // Time of Day: advance if active, enable if weather is active
   if (isTimeOfDayActive()){
-    rows.push('<div>'+mb('⏩ Time of Day ⏩','time next')+'</div>');
+    rows.push('<div>'+mb('🕒 ⏩ Advance Time','time next')+'</div>');
   } else if (st.weatherEnabled !== false){
-    rows.push('<div>'+mb('Enable Time of Day','time start middle_of_night')+'</div>');
+    rows.push('<div>'+mb('🕒 Enable Time of Day','time start middle_of_night')+'</div>');
   }
 
   // Date step arrows
@@ -1190,7 +1190,6 @@ export function helpRootMenu(m){
 
   if (isGMNew){
     var moonModeNew = _normalizeDisplayMode(stNew.moonDisplayMode);
-    var wxModeNew = _normalizeDisplayMode(stNew.weatherDisplayMode);
     var plModeNew = _normalizeDisplayMode(stNew.planesDisplayMode);
     var wxDaysNew = _weatherViewDays(stNew.weatherForecastViewDays);
     var verbNew = _subsystemVerbosityValue();
@@ -1205,7 +1204,7 @@ export function helpRootMenu(m){
         mbP(m,'Effects','effects')
       ],
       'Views: Moon ' + _displayModeLabel(moonModeNew) +
-      ' · Weather ' + _displayModeLabel(wxModeNew) +
+      ' · Weather Calendar' +
       ' · Planes ' + _displayModeLabel(plModeNew) +
       ' · Forecast ' + wxDaysNew + 'd · Detail ' + (verbNew === 'minimal' ? 'minimal' : 'normal') +
       '. Reset: <code>!cal resetcalendar</code>.'

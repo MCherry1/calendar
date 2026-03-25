@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual as assertDeepEqual, ok as assert, strictEqual as assertEquals } from 'node:assert/strict';
-import { buildSkyScene } from '../src/showcase/sky-scene.js';
+import { buildSkyScene, moonPhasesForDay } from '../src/showcase/sky-scene.js';
+import { toWorldSerialFromRegularDate } from '../src/showcase/world-calendar.js';
 
 describe('Showcase Sky Scene', () => {
   it('is deterministic for a fixed world/date/time', () => {
@@ -36,5 +37,31 @@ describe('Showcase Sky Scene', () => {
     const dravago = scene.moons.find((moon) => moon.name === 'Dravago');
     assert(dravago, 'Dravago should be present in the Eberron showcase sky');
     assertEquals(!!dravago?.retrograde, true);
+  });
+
+  it('uses distinct Dragonlance moon cycles instead of collapsing to Luna defaults', () => {
+    const phases = moonPhasesForDay('dragonlance', 42);
+    const signatures = phases.map((moon) => `${Math.round(moon.illum * 100)}:${moon.waxing ? 'W' : 'N'}`);
+    assert(new Set(signatures).size > 1, 'Dragonlance moons should not all share the same phase state');
+  });
+
+  it('anchors the default Night of the Eye overhead at midnight with the requested eye sizes', () => {
+    const anchorSerial = toWorldSerialFromRegularDate('dragonlance', 346, 6, 7);
+    const scene = buildSkyScene({ worldId: 'dragonlance', serial: anchorSerial, timeFrac: 0 });
+    assertEquals(scene.moons.length, 3);
+
+    for (const moon of scene.moons) {
+      assertEquals(moon.pctFull, 100);
+      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead at the default Night of the Eye`);
+    }
+
+    const solinari = scene.moons.find((moon) => moon.name === 'Solinari');
+    const lunitari = scene.moons.find((moon) => moon.name === 'Lunitari');
+    const nuitari = scene.moons.find((moon) => moon.name === 'Nuitari');
+    assert(solinari && lunitari && nuitari, 'Dragonlance should include all three moons');
+
+    assert(Math.abs(lunitari.angularDiameterDeg - 0.53) < 0.01, 'Lunitari should match Luna size');
+    assert(Math.abs((solinari.angularDiameterDeg / lunitari.angularDiameterDeg) - 2.0) < 0.02, 'Solinari should be about twice Lunitari');
+    assert(Math.abs((nuitari.angularDiameterDeg / lunitari.angularDiameterDeg) - 0.35) < 0.02, 'Nuitari should be about 35% of Lunitari');
   });
 });

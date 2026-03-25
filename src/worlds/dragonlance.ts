@@ -1,5 +1,44 @@
 import type { WorldDefinition } from './types.js';
 
+const EARTH_MOON_DIAMETER_KM = 3474.8;
+const EARTH_MOON_DISTANCE_KM = 384400;
+const DRAGONLANCE_SHARED_NODE_DEG = 276.42857142857144;
+
+const DRAGONLANCE_EARTH_ANALOG = {
+  inclination: 5.145,
+  eccentricity: 0.0549,
+  albedo: 0.12,
+};
+
+const DRAGONLANCE_FIXED_ANCHOR = {
+  referenceDate: { year: 346, month: 7, day: 7 },
+  timeFrac: 0,
+  phaseAngleDeg: 180,
+  // Summer Run 7 in a 336-day year lands 174 days into the year. At local
+  // midnight, opposition to the sun puts the aligned moons on the meridian.
+  skyLongDeg: 6.428571428571429,
+  overheadAtAnchor: true,
+  observerLatitudeDeg: 30,
+};
+
+function apparentSizeMatchedDiameter(distanceKm: number, relativeToLuna: number){
+  return EARTH_MOON_DIAMETER_KM * (distanceKm / EARTH_MOON_DISTANCE_KM) * relativeToLuna;
+}
+
+function dragonlanceMotionTuning(distancePeriodDays: number){
+  return {
+    inclinationBase: DRAGONLANCE_EARTH_ANALOG.inclination,
+    inclinationAmp: 0,
+    inclinationPeriodDays: 336,
+    ascendingNode: DRAGONLANCE_SHARED_NODE_DEG,
+    nodePrecessionDegPerYear: 0,
+    distanceSwingPct: 0,
+    distancePeriodDays: distancePeriodDays,
+    apsisAngle: 0,
+    apsisPrecessionDegPerYear: 0,
+  };
+}
+
 export const dragonlance: WorldDefinition = {
   key: 'dragonlance',
   label: 'Dragonlance',
@@ -77,7 +116,17 @@ export const dragonlance: WorldDefinition = {
         phaseMode: 'standard_phase',
         cycleMode: 'fixed',
         baseCycleDays: 36,
+        synodicPeriod: 36,
+        siderealPeriod: 32.516129032258064,
         visibilityMode: 'normal',
+        diameter: apparentSizeMatchedDiameter(433562.6450335759, 2),
+        distance: 433562.6450335759,
+        inclination: DRAGONLANCE_EARTH_ANALOG.inclination,
+        eccentricity: DRAGONLANCE_EARTH_ANALOG.eccentricity,
+        albedo: DRAGONLANCE_EARTH_ANALOG.albedo,
+        orbitalData: { angularSizeVsSun: 2.0 },
+        motionTuning: dragonlanceMotionTuning(32.516129032258064),
+        fixedAnchor: DRAGONLANCE_FIXED_ANCHOR,
         data: {
           loreNote: 'Solinari governs Good magic on Krynn. Its 36-day cycle determines the power of White Robed wizards. Named for the god Solinari, son of Paladine.',
           magicAlignment: 'Good',
@@ -93,7 +142,17 @@ export const dragonlance: WorldDefinition = {
         phaseMode: 'standard_phase',
         cycleMode: 'fixed',
         baseCycleDays: 28,
+        synodicPeriod: 28,
+        siderealPeriod: 25.846153846153847,
         visibilityMode: 'normal',
+        diameter: apparentSizeMatchedDiameter(370432.65421999485, 1),
+        distance: 370432.65421999485,
+        inclination: DRAGONLANCE_EARTH_ANALOG.inclination,
+        eccentricity: DRAGONLANCE_EARTH_ANALOG.eccentricity,
+        albedo: DRAGONLANCE_EARTH_ANALOG.albedo,
+        orbitalData: { angularSizeVsSun: 1.0 },
+        motionTuning: dragonlanceMotionTuning(25.846153846153847),
+        fixedAnchor: DRAGONLANCE_FIXED_ANCHOR,
         data: {
           loreNote: 'Lunitari governs Neutral magic on Krynn. Its 28-day cycle matches the calendar months. Named for the goddess Lunitari, daughter of Gilean.',
           magicAlignment: 'Neutral',
@@ -109,7 +168,17 @@ export const dragonlance: WorldDefinition = {
         phaseMode: 'standard_phase',
         cycleMode: 'fixed',
         baseCycleDays: 8,
+        synodicPeriod: 8,
+        siderealPeriod: 7.813953488372094,
         visibilityMode: 'hidden_by_default',
+        diameter: apparentSizeMatchedDiameter(166862.6723285724, 0.35),
+        distance: 166862.6723285724,
+        inclination: DRAGONLANCE_EARTH_ANALOG.inclination,
+        eccentricity: DRAGONLANCE_EARTH_ANALOG.eccentricity,
+        albedo: DRAGONLANCE_EARTH_ANALOG.albedo,
+        orbitalData: { angularSizeVsSun: 0.35 },
+        motionTuning: dragonlanceMotionTuning(7.813953488372094),
+        fixedAnchor: DRAGONLANCE_FIXED_ANCHOR,
         data: {
           loreNote: 'Nuitari governs Evil magic on Krynn. Its rapid 8-day cycle is invisible to all but those who serve darkness. Named for the god Nuitari, son of Takhisis. Only Black Robed wizards can see its dark disk against the stars.',
           magicAlignment: 'Evil',
@@ -147,10 +216,10 @@ export const dragonlance: WorldDefinition = {
         label: 'Night of the Eye Anchor',
         type: 'choice',
         options: [
-          { key: 'seed', label: 'Derive from campaign seed (recommended)' },
+          { key: 'default', label: 'Use the default Night of the Eye (recommended)' },
           { key: 'manual', label: 'Set manually after setup' },
         ],
-        default: 'seed',
+        default: 'default',
       },
     ],
   },
