@@ -241,7 +241,7 @@ function _renderCalendarGallery(){
     });
     var weekdayCount = preview.weekdayLabels.length;
     var monthEvents = _monthEventRows(worldId, preview.slotIndex, eventRows, year);
-    var mColor = _monthColor(worldId, monthIndex);
+    var mColor = _ensureHeaderContrast(_monthColor(worldId, monthIndex));
     var rgb = _hexToRgb(mColor);
     var headerText = _contrastText(rgb);
     var displayName = _overlayMonthName(worldId, monthIndex, preview.monthName);
@@ -730,6 +730,18 @@ function _hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 function _contrastText(rgb: { r: number; g: number; b: number }): string {
   return (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114) > 160 ? '#1a1a1a' : '#ffffff';
+}
+
+// Darken colors that are too close to white so they're visible as header bars on white cards
+function _ensureHeaderContrast(hex: string): string {
+  var rgb = _hexToRgb(hex);
+  var lum = (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114);
+  if (lum < 230) return hex;
+  // Mix with 20% gray to bring it down
+  var r = Math.round(rgb.r * 0.82 + 180 * 0.18);
+  var g = Math.round(rgb.g * 0.82 + 180 * 0.18);
+  var b = Math.round(rgb.b * 0.82 + 180 * 0.18);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
 function _altMonthNames(worldId: string, monthIndex: number, activeName: string): string {
