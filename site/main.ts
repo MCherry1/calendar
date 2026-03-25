@@ -614,12 +614,30 @@ function _slotActiveForYear(worldId: string, slotIndex: number, year: number){
 
 function _monthEventsList(events: PreviewEventRow[], worldId: string){
   if (!events.length) return '<p class="month-events empty">No configured events for this source.</p>';
-  return '<ul class="month-events">' + events.map(function(event){
-    var label = event.name + ' · Day ' + event.day;
-    var sourceLabel = _sourceLabel(worldId, event.source || 'custom');
-    var tip = sourceLabel + ' · ' + event.name + ' on day ' + event.day;
-    return '<li title="' + _esc(tip) + '">' + _esc(label) + '</li>';
-  }).join('') + '</ul>';
+  // Collapse recurring events (same name+source appearing many times) into a single summary line
+  var grouped: Record<string, { name: string; source?: string; days: number[] }> = {};
+  events.forEach(function(event){
+    var key = (event.source || '') + '::' + event.name;
+    if (!grouped[key]) grouped[key] = { name: event.name, source: event.source, days: [] };
+    grouped[key].days.push(event.day);
+  });
+  var lines: string[] = [];
+  var keys = Object.keys(grouped);
+  for (var i = 0; i < keys.length; i++){
+    var g = grouped[keys[i]];
+    var sourceLabel = _sourceLabel(worldId, g.source || 'custom');
+    var label: string;
+    var tip: string;
+    if (g.days.length > 3){
+      label = g.name + ' · ' + g.days.length + ' days';
+      tip = sourceLabel + ' · ' + g.name + ' on days ' + g.days.join(', ');
+    } else {
+      label = g.name + ' · Day ' + g.days.join(', ');
+      tip = sourceLabel + ' · ' + g.name + ' on day ' + g.days.join(', ');
+    }
+    lines.push('<li title="' + _esc(tip) + '">' + _esc(label) + '</li>');
+  }
+  return '<ul class="month-events">' + lines.join('') + '</ul>';
 }
 
 function _sourceLabel(worldId: string, source: string){
