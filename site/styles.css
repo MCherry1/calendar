@@ -378,6 +378,26 @@ body {
   color: var(--text-faint);
 }
 
+.alt-names {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  line-height: 1.35;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.alt-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .calendar-card-header {
   padding: 0.7rem 0.9rem;
   border-radius: 16px 16px 6px 6px;
@@ -396,8 +416,8 @@ body {
 }
 
 .gallery-controls {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.9rem;
   margin-bottom: 1rem;
   position: sticky;
@@ -408,6 +428,11 @@ body {
   padding: 0.8rem;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gallery-controls > label {
+  flex: 1 1 0;
+  min-width: 140px;
 }
 
 .gallery-controls label {
@@ -531,8 +556,8 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .gallery-controls {
-    grid-template-columns: 1fr;
+  .gallery-controls > label {
+    flex: 1 1 100%;
   }
 
   .feature-strip,

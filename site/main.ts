@@ -38,6 +38,8 @@ var calendarGallery = _must<HTMLElement>('calendar-gallery');
 var galleryWorldSelect = _must<HTMLSelectElement>('gallery-world');
 var gallerySourceSelect = _must<HTMLSelectElement>('gallery-source');
 var galleryYearInput = _must<HTMLInputElement>('gallery-year');
+var galleryVariantSelect = _must<HTMLSelectElement>('gallery-variant');
+var galleryVariantLabel = _must<HTMLElement>('gallery-variant-label');
 var copyLinkButton = _must<HTMLButtonElement>('copy-link');
 var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
@@ -133,12 +135,14 @@ function _bindEvents(){
     if (!WORLDS[nextWorld]) nextWorld = state.worldId;
     galleryWorldSelect.value = nextWorld;
     _renderGallerySourceOptions(nextWorld, 'all');
+    _renderGalleryVariantOptions(nextWorld);
     galleryYearInput.value = String(WORLDS[nextWorld].defaultDate.year);
     _renderCalendarGallery();
   });
 
   gallerySourceSelect.addEventListener('change', _renderCalendarGallery);
   galleryYearInput.addEventListener('change', _renderCalendarGallery);
+  galleryVariantSelect.addEventListener('change', _renderCalendarGallery);
 }
 
 function _updateStateFromControls(){
@@ -235,12 +239,15 @@ function _renderCalendarGallery(){
     var monthEvents = _monthEventRows(worldId, preview.slotIndex, eventRows, year);
     var mColor = _monthColor(worldId, monthIndex);
     var rgb = _hexToRgb(mColor);
+    var displayName = _overlayMonthName(worldId, monthIndex, preview.monthName);
+    var altNames = _altMonthNames(worldId, monthIndex, displayName);
     return (
       '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';--month-color:' + _esc(mColor) + ';--month-r:' + rgb.r + ';--month-g:' + rgb.g + ';--month-b:' + rgb.b + ';">' +
         '<div class="calendar-card-header">' +
           '<div>' +
             '<small>' + _esc(world.calendar.label) + '</small>' +
-            '<h4>' + _esc(preview.monthName) + '</h4>' +
+            '<h4>' + _esc(displayName) + '</h4>' +
+            (altNames ? '<p class="alt-names">' + altNames + '</p>' : '') +
           '</div>' +
           '<span class="meta-chip">' + _esc(preview.daysInMonth + ' days · ' + year + ' ' + world.eraLabel) + '</span>' +
         '</div>' +
@@ -481,7 +488,22 @@ function _syncGalleryControlsFromState(){
   var worldId = state.worldId;
   galleryWorldSelect.value = worldId;
   _renderGallerySourceOptions(worldId, 'all');
+  _renderGalleryVariantOptions(worldId);
   galleryYearInput.value = String(WORLDS[worldId].defaultDate.year);
+}
+
+function _renderGalleryVariantOptions(worldId: string){
+  var world = WORLDS[worldId];
+  var overlays = world.calendar.namingOverlays || [];
+  if (overlays.length <= 1) {
+    galleryVariantLabel.hidden = true;
+    return;
+  }
+  galleryVariantLabel.hidden = false;
+  galleryVariantSelect.innerHTML = overlays.map(function(o){
+    var selected = o.key === world.calendar.defaultOverlayKey ? ' selected' : '';
+    return '<option value="' + _esc(o.key) + '"' + selected + '>' + _esc(o.label) + '</option>';
+  }).join('');
 }
 
 function _renderGallerySourceOptions(worldId: string, preferred: string){
@@ -643,13 +665,26 @@ function _monthEventsList(events: PreviewEventRow[], worldId: string){
   return '<ul class="month-events">' + lines.join('') + '</ul>';
 }
 
-function _monthColor(worldId: string, monthIndex: number): string {
+function _activeOverlay(worldId: string) {
   var world = WORLDS[worldId];
-  var overlay = world.calendar.namingOverlays.find(function(o){ return o.key === world.calendar.defaultOverlayKey; });
+  var overlays = world.calendar.namingOverlays || [];
+  var variantKey = galleryVariantLabel.hidden ? '' : String(galleryVariantSelect.value || '');
+  var overlay = variantKey ? overlays.find(function(o){ return o.key === variantKey; }) : null;
+  return overlay || overlays.find(function(o){ return o.key === world.calendar.defaultOverlayKey; }) || overlays[0];
+}
+
+function _monthColor(worldId: string, monthIndex: number): string {
+  var overlay = _activeOverlay(worldId);
   var themeKey = (overlay && overlay.colorTheme) || 'seasons';
   var palette = (COLOR_THEMES as Record<string, string[]>)[themeKey] || (COLOR_THEMES as Record<string, string[]>).seasons;
   if (!palette || !palette.length) return '#e6b85c';
   return palette[monthIndex % palette.length] || '#e6b85c';
+}
+
+function _overlayMonthName(worldId: string, monthIndex: number, fallback: string): string {
+  var overlay = _activeOverlay(worldId);
+  if (!overlay || !overlay.monthNames) return fallback;
+  return overlay.monthNames[monthIndex] || fallback;
 }
 
 function _hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -659,6 +694,25 @@ function _hexToRgb(hex: string): { r: number; g: number; b: number } {
     g: parseInt(h.substring(2, 4), 16) || 0,
     b: parseInt(h.substring(4, 6), 16) || 0
   };
+}
+
+function _altMonthNames(worldId: string, monthIndex: number, activeName: string): string {
+  var world = WORLDS[worldId];
+  var overlays = world.calendar.namingOverlays || [];
+  if (overlays.length <= 1) return '';
+  var alts: string[] = [];
+  for (var i = 0; i < overlays.length; i++){
+    var o = overlays[i];
+    var name = (o.monthNames && o.monthNames[monthIndex]) || '';
+    if (!name || name === activeName) continue;
+    var themeKey = o.colorTheme || 'seasons';
+    var palette = (COLOR_THEMES as Record<string, string[]>)[themeKey] || (COLOR_THEMES as Record<string, string[]>).seasons;
+    var color = (palette && palette[monthIndex % palette.length]) || '';
+    var dot = color ? '<span class="alt-dot" style="background:' + _esc(color) + ';"></span>' : '';
+    alts.push(dot + '<span title="' + _esc(o.label) + '">' + _esc(name) + '</span>');
+  }
+  if (!alts.length) return '';
+  return alts.join(' · ');
 }
 
 function _sourceLabel(worldId: string, source: string){
