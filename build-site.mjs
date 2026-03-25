@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 
@@ -22,5 +22,12 @@ await build({
 
 writeFileSync(resolve(distDir, 'index.html'), readFileSync(resolve(root, 'site/index.html')));
 writeFileSync(resolve(assetsDir, 'styles.css'), readFileSync(resolve(root, 'site/styles.css')));
+
+// Copy standalone pages
+var extraPages = ['style-samples.html'];
+for (var page of extraPages) {
+  var src = resolve(root, 'site', page);
+  if (existsSync(src)) writeFileSync(resolve(distDir, page), readFileSync(src));
+}
 
 console.log('Built showcase site in ' + distDir);
