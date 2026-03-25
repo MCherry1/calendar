@@ -1,7 +1,7 @@
 import { WORLD_ORDER, WORLDS } from '../src/worlds/index.js';
 import { COLOR_THEMES } from '../src/constants.js';
 import { buildCalendarPreview } from '../src/showcase/calendar-preview.js';
-import { buildSkyScene } from '../src/showcase/sky-scene.js';
+import { buildSkyScene, moonPhasesForDay } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 
 type ShowcaseState = {
@@ -40,6 +40,7 @@ var gallerySourceSelect = _must<HTMLSelectElement>('gallery-source');
 var galleryYearInput = _must<HTMLInputElement>('gallery-year');
 var galleryVariantSelect = _must<HTMLSelectElement>('gallery-variant');
 var galleryVariantLabel = _must<HTMLElement>('gallery-variant-label');
+var gallerySeedInput = _must<HTMLInputElement>('gallery-seed');
 var copyLinkButton = _must<HTMLButtonElement>('copy-link');
 var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
@@ -143,6 +144,7 @@ function _bindEvents(){
   gallerySourceSelect.addEventListener('change', _renderCalendarGallery);
   galleryYearInput.addEventListener('change', _renderCalendarGallery);
   galleryVariantSelect.addEventListener('change', _renderCalendarGallery);
+  gallerySeedInput.addEventListener('input', _renderCalendarGallery);
 }
 
 function _updateStateFromControls(){
@@ -229,6 +231,8 @@ function _renderCalendarGallery(){
   var eventRows = _eventRowsForSource(worldId, sourceKey, year);
   var eventsBySlotDay = _indexEventsBySlotDay(worldId, eventRows, year);
 
+  var seedWord = gallerySeedInput.value.trim() || null;
+
   calendarGallery.innerHTML = months.map(function(slot, monthIndex){
     var preview = buildCalendarPreview({
       worldId: worldId,
@@ -241,6 +245,22 @@ function _renderCalendarGallery(){
     var rgb = _hexToRgb(mColor);
     var displayName = _overlayMonthName(worldId, monthIndex, preview.monthName);
     var altNames = _altMonthNames(worldId, monthIndex, displayName);
+
+    // Precompute notable moon phases for every day in this month
+    var moonByDay: Record<number, { tooltip: string; cls: string }> = {};
+    for (var d = 1; d <= preview.daysInMonth; d++){
+      var serial = toWorldSerial(worldId, year, preview.slotIndex, d);
+      var phases = moonPhasesForDay(worldId, serial, seedWord);
+      var notable = phases.filter(function(p){ return p.notable !== null; });
+      if (notable.length){
+        var tip = notable.map(function(p){
+          return p.emoji + ' ' + p.name + (p.notable === 'full' ? ' (full)' : ' (new)');
+        }).join(' · ');
+        var hasFull = notable.some(function(p){ return p.notable === 'full'; });
+        moonByDay[d] = { tooltip: tip, cls: hasFull ? ' moon-full' : ' moon-new' };
+      }
+    }
+
     return (
       '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';--month-color:' + _esc(mColor) + ';--month-r:' + rgb.r + ';--month-g:' + rgb.g + ';--month-b:' + rgb.b + ';">' +
         '<div class="calendar-card-header">' +
@@ -255,6 +275,7 @@ function _renderCalendarGallery(){
           '<span class="meta-chip">' + _esc(world.label) + '</span>' +
           '<span class="meta-chip">' + _esc(String(preview.moonCount) + ' moon' + (preview.moonCount === 1 ? '' : 's')) + '</span>' +
           '<span class="meta-chip">' + _esc(sourceKey === 'all' ? 'All sources' : _sourceLabel(worldId, sourceKey)) + '</span>' +
+          (seedWord ? '<span class="meta-chip seed-chip">Seed: ' + _esc(seedWord) + '</span>' : '') +
         '</div>' +
         '<div class="mini-calendar" style="--weekday-count:' + weekdayCount + ';">' +
           '<div class="mini-weekdays">' +
@@ -266,13 +287,18 @@ function _renderCalendarGallery(){
             preview.cells.map(function(cell, cellIndex){
               if (cell.kind === 'empty') return '<span class="mini-cell empty">.</span>';
               var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
-              var tooltip = events.length
-                ? events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' • ')
-                : '';
+              var moonInfo = moonByDay[cell.day];
+              var tooltipParts: string[] = [];
+              if (moonInfo) tooltipParts.push(moonInfo.tooltip);
+              if (events.length){
+                tooltipParts.push(events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' • '));
+              }
+              var tooltip = tooltipParts.join('\n');
               var parity = ((Math.floor(cellIndex / weekdayCount) + cell.weekdayIndex) % 2) === 0 ? ' shade-even' : ' shade-odd';
               var hasEvents = events.length ? ' has-events' : '';
+              var moonCls = moonInfo ? moonInfo.cls : '';
               var tint = events.length && events[0].color ? ' style="--event-color:' + _esc(events[0].color || '#e6b85c') + ';"' : '';
-              return '<span class="mini-cell' + parity + hasEvents + '"' + tint + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
+              return '<span class="mini-cell' + parity + hasEvents + moonCls + '"' + tint + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
             }).join('') +
           '</div>' +
         '</div>' +
