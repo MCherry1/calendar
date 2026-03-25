@@ -3,6 +3,7 @@ import { COLOR_THEMES } from '../src/constants.js';
 import { buildCalendarPreview } from '../src/showcase/calendar-preview.js';
 import { buildSkyScene, moonPhasesForDay } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
+import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 
 type ShowcaseState = {
   worldId: string;
@@ -239,11 +240,8 @@ function _renderCalendarGallery(){
       year: year,
       monthIndex: monthIndex
     });
-    var weekdayCount = preview.weekdayLabels.length;
     var monthEvents = _monthEventRows(worldId, preview.slotIndex, eventRows, year);
-    var mColor = _ensureHeaderContrast(_monthColor(worldId, monthIndex));
-    var rgb = _hexToRgb(mColor);
-    var headerText = _contrastText(rgb);
+    var mColor = _monthColor(worldId, monthIndex);
     var displayName = _overlayMonthName(worldId, monthIndex, preview.monthName);
 
     // Compute overflow cell day numbers for adjacent months
@@ -253,77 +251,46 @@ function _renderCalendarGallery(){
       prevMonthDays = prevPreview.daysInMonth;
     }
 
-    // Build Roll20-style table HTML
-    var tableHtml = '<table>';
-    // Month header: name left, year/era right (matches Roll20's openMonthTable)
-    tableHtml += '<tr><th colspan="' + weekdayCount + '" style="border:1px solid #444;padding:0;">';
-    tableHtml += '<div style="padding:6px;text-align:left;background:' + _esc(mColor) + ';color:' + headerText + ';">';
-    tableHtml += _esc(displayName);
-    tableHtml += '<span style="float:right;">' + _esc(String(year) + ' ' + world.eraLabel) + '</span>';
-    tableHtml += '</div></th></tr>';
-    // Weekday headers
-    tableHtml += '<tr>';
-    for (var wi = 0; wi < weekdayCount; wi++){
-      tableHtml += '<th>' + _esc(preview.weekdayLabels[wi]) + '</th>';
-    }
-    tableHtml += '</tr>';
-    // Day cells in rows
-    var totalCells = preview.cells.length;
-    for (var ci = 0; ci < totalCells; ci += weekdayCount){
-      tableHtml += '<tr>';
-      for (var col = 0; col < weekdayCount; col++){
-        var idx = ci + col;
-        if (idx >= totalCells) break;
-        var cell = preview.cells[idx];
-        if (cell.kind === 'empty'){
-          // Overflow cell from adjacent month
-          var isLeading = idx < preview.leadingEmptyDays;
-          var ovDay: number;
-          if (isLeading){
-            ovDay = prevMonthDays - (preview.leadingEmptyDays - 1 - idx);
-          } else {
-            ovDay = idx - (preview.leadingEmptyDays + preview.daysInMonth) + 1;
-          }
-          var ovColor = isLeading && monthIndex > 0
-            ? _monthColor(worldId, monthIndex - 1)
-            : (monthIndex < months.length - 1 ? _monthColor(worldId, monthIndex + 1) : mColor);
-          tableHtml += '<td class="overflow" style="background-color:' + _esc(ovColor) + ';">';
-          tableHtml += '<div class="mini-cell-inner"><div class="mini-cell-band">&nbsp;</div>';
-          tableHtml += '<div class="mini-cell-numeral">' + _esc(String(ovDay)) + '</div>';
-          tableHtml += '<div class="mini-cell-band">&nbsp;</div></div>';
-          tableHtml += '</td>';
+    // Build PureCell array from preview cells + events
+    var pureCells: PureCell[] = preview.cells.map(function(cell, idx){
+      if (cell.kind === 'empty'){
+        var isLeading = idx < preview.leadingEmptyDays;
+        var ovDay: number;
+        if (isLeading){
+          ovDay = prevMonthDays - (preview.leadingEmptyDays - 1 - idx);
         } else {
-          var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
-          var tooltip = events.length
-            ? events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' \u2022 ')
-            : '';
-          var tdClass = events.length ? ' class="has-events"' : '';
-          var tdStyle = '';
-          if (events.length && events[0].color){
-            var eRgb = _hexToRgb(events[0].color || '#e6b85c');
-            tdStyle = ' style="--event-color:' + _esc(events[0].color) + ';--event-text:' + _contrastText(eRgb) + ';background-color:' + _esc(events[0].color) + ';color:' + _contrastText(eRgb) + ';"';
-          }
-          var titleAttr = tooltip ? ' title="' + _esc(tooltip) + '"' : '';
-          // Event dots for secondary events (matches Roll20's _eventDotsHtml)
-          var dots = '';
-          if (events.length > 1){
-            var dotSlice = events.slice(1, 4);
-            var dotSpans = dotSlice.map(function(e){ return '<span style="color:' + _esc(e.color || '#e6b85c') + ';line-height:1;">&#9679;</span>'; });
-            dots = '<div class="mini-cell-dots">' + dotSpans.join('&thinsp;') + '</div>';
-          }
-          tableHtml += '<td' + tdClass + tdStyle + titleAttr + '>';
-          tableHtml += '<div class="mini-cell-inner"><div class="mini-cell-band">&nbsp;</div>';
-          tableHtml += '<div class="mini-cell-numeral">' + _esc(String(cell.day)) + '</div>';
-          tableHtml += '<div class="mini-cell-band">' + (dots || '&nbsp;') + '</div></div>';
-          tableHtml += '</td>';
+          ovDay = idx - (preview.leadingEmptyDays + preview.daysInMonth) + 1;
         }
+        var ovColor = isLeading && monthIndex > 0
+          ? _monthColor(worldId, monthIndex - 1)
+          : (monthIndex < months.length - 1 ? _monthColor(worldId, monthIndex + 1) : mColor);
+        return { kind: 'overflow' as const, day: ovDay, overflowColor: ovColor };
       }
-      tableHtml += '</tr>';
-    }
-    tableHtml += '</table>';
+      var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
+      return {
+        kind: 'day' as const,
+        day: cell.day,
+        isToday: false,
+        isPast: false,
+        isFuture: false,
+        events: events.map(function(e){ return { color: e.color || '#e6b85c' }; }),
+        tooltip: events.length
+          ? events.map(function(ev){ return ev.name + ' (' + _sourceLabel(worldId, ev.source || 'custom') + ')'; }).join(' \u2022 ')
+          : ''
+      };
+    });
+
+    // Use the exact same renderer as the Roll20 script
+    var tableHtml = renderPureMonthTable({
+      monthName: displayName,
+      yearLabel: String(year) + ' ' + world.eraLabel,
+      weekdayLabels: preview.weekdayLabels,
+      monthColor: mColor,
+      cells: pureCells
+    });
 
     return (
-      '<article class="calendar-card" style="--month-color:' + _esc(mColor) + ';--header-text:' + headerText + ';">' +
+      '<article class="calendar-card">' +
         '<div class="calendar-card-meta">' +
           '<span class="meta-chip">' + _esc(world.label) + '</span>' +
           '<span class="meta-chip">' + _esc(String(preview.moonCount) + ' moon' + (preview.moonCount === 1 ? '' : 's')) + '</span>' +
@@ -763,30 +730,8 @@ function _overlayMonthName(worldId: string, monthIndex: number, fallback: string
   return overlay.monthNames[monthIndex] || fallback;
 }
 
-function _hexToRgb(hex: string): { r: number; g: number; b: number } {
-  var h = hex.replace('#', '');
-  return {
-    r: parseInt(h.substring(0, 2), 16) || 0,
-    g: parseInt(h.substring(2, 4), 16) || 0,
-    b: parseInt(h.substring(4, 6), 16) || 0
-  };
-}
 
-function _contrastText(rgb: { r: number; g: number; b: number }): string {
-  return (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114) > 160 ? '#1a1a1a' : '#ffffff';
-}
 
-// Darken colors that are too close to white so they're visible as header bars on white cards
-function _ensureHeaderContrast(hex: string): string {
-  var rgb = _hexToRgb(hex);
-  var lum = (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114);
-  if (lum < 230) return hex;
-  // Mix with 20% gray to bring it down
-  var r = Math.round(rgb.r * 0.82 + 180 * 0.18);
-  var g = Math.round(rgb.g * 0.82 + 180 * 0.18);
-  var b = Math.round(rgb.b * 0.82 + 180 * 0.18);
-  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-}
 
 function _altMonthNames(worldId: string, monthIndex: number, activeName: string): string {
   var world = WORLDS[worldId];

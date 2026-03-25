@@ -4,6 +4,7 @@ import { freshInstall } from "./helpers.js";
 import { STYLES } from "../src/constants.js";
 import { _eventDotsHtml } from "../src/color.js";
 import { tdHtmlForDay } from "../src/rendering.js";
+import { renderPureMonthTable } from "../src/shared/render-month-table.js";
 
 describe("Calendar cell rendering", () => {
   it("renders event dots in normal flow without absolute positioning", () => {
@@ -77,5 +78,32 @@ describe("Calendar cell rendering", () => {
 
     assert(html.includes("#AA0000"));
     assert(html.includes("#00AA00"));
+  });
+
+  it("renderPureMonthTable produces table with header, weekdays, and cells", () => {
+    freshInstall();
+    const html = renderPureMonthTable({
+      monthName: 'Zarantyr',
+      yearLabel: '998 YK',
+      weekdayLabels: ['Sul', 'Mol', 'Zol', 'Wir', 'Zor', 'Far', 'Sar'],
+      monthColor: '#4A90D9',
+      cells: [
+        { kind: 'overflow', day: 27, overflowColor: '#888888' },
+        { kind: 'overflow', day: 28, overflowColor: '#888888' },
+        { kind: 'day', day: 1, isToday: false, isPast: false, isFuture: false, events: [], tooltip: '' },
+        { kind: 'day', day: 2, isToday: false, isPast: false, isFuture: false, events: [{ color: '#FF0000' }], tooltip: 'Festival' },
+        { kind: 'day', day: 3, isToday: true, isPast: false, isFuture: false, events: [], tooltip: '' },
+        { kind: 'day', day: 4, isToday: false, isPast: false, isFuture: false, events: [], tooltip: '' },
+        { kind: 'day', day: 5, isToday: false, isPast: false, isFuture: false, events: [], tooltip: '' }
+      ]
+    });
+    assert(html.includes('<table'), 'should produce a table');
+    assert(html.includes('Zarantyr'), 'should include month name');
+    assert(html.includes('998 YK'), 'should include year label');
+    assert(html.includes('Sul'), 'should include weekday headers');
+    assert(html.includes('opacity:.22'), 'overflow cells should be dimmed');
+    assert(html.includes('#FF0000'), 'event color should appear');
+    assert(html.includes('Festival'), 'tooltip should appear');
+    assert(html.includes(STYLES.today), 'today cell should have today style');
   });
 });
