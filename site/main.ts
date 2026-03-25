@@ -245,48 +245,92 @@ function _renderCalendarGallery(){
     var rgb = _hexToRgb(mColor);
     var headerText = _contrastText(rgb);
     var displayName = _overlayMonthName(worldId, monthIndex, preview.monthName);
-    var altNames = _altMonthNames(worldId, monthIndex, displayName);
+
+    // Compute overflow cell day numbers for adjacent months
+    var prevMonthDays = 0;
+    if (monthIndex > 0){
+      var prevPreview = buildCalendarPreview({ worldId: worldId, year: year, monthIndex: monthIndex - 1 });
+      prevMonthDays = prevPreview.daysInMonth;
+    }
+
+    // Build Roll20-style table HTML
+    var tableHtml = '<table>';
+    // Month header: name left, year/era right (matches Roll20's openMonthTable)
+    tableHtml += '<tr><th colspan="' + weekdayCount + '" style="border:1px solid #444;padding:0;">';
+    tableHtml += '<div style="padding:6px;text-align:left;background:' + _esc(mColor) + ';color:' + headerText + ';">';
+    tableHtml += _esc(displayName);
+    tableHtml += '<span style="float:right;">' + _esc(String(year) + ' ' + world.eraLabel) + '</span>';
+    tableHtml += '</div></th></tr>';
+    // Weekday headers
+    tableHtml += '<tr>';
+    for (var wi = 0; wi < weekdayCount; wi++){
+      tableHtml += '<th>' + _esc(preview.weekdayLabels[wi]) + '</th>';
+    }
+    tableHtml += '</tr>';
+    // Day cells in rows
+    var totalCells = preview.cells.length;
+    for (var ci = 0; ci < totalCells; ci += weekdayCount){
+      tableHtml += '<tr>';
+      for (var col = 0; col < weekdayCount; col++){
+        var idx = ci + col;
+        if (idx >= totalCells) break;
+        var cell = preview.cells[idx];
+        if (cell.kind === 'empty'){
+          // Overflow cell from adjacent month
+          var isLeading = idx < preview.leadingEmptyDays;
+          var ovDay: number;
+          if (isLeading){
+            ovDay = prevMonthDays - (preview.leadingEmptyDays - 1 - idx);
+          } else {
+            ovDay = idx - (preview.leadingEmptyDays + preview.daysInMonth) + 1;
+          }
+          var ovColor = isLeading && monthIndex > 0
+            ? _monthColor(worldId, monthIndex - 1)
+            : (monthIndex < months.length - 1 ? _monthColor(worldId, monthIndex + 1) : mColor);
+          tableHtml += '<td class="overflow" style="background-color:' + _esc(ovColor) + ';">';
+          tableHtml += '<div class="mini-cell-inner"><div class="mini-cell-band">&nbsp;</div>';
+          tableHtml += '<div class="mini-cell-numeral">' + _esc(String(ovDay)) + '</div>';
+          tableHtml += '<div class="mini-cell-band">&nbsp;</div></div>';
+          tableHtml += '</td>';
+        } else {
+          var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
+          var tooltip = events.length
+            ? events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' \u2022 ')
+            : '';
+          var tdClass = events.length ? ' class="has-events"' : '';
+          var tdStyle = '';
+          if (events.length && events[0].color){
+            var eRgb = _hexToRgb(events[0].color || '#e6b85c');
+            tdStyle = ' style="--event-color:' + _esc(events[0].color) + ';--event-text:' + _contrastText(eRgb) + ';background-color:' + _esc(events[0].color) + ';color:' + _contrastText(eRgb) + ';"';
+          }
+          var titleAttr = tooltip ? ' title="' + _esc(tooltip) + '"' : '';
+          // Event dots for secondary events (matches Roll20's _eventDotsHtml)
+          var dots = '';
+          if (events.length > 1){
+            var dotSlice = events.slice(1, 4);
+            var dotSpans = dotSlice.map(function(e){ return '<span style="color:' + _esc(e.color || '#e6b85c') + ';line-height:1;">&#9679;</span>'; });
+            dots = '<div class="mini-cell-dots">' + dotSpans.join('&thinsp;') + '</div>';
+          }
+          tableHtml += '<td' + tdClass + tdStyle + titleAttr + '>';
+          tableHtml += '<div class="mini-cell-inner"><div class="mini-cell-band">&nbsp;</div>';
+          tableHtml += '<div class="mini-cell-numeral">' + _esc(String(cell.day)) + '</div>';
+          tableHtml += '<div class="mini-cell-band">' + (dots || '&nbsp;') + '</div></div>';
+          tableHtml += '</td>';
+        }
+      }
+      tableHtml += '</tr>';
+    }
+    tableHtml += '</table>';
 
     return (
-      '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';--month-color:' + _esc(mColor) + ';--header-text:' + headerText + ';">' +
-        '<div class="calendar-card-header">' +
-          '<div>' +
-            '<small>' + _esc(world.calendar.label) + '</small>' +
-            '<h4>' + _esc(displayName) + '</h4>' +
-            (altNames ? '<p class="alt-names">' + altNames + '</p>' : '') +
-          '</div>' +
-          '<span class="meta-chip" style="background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);color:' + headerText + ';">' + _esc(preview.daysInMonth + ' days · ' + year + ' ' + world.eraLabel) + '</span>' +
-        '</div>' +
+      '<article class="calendar-card" style="--month-color:' + _esc(mColor) + ';--header-text:' + headerText + ';">' +
         '<div class="calendar-card-meta">' +
           '<span class="meta-chip">' + _esc(world.label) + '</span>' +
           '<span class="meta-chip">' + _esc(String(preview.moonCount) + ' moon' + (preview.moonCount === 1 ? '' : 's')) + '</span>' +
           '<span class="meta-chip">' + _esc(sourceKey === 'all' ? 'All sources' : _sourceLabel(worldId, sourceKey)) + '</span>' +
           (seedWord ? '<span class="meta-chip seed-chip">Seed: ' + _esc(seedWord) + '</span>' : '') +
         '</div>' +
-        '<div class="mini-calendar" style="--weekday-count:' + weekdayCount + ';">' +
-          '<div class="mini-weekdays">' +
-            preview.weekdayLabels.map(function(label){
-              return '<span>' + _esc(label) + '</span>';
-            }).join('') +
-          '</div>' +
-          '<div class="mini-cells">' +
-            preview.cells.map(function(cell, cellIndex){
-              if (cell.kind === 'empty') return '<span class="mini-cell empty">.</span>';
-              var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
-              var tooltip = events.length
-                ? events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' • ')
-                : '';
-              var parity = ((Math.floor(cellIndex / weekdayCount) + cell.weekdayIndex) % 2) === 0 ? ' shade-even' : ' shade-odd';
-              var hasEvents = events.length ? ' has-events' : '';
-              var eventStyle = '';
-              if (events.length && events[0].color){
-                var eRgb = _hexToRgb(events[0].color || '#e6b85c');
-                eventStyle = ' style="--event-color:' + _esc(events[0].color) + ';--event-text:' + _contrastText(eRgb) + ';"';
-              }
-              return '<span class="mini-cell' + parity + hasEvents + '"' + eventStyle + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
-            }).join('') +
-          '</div>' +
-        '</div>' +
+        '<div class="mini-calendar">' + tableHtml + '</div>' +
         _festivalRail(preview.intercalaryBefore.concat(preview.intercalaryAfter)) +
         _monthEventsList(monthEvents, worldId) +
       '</article>'
