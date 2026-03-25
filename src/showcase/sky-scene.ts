@@ -68,6 +68,14 @@ type BuildSkySceneResolvedInput = {
 
 export var DEFAULT_OBSERVER_LATITUDE = 30;
 export var SUN_ANGULAR_DIAM_DEG = 0.53;
+var LUNA_ANALOG = {
+  synodicPeriod: 29.53059,
+  diameter: 3474.8,
+  distance: 384400,
+  inclination: 5.145,
+  eccentricity: 0.0549,
+  albedo: 0.12
+};
 
 var SHOWCASE_MOON_OVERRIDES: Record<string, Record<string, Partial<MoonLike>>> = {
   eberron: {
@@ -245,14 +253,15 @@ function moonMotionLabel(observerLatitude: number, moon: MoonLike, serial: numbe
 function _normalizeMoon(worldId: string, body: MoonLike): MoonLike {
   var override = (SHOWCASE_MOON_OVERRIDES[worldId] || {})[body.name] || {};
   var data = Object.assign({}, body.data || {}, override.data || {});
+  var useLunaFallback = worldId !== 'eberron';
   return Object.assign({}, body, override, {
     key: body.key || String(body.name || '').toLowerCase(),
-    synodicPeriod: override.synodicPeriod || body.synodicPeriod || body.baseCycleDays || 28,
-    diameter: override.diameter || body.diameter || data.diameter || 1000,
-    distance: override.distance || body.distance || data.distance || 100000,
-    inclination: override.inclination || body.inclination || data.inclination || 5,
-    eccentricity: override.eccentricity || body.eccentricity || data.eccentricity || 0.03,
-    albedo: override.albedo || body.albedo || data.albedo || 0.12,
+    synodicPeriod: override.synodicPeriod || body.synodicPeriod || body.baseCycleDays || (useLunaFallback ? LUNA_ANALOG.synodicPeriod : 28),
+    diameter: override.diameter || body.diameter || data.diameter || (useLunaFallback ? LUNA_ANALOG.diameter : 1000),
+    distance: override.distance || body.distance || data.distance || (useLunaFallback ? LUNA_ANALOG.distance : 100000),
+    inclination: override.inclination || body.inclination || data.inclination || (useLunaFallback ? LUNA_ANALOG.inclination : 5),
+    eccentricity: override.eccentricity || body.eccentricity || data.eccentricity || (useLunaFallback ? LUNA_ANALOG.eccentricity : 0.03),
+    albedo: override.albedo || body.albedo || data.albedo || (useLunaFallback ? LUNA_ANALOG.albedo : 0.12),
     epochSeed: override.epochSeed || body.epochSeed || data.epochSeed || null,
     orbitalData: override.orbitalData || body.orbitalData || null,
     motionTuning: override.motionTuning || body.motionTuning || null,

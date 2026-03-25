@@ -125,8 +125,22 @@
       <section class="gallery-section">
         <div class="section-heading">
           <p class="eyebrow">Calendar Gallery</p>
-          <h2>One compact preview for every supported world.</h2>
-          <p>These cards are generated from shared calendar definitions, not hand-authored screenshots.</p>
+          <h2>Year-at-a-glance preview for the selected setting.</h2>
+          <p>Choose a world and event source to preview minicals, shading, and event tooltips for an entire year.</p>
+        </div>
+        <div class="gallery-controls">
+          <label>
+            <span>Preview world</span>
+            <select id="gallery-world"></select>
+          </label>
+          <label>
+            <span>Calendar source</span>
+            <select id="gallery-source"></select>
+          </label>
+          <label>
+            <span>Year</span>
+            <input id="gallery-year" type="number" step="1">
+          </label>
         </div>
         <div class="calendar-gallery" id="calendar-gallery"></div>
       </section>
