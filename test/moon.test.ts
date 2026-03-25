@@ -107,6 +107,19 @@ describe("Moon System", () => {
     assert(dravagoOrbit.retrograde, "Dravago should be flagged retrograde");
     assert(dravagoOrbit.inclination > 0 && dravagoOrbit.inclination < 90, "retrograde inclination should be folded into a physical 0-90° latitude amplitude");
     assert(Math.abs(_moonEclipticLat(dravago, serial)) <= dravagoOrbit.inclination + 0.000001);
+
+    const nextSerial = serial + 1;
+    const nextDravagoPhase = moonPhaseAt("Dravago", nextSerial);
+    const nextDravagoProgradeAngle = nextDravagoPhase.waxing
+      ? nextDravagoPhase.illum * 180
+      : 180 + (1 - nextDravagoPhase.illum) * 180;
+    assertEquals(_moonSkyLong(dravago, nextSerial), (360 - nextDravagoProgradeAngle) % 360);
+
+    const nextZarantyrPhase = moonPhaseAt("Zarantyr", nextSerial);
+    const nextZarantyrProgradeAngle = nextZarantyrPhase.waxing
+      ? nextZarantyrPhase.illum * 180
+      : 180 + (1 - nextZarantyrPhase.illum) * 180;
+    assertEquals(_moonSkyLong(zarantyr, nextSerial), nextZarantyrProgradeAngle % 360);
   });
 
   it("weak anti-phase coupling nudges Barrakas toward Therendor's opposite phase", () => {
