@@ -390,6 +390,52 @@ function _referenceSerial(worldId: string, moon: MoonLike){
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Lightweight moon-phase query — no sky position math, just illumination.
+// Optional systemSeed overrides each moon's defaultSeed the same way the
+// script's !cal moon seed <word> does: "systemSeed::MoonName".
+// ---------------------------------------------------------------------------
+export type MoonPhaseInfo = {
+  name: string;
+  illum: number;
+  waxing: boolean;
+  emoji: string;
+  notable: 'full' | 'new' | null;
+};
+
+export function moonPhasesForDay(worldId: string, serial: number, systemSeed?: string | null): MoonPhaseInfo[] {
+  worldId = String(worldId || '').toLowerCase();
+  var world = WORLDS[worldId];
+  if (!world || !world.moons || !world.moons.bodies) return [];
+  var bodies = world.moons.bodies as MoonLike[];
+  var results: MoonPhaseInfo[] = [];
+  for (var i = 0; i < bodies.length; i++){
+    var body = _normalizeMoon(worldId, bodies[i]);
+    var overriddenBody = body;
+    if (systemSeed){
+      var overrideSeed = systemSeed + '::' + body.name;
+      overriddenBody = Object.assign({}, body, {
+        epochSeed: body.epochSeed
+          ? Object.assign({}, body.epochSeed, { defaultSeed: overrideSeed })
+          : { defaultSeed: overrideSeed, referenceDate: { year: world.defaultDate.year, month: world.defaultDate.month + 1, day: world.defaultDate.day } }
+      });
+    }
+    var phase = _phaseAt(worldId, overriddenBody, serial);
+    var illum = _clamp01(phase.illum || 0);
+    var notable: 'full' | 'new' | null = null;
+    if (illum >= 0.97) notable = 'full';
+    else if (illum <= 0.03) notable = 'new';
+    results.push({
+      name: body.name,
+      illum: illum,
+      waxing: phase.waxing,
+      emoji: moonPhaseEmoji(illum, phase.waxing),
+      notable: notable
+    });
+  }
+  return results;
+}
+
 function _moonHashStr(str: string){
   str = String(str || '');
   var h = 2166136261;
