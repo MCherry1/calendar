@@ -34,6 +34,9 @@ var sceneSubtitle = _must<HTMLElement>('scene-subtitle');
 var moonList = _must<HTMLElement>('moon-list');
 var heroStats = _must<HTMLElement>('hero-stats');
 var calendarGallery = _must<HTMLElement>('calendar-gallery');
+var galleryWorldSelect = _must<HTMLSelectElement>('gallery-world');
+var gallerySourceSelect = _must<HTMLSelectElement>('gallery-source');
+var galleryYearInput = _must<HTMLInputElement>('gallery-year');
 var copyLinkButton = _must<HTMLButtonElement>('copy-link');
 var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
@@ -41,6 +44,8 @@ var ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('Canvas context not available.');
 
 _renderWorldOptions();
+_renderGalleryWorldOptions();
+_syncGalleryControlsFromState();
 _renderCalendarGallery();
 _syncControlsFromState();
 _bindEvents();
@@ -121,6 +126,18 @@ function _bindEvents(){
       }, 1200);
     }
   });
+
+  galleryWorldSelect.addEventListener('change', function(){
+    var nextWorld = String(galleryWorldSelect.value || state.worldId).toLowerCase();
+    if (!WORLDS[nextWorld]) nextWorld = state.worldId;
+    galleryWorldSelect.value = nextWorld;
+    _renderGallerySourceOptions(nextWorld, 'all');
+    galleryYearInput.value = String(WORLDS[nextWorld].defaultDate.year);
+    _renderCalendarGallery();
+  });
+
+  gallerySourceSelect.addEventListener('change', _renderCalendarGallery);
+  galleryYearInput.addEventListener('change', _renderCalendarGallery);
 }
 
 function _updateStateFromControls(){
@@ -177,7 +194,8 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   var scene = buildSkyScene({
     worldId: state.worldId,
     serial: state.serial,
-    timeFrac: state.timeFrac
+    timeFrac: state.timeFrac,
+    observerLatitude: 37.7749
   });
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
@@ -193,30 +211,41 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
 }
 
 function _renderCalendarGallery(){
-  calendarGallery.innerHTML = WORLD_ORDER.map(function(worldId){
-    var world = WORLDS[worldId];
+  var worldId = String(galleryWorldSelect.value || state.worldId || 'eberron').toLowerCase();
+  if (!WORLDS[worldId]) worldId = 'eberron';
+  var world = WORLDS[worldId];
+  var year = parseInt(galleryYearInput.value, 10);
+  if (!isFinite(year)) year = world.defaultDate.year;
+  galleryYearInput.value = String(year);
+  var sourceKey = String(gallerySourceSelect.value || 'all').toLowerCase();
+  var months = getWorldCalendarSlots(worldId).filter(function(slot){
+    return slot.isIntercalary !== true;
+  });
+  var eventRows = _eventRowsForSource(worldId, sourceKey, year);
+  var eventsBySlotDay = _indexEventsBySlotDay(worldId, eventRows, year);
+
+  calendarGallery.innerHTML = months.map(function(slot, monthIndex){
     var preview = buildCalendarPreview({
       worldId: worldId,
-      year: world.defaultDate.year,
-      monthIndex: world.defaultDate.month
+      year: year,
+      monthIndex: monthIndex
     });
     var weekdayCount = preview.weekdayLabels.length;
-    var cardBasis = _calendarCardBasis(weekdayCount);
+    var monthEvents = _monthEventRows(worldId, preview.slotIndex, eventRows, year);
     return (
-      '<article class="calendar-card" style="--calendar-card-basis:' + cardBasis + ';">' +
+      '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';">' +
         '<div class="calendar-card-header">' +
           '<div>' +
             '<small>' + _esc(world.calendar.label) + '</small>' +
-            '<h4>' + _esc(world.label) + '</h4>' +
+            '<h4>' + _esc(preview.monthName) + '</h4>' +
           '</div>' +
-          '<span class="meta-chip">' + _esc(preview.daysInMonth + ' days') + '</span>' +
+          '<span class="meta-chip">' + _esc(preview.daysInMonth + ' days · ' + year + ' ' + world.eraLabel) + '</span>' +
         '</div>' +
         '<div class="calendar-card-meta">' +
-          '<span class="meta-chip">' + _esc(preview.monthName) + '</span>' +
-          '<span class="meta-chip">' + _esc(String(preview.year) + ' ' + world.eraLabel) + '</span>' +
+          '<span class="meta-chip">' + _esc(world.label) + '</span>' +
           '<span class="meta-chip">' + _esc(String(preview.moonCount) + ' moon' + (preview.moonCount === 1 ? '' : 's')) + '</span>' +
+          '<span class="meta-chip">' + _esc(sourceKey === 'all' ? 'All sources' : _sourceLabel(worldId, sourceKey)) + '</span>' +
         '</div>' +
-        '<p>' + _esc(preview.description) + '</p>' +
         '<div class="mini-calendar" style="--weekday-count:' + weekdayCount + ';">' +
           '<div class="mini-weekdays">' +
             preview.weekdayLabels.map(function(label){
@@ -224,13 +253,20 @@ function _renderCalendarGallery(){
             }).join('') +
           '</div>' +
           '<div class="mini-cells">' +
-            preview.cells.map(function(cell){
+            preview.cells.map(function(cell, cellIndex){
               if (cell.kind === 'empty') return '<span class="mini-cell empty">.</span>';
-              return '<span class="mini-cell">' + _esc(String(cell.day)) + '</span>';
+              var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
+              var tooltip = events.length
+                ? events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' • ')
+                : '';
+              var parity = ((Math.floor(cellIndex / weekdayCount) + cell.weekdayIndex) % 2) === 0 ? ' shade-even' : ' shade-odd';
+              var hasEvents = events.length ? ' has-events' : '';
+              return '<span class="mini-cell' + parity + hasEvents + '"' + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
             }).join('') +
           '</div>' +
         '</div>' +
         _festivalRail(preview.intercalaryBefore.concat(preview.intercalaryAfter)) +
+        _monthEventsList(monthEvents, worldId) +
       '</article>'
     );
   }).join('');
@@ -245,12 +281,6 @@ function _festivalRail(items: string[]){
       }).join('') +
     '</div>'
   );
-}
-
-function _calendarCardBasis(weekdayCount: number){
-  var safeCount = Math.max(1, weekdayCount | 0);
-  if (safeCount <= 7) return '270px';
-  return 'calc(270px * ' + safeCount + ' / 7)';
 }
 
 function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
@@ -288,8 +318,8 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   _drawStars(width, height, state.timeFrac);
 
   var cx = width / 2;
-  var cy = height / 2 - 8;
-  var radius = Math.min(width, height) * 0.34;
+  var cy = height / 2 + 14;
+  var radius = Math.min(width, height) * 0.41;
 
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -298,6 +328,12 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   ctx.lineWidth = 2;
   ctx.strokeStyle = 'rgba(247, 242, 232, 0.18)';
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy + radius * 0.07, radius * 0.78, Math.PI * 1.04, Math.PI * 1.96);
+  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = 'rgba(127, 196, 216, 0.28)';
+  ctx.stroke();
+  if (scene.worldId === 'eberron') _drawSiberysRing(cx, cy, radius);
 
   _drawCompass(cx, cy, radius);
 
@@ -403,6 +439,181 @@ function _buildHeroStats(worldId: string){
     '<span class="stat-pill">' + _esc(String(moonCount) + ' moons') + '</span>',
     '<span class="stat-pill">' + _esc(String(monthCount) + ' slots') + '</span>'
   ].join('');
+}
+
+function _drawSiberysRing(cx: number, cy: number, radius: number){
+  if (!ctx) return;
+  ctx.save();
+  ctx.translate(cx, cy - radius * 0.06);
+  ctx.rotate(-12 * Math.PI / 180);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, radius * 0.94, radius * 0.34, 0, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(1.6, radius * 0.012);
+  ctx.strokeStyle = 'rgba(232, 203, 118, 0.46)';
+  ctx.shadowColor = 'rgba(232, 203, 118, 0.48)';
+  ctx.shadowBlur = radius * 0.05;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function _renderGalleryWorldOptions(){
+  galleryWorldSelect.innerHTML = WORLD_ORDER.map(function(worldId){
+    return '<option value="' + worldId + '">' + _esc(WORLDS[worldId].label) + '</option>';
+  }).join('');
+}
+
+function _syncGalleryControlsFromState(){
+  var worldId = state.worldId;
+  galleryWorldSelect.value = worldId;
+  _renderGallerySourceOptions(worldId, 'all');
+  galleryYearInput.value = String(WORLDS[worldId].defaultDate.year);
+}
+
+function _renderGallerySourceOptions(worldId: string, preferred: string){
+  var world = WORLDS[worldId];
+  var packs = (world.eventPacks || []).map(function(pack){
+    return '<option value="' + _esc(pack.key.toLowerCase()) + '">' + _esc(pack.label) + '</option>';
+  });
+  gallerySourceSelect.innerHTML = '<option value="all">All default events</option>' + packs.join('');
+  gallerySourceSelect.value = preferred;
+}
+
+type PreviewEventRow = {
+  name: string;
+  source?: string;
+  slotIndex: number;
+  day: number;
+};
+
+function _eventRowsForSource(worldId: string, sourceKey: string, year: number): PreviewEventRow[] {
+  var world = WORLDS[worldId];
+  var packs = (world.eventPacks || []).filter(function(pack){
+    if (sourceKey === 'all') return true;
+    return String(pack.key || '').toLowerCase() === sourceKey;
+  });
+  var rows: PreviewEventRow[] = [];
+  packs.forEach(function(pack){
+    (pack.events || []).forEach(function(event){
+      var eventMonths = event.month === 'all' ? _allRegularMonths(worldId) : [Math.max(1, parseInt(String(event.month), 10) || 1)];
+      eventMonths.forEach(function(monthHuman){
+        var slotIndex = regularMonthIndexToSlotIndex(worldId, monthHuman - 1);
+        if (slotIndex < 0) return;
+        var days = _resolveEventDays(worldId, year, slotIndex, event.day);
+        days.forEach(function(day){
+          rows.push({
+            name: String(event.name || 'Event'),
+            source: String(event.source || pack.key || 'custom'),
+            slotIndex: slotIndex,
+            day: day
+          });
+        });
+      });
+    });
+  });
+  return rows;
+}
+
+function _allRegularMonths(worldId: string){
+  return getWorldCalendarSlots(worldId).filter(function(slot){ return slot.isIntercalary !== true; }).map(function(slot){
+    return (slot.regularMonthIndex || 0) + 1;
+  });
+}
+
+function _resolveEventDays(worldId: string, year: number, slotIndex: number, daySpec: string | number){
+  var slots = getWorldCalendarSlots(worldId);
+  var slot = slots[slotIndex];
+  if (!slot) return [];
+  var maxDay = Math.max(1, slot.days | 0);
+  if (typeof daySpec === 'number') return [Math.max(1, Math.min(maxDay, daySpec | 0))];
+  var text = String(daySpec || '').trim().toLowerCase();
+  if (!text) return [];
+  if (/^\d+\s*-\s*\d+$/.test(text)){
+    var parts = text.split('-');
+    var start = Math.max(1, Math.min(maxDay, parseInt(parts[0], 10) || 1));
+    var end = Math.max(start, Math.min(maxDay, parseInt(parts[1], 10) || start));
+    var out: number[] = [];
+    for (var d = start; d <= end; d++) out.push(d);
+    return out;
+  }
+  if (/^\d+$/.test(text)) return [Math.max(1, Math.min(maxDay, parseInt(text, 10) || 1))];
+  var ordMatch = text.match(/^(first|second|third|fourth|fifth|last|every)\s+([a-z]+)$/);
+  if (!ordMatch) return [];
+  var ordinal = ordMatch[1];
+  var weekdayToken = ordMatch[2];
+  var weekdayIndex = _worldWeekdayIndex(worldId, weekdayToken);
+  if (weekdayIndex < 0) return [];
+  var matches: number[] = [];
+  for (var day = 1; day <= maxDay; day++){
+    if (_weekdayIndexFor(worldId, year, slotIndex, day) === weekdayIndex) matches.push(day);
+  }
+  if (!matches.length) return [];
+  if (ordinal === 'every') return matches;
+  if (ordinal === 'last') return [matches[matches.length - 1]];
+  var nth = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5 }[ordinal] || 1;
+  return [matches[Math.min(matches.length - 1, nth - 1)]];
+}
+
+function _worldWeekdayIndex(worldId: string, token: string){
+  var world = WORLDS[worldId];
+  var matchToken = String(token || '').trim().toLowerCase();
+  for (var i = 0; i < world.calendar.weekdays.length; i++){
+    var full = String(world.calendar.weekdays[i] || '').toLowerCase();
+    if (full === matchToken || full.slice(0, 3) === matchToken) return i;
+    var abbr = String((world.calendar.weekdayAbbr || {})[world.calendar.weekdays[i]] || '').toLowerCase();
+    if (abbr && abbr === matchToken) return i;
+  }
+  return -1;
+}
+
+function _weekdayIndexFor(worldId: string, year: number, slotIndex: number, day: number){
+  var world = WORLDS[worldId];
+  if (world.calendar.weekdayProgressionMode === 'month_reset') return (day - 1) % world.calendar.weekdays.length;
+  var base = toWorldSerial(worldId, year, slotIndex, day);
+  return ((base % world.calendar.weekdays.length) + world.calendar.weekdays.length) % world.calendar.weekdays.length;
+}
+
+function _indexEventsBySlotDay(worldId: string, rows: PreviewEventRow[], year: number){
+  var out: Record<string, PreviewEventRow[]> = {};
+  rows.forEach(function(row){
+    if (!_slotActiveForYear(worldId, row.slotIndex, year)) return;
+    var key = String(row.slotIndex) + ':' + String(row.day);
+    if (!out[key]) out[key] = [];
+    out[key].push(row);
+  });
+  return out;
+}
+
+function _monthEventRows(worldId: string, slotIndex: number, rows: PreviewEventRow[], year: number){
+  return rows.filter(function(row){
+    return row.slotIndex === slotIndex && _slotActiveForYear(worldId, slotIndex, year);
+  });
+}
+
+function _slotActiveForYear(worldId: string, slotIndex: number, year: number){
+  var slot = getWorldCalendarSlots(worldId)[slotIndex];
+  if (!slot || !slot.leapEvery) return true;
+  if (worldId === 'gregorian' && slot.name === 'Leap Day') {
+    return (year % 4 === 0) && ((year % 100 !== 0) || (year % 400 === 0));
+  }
+  return year % slot.leapEvery === 0;
+}
+
+function _monthEventsList(events: PreviewEventRow[], worldId: string){
+  if (!events.length) return '<p class="month-events empty">No configured events for this source.</p>';
+  return '<ul class="month-events">' + events.map(function(event){
+    var label = event.name + ' · Day ' + event.day;
+    return '<li title="' + _esc(_sourceLabel(worldId, event.source || 'custom')) + '">' + _esc(label) + '</li>';
+  }).join('') + '</ul>';
+}
+
+function _sourceLabel(worldId: string, source: string){
+  var world = WORLDS[worldId];
+  var key = String(source || '').toLowerCase();
+  var packs = world.eventPacks || [];
+  for (var i = 0; i < packs.length; i++){
+    if (String(packs[i].key || '').toLowerCase() === key) return packs[i].label;
+  }
+  return key ? (key.charAt(0).toUpperCase() + key.slice(1)) : 'Custom';
 }
 
 function _tick(now: number){
