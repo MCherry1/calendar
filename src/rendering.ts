@@ -3,6 +3,7 @@ import { CONTRAST_MIN_CELL, LABELS, STYLES, script_name, state_name } from './co
 import { colorForMonth, ensureSettings, getCal, refreshAndSend, titleCase, weekLength } from './state.js';
 import { _eventDotsHtml, applyBg, applyPlaneFill, colorsAPI, resolveColor } from './color.js';
 import { _isGregorianLeapSlotMonthObj, _isLeapMonth, daysPerYear, fromSerial, toSerial, todaySerial, weekStartSerial, weekdayIndex } from './date-math.js';
+import { renderPureMonthTable, PureCell, PureCellEvent, PureDayCell } from './shared/render-month-table.js';
 import { DaySpec, Parse } from './parsing.js';
 import { _firstWeekdayOfMonth, _tokenizeRangeArgs, autoColorForEvent, buildCalendarsHtmlForSpec, dayFromOrdinalWeekday, eventDisplayName, eventKey, eventsListHTMLForRange, getEventColor, getEventsFor, isDefaultEvent, mergeInNewDefaultEvents, parseUnifiedRange, sortEventsByPriority, stripRangeExtensionDynamic } from './events.js';
 import { _defaultDetailsForKey, mb } from './ui.js';
@@ -332,6 +333,30 @@ export function renderIntercalaryBanner(y, mi, mobj, dimActive, extraEventsFn, i
   ].join('');
 }
 
+function _toPureCellEvent(e): PureCellEvent {
+  return {
+    color: getEventColor(e),
+    dotOnly: !!(e as any).dotOnly,
+    planeFill: !!(e as any).planeFill,
+    isRemote: !!(e as any).isRemote,
+    splitColor: (e as any).splitColor || undefined,
+    splitIsRemote: !!(e as any).splitIsRemote,
+    replaceNumeral: (e as any).replaceNumeral || undefined
+  };
+}
+
+function _ctxToPureDayCell(ctx): PureDayCell {
+  return {
+    kind: 'day',
+    day: ctx.d,
+    isToday: !!ctx.isToday,
+    isPast: !!ctx.isPast,
+    isFuture: !!ctx.isFuture,
+    events: (ctx.events || []).map(_toPureCellEvent),
+    tooltip: ctx.title || ''
+  };
+}
+
 export function renderMonthTable(opts){
   var cal = getCal(), cur = cal.current;
   var y  = (opts && typeof opts.year==='number') ? (opts.year|0) : cur.year;
@@ -369,23 +394,22 @@ export function renderMonthTable(opts){
       mdays = mdays + 1;
     }
   }
-  var parts = openMonthTable(mi, y, !(opts && opts.abbrHeaders===false));
-  var html  = [parts.html];
-  // Optional header bars (e.g. long planar events) injected between header and cells
-  if (opts && opts.headerBarsHtml) html.push(opts.headerBarsHtml);
   var wdCnt = weekLength()|0;
+  var useAbbr = !(opts && opts.abbrHeaders===false);
+  var wdLabels = weekdayHeaderLabels(useAbbr);
 
   if (mode === 'full'){
+    // Build PureCell array and delegate to the shared renderer
+    var pureCells: PureCell[] = [];
     var gridStart    = weekStartSerial(y, mi, 1);
     var lastRowStart = weekStartSerial(y, mi, mdays);
     for (var rowStart = gridStart; rowStart <= lastRowStart; rowStart += wdCnt){
-      html.push('<tr>');
       for (var c=0; c<wdCnt; c++){
         var s = rowStart + c;
         var d = fromSerial(s);
         if (d.year === y && d.mi === mi){
           var ctx = makeDayCtx(y, mi, d.day, dimActive, extraEventsFn, includeCalendarEvents);
-          html.push(tdHtmlForDay(ctx, parts.monthColor, STYLES.calTd, ''));
+          pureCells.push(_ctxToPureDayCell(ctx));
         } else if (showBannerLeapDay && d.year === y && d.mi === febLeapSlot && d.day === 1){
           var leapSer = s;
           var leapBaseEvents = (includeCalendarEvents === false) ? [] : getEventsFor(febLeapSlot, 1, y);
@@ -404,21 +428,26 @@ export function renderMonthTable(opts){
             events: leapEvents,
             title: leapTitle
           };
-          html.push(tdHtmlForDay(leapCtx, parts.monthColor, STYLES.calTd, ''));
+          pureCells.push(_ctxToPureDayCell(leapCtx));
         } else {
-          // Overflow cell: adjacent month's day, tinted with that month's color.
-          var ovColor = colorForMonth(d.mi);
-          var ovStyle = STYLES.calTd + 'background-color:'+ovColor+';opacity:.22;';
-          html.push('<td style="'+ovStyle+'">'+_calendarCellInnerHtml('<div style="opacity:.55;">'+d.day+'</div>')+'</td>');
+          pureCells.push({ kind: 'overflow', day: d.day, overflowColor: colorForMonth(d.mi) });
         }
       }
-      html.push('</tr>');
     }
-    html.push(closeMonthTable());
-    return html.join('');
+    return renderPureMonthTable({
+      monthName: mobj.name,
+      yearLabel: String(y) + ' ' + LABELS.era,
+      weekdayLabels: wdLabels,
+      monthColor: colorForMonth(mi),
+      cells: pureCells,
+      rawHeaderBarsHtml: (opts && opts.headerBarsHtml) || undefined
+    });
   }
 
-  // mode === 'week'
+  // mode === 'week' — uses the legacy inline rendering path
+  var parts = openMonthTable(mi, y, useAbbr);
+  var html = [parts.html];
+  if (opts && opts.headerBarsHtml) html.push(opts.headerBarsHtml);
   var startSer = (opts && typeof opts.weekStartSerial === 'number')
     ? (opts.weekStartSerial|0)
     : weekStartSerial(y, mi, 1);
