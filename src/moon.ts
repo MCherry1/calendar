@@ -2977,8 +2977,12 @@ export function _moonOrbitalParams(moonName, serial){
     var incPeriod = Math.max(1, tune.inclinationPeriodDays || ypd);
     var distPeriod = Math.max(1, tune.distancePeriodDays || ypd);
 
-    var incl = (tune.inclinationBase || 0) +
+    var inclRaw = (tune.inclinationBase || 0) +
       (tune.inclinationAmp || 0) * Math.sin((serial * 2 * Math.PI) / incPeriod);
+    var inclNorm = ((inclRaw % 360) + 360) % 360;
+    if (inclNorm > 180) inclNorm = 360 - inclNorm;
+    var retrograde = !!(tune.retrograde || tune.orbitDirection === 'retrograde' || inclNorm > 90);
+    var incl = retrograde ? (180 - inclNorm) : inclNorm;
 
     var node = _normDeg((tune.ascendingNode || 0) +
       serial * ((tune.nodePrecessionDegPerYear || 0) / ypd));
@@ -2992,6 +2996,8 @@ export function _moonOrbitalParams(moonName, serial){
 
     return {
       inclination: incl,
+      rawInclination: inclRaw,
+      retrograde: retrograde,
       ascendingNode: node,
       apsis: apsis,
       apparentSize: canon.angularSizeVsSun / Math.max(0.5, distFactor),
@@ -3039,6 +3045,8 @@ export function _moonSkyLong(moon, serial){
   } else {
     angle = 180 + (1 - ph.illum) * 180; // 100% waning = 180°, 0% waning = 360°
   }
+  var op = _moonOrbitalParams(moon.name, serial);
+  if (op && op.retrograde) angle = (360 - angle);
   return angle % 360;
 }
 

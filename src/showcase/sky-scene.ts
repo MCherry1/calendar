@@ -292,7 +292,10 @@ function _phaseAt(worldId: string, moon: MoonLike, serial: number): SkyScenePhas
 function _moonSkyLong(moon: MoonLike, serial: number, worldId: string){
   var cycleDays = Math.max(1, Number(moon.synodicPeriod || moon.baseCycleDays || 28));
   var cyclePos = ((_cycleOffset(worldId, moon, serial) % cycleDays) + cycleDays) % cycleDays;
-  return _normDeg((cyclePos / cycleDays) * 360 + 180);
+  var angle = _normDeg((cyclePos / cycleDays) * 360 + 180);
+  var op = _orbitalParams(worldId, moon, serial);
+  if (op && op.retrograde) angle = _normDeg(360 - angle);
+  return angle;
 }
 
 function _moonEclipticLat(moon: MoonLike, serial: number, skyLongDeg: number, worldId: string){
@@ -317,13 +320,18 @@ function _orbitalParams(worldId: string, moon: MoonLike, serial: number){
     var ypd = Math.max(1, worldAverageYearDays(worldId));
     var incPeriod = Math.max(1, Number(tune.inclinationPeriodDays || ypd));
     var distPeriod = Math.max(1, Number(tune.distancePeriodDays || ypd));
-    var inclination = Number(tune.inclinationBase || moon.inclination || 0) +
+    var rawInclination = Number(tune.inclinationBase || moon.inclination || 0) +
       Number(tune.inclinationAmp || 0) * Math.sin((serial * 2 * Math.PI) / incPeriod);
+    var inclinationNorm = _normDeg(rawInclination);
+    if (inclinationNorm > 180) inclinationNorm = 360 - inclinationNorm;
+    var retrograde = !!((tune as any).retrograde || (tune as any).orbitDirection === 'retrograde' || inclinationNorm > 90);
+    var inclination = retrograde ? (180 - inclinationNorm) : inclinationNorm;
     var ascendingNode = _normDeg(Number(tune.ascendingNode || 0) + serial * (Number(tune.nodePrecessionDegPerYear || 0) / ypd));
     var apsis = _normDeg(Number(tune.apsisAngle || 0) + serial * (Number(tune.apsisPrecessionDegPerYear || 0) / ypd));
     var distFactor = 1 + Number(tune.distanceSwingPct || 0) * Math.sin((serial * 2 * Math.PI) / distPeriod);
     return {
       inclination: inclination,
+      retrograde: retrograde,
       ascendingNode: ascendingNode,
       apsis: apsis,
       apparentSize: Number(canon.angularSizeVsSun || 1) / Math.max(0.5, distFactor),

@@ -21,7 +21,7 @@ import {
   getLongShadowsMoons, _eclipseCandidateDistance, _getEclipsesBruteforce,
   _getEclipsesStaged, _eclipseRelativeSizeText, captureMoonHistoryDay,
   captureMoonHistoryWindow, _moonCompass16, _moonSkyPositionCategory,
-  _moonVisibilityAll, _moonVisibilityHtml
+  _moonVisibilityAll, _moonVisibilityHtml, _moonSkyLong, _moonEclipticLat, _moonOrbitalParams
 } from "../src/moon.js";
 
 function eclipseDigest(events: any[]) {
@@ -84,6 +84,29 @@ describe("Moon System", () => {
       const phase = moonPhaseAt(m.name, today);
       assert(phase !== undefined && phase !== null, `${m.name} phase`);
     }
+  });
+
+  it("treats retrograde moons as reverse-motion with physically bounded inclination", () => {
+    freshInstall();
+    const dravago = MOON_SYSTEMS.eberron.moons.find((moon: any) => moon.name === "Dravago") as any;
+    const zarantyr = MOON_SYSTEMS.eberron.moons.find((moon: any) => moon.name === "Zarantyr") as any;
+    const serial = toSerial(998, 4, 12);
+    const dravagoPhase = moonPhaseAt("Dravago", serial);
+    const dravagoProgradeAngle = dravagoPhase.waxing
+      ? dravagoPhase.illum * 180
+      : 180 + (1 - dravagoPhase.illum) * 180;
+    assertEquals(_moonSkyLong(dravago, serial), (360 - dravagoProgradeAngle) % 360);
+
+    const zarantyrPhase = moonPhaseAt("Zarantyr", serial);
+    const zarantyrProgradeAngle = zarantyrPhase.waxing
+      ? zarantyrPhase.illum * 180
+      : 180 + (1 - zarantyrPhase.illum) * 180;
+    assertEquals(_moonSkyLong(zarantyr, serial), zarantyrProgradeAngle % 360);
+
+    const dravagoOrbit = _moonOrbitalParams("Dravago", serial) as any;
+    assert(dravagoOrbit.retrograde, "Dravago should be flagged retrograde");
+    assert(dravagoOrbit.inclination > 0 && dravagoOrbit.inclination < 90, "retrograde inclination should be folded into a physical 0-90° latitude amplitude");
+    assert(Math.abs(_moonEclipticLat(dravago, serial)) <= dravagoOrbit.inclination + 0.000001);
   });
 
   it("weak anti-phase coupling nudges Barrakas toward Therendor's opposite phase", () => {
