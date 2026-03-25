@@ -243,33 +243,19 @@ function _renderCalendarGallery(){
     var monthEvents = _monthEventRows(worldId, preview.slotIndex, eventRows, year);
     var mColor = _monthColor(worldId, monthIndex);
     var rgb = _hexToRgb(mColor);
+    var headerText = _contrastText(rgb);
     var displayName = _overlayMonthName(worldId, monthIndex, preview.monthName);
     var altNames = _altMonthNames(worldId, monthIndex, displayName);
 
-    // Precompute notable moon phases for every day in this month
-    var moonByDay: Record<number, { tooltip: string; cls: string }> = {};
-    for (var d = 1; d <= preview.daysInMonth; d++){
-      var serial = toWorldSerial(worldId, year, preview.slotIndex, d);
-      var phases = moonPhasesForDay(worldId, serial, seedWord);
-      var notable = phases.filter(function(p){ return p.notable !== null; });
-      if (notable.length){
-        var tip = notable.map(function(p){
-          return p.emoji + ' ' + p.name + (p.notable === 'full' ? ' (full)' : ' (new)');
-        }).join(' · ');
-        var hasFull = notable.some(function(p){ return p.notable === 'full'; });
-        moonByDay[d] = { tooltip: tip, cls: hasFull ? ' moon-full' : ' moon-new' };
-      }
-    }
-
     return (
-      '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';--month-color:' + _esc(mColor) + ';--month-r:' + rgb.r + ';--month-g:' + rgb.g + ';--month-b:' + rgb.b + ';">' +
+      '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';--month-color:' + _esc(mColor) + ';--header-text:' + headerText + ';">' +
         '<div class="calendar-card-header">' +
           '<div>' +
             '<small>' + _esc(world.calendar.label) + '</small>' +
             '<h4>' + _esc(displayName) + '</h4>' +
             (altNames ? '<p class="alt-names">' + altNames + '</p>' : '') +
           '</div>' +
-          '<span class="meta-chip">' + _esc(preview.daysInMonth + ' days · ' + year + ' ' + world.eraLabel) + '</span>' +
+          '<span class="meta-chip" style="background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);color:' + headerText + ';">' + _esc(preview.daysInMonth + ' days · ' + year + ' ' + world.eraLabel) + '</span>' +
         '</div>' +
         '<div class="calendar-card-meta">' +
           '<span class="meta-chip">' + _esc(world.label) + '</span>' +
@@ -287,18 +273,17 @@ function _renderCalendarGallery(){
             preview.cells.map(function(cell, cellIndex){
               if (cell.kind === 'empty') return '<span class="mini-cell empty">.</span>';
               var events = eventsBySlotDay[String(preview.slotIndex) + ':' + String(cell.day)] || [];
-              var moonInfo = moonByDay[cell.day];
-              var tooltipParts: string[] = [];
-              if (moonInfo) tooltipParts.push(moonInfo.tooltip);
-              if (events.length){
-                tooltipParts.push(events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' • '));
-              }
-              var tooltip = tooltipParts.join('\n');
+              var tooltip = events.length
+                ? events.map(function(event){ return event.name + ' (' + _sourceLabel(worldId, event.source || 'custom') + ')'; }).join(' • ')
+                : '';
               var parity = ((Math.floor(cellIndex / weekdayCount) + cell.weekdayIndex) % 2) === 0 ? ' shade-even' : ' shade-odd';
               var hasEvents = events.length ? ' has-events' : '';
-              var moonCls = moonInfo ? moonInfo.cls : '';
-              var tint = events.length && events[0].color ? ' style="--event-color:' + _esc(events[0].color || '#e6b85c') + ';"' : '';
-              return '<span class="mini-cell' + parity + hasEvents + moonCls + '"' + tint + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
+              var eventStyle = '';
+              if (events.length && events[0].color){
+                var eRgb = _hexToRgb(events[0].color || '#e6b85c');
+                eventStyle = ' style="--event-color:' + _esc(events[0].color) + ';--event-text:' + _contrastText(eRgb) + ';"';
+              }
+              return '<span class="mini-cell' + parity + hasEvents + '"' + eventStyle + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
             }).join('') +
           '</div>' +
         '</div>' +
@@ -601,7 +586,7 @@ function _resolveEventDays(worldId: string, year: number, slotIndex: number, day
     return out;
   }
   if (/^\d+$/.test(text)) return [Math.max(1, Math.min(maxDay, parseInt(text, 10) || 1))];
-  var ordMatch = text.match(/^(first|second|third|fourth|fifth|last|every)\s+([a-z]+)$/);
+  var ordMatch = text.match(/^(first|second|third|fourth|fifth|last|every|all)\s+([a-z]+)$/);
   if (!ordMatch) return [];
   var ordinal = ordMatch[1];
   var weekdayToken = ordMatch[2];
@@ -612,7 +597,7 @@ function _resolveEventDays(worldId: string, year: number, slotIndex: number, day
     if (_weekdayIndexFor(worldId, year, slotIndex, day) === weekdayIndex) matches.push(day);
   }
   if (!matches.length) return [];
-  if (ordinal === 'every') return matches;
+  if (ordinal === 'every' || ordinal === 'all') return matches;
   if (ordinal === 'last') return [matches[matches.length - 1]];
   var nth = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5 }[ordinal] || 1;
   return [matches[Math.min(matches.length - 1, nth - 1)]];
@@ -672,23 +657,44 @@ function _monthEventsList(events: PreviewEventRow[], worldId: string){
     if (!grouped[key]) grouped[key] = { name: event.name, source: event.source, days: [] };
     grouped[key].days.push(event.day);
   });
-  var lines: string[] = [];
+  // Sort each group's days and sort groups chronologically by first day
   var keys = Object.keys(grouped);
+  keys.forEach(function(k){ grouped[k].days.sort(function(a, b){ return a - b; }); });
+  keys.sort(function(a, b){
+    return (grouped[a].days[0] || 0) - (grouped[b].days[0] || 0);
+  });
+  var lines: string[] = [];
   for (var i = 0; i < keys.length; i++){
     var g = grouped[keys[i]];
     var sourceLabel = _sourceLabel(worldId, g.source || 'custom');
-    var label: string;
-    var tip: string;
-    if (g.days.length > 3){
-      label = g.name + ' · ' + g.days.length + ' days';
-      tip = sourceLabel + ' · ' + g.name + ' on days ' + g.days.join(', ');
-    } else {
-      label = g.name + ' · Day ' + g.days.join(', ');
-      tip = sourceLabel + ' · ' + g.name + ' on day ' + g.days.join(', ');
-    }
+    var dayLabel = _compactDayLabel(g.days);
+    var label = g.name + ' · ' + dayLabel;
+    var tip = sourceLabel + ' · ' + g.name + ' · ' + dayLabel;
     lines.push('<li title="' + _esc(tip) + '">' + _esc(label) + '</li>');
   }
   return '<ul class="month-events">' + lines.join('') + '</ul>';
+}
+
+function _compactDayLabel(days: number[]): string {
+  if (!days.length) return '';
+  if (days.length === 1) return 'Day ' + days[0];
+  // Detect consecutive range
+  var isConsecutive = true;
+  for (var i = 1; i < days.length; i++){
+    if (days[i] !== days[i - 1] + 1){ isConsecutive = false; break; }
+  }
+  if (isConsecutive) return 'Days ' + days[0] + '–' + days[days.length - 1];
+  // Detect regular interval (e.g. every 7th day = weekly)
+  if (days.length >= 3){
+    var gap = days[1] - days[0];
+    var isRegular = true;
+    for (var j = 2; j < days.length; j++){
+      if (days[j] - days[j - 1] !== gap){ isRegular = false; break; }
+    }
+    if (isRegular && gap === 7) return 'Every week (days ' + days.join(', ') + ')';
+    if (isRegular) return 'Every ' + gap + ' days (days ' + days.join(', ') + ')';
+  }
+  return 'Days ' + days.join(', ');
 }
 
 function _activeOverlay(worldId: string) {
@@ -720,6 +726,10 @@ function _hexToRgb(hex: string): { r: number; g: number; b: number } {
     g: parseInt(h.substring(2, 4), 16) || 0,
     b: parseInt(h.substring(4, 6), 16) || 0
   };
+}
+
+function _contrastText(rgb: { r: number; g: number; b: number }): string {
+  return (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114) > 160 ? '#1a1a1a' : '#ffffff';
 }
 
 function _altMonthNames(worldId: string, monthIndex: number, activeName: string): string {
