@@ -419,10 +419,9 @@ body {
   flex-shrink: 0;
 }
 
+/* Header is now rendered inside the table as a Roll20-style th row */
 .calendar-card-header {
-  padding: 0.7rem 0.9rem;
-  background: var(--month-color, #e6b85c);
-  color: var(--header-text, #1a1a1a);
+  display: none;
 }
 
 .calendar-card-meta {
@@ -479,72 +478,91 @@ body {
   font: inherit;
 }
 
+/* --- Roll20-style calendar table --- */
 .mini-calendar {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.5rem 0.7rem;
+  padding: 0 0.5rem;
   flex: 1 0 auto;
 }
 
-.mini-weekdays,
-.mini-cells {
-  display: grid;
-  gap: 0.22rem;
+.mini-calendar table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
 }
 
-.mini-weekdays {
-  grid-template-columns: repeat(var(--weekday-count), minmax(0, 1fr));
-}
-
-.mini-cells {
-  grid-template-columns: repeat(var(--weekday-count), minmax(0, 1fr));
-}
-
-.mini-weekdays span,
-.mini-cell {
-  display: grid;
-  place-items: center;
-  min-height: 1.75rem;
-  border-radius: 3px;
-}
-
-.mini-weekdays span {
-  color: #7a756e;
+.mini-calendar th {
+  border: 1px solid #444;
+  padding: 2px;
+  text-align: center;
   font-size: 0.68rem;
+  font-weight: 600;
+  color: #555;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
 }
 
-.mini-cell {
-  background: #ffffff;
-  border: 1px solid #e8e6e1;
-  color: #1a1a1a;
+.mini-calendar td {
+  border: 1px solid #444;
+  width: 2em;
+  height: 2em;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.mini-cell-inner {
+  min-height: 2em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 1px 0;
+  box-sizing: border-box;
+}
+
+.mini-cell-band {
+  height: 0.6em;
+  min-height: 0.6em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.mini-cell-numeral {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.82rem;
   font-weight: 600;
+  color: inherit;
 }
 
-.mini-cell.shade-odd {
-  background: #f6f5f2;
+.mini-cell-dots {
+  font-size: 0.45em;
+  line-height: 1;
+  text-align: center;
 }
 
-.mini-cell.shade-even {
-  background: #ffffff;
-}
-
-.mini-cell.has-events {
+.mini-calendar td.has-events {
   background: var(--event-color, #e6b85c);
-  border-color: var(--event-color, #e6b85c);
   color: var(--event-text, #1a1a1a);
+}
+
+.mini-calendar td.overflow {
+  opacity: 0.22;
+}
+
+.mini-calendar td.overflow .mini-cell-numeral {
+  opacity: 0.55;
 }
 
 .seed-chip {
   font-style: italic;
-}
-
-.mini-cell.empty {
-  background: transparent;
-  color: transparent;
-  border-color: transparent;
 }
 
 .festival-rail {

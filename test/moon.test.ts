@@ -95,7 +95,9 @@ describe("Moon System", () => {
     const dravagoProgradeAngle = dravagoPhase.waxing
       ? dravagoPhase.illum * 180
       : 180 + (1 - dravagoPhase.illum) * 180;
-    assertEquals(_moonSkyLong(dravago, serial), (360 - dravagoProgradeAngle) % 360);
+    // Retrograde orbit does NOT invert sky longitude — planet rotation dominates
+    // apparent motion; synodic phase encodes correct sun-moon geometry either way.
+    assertEquals(_moonSkyLong(dravago, serial), dravagoProgradeAngle % 360);
 
     const zarantyrPhase = moonPhaseAt("Zarantyr", serial);
     const zarantyrProgradeAngle = zarantyrPhase.waxing
@@ -113,7 +115,7 @@ describe("Moon System", () => {
     const nextDravagoProgradeAngle = nextDravagoPhase.waxing
       ? nextDravagoPhase.illum * 180
       : 180 + (1 - nextDravagoPhase.illum) * 180;
-    assertEquals(_moonSkyLong(dravago, nextSerial), (360 - nextDravagoProgradeAngle) % 360);
+    assertEquals(_moonSkyLong(dravago, nextSerial), nextDravagoProgradeAngle % 360);
 
     const nextZarantyrPhase = moonPhaseAt("Zarantyr", nextSerial);
     const nextZarantyrProgradeAngle = nextZarantyrPhase.waxing

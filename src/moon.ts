@@ -3045,8 +3045,9 @@ export function _moonSkyLong(moon, serial){
   } else {
     angle = 180 + (1 - ph.illum) * 180; // 100% waning = 180°, 0% waning = 360°
   }
-  var op = _moonOrbitalParams(moon.name, serial);
-  if (op && op.retrograde) angle = (360 - angle);
+  // Retrograde orbit affects night-to-night drift direction, not instantaneous
+  // sky position. The synodic phase already encodes the correct sun-moon geometry
+  // regardless of orbital direction (planet rotation dominates apparent motion).
   return angle % 360;
 }
 
