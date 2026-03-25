@@ -30,4 +30,11 @@ describe('Showcase Sky Scene', () => {
     assertEquals(dawn.moons[0].phase.waxing, dusk.moons[0].phase.waxing);
     assert(dawn.moons[0].altitudeExact !== dusk.moons[0].altitudeExact, 'position should change with time of day');
   });
+
+  it('flags Dravago as retrograde in the showcase scene', () => {
+    const scene = buildSkyScene({ worldId: 'eberron', serial: 42, timeFrac: 22 / 24 });
+    const dravago = scene.moons.find((moon) => moon.name === 'Dravago');
+    assert(dravago, 'Dravago should be present in the Eberron showcase sky');
+    assertEquals(!!dravago?.retrograde, true);
+  });
 });
