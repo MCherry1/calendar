@@ -256,7 +256,7 @@ function _normalizeMoon(worldId: string, body: MoonLike): MoonLike {
   var useLunaFallback = worldId !== 'eberron';
   return Object.assign({}, body, override, {
     key: body.key || String(body.name || '').toLowerCase(),
-    synodicPeriod: override.synodicPeriod || body.synodicPeriod || body.baseCycleDays || (useLunaFallback ? LUNA_ANALOG.synodicPeriod : 28),
+    synodicPeriod: useLunaFallback ? LUNA_ANALOG.synodicPeriod : (override.synodicPeriod || body.synodicPeriod || body.baseCycleDays || 28),
     diameter: override.diameter || body.diameter || data.diameter || (useLunaFallback ? LUNA_ANALOG.diameter : 1000),
     distance: override.distance || body.distance || data.distance || (useLunaFallback ? LUNA_ANALOG.distance : 100000),
     inclination: override.inclination || body.inclination || data.inclination || (useLunaFallback ? LUNA_ANALOG.inclination : 5),

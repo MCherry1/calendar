@@ -261,7 +261,8 @@ function _renderCalendarGallery(){
                 : '';
               var parity = ((Math.floor(cellIndex / weekdayCount) + cell.weekdayIndex) % 2) === 0 ? ' shade-even' : ' shade-odd';
               var hasEvents = events.length ? ' has-events' : '';
-              return '<span class="mini-cell' + parity + hasEvents + '"' + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
+              var tint = events.length && events[0].color ? ' style="--event-color:' + _esc(events[0].color || '#e6b85c') + ';"' : '';
+              return '<span class="mini-cell' + parity + hasEvents + '"' + tint + (tooltip ? ' title="' + _esc(tooltip) + '"' : '') + '>' + _esc(String(cell.day)) + '</span>';
             }).join('') +
           '</div>' +
         '</div>' +
@@ -318,8 +319,8 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   _drawStars(width, height, state.timeFrac);
 
   var cx = width / 2;
-  var cy = height / 2 + 14;
-  var radius = Math.min(width, height) * 0.41;
+  var cy = height / 2 + 34;
+  var radius = Math.min(width, height) * 0.47;
 
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -329,9 +330,14 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   ctx.strokeStyle = 'rgba(247, 242, 232, 0.18)';
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(cx, cy + radius * 0.07, radius * 0.78, Math.PI * 1.04, Math.PI * 1.96);
-  ctx.lineWidth = 1.4;
-  ctx.strokeStyle = 'rgba(127, 196, 216, 0.28)';
+  ctx.arc(cx, cy + radius * 0.06, radius * 0.84, Math.PI * 1.02, Math.PI * 1.98);
+  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = 'rgba(127, 196, 216, 0.32)';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy + radius * 0.11, radius * 0.66, Math.PI * 1.06, Math.PI * 1.94);
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(127, 196, 216, 0.24)';
   ctx.stroke();
   if (scene.worldId === 'eberron') _drawSiberysRing(cx, cy, radius);
 
@@ -447,6 +453,11 @@ function _drawSiberysRing(cx: number, cy: number, radius: number){
   ctx.translate(cx, cy - radius * 0.06);
   ctx.rotate(-12 * Math.PI / 180);
   ctx.beginPath();
+  ctx.ellipse(0, 0, radius * 0.94, radius * 0.34, 0, Math.PI, Math.PI * 2);
+  ctx.lineWidth = Math.max(1.4, radius * 0.01);
+  ctx.strokeStyle = 'rgba(232, 203, 118, 0.25)';
+  ctx.stroke();
+  ctx.beginPath();
   ctx.ellipse(0, 0, radius * 0.94, radius * 0.34, 0, 0, Math.PI * 2);
   ctx.lineWidth = Math.max(1.6, radius * 0.012);
   ctx.strokeStyle = 'rgba(232, 203, 118, 0.46)';
@@ -481,6 +492,7 @@ function _renderGallerySourceOptions(worldId: string, preferred: string){
 type PreviewEventRow = {
   name: string;
   source?: string;
+  color?: string;
   slotIndex: number;
   day: number;
 };
@@ -503,6 +515,7 @@ function _eventRowsForSource(worldId: string, sourceKey: string, year: number): 
           rows.push({
             name: String(event.name || 'Event'),
             source: String(event.source || pack.key || 'custom'),
+            color: String(event.color || ''),
             slotIndex: slotIndex,
             day: day
           });
@@ -602,7 +615,9 @@ function _monthEventsList(events: PreviewEventRow[], worldId: string){
   if (!events.length) return '<p class="month-events empty">No configured events for this source.</p>';
   return '<ul class="month-events">' + events.map(function(event){
     var label = event.name + ' · Day ' + event.day;
-    return '<li title="' + _esc(_sourceLabel(worldId, event.source || 'custom')) + '">' + _esc(label) + '</li>';
+    var sourceLabel = _sourceLabel(worldId, event.source || 'custom');
+    var tip = sourceLabel + ' · ' + event.name + ' on day ' + event.day;
+    return '<li title="' + _esc(tip) + '">' + _esc(label) + '</li>';
   }).join('') + '</ul>';
 }
 
