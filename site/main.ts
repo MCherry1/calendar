@@ -1,4 +1,5 @@
 import { WORLD_ORDER, WORLDS } from '../src/worlds/index.js';
+import { COLOR_THEMES } from '../src/constants.js';
 import { buildCalendarPreview } from '../src/showcase/calendar-preview.js';
 import { buildSkyScene } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
@@ -232,8 +233,10 @@ function _renderCalendarGallery(){
     });
     var weekdayCount = preview.weekdayLabels.length;
     var monthEvents = _monthEventRows(worldId, preview.slotIndex, eventRows, year);
+    var mColor = _monthColor(worldId, monthIndex);
+    var rgb = _hexToRgb(mColor);
     return (
-      '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';">' +
+      '<article class="calendar-card" style="--weekday-count:' + weekdayCount + ';--month-color:' + _esc(mColor) + ';--month-r:' + rgb.r + ';--month-g:' + rgb.g + ';--month-b:' + rgb.b + ';">' +
         '<div class="calendar-card-header">' +
           '<div>' +
             '<small>' + _esc(world.calendar.label) + '</small>' +
@@ -638,6 +641,24 @@ function _monthEventsList(events: PreviewEventRow[], worldId: string){
     lines.push('<li title="' + _esc(tip) + '">' + _esc(label) + '</li>');
   }
   return '<ul class="month-events">' + lines.join('') + '</ul>';
+}
+
+function _monthColor(worldId: string, monthIndex: number): string {
+  var world = WORLDS[worldId];
+  var overlay = world.calendar.namingOverlays.find(function(o){ return o.key === world.calendar.defaultOverlayKey; });
+  var themeKey = (overlay && overlay.colorTheme) || 'seasons';
+  var palette = (COLOR_THEMES as Record<string, string[]>)[themeKey] || (COLOR_THEMES as Record<string, string[]>).seasons;
+  if (!palette || !palette.length) return '#e6b85c';
+  return palette[monthIndex % palette.length] || '#e6b85c';
+}
+
+function _hexToRgb(hex: string): { r: number; g: number; b: number } {
+  var h = hex.replace('#', '');
+  return {
+    r: parseInt(h.substring(0, 2), 16) || 0,
+    g: parseInt(h.substring(2, 4), 16) || 0,
+    b: parseInt(h.substring(4, 6), 16) || 0
+  };
 }
 
 function _sourceLabel(worldId: string, source: string){

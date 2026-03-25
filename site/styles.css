@@ -381,8 +381,12 @@ body {
 .calendar-card-header {
   padding: 0.7rem 0.9rem;
   border-radius: 16px 16px 6px 6px;
-  background: linear-gradient(135deg, rgba(230, 184, 92, 0.14), rgba(127, 196, 216, 0.10));
-  border-bottom: 1px solid rgba(230, 184, 92, 0.18);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--month-r, 230), var(--month-g, 184), var(--month-b, 92), 0.18),
+    rgba(var(--month-r, 230), var(--month-g, 184), var(--month-b, 92), 0.06)
+  );
+  border-bottom: 1px solid rgba(var(--month-r, 230), var(--month-g, 184), var(--month-b, 92), 0.25);
   margin: -0.15rem -0.15rem 0;
 }
 
@@ -429,9 +433,9 @@ body {
   gap: 0.2rem;
   padding: 0.4rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(var(--month-r, 255), var(--month-g, 255), var(--month-b, 255), 0.18);
   background: linear-gradient(180deg, rgba(33, 26, 18, 0.65), rgba(20, 15, 10, 0.6));
-  box-shadow: inset 0 0 0 1px rgba(255, 230, 185, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(var(--month-r, 255), var(--month-g, 230), var(--month-b, 185), 0.06);
   flex: 1 0 auto;
 }
 
@@ -462,8 +466,8 @@ body {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  background: rgba(0, 0, 0, 0.26);
-  border: 1px solid rgba(232, 203, 118, 0.18);
+  background: rgba(var(--month-r, 0), var(--month-g, 0), var(--month-b, 0), 0.12);
+  border: 1px solid rgba(var(--month-r, 232), var(--month-g, 203), var(--month-b, 118), 0.22);
 }
 
 .mini-cell {
