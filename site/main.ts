@@ -343,7 +343,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
     if (moon.category === 'below') continue;
     var position = _scenePoint(cx, cy, radius, moon.azimuth, Math.max(0, moon.altitudeExact));
     var moonRadius = Math.max(6, Math.min(26, moon.angularDiameterDeg * 5.5));
-    _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase);
+    _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde);
     if (labeled < 5 && moon.altitudeExact >= 4){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
       ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
@@ -401,7 +401,7 @@ function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number,
   };
 }
 
-function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }){
+function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean){
   if (!ctx) return;
   ctx.save();
   ctx.beginPath();
@@ -417,7 +417,8 @@ function _drawMoonDisk(x: number, y: number, radius: number, color: string, phas
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.clip();
   ctx.fillStyle = 'rgba(5, 10, 18, 0.92)';
-  var shift = (1 - (2 * Math.max(0, Math.min(1, phase.illum)))) * radius * (phase.waxing ? -1 : 1);
+  var waxing = retrograde ? !phase.waxing : phase.waxing;
+  var shift = (1 - (2 * Math.max(0, Math.min(1, phase.illum)))) * radius * (waxing ? -1 : 1);
   ctx.beginPath();
   ctx.arc(x + shift, y, radius, 0, Math.PI * 2);
   ctx.fill();

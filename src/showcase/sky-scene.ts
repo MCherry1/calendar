@@ -21,6 +21,7 @@ export type SkySceneMoon = {
   angularDiameterDeg: number;
   category: string;
   phase: SkyScenePhase;
+  retrograde?: boolean;
   pctFull: number;
   label: string;
   skyLabel: string;
@@ -64,6 +65,7 @@ type BuildSkySceneResolvedInput = {
   skyLongAt: (moon: MoonLike, serial: number, phase: SkyScenePhase) => number;
   eclipticLatAt: (moon: MoonLike, serial: number, skyLongDeg: number) => number;
   angularDiameterDegAt: (moon: MoonLike, serial: number) => number;
+  retrogradeAt?: (moon: MoonLike, serial: number) => boolean;
 };
 
 export var DEFAULT_OBSERVER_LATITUDE = 30;
@@ -140,6 +142,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
     var motion = moonMotionLabel(observerLatitude, moon, input.serial, timeFrac, input.skyLongAt, input.eclipticLatAt, input.phaseAt, input.worldId);
     var direction = moonCompass16(az);
     var pctFull = Math.round((_clamp01(phase.illum || 0)) * 100);
+    var retrograde = !!(input.retrogradeAt && input.retrogradeAt(moon, input.serial));
     var skyLabel = skyCategoryLabel(category) + ', ' + direction + ', ' + motion;
     moons.push({
       moon: moon,
@@ -155,6 +158,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
       angularDiameterDeg: angularDiameterDeg,
       category: category,
       phase: phase,
+      retrograde: retrograde,
       pctFull: pctFull,
       label: moonPhaseEmoji(phase.illum, phase.waxing) + ' ' + moon.name + ' (' + pctFull + '% Full)',
       skyLabel: skyLabel
@@ -196,6 +200,9 @@ export function buildSkyScene(input: { worldId: string; serial: number; timeFrac
     },
     angularDiameterDegAt: function(moon, serial){
       return _moonAngularDiameterDeg(moon, serial, worldId);
+    },
+    retrogradeAt: function(moon, serial){
+      return !!_orbitalParams(worldId, moon, serial).retrograde;
     }
   });
 }
