@@ -273,6 +273,9 @@ export function sendCurrentDate(to, gmOnly, opts?){
   var dateLine = compact
     ? '<div style="font-weight:bold;margin:2px 0 1px 0;' + (dashboard ? 'font-size:1.02em;color:#000;' : '') + '">' + esc(currentDate) + '</div>'
     : '<div style="font-weight:bold;margin:3px 0 1px 0;' + (dashboard ? 'font-size:1.06em;color:#000;' : '') + '">' + esc(currentDate) + '</div>';
+  var dashboardTitle = dashboard
+    ? '<div style="font-weight:bold;font-size:1.04em;color:#000;margin:0 0 6px 0;">Today&#39;s Calendar</div>'
+    : '';
   var seasonLine = _seasonLabel
     ? (compact
       ? '<div style="' + (dashboard ? 'font-size:.94em;color:#000;margin:0 0 4px 0;font-style:italic;' : 'font-size:.82em;opacity:.7;margin:0 0 3px 0;') + '">' + esc(_seasonLabel) + '</div>'
@@ -441,7 +444,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
 
   var msgCore;
   if (dashboard){
-    msgCore = calHtml + dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
+    msgCore = dashboardTitle + calHtml + dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
   } else if (compact){
     msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
       dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
@@ -769,7 +772,7 @@ export function _defaultDetailsForKey(key){
       : [ clamp(parseInt(de.month,10)||1, 1, lim) ];
     monthsList.forEach(function(m){
       var maxD = cal.months[m-1].days|0;
-      var norm = DaySpec.normalize(de.day, maxD) || String(DaySpec.first(de.day));
+        var norm = DaySpec.canonicalForKey(de.day, maxD);
       var k = defaultKeyFor(m, norm, de.name);
       if (k === key){
         out.name   = String(de.name||out.name);
@@ -877,8 +880,8 @@ export function gmButtonsHtml(){
   // Send Today View to Players
   rows.push('<div>'+mb('📣 Send To Players','send')+'</div>');
 
-  // Additional Options dropdown
-  rows.push('<div>'+mb('Additional Options','today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,admin}')+'</div>');
+  // Subsystems dropdown
+  rows.push('<div>'+mb('Subsystems','today options ?{Subsystem|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,admin}')+'</div>');
 
   return rows.join('');
 }

@@ -1,11 +1,11 @@
 // Today — Combined detail from all subsystems
 import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS } from './config.js';
 import { COLOR_THEMES, SEASON_SETS, STYLES, script_name, state_name } from './constants.js';
-import { applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, getManualSuppressedSources, refreshAndSend, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
+import { _sourceAllowedForCalendar, applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, refreshAndSend, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
 import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
-import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, currentDefaultKeySet, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
+import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
 import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
@@ -317,10 +317,10 @@ export function _todayAllHtml(){
   // Send Today View to Players
   btns.push('<div style="margin:3px 0;">' + button('Send Today View to Players','send') + '</div>');
 
-  // Additional Options dropdown
+  // Subsystems dropdown
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Additional Options', 'today options ?{Option|Events,events|Moons,moon|Weather,weather|Planes,planes}') +
+    button('Subsystems', 'today options ?{Subsystem|Events,events|Moons,moon|Weather,weather|Planes,planes}') +
     '</div>');
 
   // Management dropdown (GM only)
@@ -499,7 +499,7 @@ function _eventsPanelHtml(serialArg){
     button('Add Yearly','addyearly ?{Month MM} ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') +
     '</div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Sources','events source') + ' ' +
+    button('Manage Sources','events source') + ' ' +
     button('Hide / Show','events list', { icon:'' }) +
     '</div>');
 

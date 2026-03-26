@@ -58,12 +58,20 @@ export function _buttonIcon(lbl){
   return '';
 }
 
+function _escapeButtonCommand(cmd){
+  return String(cmd || '')
+    .replace(/\[/g, '&#91;')
+    .replace(/\]/g, '&#93;')
+    .replace(/\(/g, '&#40;')
+    .replace(/\)/g, '&#41;');
+}
+
 export function button(label, cmd, opts?){
   opts = opts || {};
   var lbl = String(label||'').trim();
   var icon = (opts.icon!=null) ? String(opts.icon) : (_buttonHasEmojiStart(lbl) ? '' : _buttonIcon(lbl));
   var text = (icon ? (icon+' ') : '') + lbl;
-  return '['+esc(text)+'](!cal '+cmd+')';
+  return '['+esc(text)+'](!cal '+_escapeButtonCommand(cmd)+')';
 }
 
 export function _firstTok(s){ return String(s||'').trim().split(/\s+/)[0].toLowerCase(); }
@@ -785,6 +793,28 @@ function _tableActionButton(label, cmd){
   return button(label, cmd, { icon:'' });
 }
 
+function _managementTableStyle(){
+  return STYLES.table + 'width:100%;max-width:100%;table-layout:auto;margin-right:0;';
+}
+
+function _managementThStyle(align?){
+  return 'border:1px solid #444;padding:4px 6px;text-align:' + (align || 'left') + ';white-space:nowrap;';
+}
+
+function _managementTdStyle(align?, extra?){
+  return 'border:1px solid #444;padding:4px 6px;text-align:' + (align || 'left') + ';vertical-align:middle;white-space:normal;' + (extra || '');
+}
+
+function _managementTableWrap(inner){
+  return '<div style="overflow-x:auto;max-width:100%;">' + inner + '</div>';
+}
+
+function _eventSourceLabel(source){
+  return source != null && String(source).trim()
+    ? titleCase(String(source))
+    : 'Manual';
+}
+
 function _eventActionSummaryText(prefix, names){
   var uniq = [];
   var seen = {};
@@ -921,6 +951,7 @@ export function listAllEventsTableHtml(){
       event: e,
       name: esc(eventDisplayName(e)),
       sw: swatchHtml(getEventColor(e)),
+      source: esc(_eventSourceLabel(e && e.source)),
       mmLabel: esc(row.mmLabel),
       dd: esc(String(e.day)),
       year: (e.year==null) ? null : esc(String(e.year)),
@@ -934,6 +965,7 @@ export function listAllEventsTableHtml(){
       event: null,
       name: esc(eventDisplayName({ name: info.name, source: info.source })),
       sw: swatchHtml(info.color || autoColorForEvent({ name: info.name })),
+      source: esc(_eventSourceLabel(info.source)),
       mmLabel: esc(row.mmLabel),
       dd: esc(String(info.day)),
       year: null,
@@ -945,31 +977,31 @@ export function listAllEventsTableHtml(){
   if(!listRows.length) return '<div style="opacity:.7;">No events.</div>';
 
   var showYear = listRows.some(function(row){ return row.year != null; });
-  var rows = listRows.map(function(row, i){
+  var rows = listRows.map(function(row){
     return '<tr>'+
-      '<td style="'+STYLES.td+';text-align:right;">#'+(i+1)+'</td>'+
-      '<td style="'+STYLES.td+'">'+ row.sw + row.name +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ row.mmLabel +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ row.dd +'</td>'+
-      (showYear ? '<td style="'+STYLES.td+';text-align:center;">'+ (row.year == null ? 'ALL' : row.year) +'</td>' : '')+
-      '<td style="'+STYLES.td+';text-align:center;">'+ row.status +'</td>'+
-      '<td style="'+STYLES.td+';text-align:center;">'+ row.action +'</td>'+
+      '<td style="'+_managementTdStyle('left')+'">'+ row.sw + row.name +'</td>'+
+      '<td style="'+_managementTdStyle('left')+'">'+ row.source +'</td>'+
+      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.mmLabel +'</td>'+
+      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.dd +'</td>'+
+      (showYear ? '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ (row.year == null ? 'ALL' : row.year) +'</td>' : '')+
+      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.status +'</td>'+
+      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.action +'</td>'+
     '</tr>';
   });
 
   var head = '<tr>'+
-    '<th style="'+STYLES.th+'">Index</th>'+
-    '<th style="'+STYLES.th+'">Event</th>'+
-    '<th style="'+STYLES.th+'">MM</th>'+
-    '<th style="'+STYLES.th+'">DD</th>'+
-    (showYear ? '<th style="'+STYLES.th+'">YYYY</th>' : '')+
-    '<th style="'+STYLES.th+'">Current Status</th>'+
-    '<th style="'+STYLES.th+'">Action</th>'+
+    '<th style="'+_managementThStyle('left')+'">Event</th>'+
+    '<th style="'+_managementThStyle('left')+'">Source</th>'+
+    '<th style="'+_managementThStyle('center')+'">MM</th>'+
+    '<th style="'+_managementThStyle('center')+'">DD</th>'+
+    (showYear ? '<th style="'+_managementThStyle('center')+'">YYYY</th>' : '')+
+    '<th style="'+_managementThStyle('center')+'">Current Status</th>'+
+    '<th style="'+_managementThStyle('center')+'">Action</th>'+
   '</tr>';
 
   return '<div style="margin:4px 0;"><b>Events</b></div>'+
-         '<table style="'+STYLES.table+'">'+ head + rows.join('') +'</table>'+
-         '<div style="opacity:.7;margin-top:4px;">Default events can be hidden and shown here. Hiding a custom event removes it because custom events are not kept in a hidden list. All-month recurring entries stay grouped into one row.</div>';
+         _managementTableWrap('<table style="'+_managementTableStyle()+'">'+ head + rows.join('') +'</table>')+
+         '<div style="opacity:.7;margin-top:4px;">Shown events stay in chronological order, while hidden default events move to the bottom of the shared hide/show list. Hiding a custom event still removes it because custom events are not kept in a hidden list.</div>';
 }
 
 export function removeListHtml(){
