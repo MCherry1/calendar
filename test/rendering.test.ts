@@ -3,10 +3,18 @@ import { ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
 import { STYLES } from "../src/constants.js";
 import { _eventDotsHtml } from "../src/color.js";
-import { tdHtmlForDay } from "../src/rendering.js";
+import { button, tdHtmlForDay } from "../src/rendering.js";
 import { renderPureMonthTable } from "../src/shared/render-month-table.js";
 
 describe("Calendar cell rendering", () => {
+  it("escapes parentheses in button commands so prompt-heavy controls stay intact", () => {
+    freshInstall();
+
+    const html = button("Add Event", "add ?{Color (hex)|#50C878}");
+
+    assert(html.includes("&#40;hex&#41;"));
+  });
+
   it("renders event dots in normal flow without absolute positioning", () => {
     freshInstall();
 

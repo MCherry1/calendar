@@ -29,9 +29,11 @@ describe("Task-focused UI", () => {
     freshInstall();
     helpRootMenu({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = (globalThis as any)._chatLog.slice(-1)[0];
+    assert(msg.msg.includes("Today&#39;s Calendar"));
+    assert(msg.msg.includes("Subsystems"));
     assertEquals(msg.opts.noarchive, true);
     assert(msg.msg.includes("Set Date"));
-    assert(msg.msg.includes("?{Set Date (mm dd yyyy)|"));
+    assert(msg.msg.includes("?{Set Date &#40;mm dd yyyy&#41;|"));
     assert(msg.msg.includes("Prompt !cal add"));
     assert(msg.msg.includes("Prompt !cal addmonthly"));
     assert(msg.msg.includes("Prompt !cal addyearly"));

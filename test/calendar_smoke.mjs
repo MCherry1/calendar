@@ -226,7 +226,8 @@ completeSetup(bundle);
 clearChat();
 
 const rootEntries = sendApi('!cal');
-assertChatIncludes(rootEntries, 'Additional Options', 'Root command should render the main dashboard after setup.');
+assertChatIncludes(rootEntries, "Today's Calendar", 'Root command should render the main dashboard after setup.');
+assertChatIncludes(rootEntries, 'Subsystems', 'Root command should render the main dashboard after setup.');
 
 const moonEntries = sendApi('!cal moon');
 assertChatIncludes(moonEntries, 'Moon', 'Moon command should render lunar output.');

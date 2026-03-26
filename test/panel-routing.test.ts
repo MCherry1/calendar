@@ -155,7 +155,7 @@ describe("Redesigned panel routing", () => {
     handleInput(gmMessage("!cal events panel " + serial));
 
     let msg = String(lastChat().msg);
-    assert(msg.includes("Full Calendar Year (998),year 998"));
+    assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
     assert(msg.includes("Olarune 998,month Olarune 998"));
     assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
@@ -315,7 +315,7 @@ describe("Moon management routing", () => {
     handleMoonCommand(gmUser(), ["moon", "on", "Olarune", "12", "998"]);
 
     let msg = String(lastChat().msg);
-    assert(msg.includes("Full Calendar Year (998),year 998"));
+    assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
     assert(msg.includes("Olarune 998,month Olarune 998"));
     assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
@@ -404,7 +404,7 @@ describe("Planes management routing", () => {
     handlePlanesCommand(gmUser(), ["planes", "on", "Olarune", "12", "998"]);
 
     let msg = String(lastChat().msg);
-    assert(msg.includes("Full Calendar Year (998),year 998"));
+    assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
     assert(msg.includes("Olarune 998,month Olarune 998"));
     assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
