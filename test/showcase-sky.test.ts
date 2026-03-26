@@ -3,6 +3,16 @@ import { deepStrictEqual as assertDeepEqual, ok as assert, strictEqual as assert
 import { buildSkyScene, moonPhasesForDay } from '../src/showcase/sky-scene.js';
 import { toWorldSerialFromRegularDate } from '../src/showcase/world-calendar.js';
 
+function skyPoint(moon: ReturnType<typeof buildSkyScene>['moons'][number]) {
+  const altitude = Math.max(0, Math.min(90, moon.altitudeExact));
+  const radial = 100 * (1 - altitude / 90);
+  const azimuth = moon.azimuth * Math.PI / 180;
+  return {
+    x: Math.sin(azimuth) * radial,
+    y: -Math.cos(azimuth) * radial,
+  };
+}
+
 describe('Showcase Sky Scene', () => {
   it('is deterministic for a fixed world/date/time', () => {
     const left = buildSkyScene({ worldId: 'eberron', serial: 42, timeFrac: 22 / 24 });
@@ -30,6 +40,30 @@ describe('Showcase Sky Scene', () => {
     assertEquals(dawn.moons[0].pctFull, dusk.moons[0].pctFull);
     assertEquals(dawn.moons[0].phase.waxing, dusk.moons[0].phase.waxing);
     assert(dawn.moons[0].altitudeExact !== dusk.moons[0].altitudeExact, 'position should change with time of day');
+  });
+
+  it('keeps moon positions continuous across midnight in the preview scene', () => {
+    const nuitariBefore = buildSkyScene({ worldId: 'dragonlance', serial: 8, timeFrac: 1430 / 1440 });
+    const nuitariAfter = buildSkyScene({ worldId: 'dragonlance', serial: 9, timeFrac: 0 });
+    const nuitariPrev = nuitariBefore.moons.find((moon) => moon.name === 'Nuitari');
+    const nuitariNext = nuitariAfter.moons.find((moon) => moon.name === 'Nuitari');
+    assert(nuitariPrev && nuitariNext, 'Nuitari should be present on both sides of midnight');
+    const nuitariDistance = Math.hypot(
+      skyPoint(nuitariNext).x - skyPoint(nuitariPrev).x,
+      skyPoint(nuitariNext).y - skyPoint(nuitariPrev).y,
+    );
+    assert(nuitariDistance < 6, `Nuitari should not jump at midnight, got ${nuitariDistance}`);
+
+    const zarantyrBefore = buildSkyScene({ worldId: 'eberron', serial: 5, timeFrac: 1430 / 1440 });
+    const zarantyrAfter = buildSkyScene({ worldId: 'eberron', serial: 6, timeFrac: 0 });
+    const zarantyrPrev = zarantyrBefore.moons.find((moon) => moon.name === 'Zarantyr');
+    const zarantyrNext = zarantyrAfter.moons.find((moon) => moon.name === 'Zarantyr');
+    assert(zarantyrPrev && zarantyrNext, 'Zarantyr should be present on both sides of midnight');
+    const zarantyrDistance = Math.hypot(
+      skyPoint(zarantyrNext).x - skyPoint(zarantyrPrev).x,
+      skyPoint(zarantyrNext).y - skyPoint(zarantyrPrev).y,
+    );
+    assert(zarantyrDistance < 6, `Zarantyr should not jump at midnight, got ${zarantyrDistance}`);
   });
 
   it('flags Dravago as retrograde in the showcase scene', () => {

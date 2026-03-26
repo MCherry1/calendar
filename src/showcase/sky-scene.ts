@@ -138,20 +138,22 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
   var observerLatitude = isFinite(input.observerLatitude as number) ? Number(input.observerLatitude) : DEFAULT_OBSERVER_LATITUDE;
   var moons: SkySceneMoon[] = [];
   var timeFrac = _normalizeTimeFrac(input.timeFrac);
+  var positionSerial = (Number(input.serial) || 0) + timeFrac;
 
   for (var i = 0; i < input.moons.length; i++){
     var moon = input.moons[i];
     var phase = input.phaseAt(moon, input.serial) || { illum: 0, waxing: true };
-    var skyLong = input.skyLongAt(moon, input.serial, phase);
-    var eclipticLat = input.eclipticLatAt(moon, input.serial, skyLong);
-    var alt = moonAltitudeDeg(observerLatitude, eclipticLat, moonHourAngleDeg(skyLong, sunSkyLong(input.serial, input.worldId), timeFrac));
-    var az = moonAzimuthDeg(observerLatitude, eclipticLat, moonHourAngleDeg(skyLong, sunSkyLong(input.serial, input.worldId), timeFrac));
-    var angularDiameterDeg = input.angularDiameterDegAt(moon, input.serial);
+    var positionPhase = input.phaseAt(moon, positionSerial) || phase;
+    var skyLong = input.skyLongAt(moon, positionSerial, positionPhase);
+    var eclipticLat = input.eclipticLatAt(moon, positionSerial, skyLong);
+    var alt = moonAltitudeDeg(observerLatitude, eclipticLat, moonHourAngleDeg(skyLong, sunSkyLong(positionSerial, input.worldId), timeFrac));
+    var az = moonAzimuthDeg(observerLatitude, eclipticLat, moonHourAngleDeg(skyLong, sunSkyLong(positionSerial, input.worldId), timeFrac));
+    var angularDiameterDeg = input.angularDiameterDegAt(moon, positionSerial);
     var category = moonSkyPositionCategory(alt, angularDiameterDeg);
-    var motion = moonMotionLabel(observerLatitude, moon, input.serial, timeFrac, input.skyLongAt, input.eclipticLatAt, input.phaseAt, input.worldId);
+    var motion = moonMotionLabel(observerLatitude, moon, positionSerial, timeFrac, input.skyLongAt, input.eclipticLatAt, input.phaseAt, input.worldId);
     var direction = moonCompass16(az);
     var pctFull = Math.round((_clamp01(phase.illum || 0)) * 100);
-    var retrograde = !!(input.retrogradeAt && input.retrogradeAt(moon, input.serial));
+    var retrograde = !!(input.retrogradeAt && input.retrogradeAt(moon, positionSerial));
     var skyLabel = skyCategoryLabel(category) + ', ' + direction + ', ' + motion;
     moons.push({
       moon: moon,

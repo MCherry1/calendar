@@ -40,6 +40,16 @@ function eclipseDigest(events: any[]) {
   }));
 }
 
+function moonSkyPoint(moon: any) {
+  const altitude = Math.max(0, Math.min(90, moon.altitudeExact));
+  const radial = 100 * (1 - altitude / 90);
+  const azimuth = moon.azimuth * Math.PI / 180;
+  return {
+    x: Math.sin(azimuth) * radial,
+    y: -Math.cos(azimuth) * radial
+  };
+}
+
 // ============================================================================
 // 7) MOON SYSTEM
 // ============================================================================
@@ -338,6 +348,32 @@ describe("Moon System", () => {
     assert(html.includes("Moon (% Full)"));
     assert(html.includes("Sky Position"));
     assert(html.includes(", Rising") || html.includes(", Setting"));
+  });
+
+  it("keeps Roll20 sky positions continuous across midnight", () => {
+    freshInstall();
+    applyCalendarSystem("dragonlance", "standard");
+    moonEnsureSequences(9, 60);
+
+    const nuitariBefore = _moonVisibilityAll(8, 1430 / 1440).find((moon: any) => moon.name === "Nuitari");
+    const nuitariAfter = _moonVisibilityAll(9, 0).find((moon: any) => moon.name === "Nuitari");
+    assert(nuitariBefore && nuitariAfter, "Nuitari should be present across midnight");
+    const nuitariPrevPoint = moonSkyPoint(nuitariBefore);
+    const nuitariNextPoint = moonSkyPoint(nuitariAfter);
+    const nuitariDistance = Math.hypot(nuitariNextPoint.x - nuitariPrevPoint.x, nuitariNextPoint.y - nuitariPrevPoint.y);
+    assert(nuitariDistance < 6, `Nuitari should not jump at midnight, got ${nuitariDistance}`);
+
+    freshInstall();
+    applyCalendarSystem("eberron", "standard");
+    moonEnsureSequences(6, 60);
+
+    const zarantyrBefore = _moonVisibilityAll(5, 1430 / 1440).find((moon: any) => moon.name === "Zarantyr");
+    const zarantyrAfter = _moonVisibilityAll(6, 0).find((moon: any) => moon.name === "Zarantyr");
+    assert(zarantyrBefore && zarantyrAfter, "Zarantyr should be present across midnight");
+    const zarantyrPrevPoint = moonSkyPoint(zarantyrBefore);
+    const zarantyrNextPoint = moonSkyPoint(zarantyrAfter);
+    const zarantyrDistance = Math.hypot(zarantyrNextPoint.x - zarantyrPrevPoint.x, zarantyrNextPoint.y - zarantyrPrevPoint.y);
+    assert(zarantyrDistance < 6, `Zarantyr should not jump at midnight, got ${zarantyrDistance}`);
   });
 
   it("renders non-Eberron sky view rows without the Eberron table", () => {
