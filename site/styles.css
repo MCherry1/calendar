@@ -540,6 +540,10 @@ body {
   .scene-grid {
     grid-template-columns: 1fr;
   }
+
+  .scene-card-planar {
+    grid-column: 1;
+  }
 }
 
 @media (max-width: 700px) {
@@ -575,4 +579,55 @@ body {
     grid-column: span 2;
   }
 
+}
+
+/* ── Planar Orbits Diagram ── */
+
+.scene-card-planar {
+  grid-column: 1 / -1;
+}
+
+#planar-canvas {
+  display: block;
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+#planar-legend {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.planar-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.planar-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.planar-legend-name {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.planar-legend-phase {
+  color: var(--text-muted);
+  opacity: 0.7;
+  font-size: 0.7rem;
+  text-transform: capitalize;
 }
