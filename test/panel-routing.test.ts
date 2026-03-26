@@ -149,7 +149,7 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("[Hide All](!cal source disable Silver Flame"));
   });
 
-  it("builds viewed-date Additional Ranges commands for events and renders year, rolling, and month ranges", () => {
+  it("builds viewed-date Additional Ranges commands for events and renders year, rolling, month, and specific ranges", () => {
     freshInstall();
     completeSetup();
 
@@ -159,8 +159,11 @@ describe("Redesigned panel routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Olarune 998,month Olarune 998"));
-    assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
+    assert(msg.indexOf("Therendor 998 YK&#44;month Therendor 998") < msg.indexOf("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
 
     handleInput(gmMessage("!cal events ranges year 998"));
     msg = String(lastChat().msg);
@@ -179,6 +182,11 @@ describe("Redesigned panel routing", () => {
     handleInput(gmMessage("!cal events ranges month Zarantyr 999"));
     msg = String(lastChat().msg);
     assert(msg.includes("Events — Zarantyr 999 YK"));
+    assert(!msg.includes("Calendar Jump Syntax"));
+
+    handleInput(gmMessage("!cal events ranges specific Therendor 998"));
+    msg = String(lastChat().msg);
+    assert(msg.includes("Events â€” Therendor 998 YK"));
     assert(!msg.includes("Calendar Jump Syntax"));
   });
 });
@@ -319,8 +327,10 @@ describe("Moon management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Olarune 998,month Olarune 998"));
-    assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "year", "998"]);
     msg = String(lastChat().msg);
@@ -335,6 +345,11 @@ describe("Moon management routing", () => {
     handleMoonCommand(gmUser(), ["moon", "ranges", "month", "Zarantyr", "999"]);
     msg = String(lastChat().msg);
     assert(msg.includes("Moons — Zarantyr 999 YK"));
+    assert(!msg.includes("Moon: <code>!cal moon"));
+
+    handleMoonCommand(gmUser(), ["moon", "ranges", "specific", "Therendor", "998"]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Moons â€” Therendor 998 YK"));
     assert(!msg.includes("Moon: <code>!cal moon"));
   });
 });
@@ -408,8 +423,10 @@ describe("Planes management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Olarune 998,month Olarune 998"));
-    assert(msg.includes("Zarantyr 999,month Zarantyr 999"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "year", "998"]);
     msg = String(lastChat().msg);
@@ -424,6 +441,11 @@ describe("Planes management routing", () => {
     handlePlanesCommand(gmUser(), ["planes", "ranges", "month", "Zarantyr", "999"]);
     msg = String(lastChat().msg);
     assert(msg.includes("Planes — Zarantyr 999 YK"));
+    assert(!msg.includes("Calendar Jump Syntax"));
+
+    handlePlanesCommand(gmUser(), ["planes", "ranges", "specific", "Therendor", "998"]);
+    msg = String(lastChat().msg);
+    assert(msg.includes("Planes â€” Therendor 998 YK"));
     assert(!msg.includes("Calendar Jump Syntax"));
   });
 });
