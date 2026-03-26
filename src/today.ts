@@ -8,7 +8,7 @@ import { DaySpec, Parse } from './parsing.js';
 import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _activePlanarWeatherShiftLines, _defaultDetailsForKey, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _activePlanarWeatherShiftLines, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
 import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, WEATHER_SOURCE_LABELS, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _grantCommonWeatherReveals, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, _weatherRevealForSerial, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
@@ -908,8 +908,47 @@ export var commands = {
   source: { gm:true, run: function(m, a){
     var args = a.slice(2).map(function(x){ return String(x).trim(); }).filter(Boolean);
     var sub = (args[0]||'').toLowerCase();
-    var manualSuppressedSources = getManualSuppressedSources();
     var autoSuppressedSources = getAutoSuppressedSources();
+    var tableStyle = STYLES.table + 'width:100%;max-width:100%;table-layout:auto;margin-right:0;';
+    var thStyle = 'border:1px solid #444;padding:4px 6px;text-align:left;white-space:nowrap;';
+    var tdStyle = 'border:1px solid #444;padding:4px 6px;vertical-align:middle;white-space:normal;';
+
+    function sourceDefaultKeys(sourceKey){
+      var key = String(sourceKey || '').trim().toLowerCase();
+      var cal = getCal();
+      var sysKey = ensureSettings().calendarSystem || CONFIG_DEFAULTS.calendarSystem;
+      var lim = Math.max(1, cal.months.length);
+      var out = [];
+      defaults.events.forEach(function(de){
+        var src = (de.source != null) ? String(de.source).toLowerCase() : null;
+        if (src !== key) return;
+        if (!_sourceAllowedForCalendar(src, sysKey)) return;
+        var monthsList = (String(de.month).toLowerCase() === 'all')
+          ? (function(){ var items = []; for (var i = 1; i <= lim; i++) items.push(i); return items; }())
+          : [ clamp(parseInt(de.month, 10) || 1, 1, lim) ];
+        monthsList.forEach(function(monthHuman){
+          var monthObj = cal.months[monthHuman - 1];
+          var maxD = monthObj ? (monthObj.days|0) : 28;
+          out.push(defaultKeyFor(monthHuman, DaySpec.canonicalForKey(de.day, maxD), de.name));
+        });
+      });
+      return out;
+    }
+
+    function sourceVisibility(key){
+      var sup = state[state_name].suppressedDefaults || {};
+      var defaultKeys = sourceDefaultKeys(key);
+      var hidden = 0;
+      defaultKeys.forEach(function(defKey){
+        if (sup[defKey]) hidden++;
+      });
+      var total = defaultKeys.length;
+      var shown = Math.max(0, total - hidden);
+      var mode = 'shown';
+      if (total && hidden >= total) mode = 'hidden';
+      else if (hidden > 0) mode = 'mixed';
+      return { total: total, hidden: hidden, shown: shown, mode: mode };
+    }
 
     // Collect all known source keys → canonical display names.
     function allSources(){
@@ -922,7 +961,7 @@ export var commands = {
     function listSources(){
       var seen  = allSources();
       var keys  = Object.keys(seen);
-      if (!keys.length){ return whisper(m.who, '<div><b>Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
+      if (!keys.length){ return whisper(m.who, '<div><b>Manage Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
 
       var pList = ensureSettings().eventSourcePriority;
 
@@ -933,43 +972,50 @@ export var commands = {
         return rd !== 0 ? rd : a.localeCompare(b);
       });
 
-      // Filter out sources that are purely calendar-managed (auto-suppressed, not manually togglable)
+      // Filter out sources that are purely calendar-managed for another system.
       var displayKeys = keys.filter(function(k){
         var suppression = sourceSuppressionState(k);
-        return !suppression.auto || suppression.manual;
+        if (suppression.auto) return false;
+        return sourceDefaultKeys(k).length > 0;
       });
 
       var head = '<tr>'+
-        '<th style="'+STYLES.th+'">Source</th>'+
-        '<th style="'+STYLES.th+'">Current Status</th>'+
-        '<th style="'+STYLES.th+'">Move</th>'+
+        '<th style="'+thStyle+'">Source</th>'+
+        '<th style="'+thStyle+'text-align:center;">Current Status</th>'+
+        '<th style="'+thStyle+'text-align:center;">Move</th>'+
         '</tr>';
 
       var rows = displayKeys.map(function(k, i){
         var label    = titleCase(seen[k]);
-        var suppression = sourceSuppressionState(k);
+        var stats = sourceVisibility(k);
         var upBtn    = i > 0
           ? button('↑', 'source up '   + label, {icon:''})
           : '';
         var downBtn  = i < displayKeys.length - 1
           ? button('↓', 'source down ' + label, {icon:''})
           : '';
-        var isHidden = !!suppression.manual;
-        var statusCell = isHidden
-          ? 'Hidden<br>' + button('Show', 'source enable ' + label, {icon:''})
-          : 'Shown<br>' + button('Hide', 'source disable ' + label, {icon:''});
+        var statusCell = '';
+        if (stats.mode === 'hidden'){
+          statusCell = 'Hidden<br>' + button('Show', 'source enable ' + label, {icon:''});
+        } else if (stats.mode === 'mixed'){
+          statusCell = 'Partially Hidden<br><span style="opacity:.72;">' + stats.hidden + ' of ' + stats.total + ' hidden</span><br>' +
+            button('Show All', 'source enable ' + label, {icon:''}) + ' ' +
+            button('Hide All', 'source disable ' + label, {icon:''});
+        } else {
+          statusCell = 'Shown<br>' + button('Hide', 'source disable ' + label, {icon:''});
+        }
         return '<tr>'+
-          '<td style="'+STYLES.td+'">'+esc(label)+'</td>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+statusCell+'</td>'+
-          '<td style="'+STYLES.td+';text-align:center;">'+upBtn+(upBtn && downBtn ? ' ' : '')+downBtn+'</td>'+
+          '<td style="'+tdStyle+'">'+esc(label)+'</td>'+
+          '<td style="'+tdStyle+'text-align:center;white-space:nowrap;">'+statusCell+'</td>'+
+          '<td style="'+tdStyle+'text-align:center;white-space:nowrap;">'+upBtn+(upBtn && downBtn ? ' ' : '')+downBtn+'</td>'+
           '</tr>';
       }).join('');
 
       whisper(m.who,
-        '<div style="margin:4px 0;"><b>Sources</b></div>'+
-        '<table style="'+STYLES.table+'">'+head+rows+'</table>'+
+        '<div style="margin:4px 0;"><b>Manage Sources</b></div>'+
+        '<div style="overflow-x:auto;max-width:100%;"><table style="'+tableStyle+'">'+head+rows+'</table></div>'+
         '<div style="font-size:.8em;opacity:.7;margin-top:4px;">'+
-        'Order = priority. Top source sets cell color. User-added events always rank first.'+
+        'Order = priority. Top source sets cell color. Hide/show acts like a bulk toggle for each source&#39;s default events, and hidden entries still appear in the main hide/show list.'+
         '</div>'
       );
     }
@@ -1001,36 +1047,41 @@ export var commands = {
     function disableSource(name){
       var key = String(name||'').toLowerCase();
       if (!key){ whisper(m.who, 'Usage: <code>!cal source disable &lt;name&gt;</code>'); return; }
-      manualSuppressedSources[key] = 1;
-      var cal = getCal(), defaultsSet = currentDefaultKeySet(cal);
+      var sourceKeys = sourceDefaultKeys(key);
+      if (!sourceKeys.length){ whisper(m.who, 'Source not found: ' + esc(name)); return; }
+      var sourceKeySet = {};
+      var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
+      sourceKeys.forEach(function(defKey){
+        sourceKeySet[defKey] = 1;
+        sup[defKey] = 1;
+      });
+      var cal = getCal();
       cal.events = cal.events.filter(function(e){
         var src = (e.source != null) ? String(e.source).toLowerCase() : null;
         if (src !== key) return true;
         var maxD = cal.months[e.month-1].days|0;
         var norm = DaySpec.canonicalForKey(e.day, maxD);
-        var k = defaultKeyFor(e.month, norm, e.name);
-        return !defaultsSet[k];
+        return !sourceKeySet[defaultKeyFor(e.month, norm, e.name)];
       });
       refreshAndSend();
-      sendChat(script_name, '/w gm Disabled source "'+esc(name)+'" and removed its default events.', null, { noarchive: true });
+      sendChat(script_name, '/w gm Hidden "'+esc(name)+'" source events in the shared hide/show list.', null, { noarchive: true });
     }
 
     function enableSource(name){
       var key = String(name||'').toLowerCase();
       if (!key){ whisper(m.who, 'Usage: <code>!cal source enable &lt;name&gt;</code>'); return; }
-      delete manualSuppressedSources[key];
-      var sup = state[state_name].suppressedDefaults || {};
-      Object.keys(sup).forEach(function(k){
-        var info = _defaultDetailsForKey(k);
-        var src = (info.source != null) ? String(info.source).toLowerCase() : null;
-        if (src === key) delete sup[k];
+      var sourceKeys = sourceDefaultKeys(key);
+      if (!sourceKeys.length && !autoSuppressedSources[key]){ whisper(m.who, 'Source not found: ' + esc(name)); return; }
+      var sup = state[state_name].suppressedDefaults || (state[state_name].suppressedDefaults = {});
+      sourceKeys.forEach(function(defKey){
+        delete sup[defKey];
       });
       mergeInNewDefaultEvents(getCal());
       refreshAndSend();
       if (autoSuppressedSources[key]){
-        sendChat(script_name, '/w gm Manual suppression cleared for "'+esc(name)+'", but the current calendar still auto-suppresses that source.', null, { noarchive: true });
+        sendChat(script_name, '/w gm Source "'+esc(name)+'" was shown again where allowed, but the current calendar still auto-suppresses that source.', null, { noarchive: true });
       } else {
-        sendChat(script_name, '/w gm Enabled source "'+esc(name)+'" and restored its default events.', null, { noarchive: true });
+        sendChat(script_name, '/w gm Shown "'+esc(name)+'" source events again.', null, { noarchive: true });
       }
     }
 
