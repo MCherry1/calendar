@@ -10,7 +10,8 @@
     "forceConsistentCasingInFileNames": true,
     "declaration": false,
     "sourceMap": false,
-    "allowJs": false
+    "allowJs": false,
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "site/**/*.ts", "test/**/*.ts"]
 }
