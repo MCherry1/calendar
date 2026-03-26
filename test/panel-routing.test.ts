@@ -70,7 +70,7 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Current Status"));
     assert(msg.includes("Source"));
     assert(!msg.includes(">Index<"));
-    assert(msg.includes("[Ã¢Å¾â€“ Hide](!cal remove "));
+    assert(msg.includes("[\u2796 Hide](!cal remove "));
     assert(!msg.includes("events removeflow"));
   });
 
@@ -98,8 +98,8 @@ describe("Redesigned panel routing", () => {
       assert(msg.indexOf(order[i - 1]) < msg.indexOf(order[i]));
     }
     assert(msg.includes("[Hide](!cal source disable Khorvaire"));
-    assert(!msg.includes("[Ã°Å¸â€œâ€¦ Hide]"));
-    assert(!msg.includes("[Ã°Å¸â€œâ€¦ Show]"));
+    assert(!msg.includes("[\uD83D\uDCC5 Hide]"));
+    assert(!msg.includes("[\uD83D\uDCC5 Show]"));
   });
 
   it("shows hide/show controls directly in the event list", () => {
@@ -111,7 +111,7 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Current Status"));
     assert(msg.includes("Source"));
     assert(!msg.includes(">Index<"));
-    assert(msg.includes("[Ã¢Å¾â€“ Hide](!cal remove "));
+    assert(msg.includes("[\u2796 Hide](!cal remove "));
 
     const evt = getCal().events.find((entry: any) => entry.source === "khorvaire");
     assert(evt);
@@ -120,7 +120,7 @@ describe("Redesigned panel routing", () => {
 
     msg = String(lastChat().msg);
     assert(msg.includes("Hidden"));
-    assert(msg.includes("[Ã¢Å¾â€¢ Show](!cal restore key "));
+    assert(msg.includes("[\u2795 Show](!cal restore key "));
   });
 
   it("treats source controls as bulk hide/show for the shared event list", () => {
@@ -167,21 +167,21 @@ describe("Redesigned panel routing", () => {
 
     handleInput(gmMessage("!cal events ranges year 998"));
     msg = String(lastChat().msg);
-    assert(msg.includes("Events Ã¢â‚¬â€ Full Calendar Year (998)"));
+    assert(msg.includes("Full Calendar Year (998)"));
     assert(msg.includes("Zarantyr"));
     assert(!msg.includes("Calendar Jump Syntax"));
     assert(!msg.includes("997 YK"));
 
     handleInput(gmMessage("!cal events ranges rolling " + serial));
     msg = String(lastChat().msg);
-    assert(msg.includes("Events Ã¢â‚¬â€ Rolling 12 Months"));
+    assert(msg.includes("Rolling 12 Months"));
     assert(msg.includes("Zarantyr"));
     assert(msg.includes("Vult"));
     assert(!msg.includes("Calendar Jump Syntax"));
 
     handleInput(gmMessage("!cal events ranges month Zarantyr 999"));
     msg = String(lastChat().msg);
-    assert(msg.includes("Events Ã¢â‚¬â€ Zarantyr 999 YK"));
+    assert(msg.includes("Zarantyr 999 YK"));
     assert(!msg.includes("Calendar Jump Syntax"));
 
     handleInput(gmMessage("!cal events ranges specific Therendor 998"));
@@ -334,17 +334,17 @@ describe("Moon management routing", () => {
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "year", "998"]);
     msg = String(lastChat().msg);
-    assert(msg.includes("Moons Ã¢â‚¬â€ Full Calendar Year (998)"));
+    assert(msg.includes("Full Calendar Year (998)"));
     assert(!msg.includes("Moon: <code>!cal moon"));
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "rolling", String(serial)]);
     msg = String(lastChat().msg);
-    assert(msg.includes("Moons Ã¢â‚¬â€ Rolling 12 Months"));
+    assert(msg.includes("Rolling 12 Months"));
     assert(!msg.includes("Moon: <code>!cal moon"));
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "month", "Zarantyr", "999"]);
     msg = String(lastChat().msg);
-    assert(msg.includes("Moons Ã¢â‚¬â€ Zarantyr 999 YK"));
+    assert(msg.includes("Zarantyr 999 YK"));
     assert(!msg.includes("Moon: <code>!cal moon"));
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "specific", "Therendor", "998"]);
@@ -381,8 +381,8 @@ describe("Planes management routing", () => {
     assert(msg.includes("Clear Override,clear"));
     assert(msg.includes("Set Anchor,anchorwizard"));
     assert(msg.includes("Seed Override,seed"));
-    assert(msg.includes("Ã°Å¸â€œâ€¹ Summary"));
-    assert(!msg.includes("Ã°Å¸â€œâ€¹ List"));
+    assert(msg.includes("\uD83D\uDCCB Summary"));
+    assert(!msg.includes("\uD83D\uDCCB List"));
 
     const before = ensureSettings().offCyclePlanes !== false;
     handlePlanesCommand(gmUser(), ["planes", "manage", "generated"]);
@@ -430,17 +430,17 @@ describe("Planes management routing", () => {
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "year", "998"]);
     msg = String(lastChat().msg);
-    assert(msg.includes("Planes Ã¢â‚¬â€ Full Calendar Year (998)"));
+    assert(msg.includes("Full Calendar Year (998)"));
     assert(!msg.includes("Calendar Jump Syntax"));
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "rolling", String(serial)]);
     msg = String(lastChat().msg);
-    assert(msg.includes("Planes Ã¢â‚¬â€ Rolling 12 Months"));
+    assert(msg.includes("Rolling 12 Months"));
     assert(!msg.includes("Calendar Jump Syntax"));
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "month", "Zarantyr", "999"]);
     msg = String(lastChat().msg);
-    assert(msg.includes("Planes Ã¢â‚¬â€ Zarantyr 999 YK"));
+    assert(msg.includes("Zarantyr 999 YK"));
     assert(!msg.includes("Calendar Jump Syntax"));
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "specific", "Therendor", "998"]);
