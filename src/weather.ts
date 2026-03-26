@@ -1324,6 +1324,7 @@ export function _generateForecast(fromSerial_: any, count: any, forceRegen: any)
   for (var i=0; i<count; i++){
     var ser = fromSerial_ + i;
     var existing = _forecastRecord(ser);
+    if (existing && existing.locked) { prevRec = existing; continue; }
     if (existing && !forceRegen && !existing.stale) continue;
 
     var rec = _generateDayWeather(ser, prevRec, loc);
@@ -4412,6 +4413,11 @@ export function handleWeatherCommand(m, args){
         warnGM('That day is already in the past. Cannot reroll archived weather.');
         break;
       }
+      var lockedRec = _forecastRecord(targetSer);
+      if (lockedRec && lockedRec.locked){
+        warnGM('Day ' + targetSer + ' is locked and cannot be rerolled.');
+        break;
+      }
       var prevRec = _forecastRecord(targetSer - 1) || _historyRecord(targetSer - 1);
       var newRec = _generateDayWeather(targetSer, prevRec, ws2.location || null);
       if (newRec){
@@ -4435,8 +4441,23 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'lock': {
-      warnGM('Locking individual weather days is no longer supported.');
-      whisper(m.who, weatherTodayCalendarGmHtml());
+      var todayLock = todaySerial();
+      var targetLock = parseInt(args[2],10);
+      if (!isFinite(targetLock)){
+        warnGM('Usage: !cal weather lock <serial>');
+        break;
+      }
+      if (targetLock < todayLock){
+        warnGM('Cannot lock a past day.');
+        break;
+      }
+      var lockRec = _forecastRecord(targetLock);
+      if (!lockRec){
+        warnGM('No forecast record found for day ' + targetLock + '.');
+        break;
+      }
+      lockRec.locked = true;
+      whisperUi(m.who, 'Locked weather for day ' + targetLock + '.');
       break;
     }
 
