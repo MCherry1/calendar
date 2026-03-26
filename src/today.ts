@@ -978,6 +978,9 @@ export var commands = {
         if (suppression.auto) return false;
         return sourceDefaultKeys(k).length > 0;
       });
+      if (!displayKeys.length){
+        return whisper(m.who, '<div><b>Manage Sources</b></div><div style="opacity:.7;">No sources are available for this calendar.</div>');
+      }
 
       var head = '<tr>'+
         '<th style="'+thStyle+'">Source</th>'+
