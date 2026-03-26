@@ -1045,7 +1045,9 @@ function _todArc(climate: any, arcMult: any, period: any){
 function _todStochastic(){
   // Returns a random shift for each trait independently using the bell curve.
   return {
-    temp:   WEATHER_TOD_BELL[_rollDie(20) - 1],
+    // Keep temperature swings smoother than wind/precip so the day still
+    // reads like one pattern instead of six unrelated spikes.
+    temp:   Math.max(-1, Math.min(1, WEATHER_TOD_BELL[_rollDie(20) - 1])),
     wind:   WEATHER_TOD_BELL[_rollDie(20) - 1],
     precip: WEATHER_TOD_BELL[_rollDie(20) - 1]
   };
@@ -2291,6 +2293,26 @@ export function _weatherRevealForSerial(ws: any, serial: any, loc?: any){
   return _readReveal(bucket[String(serial)]);
 }
 
+function _weatherRevealTierLabel(reveal: any){
+  var tier = String(reveal && reveal.tier || '').toLowerCase();
+  if (tier === 'high' || tier === 'certain') return 'High';
+  if (tier === 'medium') return 'Medium';
+  if (tier === 'low' || tier === 'common') return 'Low';
+  return 'Unrevealed';
+}
+
+function _weatherRevealTierHtml(serial: any, opts?: any){
+  opts = opts || {};
+  var ws = opts.weatherState || getWeatherState();
+  var loc = opts.revealLocation || ws.location;
+  var reveal = (typeof opts.revealForSerial === 'function')
+    ? opts.revealForSerial(serial, ws, loc)
+    : _weatherRevealForSerial(ws, serial, loc);
+  var label = _weatherRevealTierLabel(reveal);
+  var opacity = (label === 'Unrevealed') ? '.58' : '.82';
+  return '<div style="margin-top:4px;padding-top:3px;border-top:1px solid rgba(0,0,0,.12);font-size:.68em;line-height:1.1;text-align:center;opacity:' + opacity + ';">Knowledge: <b>' + esc(label) + '</b></div>';
+}
+
 // Render one player-facing day block at the given detail tier.
 export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLabel: any){
   rec = _weatherRecordForDisplay(rec);
@@ -3143,8 +3165,8 @@ function _weatherForecastCellHtml(serial: any){
 }
 
 function _weatherHeaderBarHtml(label: any, color: any){
-  return '<div style="margin:6px 0 2px 0;padding:4px 6px;border:1px solid rgba(0,0,0,.15);border-bottom:none;background:rgba(0,0,0,.04);font-weight:bold;color:' + esc(color) + ';">' +
-    esc(label) +
+  return '<div style="margin:6px 0 2px 0;padding:4px 6px;border:1px solid rgba(0,0,0,.15);border-bottom:none;background:rgba(0,0,0,.04);">' +
+    '<span style="display:inline-block;padding:1px 8px;border:1px solid rgba(0,0,0,.28);border-radius:999px;background:rgba(255,255,255,.84);font-weight:bold;color:' + esc(color) + ';">' + esc(label) + '</span>' +
   '</div>';
 }
 
@@ -3180,7 +3202,11 @@ function _weatherCalendarOpenHtml(mi: any, year: any){
   var textOnFill = textColor(fillColor);
   var headers: any[] = [];
   for (var i = 0; i < wdCnt; i++){
-    headers.push('<th style="' + STYLES.th + 'padding:4px 2px;color:' + esc(monthColor) + ';">' + esc(cal.weekdays[i] || ('Day ' + (i + 1))) + '</th>');
+    headers.push('<th style="' + STYLES.th + 'padding:4px 2px;">' +
+      '<span style="display:inline-block;padding:1px 6px;border:1px solid rgba(0,0,0,.22);border-radius:999px;background:rgba(255,255,255,.82);font-weight:bold;color:' + esc(monthColor) + ';">' +
+        esc(cal.weekdays[i] || ('Day ' + (i + 1))) +
+      '</span>' +
+    '</th>');
   }
   return '<table style="' + STYLES.table + 'table-layout:fixed;width:100%;margin:0 0 6px 0;">' +
     '<tr><th colspan="' + wdCnt + '" style="' + STYLES.head + 'padding:0;">' +
