@@ -38,8 +38,9 @@ describe("Redesigned panel routing", () => {
     const msg = String(lastChat().msg);
     assert(msg.includes("Events"));
     assert(msg.includes("Send to Players"));
-    assert(msg.includes("Add Event"));
-    assert(msg.includes("Manage Sources"));
+    assert(msg.includes("Add Single Event"));
+    assert(msg.includes("Manage Event Sources"));
+    assert(msg.includes("Hide/Show Event"));
     assert(msg.includes("events source"));
     assert(msg.includes("events list"));
     assert(!msg.includes("events removeflow"));
@@ -62,7 +63,7 @@ describe("Redesigned panel routing", () => {
 
     handleInput(gmMessage("!cal events manage source"));
     let msg = String(lastChat().msg);
-    assert(msg.includes("Manage Sources"));
+    assert(msg.includes("Manage Event Sources"));
     assert(msg.includes("source"));
 
     handleInput(gmMessage("!cal events manage list"));
@@ -159,11 +160,11 @@ describe("Redesigned panel routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
-    assert(msg.indexOf("Therendor 998 YK&#44;month Therendor 998") < msg.indexOf("Zarantyr 999 YK&#44;month Zarantyr 999"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&amp;#124;Therendor 998 YK&amp;#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&amp;#44;month Olarune 998"));
+    assert(msg.indexOf("Therendor 998 YK&amp;#44;month Therendor 998") < msg.indexOf("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&amp;#124;Therendor 998\\}"));
 
     handleInput(gmMessage("!cal events ranges year 998"));
     msg = String(lastChat().msg);
@@ -203,12 +204,15 @@ describe("Weather management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes('data-weather-view="today-calendar-gm"'));
     assert(msg.includes('data-weather-tod-grid="1"'));
+    assert(msg.includes("GM Forecast"));
+    assert(msg.includes("Reveal High Custom Dates"));
     assert(!msg.includes("View: "));
 
     handleInput(gmMessage("!cal forecast"));
     msg = String(lastChat().msg);
     assert(msg.includes('data-weather-view="forecast-calendar-gm"'));
     assert(msg.includes('data-weather-forecast-grid="1"'));
+    assert(msg.includes("20-Day GM Forecast"));
     assert(!msg.includes("View: "));
   });
 
@@ -221,12 +225,13 @@ describe("Weather management routing", () => {
     handleWeatherCommand(gmUser(), ["weather"]);
 
     const msg = String(lastChat().msg);
-    assert(msg.includes("weather manage ?{Action|Toggle Weather On/Off,toggleweather|Toggle Extreme Hazards,togglehazards|Toggle Mechanics,togglemechanics"));
-    assert(msg.includes("Reseed Weather,reseed"));
-    assert(msg.includes("Lock Specific Day"));
-    assert(msg.includes("freezes that forecast record"));
+    assert(msg.includes("weather manage ?{Action|Regenerate Weather,reset|Toggle Weather On/Off,toggleweather|Toggle Extreme Hazards,togglehazards|Toggle Mechanics,togglemechanics|Erase and Reset System,reseed}"));
+    assert(msg.includes("Weather System Management"));
+    assert(!msg.includes("Lock Specific Day"));
+    assert(!msg.includes("freezes that forecast record"));
+    assert(!msg.includes("Reroll Today,reroll"));
+    assert(!msg.includes("History,history"));
     assert(!msg.includes("Forecast List"));
-    assert(!msg.includes("Lock Day,lock ?\\{Day serial"));
   });
 
   it("toggles weather from the management dispatcher", () => {
@@ -327,10 +332,10 @@ describe("Moon management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&amp;#124;Therendor 998 YK&amp;#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&amp;#44;month Olarune 998"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&amp;#124;Therendor 998\\}"));
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "year", "998"]);
     msg = String(lastChat().msg);
@@ -423,10 +428,10 @@ describe("Planes management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&amp;#124;Therendor 998 YK&amp;#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&amp;#44;month Olarune 998"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&amp;#124;Therendor 998\\}"));
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "year", "998"]);
     msg = String(lastChat().msg);

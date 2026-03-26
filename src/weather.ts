@@ -1324,10 +1324,6 @@ export function _generateForecast(fromSerial_: any, count: any, forceRegen: any)
   for (var i=0; i<count; i++){
     var ser = fromSerial_ + i;
     var existing = _forecastRecord(ser);
-    if (existing && existing.locked){
-      prevRec = existing;
-      continue;
-    }
     if (existing && !forceRegen && !existing.stale) continue;
 
     var rec = _generateDayWeather(ser, prevRec, loc);
@@ -1349,11 +1345,11 @@ export function _generateForecast(fromSerial_: any, count: any, forceRegen: any)
 }
 
 export function weatherEnsureForecast(){
-  // Called after day advance. Locks today, archives old days, fills the window.
+  // Called after day advance. Archives old days and fills the current forecast window.
   var ws    = getWeatherState();
   var today = todaySerial();
 
-  // Archive and lock past days
+  // Archive past days
   ws.forecast = ws.forecast.filter(function(rec: any){
     if (rec.serial < today){
       rec.locked = true;
@@ -1386,7 +1382,7 @@ export function weatherEnsureForecast(){
 
 function _uncertaintyTier(rec: any){
   if (!rec) return 'vague';
-  if (rec.locked) return 'certain';
+  if (rec.serial < todaySerial()) return 'certain';
   var dist = rec.serial - rec.generatedAt;
   var tiers = WEATHER_UNCERTAINTY;
   if (dist <= tiers.certain.maxDist)   return 'certain';
@@ -3716,7 +3712,7 @@ function weatherTodayCalendarGmHtml(){
   if (!loc){
     return _menuBox('Weather',
       '<div style="opacity:.7;">No location set.</div>' +
-      '<div style="margin-top:4px;">' + button('Set Location', 'weather location') + '</div>'
+      '<div style="margin-top:4px;">' + button('&#128205; Set Location', 'weather location') + '</div>'
     );
   }
 
@@ -3738,8 +3734,12 @@ function weatherTodayCalendarGmHtml(){
   var summaryLine = rec
     ? '<div style="font-size:.86em;font-style:italic;margin:0 0 4px 0;">' + esc(_weatherTransitionSentence(rec)) + '</div>'
     : '<div style="opacity:.6;margin-top:4px;">No weather generated for today.</div>';
-  var gmForecastEnd = Math.min(ser + CONFIG_WEATHER_FORECAST_DAYS - 1, ser + 19);
+  var gmDefaultForecastDays = Math.max(1, Math.min(CONFIG_WEATHER_SPECIFIC_REVEAL_MAX_DAYS, 10));
+  var gmForecastEnd = ser + gmDefaultForecastDays - 1;
   var forecastSerials = _weatherSerialRange(_weatherAnchorStartForToday(ser), gmForecastEnd);
+  var gmVisibleSerials = _weatherSerialRange(ser, gmForecastEnd);
+  var gmKnownSerials: any = {};
+  for (var gi = 0; gi < gmVisibleSerials.length; gi++) gmKnownSerials[String(gmVisibleSerials[gi])] = 1;
   var todayHandoutLinks = [
     handoutButton('Open Weather Handout', 'weather'),
     handoutButton('Weather Mechanics', 'weather:mechanics')
@@ -3750,9 +3750,10 @@ function weatherTodayCalendarGmHtml(){
   var highRow = '<div style="margin-top:4px;">' +
     button('Reveal High Forecast', 'weather reveal high ?{Days|1|3|6|10}') +
   '</div>';
-  var specificRow =
-    '<div style="margin-top:2px;font-size:.85em;opacity:.8;">Reveal exact date(s):</div>' +
-    '<div>' + button('Custom Range', 'weather reveal ?{Date or range|14-17}') + '</div>';
+  var specificRow = '<div style="margin-top:4px;">' + button('Reveal High Custom Dates', 'weather reveal ?{Date or range|14-17}') + '</div>';
+  var gmRevealTier = function(){
+    return { tier: 'high', source: 'gm' };
+  };
   var extremeHtml = rec ? _extremeEventPanelHtml(rec) : '';
 
   return _menuBox("Today's Weather",
@@ -3765,22 +3766,24 @@ function weatherTodayCalendarGmHtml(){
       _weatherTodayGridHtml(rec) +
       summaryLine +
       _weatherActiveMechanicsSectionHtml(rec, { allowDetailed: true }) +
-      _weatherForecastGridHtml(forecastSerials, { tight: true, currentPeriodForToday: true }) +
+      _weatherForecastGridHtml(forecastSerials, {
+        tight: true,
+        currentPeriodForToday: true,
+        knownSerials: gmKnownSerials,
+        revealForSerial: gmRevealTier
+      }) +
       extremeHtml +
-      '<div style="margin-top:6px;">' +
-        button('Forecast', 'weather forecast') + ' ' +
-        button('📣 Send Revealed', 'weather send') +
-      '</div>' +
+      '<div style="margin-top:6px;">' + button('History', 'weather history') + '</div>' +
+      '<div style="margin-top:4px;">' + button('GM Forecast', 'weather forecast') + '</div>' +
+      '<div style="margin-top:4px;">' + button('Send Revealed', 'weather send') + '</div>' +
       (todayHandoutLinks ? '<div style="margin-top:4px;">' + todayHandoutLinks + '</div>' : '') +
       '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
       mediumRow + highRow + specificRow +
       '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
-      '<div style="margin:4px 0;">' +
-        button('Set Location', 'weather location') + ' ' +
-        button('Set Manifest Zone', 'weather manifest') + ' ' +
-        button('Reroll Today', 'weather reroll') + ' ' +
-        button('History', 'weather history') +
-      '</div>' +
+      '<div style="margin:4px 0;">' + button('&#128205; Set Location', 'weather location') + '</div>' +
+      '<div style="margin:4px 0;">' + button('Set Manifest Zone', 'weather manifest') + '</div>' +
+      '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
+      '<div style="margin:4px 0;">' + button('Reroll Today', 'weather reroll') + '</div>' +
       _weatherManagementControlsHtml(ser) +
     '</div>'
   );
@@ -3790,12 +3793,19 @@ function weatherForecastCalendarGmHtml(daysOverride?: any){
   var ws = getWeatherState();
   var today = todaySerial();
   var forecastDays = _weatherViewDays(daysOverride != null ? daysOverride : Math.min(CONFIG_WEATHER_FORECAST_DAYS, 20));
-  var serials = _weatherSerialRange(_weatherAnchorStartForToday(today), today + forecastDays - 1);
+  var rangeStart = _weatherAnchorStartForToday(today);
+  var rangeEnd = today + forecastDays - 1;
+  var serials = _weatherSerialRange(rangeStart, rangeEnd);
+  var knownSerials: any = {};
+  for (var i = today; i <= rangeEnd; i++) knownSerials[String(i)] = 1;
 
-  return _menuBox(forecastDays + '-Day Forecast',
+  return _menuBox(forecastDays + '-Day GM Forecast',
     '<div data-weather-view="forecast-calendar-gm">' +
       '<div style="font-size:.85em;opacity:.75;margin-bottom:2px;">📍 ' + esc(_weatherLocationLabel(ws.location)) + '</div>' +
-      _weatherForecastGridHtml(serials, { currentPeriodForToday: true }) +
+      _weatherForecastGridHtml(serials, {
+        knownSerials: knownSerials,
+        currentPeriodForToday: true
+      }) +
     '</div>'
   );
 }
@@ -4045,7 +4055,7 @@ function _setWeatherLocationFromWizard(m: any, partial: any){
   var today = todaySerial();
   var resurrected = 0, staled = 0;
   ws.forecast.forEach(function(rec: any){
-    if (rec.locked || rec.serial < today) return;
+    if (rec.serial < today) return;
     var recSig = rec.location ? _locSig(rec.location) : '';
     if (recSig === newLoc.sig){
       rec.stale = false;
@@ -4402,11 +4412,6 @@ export function handleWeatherCommand(m, args){
         warnGM('That day is already in the past. Cannot reroll archived weather.');
         break;
       }
-      var existing = _forecastRecord(targetSer);
-      if (existing && existing.locked){
-        warnGM('That day is locked. Cannot reroll.');
-        break;
-      }
       var prevRec = _forecastRecord(targetSer - 1) || _historyRecord(targetSer - 1);
       var newRec = _generateDayWeather(targetSer, prevRec, ws2.location || null);
       if (newRec){
@@ -4415,7 +4420,7 @@ export function handleWeatherCommand(m, args){
         else ws2.forecast.push(newRec);
         ws2.forecast.sort(function(a,b){ return a.serial - b.serial; });
         var nextRec2 = _forecastRecord(targetSer + 1);
-        if (nextRec2 && !nextRec2.locked){
+        if (nextRec2){
           var regenNext = _generateDayWeather(targetSer + 1, newRec, ws2.location || null);
           if (regenNext){
             var nextIdx2 = _forecastIndex(targetSer + 1);
@@ -4430,15 +4435,8 @@ export function handleWeatherCommand(m, args){
     }
 
     case 'lock': {
-      var lockSer = parseInt(args[2],10);
-      if (!isFinite(lockSer)) lockSer = todaySerial();
-      var lockRec = _forecastRecord(lockSer);
-      if (!lockRec){ warnGM('No weather record for that day.'); break; }
-      lockRec.locked = true;
-      lockRec.generatedAt = todaySerial();
-      _refreshWeatherHandout();
-      warnGM('Forecast for day '+lockSer+' locked.');
-      whisper(m.who, weatherForecastCalendarGmHtml(ensureSettings().weatherForecastViewDays));
+      warnGM('Locking individual weather days is no longer supported.');
+      whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
 
@@ -4448,7 +4446,7 @@ export function handleWeatherCommand(m, args){
       wsReseed.history = [];
       weatherEnsureForecast();
       _refreshWeatherHandout();
-      warnGM('Weather reseeded. Forecast and history cleared, new forecast generated.');
+      warnGM('All weather information erased and system reset.');
       whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
@@ -4462,7 +4460,7 @@ export function handleWeatherCommand(m, args){
       wsReset.playerReveal = preservedReveal;
       weatherEnsureForecast();
       _refreshWeatherHandout();
-      warnGM('Weather reset. Forecast regenerated for current location. Player reveal tags preserved.');
+      warnGM('Weather regenerated. Player knowledge and reveal tags preserved.');
       whisper(m.who, weatherTodayCalendarGmHtml());
       break;
     }
