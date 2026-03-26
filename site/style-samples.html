@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Calendar Style Sample Pack</title>
+<title>Calendar Style Samples — Font Pairing Options</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -14,7 +14,7 @@
   }
   h1 { text-align: center; margin-bottom: 0.5rem; }
   .subtitle { text-align: center; color: #888; margin-bottom: 2rem; font-size: 0.9rem; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 2rem; }
   .sample {
     background: #16213e;
     border-radius: 12px;
@@ -24,246 +24,254 @@
   .sample h3 { margin: 0 0 0.3rem; color: #e6b85c; font-size: 1rem; }
   .sample .desc { color: #888; font-size: 0.78rem; margin-bottom: 1rem; line-height: 1.4; }
   .sample .tag { display: inline-block; background: #2a2a4a; color: #aaa; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; margin: 0 4px 4px 0; }
-  .sample .tag.yes { background: #1a3a2a; color: #6c6; }
-  .sample .tag.maybe { background: #3a3a1a; color: #cc6; }
-  .sample .tag.no { background: #3a1a1a; color: #c66; }
+  .sample .tag.pick { background: #1a3a2a; color: #6c6; }
+  .sample .tag.opt { background: #3a3a1a; color: #cc6; }
   .render-area {
     background: #f5f5f5;
     border-radius: 8px;
     padding: 1rem;
     overflow: auto;
   }
-  /* Roll20 chat simulates a light background */
-  .render-area.dark-bg {
-    background: #2a2a2a;
-  }
   .notes { margin-top: 0.8rem; font-size: 0.75rem; color: #777; line-height: 1.5; }
   hr { border: none; border-top: 1px solid #333; margin: 3rem 0; }
-  .section-title { font-size: 1.4rem; color: #e6b85c; margin-bottom: 1rem; }
-  .font-note { background: #1e2a42; border: 1px solid #334; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 2rem; font-size: 0.85rem; line-height: 1.6; }
-  .font-note code { background: #2a3a5a; padding: 2px 6px; border-radius: 3px; font-size: 0.82rem; }
+  .section-title { font-size: 1.4rem; color: #e6b85c; margin-bottom: 0.4rem; }
+  .section-desc { color: #888; font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.5; }
+  .baseline-box {
+    background: #1e2a42; border: 1px solid #334; border-radius: 8px;
+    padding: 1rem 1.5rem; margin-bottom: 2rem; font-size: 0.85rem; line-height: 1.6;
+  }
+  .baseline-box code { background: #2a3a5a; padding: 2px 6px; border-radius: 3px; font-size: 0.82rem; }
+  .baseline-box ul { margin: 0.5rem 0; padding-left: 1.5rem; }
+  .baseline-box li { margin-bottom: 0.2rem; }
 </style>
 </head>
 <body>
 
-<h1>Calendar Table Style Sample Pack</h1>
-<p class="subtitle">Each sample uses only inline styles (Roll20 compatible). Open in browser to compare.</p>
+<h1>Calendar Style — Font Pairing Options</h1>
+<p class="subtitle">Your baseline design is locked in. These samples vary only the fonts for your final decision.</p>
 
-<div class="font-note">
-  <strong>Roll20 Font Support:</strong> Roll20 chat uses the page's default font stack. You can set <code>font-family</code> via inline styles,
-  but only <strong>web-safe / system fonts</strong> work (no <code>@font-face</code> or Google Fonts in chat).
-  Safe choices: <code>Georgia</code>, <code>Palatino</code>, <code>"Trebuchet MS"</code>, <code>Verdana</code>,
-  <code>"Segoe UI"</code>, <code>Tahoma</code>, <code>monospace</code>.
-  <br><br>
-  <strong>Buttons:</strong> Always Roll20's default pink/magenta. Uses markdown syntax <code>[Label](!cal cmd)</code>.
-  The script <strong>cannot style buttons</strong> — Roll20 controls their appearance entirely.
-  <code>/direct</code> broadcast mode strips buttons; only GM whispers show them.
+<div class="baseline-box">
+  <strong>Locked-in Baseline:</strong>
+  <ul>
+    <li><strong>Rounded cells</strong> — <code>border-radius: 4px</code></li>
+    <li><strong>Gradient header</strong> — <code>linear-gradient(135deg, monthColor, darker)</code></li>
+    <li><strong>Larger cells</strong> — <code>2.5em</code></li>
+    <li><strong>Drop shadow table</strong> — outer <code>box-shadow</code></li>
+    <li><strong>White cell backgrounds</strong> — <code>#fff</code> (safe for whisper mode)</li>
+    <li><strong>Tinted weekday row</strong> — light tint of month color</li>
+    <li><strong>Serif header / sans-serif body</strong> — month name serif, weekdays &amp; numerals sans-serif</li>
+  </ul>
+  <strong>Roll20 constraint:</strong> Only web-safe/system fonts. No <code>@font-face</code> or Google Fonts in chat.
+  Buttons always pink — cannot be styled.
 </div>
 
-<h2 class="section-title">A. Current Production Style</h2>
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 class="section-title">A. Your Baseline</h2>
+<p class="section-desc">Reference table with all chosen options combined. Georgia header + system sans body as default starting point.</p>
 <div class="grid">
 
 <div class="sample">
-  <h3>Current (Production)</h3>
-  <p class="desc">What ships today. Dark #444 borders, minimal styling.</p>
-  <span class="tag">baseline</span>
-  <div class="render-area" id="s-current"></div>
+  <h3>Baseline (Georgia + System Sans)</h3>
+  <p class="desc">All 6 locked-in choices applied. This is the reference for all comparisons below.</p>
+  <span class="tag pick">reference</span>
+  <div class="render-area" id="s-baseline"></div>
 </div>
 
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 <hr>
-<h2 class="section-title">B. Border & Cell Variations</h2>
+<h2 class="section-title">B. Header Serif Font</h2>
+<p class="section-desc">Same baseline — only the month header font-family changes. All are web-safe.</p>
 <div class="grid">
 
 <div class="sample">
-  <h3>Softer Borders</h3>
-  <p class="desc">Lighter border color (#999), slightly more padding. Less harsh grid feel.</p>
-  <span class="tag yes">subtle</span>
-  <div class="render-area" id="s-soft-borders"></div>
+  <h3>B1. Georgia</h3>
+  <p class="desc">Warm, round serifs. The most readable serif on screen. Very safe cross-platform.</p>
+  <span class="tag pick">safe bet</span>
+  <div class="render-area" id="s-hdr-georgia"></div>
 </div>
 
 <div class="sample">
-  <h3>Rounded Cells</h3>
-  <p class="desc">border-radius on cells. Softer feel. Note: Roll20 does support border-radius.</p>
-  <span class="tag maybe">depends on taste</span>
-  <div class="render-area" id="s-rounded"></div>
+  <h3>B2. Palatino Linotype</h3>
+  <p class="desc">Elegant, calligraphic feel. Slightly more refined than Georgia. Good for fantasy settings.</p>
+  <span class="tag opt">elegant</span>
+  <div class="render-area" id="s-hdr-palatino"></div>
 </div>
 
 <div class="sample">
-  <h3>No Inner Borders</h3>
-  <p class="desc">Only outer table border. Cells use subtle background alternation instead.</p>
-  <span class="tag maybe">minimal</span>
-  <div class="render-area" id="s-no-inner"></div>
+  <h3>B3. Times New Roman</h3>
+  <p class="desc">Traditional, compact. Very familiar but can feel "default-y".</p>
+  <span class="tag">classic</span>
+  <div class="render-area" id="s-hdr-times"></div>
 </div>
 
 <div class="sample">
-  <h3>Dotted Borders</h3>
-  <p class="desc">Dotted cell borders for a lighter grid texture.</p>
-  <span class="tag maybe">different</span>
-  <div class="render-area" id="s-dotted"></div>
+  <h3>B4. Book Antiqua</h3>
+  <p class="desc">Similar to Palatino but slightly more old-world. Great for fantasy campaigns.</p>
+  <span class="tag opt">fantasy</span>
+  <div class="render-area" id="s-hdr-bookantiqua"></div>
+</div>
+
+<div class="sample">
+  <h3>B5. Garamond</h3>
+  <p class="desc">Thin, classical. Beautiful but less reliable cross-platform (falls back to TNR on some systems).</p>
+  <span class="tag">risky fallback</span>
+  <div class="render-area" id="s-hdr-garamond"></div>
+</div>
+
+<div class="sample">
+  <h3>B6. Cambria</h3>
+  <p class="desc">Microsoft's modern serif. Clean, designed for screen. Windows/Mac safe.</p>
+  <span class="tag opt">modern</span>
+  <div class="render-area" id="s-hdr-cambria"></div>
 </div>
 
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 <hr>
-<h2 class="section-title">C. Header Variations</h2>
+<h2 class="section-title">C. Body Sans-Serif Font</h2>
+<p class="section-desc">Georgia header locked. Only the weekday labels and day numerals font changes.</p>
 <div class="grid">
 
 <div class="sample">
-  <h3>Gradient Header</h3>
-  <p class="desc">linear-gradient on the month header bar. Adds depth.</p>
-  <span class="tag yes">supported</span>
-  <div class="render-area" id="s-gradient-header"></div>
+  <h3>C1. System Stack</h3>
+  <p class="desc">-apple-system, "Segoe UI", Roboto — matches OS native look. Clean and modern.</p>
+  <span class="tag pick">native</span>
+  <div class="render-area" id="s-body-system"></div>
 </div>
 
 <div class="sample">
-  <h3>Large Header + Serif Font</h3>
-  <p class="desc">Bigger header with Georgia serif font. More traditional calendar feel.</p>
-  <span class="tag yes">web-safe</span>
-  <div class="render-area" id="s-large-serif"></div>
+  <h3>C2. Verdana</h3>
+  <p class="desc">Wide letterforms, very readable at small sizes. The "safe bet" for grids and tables.</p>
+  <span class="tag pick">most readable</span>
+  <div class="render-area" id="s-body-verdana"></div>
 </div>
 
 <div class="sample">
-  <h3>Minimal Header</h3>
-  <p class="desc">No background fill. Just bold text with a bottom border accent.</p>
-  <span class="tag maybe">clean</span>
-  <div class="render-area" id="s-minimal-header"></div>
+  <h3>C3. Tahoma</h3>
+  <p class="desc">Similar to Verdana but tighter spacing. Better for compact cells.</p>
+  <span class="tag opt">compact</span>
+  <div class="render-area" id="s-body-tahoma"></div>
+</div>
+
+<div class="sample">
+  <h3>C4. Trebuchet MS</h3>
+  <p class="desc">Friendly, slightly quirky. Good personality without sacrificing readability.</p>
+  <span class="tag opt">personality</span>
+  <div class="render-area" id="s-body-trebuchet"></div>
+</div>
+
+<div class="sample">
+  <h3>C5. Calibri</h3>
+  <p class="desc">Modern, the Office default. Clean on Windows, falls back on Mac.</p>
+  <span class="tag">windows-biased</span>
+  <div class="render-area" id="s-body-calibri"></div>
 </div>
 
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 <hr>
-<h2 class="section-title">D. Cell Size & Typography</h2>
+<h2 class="section-title">D. Font Pairings</h2>
+<p class="section-desc">Best combined header + body pairings from sections B and C.</p>
 <div class="grid">
 
 <div class="sample">
-  <h3>Larger Cells</h3>
-  <p class="desc">2.5em × 2.5em cells for better readability and more room for dots.</p>
-  <span class="tag yes">more readable</span>
-  <div class="render-area" id="s-larger-cells"></div>
+  <h3>D1. Georgia + Verdana</h3>
+  <p class="desc">The classic web pairing. Warm header, ultra-readable grid. Universally safe.</p>
+  <span class="tag pick">classic pairing</span>
+  <div class="render-area" id="s-pair-georgia-verdana"></div>
 </div>
 
 <div class="sample">
-  <h3>Monospace Numerals</h3>
-  <p class="desc">font-family:monospace for day numbers. Tabular alignment.</p>
-  <span class="tag yes">web-safe</span>
-  <div class="render-area" id="s-monospace"></div>
+  <h3>D2. Palatino + Tahoma</h3>
+  <p class="desc">Elegant header, tight grid. Fantasy-appropriate with a clean body.</p>
+  <span class="tag opt">fantasy pairing</span>
+  <div class="render-area" id="s-pair-palatino-tahoma"></div>
 </div>
 
 <div class="sample">
-  <h3>Compact</h3>
-  <p class="desc">Smaller 1.6em cells, tighter spacing. For chat-space efficiency.</p>
-  <span class="tag maybe">saves space</span>
-  <div class="render-area" id="s-compact"></div>
+  <h3>D3. Georgia + Trebuchet MS</h3>
+  <p class="desc">Warm + friendly. Good personality for a campaign calendar.</p>
+  <span class="tag opt">friendly</span>
+  <div class="render-area" id="s-pair-georgia-trebuchet"></div>
+</div>
+
+<div class="sample">
+  <h3>D4. Cambria + System Stack</h3>
+  <p class="desc">Modern serif + native sans. Clean and contemporary.</p>
+  <span class="tag opt">modern</span>
+  <div class="render-area" id="s-pair-cambria-system"></div>
 </div>
 
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 <hr>
-<h2 class="section-title">E. Shadow & Depth</h2>
+<h2 class="section-title">E. Header Weight &amp; Size</h2>
+<p class="section-desc">Georgia + Verdana pairing. Varying header font-size and font-weight.</p>
 <div class="grid">
 
 <div class="sample">
-  <h3>Drop Shadow Table</h3>
-  <p class="desc">Outer box-shadow on the table element. Lifts it off the background.</p>
-  <span class="tag yes">supported</span>
-  <div class="render-area" id="s-shadow"></div>
+  <h3>E1. Bold 1.0em (current)</h3>
+  <p class="desc">Compact default. Header doesn't dominate.</p>
+  <span class="tag">compact</span>
+  <div class="render-area" id="s-weight-bold-1"></div>
 </div>
 
 <div class="sample">
-  <h3>Inset Cell Depth</h3>
-  <p class="desc">Subtle inset box-shadow on cells for an embossed/pressed feel.</p>
-  <span class="tag maybe">unusual</span>
-  <div class="render-area" id="s-inset"></div>
+  <h3>E2. Bold 1.15em</h3>
+  <p class="desc">Slightly larger, more presence. Good balance.</p>
+  <span class="tag pick">balanced</span>
+  <div class="render-area" id="s-weight-bold-115"></div>
 </div>
 
 <div class="sample">
-  <h3>Today Glow</h3>
-  <p class="desc">Enhanced "today" marker with a colored glow ring instead of dark shadow.</p>
-  <span class="tag yes">attention-grabbing</span>
+  <h3>E3. Normal 1.2em</h3>
+  <p class="desc">Lighter weight, larger size. Lets the serif breathe. More elegant.</p>
+  <span class="tag opt">elegant</span>
+  <div class="render-area" id="s-weight-normal-12"></div>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<hr>
+<h2 class="section-title">F. Today Marker</h2>
+<p class="section-desc">Three options for marking today's date. Using the baseline style.</p>
+<div class="grid">
+
+<div class="sample">
+  <h3>F1. Dark Shadow + Outline (current)</h3>
+  <p class="desc">Production style. Strong depth with dark shadow and outline ring.</p>
+  <span class="tag">production</span>
+  <div class="render-area" id="s-today-shadow"></div>
+</div>
+
+<div class="sample">
+  <h3>F2. Color Glow</h3>
+  <p class="desc">Month-color ring glow. Softer, more colorful highlight.</p>
+  <span class="tag opt">colorful</span>
   <div class="render-area" id="s-today-glow"></div>
 </div>
 
-</div>
-
-<hr>
-<h2 class="section-title">F. Color Schemes</h2>
-<div class="grid">
-
 <div class="sample">
-  <h3>Dark Theme</h3>
-  <p class="desc">Dark background cells. For campaigns with dark aesthetic. Month color header preserved.</p>
-  <span class="tag maybe">dramatic</span>
-  <div class="render-area dark-bg" id="s-dark"></div>
-</div>
-
-<div class="sample">
-  <h3>Parchment</h3>
-  <p class="desc">Warm off-white cells, brown borders. Fantasy/old-world feel.</p>
-  <span class="tag yes">thematic</span>
-  <div class="render-area" id="s-parchment"></div>
-</div>
-
-<div class="sample">
-  <h3>Cool Gray</h3>
-  <p class="desc">Blue-gray tinted cells and borders. Modern/Eberron-appropriate.</p>
-  <span class="tag yes">clean</span>
-  <div class="render-area" id="s-cool-gray"></div>
+  <h3>F3. Bold Border</h3>
+  <p class="desc">Thick solid month-color border, no shadow. Clean and simple.</p>
+  <span class="tag opt">clean</span>
+  <div class="render-area" id="s-today-border"></div>
 </div>
 
 </div>
 
-<hr>
-<h2 class="section-title">G. Weekday Header Variations</h2>
-<div class="grid">
-
-<div class="sample">
-  <h3>Tinted Weekday Row</h3>
-  <p class="desc">Weekday headers use a lighter shade of the month color.</p>
-  <span class="tag yes">cohesive</span>
-  <div class="render-area" id="s-tinted-weekdays"></div>
-</div>
-
-<div class="sample">
-  <h3>Bold Weekday Initials</h3>
-  <p class="desc">Single-letter weekday headers (S M Z W Z F S), bold, uppercase.</p>
-  <span class="tag maybe">compact</span>
-  <div class="render-area" id="s-weekday-initials"></div>
-</div>
-
-</div>
-
-<hr>
-<h2 class="section-title">H. Combination Styles</h2>
-<div class="grid">
-
-<div class="sample">
-  <h3>Modern Clean</h3>
-  <p class="desc">Softer borders + gradient header + larger cells + drop shadow. The "upgrade" package.</p>
-  <span class="tag yes">recommended</span>
-  <div class="render-area" id="s-modern"></div>
-</div>
-
-<div class="sample">
-  <h3>Fantasy Parchment</h3>
-  <p class="desc">Parchment + serif font + brown borders + warm tones. For fantasy campaigns.</p>
-  <span class="tag yes">thematic</span>
-  <div class="render-area" id="s-fantasy"></div>
-</div>
-
-<div class="sample">
-  <h3>Noir</h3>
-  <p class="desc">Dark cells + soft borders + monospace + inset depth. For dark/noir campaigns.</p>
-  <span class="tag maybe">dramatic</span>
-  <div class="render-area dark-bg" id="s-noir"></div>
-</div>
-
-</div>
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
 <script>
 // ─── Sample data: Zarantyr (Eberron, 7-day week) ───────────────────
 var MONTH_COLOR = '#4A90D9';
+var MONTH_COLOR_DARK = '#2C5F8A';
 var WEEKDAYS = ['Sul','Mol','Zol','Wir','Zor','Far','Sar'];
 var MONTH_NAME = 'Zarantyr';
 var YEAR_LABEL = '998 YK';
@@ -276,7 +284,7 @@ var EVENTS = {
 };
 var TODAY = 12;
 var DAYS_IN_MONTH = 28;
-var LEADING_EMPTY = 2; // Start on Zol (index 2)
+var LEADING_EMPTY = 2;
 var PREV_MONTH_DAYS = 28;
 
 function makeCells() {
@@ -293,48 +301,47 @@ function makeCells() {
   return cells;
 }
 
+// ─── Baseline defaults ──────────────────────────────────────────────
+var BASELINE = {
+  borderColor: '#999',
+  cellSize: '2.5em',
+  cellRadius: '4px',
+  cellBg: '#ffffff',
+  headerBg: 'linear-gradient(135deg, ' + MONTH_COLOR + ' 0%, ' + MONTH_COLOR_DARK + ' 100%)',
+  tableShadow: '0 4px 16px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
+  tableRadius: '6px',
+  weekdayBg: 'rgba(74,144,217,0.12)',
+  weekdayColor: '#2C5F8A',
+  headerFont: 'Georgia, serif',
+  headerFontSize: '1em',
+  headerFontWeight: 'bold',
+  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  todayStyle: 'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;font-weight:bold;font-size:1.2em;'
+};
+
 // ─── Style-aware table renderer ─────────────────────────────────────
-// `opts` overrides specific style properties
-function renderTable(opts) {
-  opts = opts || {};
-  var borderColor = opts.borderColor || '#444';
-  var borderStyle = opts.borderStyle || 'solid';
-  var cellSize = opts.cellSize || '2em';
-  var cellBg = opts.cellBg || '';
-  var cellRadius = opts.cellRadius || '0';
-  var cellShadow = opts.cellShadow || '';
-  var font = opts.font || '';
-  var numeralFont = opts.numeralFont || '';
-  var headerBg = opts.headerBg || null; // null = use colorsAPI-style
-  var headerFont = opts.headerFont || '';
-  var headerFontSize = opts.headerFontSize || '';
-  var headerPadding = opts.headerPadding || '6px';
-  var headerBorder = opts.headerBorder || '';
-  var headerTextColor = opts.headerTextColor || '';
-  var tableShadow = opts.tableShadow || '';
-  var tableRadius = opts.tableRadius || '0';
-  var weekdayBg = opts.weekdayBg || '';
-  var weekdayColor = opts.weekdayColor || '';
-  var weekdayLabels = opts.weekdayLabels || WEEKDAYS;
-  var altRowBg = opts.altRowBg || '';
-  var todayStyle = opts.todayStyle || 'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;font-weight:bold;font-size:1.2em;';
-  var overflowColor = opts.overflowColor || '#888';
-  var innerBorder = opts.innerBorder !== false;
+function renderTable(overrides) {
+  var opts = {};
+  for (var k in BASELINE) opts[k] = BASELINE[k];
+  if (overrides) for (var k in overrides) opts[k] = overrides[k];
+
+  var borderColor = opts.borderColor;
+  var cellSize = opts.cellSize;
+  var cellBg = opts.cellBg;
+  var cellRadius = opts.cellRadius;
+  var font = opts.font;
+  var headerFont = opts.headerFont;
+  var headerFontSize = opts.headerFontSize;
+  var headerFontWeight = opts.headerFontWeight;
+  var tableShadow = opts.tableShadow;
+  var tableRadius = opts.tableRadius;
+  var weekdayBg = opts.weekdayBg;
+  var weekdayColor = opts.weekdayColor;
+  var todayStyle = opts.todayStyle;
+  var overflowColor = '#888';
+
+  var border = 'border:1px solid ' + borderColor + ';';
   var tableFont = font ? 'font-family:' + font + ';' : '';
-
-  var border = innerBorder ? ('border:1px ' + borderStyle + ' ' + borderColor + ';') : 'border:none;';
-  var outerBorder = 'border:1px ' + borderStyle + ' ' + borderColor + ';';
-
-  // Header
-  var hdrBgStyle;
-  if (headerBg) {
-    hdrBgStyle = 'background:' + headerBg + ';';
-  } else {
-    hdrBgStyle = 'background-color:' + MONTH_COLOR + ';';
-  }
-  var hdrTextColor = headerTextColor || '#fff';
-  var hdrFontStyle = headerFont ? 'font-family:' + headerFont + ';' : (font ? 'font-family:' + font + ';' : '');
-  var hdrFontSizeStyle = headerFontSize ? 'font-size:' + headerFontSize + ';' : '';
 
   var html = '<table style="border-collapse:collapse;margin:4px;margin-bottom:14px;' + tableFont;
   if (tableShadow) html += 'box-shadow:' + tableShadow + ';';
@@ -342,9 +349,11 @@ function renderTable(opts) {
   html += '">';
 
   // Month header row
-  html += '<tr><th colspan="7" style="' + outerBorder + 'padding:0;">';
-  html += '<div style="padding:' + headerPadding + ';text-align:left;' + hdrBgStyle + 'color:' + hdrTextColor + ';' + hdrFontStyle + hdrFontSizeStyle;
-  if (headerBorder) html += headerBorder;
+  html += '<tr><th colspan="7" style="' + border + 'padding:0;">';
+  html += '<div style="padding:6px 8px;text-align:left;background:' + opts.headerBg + ';color:#fff;';
+  html += 'font-family:' + headerFont + ';';
+  if (headerFontSize) html += 'font-size:' + headerFontSize + ';';
+  if (headerFontWeight) html += 'font-weight:' + headerFontWeight + ';';
   html += '">';
   html += MONTH_NAME;
   html += '<span style="float:right;">' + YEAR_LABEL + '</span>';
@@ -352,16 +361,17 @@ function renderTable(opts) {
 
   // Weekday headers
   html += '<tr>';
-  var wdBgStyle = weekdayBg ? 'background:' + weekdayBg + ';' : '';
-  var wdColorStyle = weekdayColor ? 'color:' + weekdayColor + ';' : '';
-  for (var w = 0; w < weekdayLabels.length; w++) {
-    html += '<th style="' + border + 'padding:2px;width:' + cellSize + ';text-align:center;' + wdBgStyle + wdColorStyle + tableFont + '">' + weekdayLabels[w] + '</th>';
+  var wdStyle = border + 'padding:2px;width:' + cellSize + ';text-align:center;';
+  if (weekdayBg) wdStyle += 'background:' + weekdayBg + ';';
+  if (weekdayColor) wdStyle += 'color:' + weekdayColor + ';';
+  wdStyle += tableFont;
+  for (var w = 0; w < WEEKDAYS.length; w++) {
+    html += '<th style="' + wdStyle + '">' + WEEKDAYS[w] + '</th>';
   }
   html += '</tr>';
 
   // Cells
   var cells = makeCells();
-  var row = 0;
   for (var i = 0; i < cells.length; i += 7) {
     html += '<tr>';
     for (var c = 0; c < 7; c++) {
@@ -373,32 +383,26 @@ function renderTable(opts) {
         html += '<td style="' + ovStyle + '"><div style="min-height:' + cellSize + ';display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;"><div style="opacity:.55;">' + cell.day + '</div></div></td>';
       } else {
         var tdStyle = border + 'width:' + cellSize + ';height:' + cellSize + ';padding:0;text-align:center;vertical-align:middle;';
-        if (cellBg && !cell.events.length && cell.day !== TODAY) {
-          if (altRowBg && row % 2 === 1) {
-            tdStyle += 'background-color:' + altRowBg + ';';
-          } else {
-            tdStyle += 'background-color:' + cellBg + ';';
-          }
-        }
-        if (cellRadius !== '0') tdStyle += 'border-radius:' + cellRadius + ';';
-        if (cellShadow) tdStyle += 'box-shadow:' + cellShadow + ';';
+        tdStyle += 'border-radius:' + cellRadius + ';';
 
-        // Event fill
+        // Background
         if (cell.events.length) {
           tdStyle += 'background-color:' + cell.events[0].color + ';background-clip:padding-box;';
-          // Contrast text
-          var ec = cell.events[0].color;
-          var lum = _luminance(ec);
+          var lum = _luminance(cell.events[0].color);
           tdStyle += 'color:' + (lum > 0.4 ? '#000' : '#fff') + ';';
+        } else if (cell.day === TODAY) {
+          tdStyle += 'background-color:' + MONTH_COLOR + ';background-clip:padding-box;color:#fff;';
+        } else {
+          tdStyle += 'background-color:' + cellBg + ';';
         }
 
         // Today
         if (cell.day === TODAY) {
-          tdStyle += 'background-color:' + MONTH_COLOR + ';background-clip:padding-box;color:#fff;';
+          if (!cell.events.length) {
+            tdStyle += 'background-color:' + MONTH_COLOR + ';background-clip:padding-box;color:#fff;';
+          }
           tdStyle += todayStyle;
         }
-
-        var numFontStyle = numeralFont ? 'font-family:' + numeralFont + ';' : '';
 
         // Three-band layout
         var bandStyle = 'height:.6em;min-height:.6em;display:flex;align-items:center;justify-content:center;line-height:1;overflow:hidden;';
@@ -415,13 +419,12 @@ function renderTable(opts) {
         html += '<td' + title + ' style="' + tdStyle + '">';
         html += '<div style="min-height:' + cellSize + ';display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;padding:1px 0;box-sizing:border-box;position:relative;">';
         html += '<div style="' + bandStyle + '">&nbsp;</div>';
-        html += '<div style="' + midStyle + '"><div style="display:flex;align-items:center;justify-content:center;min-height:1em;line-height:1;' + numFontStyle + '">' + cell.day + '</div></div>';
+        html += '<div style="' + midStyle + '"><div style="display:flex;align-items:center;justify-content:center;min-height:1em;line-height:1;">' + cell.day + '</div></div>';
         html += '<div style="' + bandStyle + '">' + (dots || '&nbsp;') + '</div>';
         html += '</div></td>';
       }
     }
     html += '</tr>';
-    row++;
   }
 
   html += '</table>';
@@ -437,98 +440,89 @@ function _luminance(hex) {
   return 0.2126*r + 0.7152*g + 0.0722*b;
 }
 
-// ─── Render all samples ─────────────────────────────────────────────
+// ═══ Render all samples ═════════════════════════════════════════════
 
-// A. Current
-document.getElementById('s-current').innerHTML = renderTable({});
+// A. Baseline
+document.getElementById('s-baseline').innerHTML = renderTable({});
 
-// B. Border variations
-document.getElementById('s-soft-borders').innerHTML = renderTable({
-  borderColor: '#999', cellSize: '2.1em'
+// B. Header Serif Font
+document.getElementById('s-hdr-georgia').innerHTML = renderTable({
+  headerFont: 'Georgia, serif'
 });
-document.getElementById('s-rounded').innerHTML = renderTable({
-  borderColor: '#888', cellRadius: '4px'
+document.getElementById('s-hdr-palatino').innerHTML = renderTable({
+  headerFont: '"Palatino Linotype", "Book Antiqua", Palatino, serif'
 });
-document.getElementById('s-no-inner').innerHTML = renderTable({
-  innerBorder: false, cellBg: '#fff', altRowBg: '#f4f4f4'
+document.getElementById('s-hdr-times').innerHTML = renderTable({
+  headerFont: '"Times New Roman", Times, serif'
 });
-document.getElementById('s-dotted').innerHTML = renderTable({
-  borderStyle: 'dotted', borderColor: '#888'
+document.getElementById('s-hdr-bookantiqua').innerHTML = renderTable({
+  headerFont: '"Book Antiqua", "Palatino Linotype", Palatino, serif'
 });
-
-// C. Header variations
-document.getElementById('s-gradient-header').innerHTML = renderTable({
-  headerBg: 'linear-gradient(135deg, #4A90D9 0%, #2C5F8A 100%)'
+document.getElementById('s-hdr-garamond').innerHTML = renderTable({
+  headerFont: 'Garamond, "Times New Roman", serif'
 });
-document.getElementById('s-large-serif').innerHTML = renderTable({
-  headerFont: 'Georgia, serif', headerFontSize: '1.15em', headerPadding: '8px 10px'
-});
-document.getElementById('s-minimal-header').innerHTML = renderTable({
-  headerBg: 'transparent', headerTextColor: '#333', headerBorder: 'border-bottom:3px solid ' + MONTH_COLOR + ';', headerFont: '"Segoe UI", sans-serif'
+document.getElementById('s-hdr-cambria').innerHTML = renderTable({
+  headerFont: 'Cambria, Georgia, serif'
 });
 
-// D. Cell size & typography
-document.getElementById('s-larger-cells').innerHTML = renderTable({
-  cellSize: '2.5em'
+// C. Body Sans-Serif Font (Georgia header locked)
+document.getElementById('s-body-system').innerHTML = renderTable({
+  font: '-apple-system, "Segoe UI", Roboto, sans-serif'
 });
-document.getElementById('s-monospace').innerHTML = renderTable({
-  numeralFont: '"Courier New", Courier, monospace'
+document.getElementById('s-body-verdana').innerHTML = renderTable({
+  font: 'Verdana, Geneva, sans-serif'
 });
-document.getElementById('s-compact').innerHTML = renderTable({
-  cellSize: '1.6em'
+document.getElementById('s-body-tahoma').innerHTML = renderTable({
+  font: 'Tahoma, Geneva, sans-serif'
+});
+document.getElementById('s-body-trebuchet').innerHTML = renderTable({
+  font: '"Trebuchet MS", "Lucida Grande", sans-serif'
+});
+document.getElementById('s-body-calibri').innerHTML = renderTable({
+  font: 'Calibri, "Segoe UI", sans-serif'
 });
 
-// E. Shadow & Depth
-document.getElementById('s-shadow').innerHTML = renderTable({
-  tableShadow: '0 4px 16px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.1)'
+// D. Font Pairings
+document.getElementById('s-pair-georgia-verdana').innerHTML = renderTable({
+  headerFont: 'Georgia, serif',
+  font: 'Verdana, Geneva, sans-serif'
 });
-document.getElementById('s-inset').innerHTML = renderTable({
-  cellShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)', borderColor: '#ccc'
+document.getElementById('s-pair-palatino-tahoma').innerHTML = renderTable({
+  headerFont: '"Palatino Linotype", "Book Antiqua", Palatino, serif',
+  font: 'Tahoma, Geneva, sans-serif'
+});
+document.getElementById('s-pair-georgia-trebuchet').innerHTML = renderTable({
+  headerFont: 'Georgia, serif',
+  font: '"Trebuchet MS", "Lucida Grande", sans-serif'
+});
+document.getElementById('s-pair-cambria-system').innerHTML = renderTable({
+  headerFont: 'Cambria, Georgia, serif',
+  font: '-apple-system, "Segoe UI", Roboto, sans-serif'
+});
+
+// E. Header Weight & Size (Georgia + Verdana locked)
+document.getElementById('s-weight-bold-1').innerHTML = renderTable({
+  headerFont: 'Georgia, serif', font: 'Verdana, Geneva, sans-serif',
+  headerFontSize: '1em', headerFontWeight: 'bold'
+});
+document.getElementById('s-weight-bold-115').innerHTML = renderTable({
+  headerFont: 'Georgia, serif', font: 'Verdana, Geneva, sans-serif',
+  headerFontSize: '1.15em', headerFontWeight: 'bold'
+});
+document.getElementById('s-weight-normal-12').innerHTML = renderTable({
+  headerFont: 'Georgia, serif', font: 'Verdana, Geneva, sans-serif',
+  headerFontSize: '1.2em', headerFontWeight: 'normal'
+});
+
+// F. Today Marker
+document.getElementById('s-today-shadow').innerHTML = renderTable({
+  todayStyle: 'position:relative;z-index:10;border-radius:2px;box-shadow:0 3px 8px rgba(0,0,0,.65),0 12px 24px rgba(0,0,0,.35), inset 0 2px 0 rgba(255,255,255,.18);outline:2px solid rgba(0,0,0,.35);outline-offset:1px;font-weight:bold;font-size:1.2em;'
 });
 document.getElementById('s-today-glow').innerHTML = renderTable({
   todayStyle: 'position:relative;z-index:10;border-radius:4px;box-shadow:0 0 0 3px rgba(74,144,217,0.6), 0 0 12px rgba(74,144,217,0.3);font-weight:bold;font-size:1.1em;'
 });
-
-// F. Color schemes
-document.getElementById('s-dark').innerHTML = renderTable({
-  cellBg: '#2a2a2a', altRowBg: '#333', borderColor: '#555', overflowColor: '#555'
-});
-document.getElementById('s-parchment').innerHTML = renderTable({
-  cellBg: '#faf5eb', altRowBg: '#f3ece0', borderColor: '#b8a88a', overflowColor: '#c4b08a',
-  font: 'Georgia, "Palatino Linotype", serif'
-});
-document.getElementById('s-cool-gray').innerHTML = renderTable({
-  cellBg: '#f0f2f5', altRowBg: '#e8ecf0', borderColor: '#b0b8c4', overflowColor: '#9aa5b4'
-});
-
-// G. Weekday header variations
-document.getElementById('s-tinted-weekdays').innerHTML = renderTable({
-  weekdayBg: 'rgba(74,144,217,0.12)', weekdayColor: '#2C5F8A'
-});
-document.getElementById('s-weekday-initials').innerHTML = renderTable({
-  weekdayLabels: ['S','M','Z','W','Z','F','S']
-});
-
-// H. Combinations
-document.getElementById('s-modern').innerHTML = renderTable({
-  borderColor: '#999', cellSize: '2.3em',
-  headerBg: 'linear-gradient(135deg, #4A90D9 0%, #2C5F8A 100%)',
-  tableShadow: '0 4px 16px rgba(0,0,0,0.12)', tableRadius: '6px',
-  todayStyle: 'position:relative;z-index:10;border-radius:4px;box-shadow:0 0 0 3px rgba(74,144,217,0.6), 0 0 12px rgba(74,144,217,0.3);font-weight:bold;font-size:1.1em;'
-});
-document.getElementById('s-fantasy').innerHTML = renderTable({
-  cellBg: '#faf5eb', altRowBg: '#f3ece0', borderColor: '#b8a88a', overflowColor: '#c4b08a',
-  font: 'Georgia, "Palatino Linotype", serif',
-  headerBg: 'linear-gradient(180deg, #4A90D9 0%, #3a7abf 100%)',
-  headerFont: 'Georgia, serif', headerFontSize: '1.1em', headerPadding: '8px 10px',
-  tableShadow: '0 2px 8px rgba(0,0,0,0.1)'
-});
-document.getElementById('s-noir').innerHTML = renderTable({
-  cellBg: '#1e1e1e', altRowBg: '#252525', borderColor: '#444', overflowColor: '#333',
-  numeralFont: '"Courier New", Courier, monospace',
-  cellShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
-  headerBg: 'linear-gradient(135deg, #4A90D9 0%, #1a3a5a 100%)',
-  tableShadow: '0 4px 20px rgba(0,0,0,0.4)'
+document.getElementById('s-today-border').innerHTML = renderTable({
+  todayStyle: 'position:relative;z-index:10;border:3px solid ' + MONTH_COLOR + ';border-radius:4px;font-weight:bold;font-size:1.1em;'
 });
 </script>
 
