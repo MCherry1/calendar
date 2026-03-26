@@ -373,25 +373,71 @@ function _rollingCalendarRange(anchorSerial){
   };
 }
 
-function _specificMonthPromptOptions(anchorSerial){
+function _additionalRangeMonthNameYear(mi, year){
+  return getCal().months[mi].name + ' ' + year;
+}
+
+function _escapeNestedQueryPart(text){
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/\|/g, '&#124;')
+    .replace(/,/g, '&#44;');
+}
+
+function _buildNestedQueryMenu(promptLabel, options){
+  var out = ['?\\{' + _escapeNestedQueryPart(promptLabel)];
+  for (var i = 0; i < options.length; i++){
+    out.push('&#124;' + _escapeNestedQueryPart(options[i].label) + '&#44;' + _escapeNestedQueryPart(options[i].value));
+  }
+  out.push('\\}');
+  return out.join('');
+}
+
+function _buildNestedPromptQuery(promptLabel, defaultValue){
+  var out = '?\\{' + _escapeNestedQueryPart(promptLabel);
+  if (defaultValue != null && String(defaultValue) !== ''){
+    out += '&#124;' + _escapeNestedQueryPart(defaultValue);
+  }
+  return out + '\\}';
+}
+
+function _upcomingMonthPromptOptions(anchorSerial){
   var cal = getCal();
+  var anchor = fromSerial(anchorSerial|0);
   var opts = [];
   for (var i = 0; i < cal.months.length; i++){
     var next = _nextSpecificMonthOccurrence(anchorSerial, i);
-    var label = cal.months[i].name + ' ' + next.y;
-    opts.push(label + ',month ' + label);
+    if (next.y === anchor.year && next.mi === anchor.mi) continue;
+    var nameYear = _additionalRangeMonthNameYear(i, next.y);
+    opts.push({
+      label: nameYear + ' ' + LABELS.era,
+      value: 'month ' + nameYear,
+      sortSerial: toSerial(next.y, next.mi, 1),
+      sortMi: next.mi
+    });
   }
-  return opts.join('|');
+  opts.sort(function(a, b){
+    return (a.sortSerial - b.sortSerial) || (a.sortMi - b.sortMi);
+  });
+  return opts;
+}
+
+function _specificMonthPromptDefault(anchorSerial){
+  var anchor = fromSerial(anchorSerial|0);
+  var next = _nextActiveMi(anchor.mi, anchor.year);
+  return _additionalRangeMonthNameYear(next.mi, next.y);
 }
 
 export function buildAdditionalRangesCommand(commandPrefix, anchorSerial?){
   var anchor = isFinite(parseInt(anchorSerial, 10)) ? (parseInt(anchorSerial, 10)|0) : todaySerial();
   var year = fromSerial(anchor).year;
   var activeCount = _activeMonthCountForYear(year);
+  var upcomingOptions = _upcomingMonthPromptOptions(anchor);
   return String(commandPrefix || '').trim() +
     ' ?{Range|Full Calendar Year (' + year + '),year ' + year +
     '|Rolling ' + activeCount + ' Months,rolling ' + anchor +
-    '|Specific Month,?\\{Month|' + _specificMonthPromptOptions(anchor) + '\\}}';
+    '|Upcoming Month,' + _buildNestedQueryMenu('Upcoming Month', upcomingOptions) +
+    '|Specific Month,specific ' + _buildNestedPromptQuery('Month', _specificMonthPromptDefault(anchor)) + '}';
 }
 
 export function resolveAdditionalRangeSpec(args, anchorSerial?){
@@ -412,7 +458,11 @@ export function resolveAdditionalRangeSpec(args, anchorSerial?){
   }
 
   if (sub === 'month' || sub === 'specific'){
-    var monthSpec = _parseTopLevelCalendarSpec(tokens.slice(1));
+    var monthTokens = tokens.slice(1);
+    if (sub === 'specific' && String(monthTokens[0] || '').toLowerCase() === 'month'){
+      monthTokens = monthTokens.slice(1);
+    }
+    var monthSpec = _parseTopLevelCalendarSpec(monthTokens);
     if (monthSpec) return monthSpec;
     return null;
   }
