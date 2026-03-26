@@ -3240,23 +3240,23 @@ function _weatherCalendarCellHtml(serial: any, opts?: any){
     var temps = _weatherDayTempRange(rec);
     if (useCurrentPeriod){
       middle = _weatherEmojiForPeriod(rec, currentTimeBucket() || WEATHER_PRIMARY_PERIOD);
-      bottom = '<div style="grid-column:1 / span 2;text-align:center;font-size:.78em;font-weight:bold;">' +
-        esc(activeTemp == null ? '—' : (activeTemp + 'F')) +
-      '</div>';
     } else {
-      var temps = _weatherDayTempRange(rec);
       middle = _weatherEmojiForRecord(rec);
-      bottom =
-        '<div style="font-size:.74em;font-weight:bold;color:#1565C0;text-align:left;">' + esc(temps ? (temps.lowF + 'F') : '—') + '</div>' +
-        '<div style="font-size:.74em;font-weight:bold;color:#B71C1C;text-align:right;">' + esc(temps ? (temps.highF + 'F') : '—') + '</div>';
+    }
+    details = '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:.74em;font-weight:bold;">' +
+      '<span style="color:#1565C0;text-align:left;">' + esc(temps ? (temps.lowF + 'F') : '\u2014') + '</span>' +
+      '<span style="color:#B71C1C;text-align:right;">' + esc(temps ? (temps.highF + 'F') : '\u2014') + '</span>' +
+    '</div>';
+    if (opts.showRevealTier !== false){
+      revealLine = _weatherRevealTierHtml(serial, opts);
     }
   }
 
   return '<td data-weather-forecast-cell="' + (showContent ? '1' : 'empty') + '"' + titleAttr + ' style="' + cellStyle + '">' +
-    '<div style="min-height:86px;display:grid;grid-template-rows:1fr 1fr 1fr;align-items:center;">' +
-      '<div style="text-align:center;font-size:.78em;line-height:1.1;">' + esc(inMonth ? String(d.day) : '') + '</div>' +
-      '<div style="text-align:center;font-size:1.15em;line-height:1;">' + middle + '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:end;">' + bottom + '</div>' +
+    '<div style="min-height:76px;display:flex;flex-direction:column;">' +
+      '<div style="padding-bottom:3px;border-bottom:1px solid rgba(0,0,0,.10);text-align:center;font-size:.78em;line-height:1.1;">' + esc(inMonth ? String(d.day) : '') + '</div>' +
+      '<div style="padding:5px 0;border-bottom:1px solid rgba(0,0,0,.10);text-align:center;font-size:1.15em;line-height:1;">' + middle + '</div>' +
+      '<div style="padding-top:4px;">' + details + revealLine + '</div>' +
     '</div>' +
   '</td>';
 }
@@ -3302,7 +3302,11 @@ function _weatherCalendarRangeHtml(startSerial: any, endSerial: any, opts?: any)
           inMonth: inMonth,
           showContent: showContent,
           currentPeriodForToday: opts.currentPeriodForToday,
-          recordForSerial: opts.recordForSerial
+          recordForSerial: opts.recordForSerial,
+          revealForSerial: opts.revealForSerial,
+          revealLocation: opts.revealLocation,
+          weatherState: opts.weatherState,
+          showRevealTier: opts.showRevealTier
         }));
       }
       out.push('</tr>');
@@ -3324,7 +3328,11 @@ function _weatherForecastGridHtml(serials: any[], opts?: any){
     tight: opts.tight,
     knownSerials: opts.knownSerials || knownSerials,
     currentPeriodForToday: opts.currentPeriodForToday,
-    recordForSerial: opts.recordForSerial
+    recordForSerial: opts.recordForSerial,
+    revealForSerial: opts.revealForSerial,
+    revealLocation: opts.revealLocation,
+    weatherState: opts.weatherState,
+    showRevealTier: opts.showRevealTier
   });
 }
 
@@ -3689,21 +3697,14 @@ function playerForecastCalendarWhisper(m: any){
 function _weatherManagementControlsHtml(serial: any){
   return '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>' +
     '<div style="margin:4px 0;">' +
-      button('Management', 'weather manage ?{Action|' +
+      button('Weather System Management', 'weather manage ?{Action|' +
+        'Regenerate Weather,reset|' +
         'Toggle Weather On/Off,toggleweather|' +
         'Toggle Extreme Hazards,togglehazards|' +
         'Toggle Mechanics,togglemechanics|' +
-        'Reseed Weather,reseed|' +
-        'History,history|' +
-        'Reset Weather,reset|' +
-        'Reroll Today,reroll' +
+        'Erase and Reset System,reseed' +
       '}') +
-    '</div>' +
-    '<div style="margin:4px 0;">' +
-      button('Lock Today', 'weather lock ' + serial) + ' ' +
-      button('Lock Specific Day', 'weather lock ?{Day serial|' + serial + '}') +
-    '</div>' +
-    '<div style="font-size:.78em;opacity:.62;margin-top:3px;">Locking a day freezes that forecast record so rerolls and regeneration will not overwrite it.</div>';
+    '</div>';
 }
 
 function weatherTodayCalendarGmHtml(){
@@ -3893,7 +3894,8 @@ function weatherHistoryGmHtml(){
   return _menuBox('Weather History (last 20)',
     '<div data-weather-view="history-calendar-gm">' +
       _weatherCalendarRangeHtml(start, end, {
-        recordForSerial: function(serial: any){ return _historyRecord(serial); }
+        recordForSerial: function(serial: any){ return _historyRecord(serial); },
+        showRevealTier: false
       }) +
     '</div>'
   );
