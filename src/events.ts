@@ -380,14 +380,14 @@ function _additionalRangeMonthNameYear(mi, year){
 function _escapeNestedQueryPart(text){
   return String(text || '')
     .replace(/&/g, '&amp;')
-    .replace(/\|/g, '&#124;')
-    .replace(/,/g, '&#44;');
+    .replace(/\|/g, '&amp;#124;')
+    .replace(/,/g, '&amp;#44;');
 }
 
 function _buildNestedQueryMenu(promptLabel, options){
   var out = ['?\\{' + _escapeNestedQueryPart(promptLabel)];
   for (var i = 0; i < options.length; i++){
-    out.push('&#124;' + _escapeNestedQueryPart(options[i].label) + '&#44;' + _escapeNestedQueryPart(options[i].value));
+    out.push('&amp;#124;' + _escapeNestedQueryPart(options[i].label) + '&amp;#44;' + _escapeNestedQueryPart(options[i].value));
   }
   out.push('\\}');
   return out.join('');
@@ -396,7 +396,7 @@ function _buildNestedQueryMenu(promptLabel, options){
 function _buildNestedPromptQuery(promptLabel, defaultValue){
   var out = '?\\{' + _escapeNestedQueryPart(promptLabel);
   if (defaultValue != null && String(defaultValue) !== ''){
-    out += '&#124;' + _escapeNestedQueryPart(defaultValue);
+    out += '&amp;#124;' + _escapeNestedQueryPart(defaultValue);
   }
   return out + '\\}';
 }

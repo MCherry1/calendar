@@ -451,7 +451,7 @@ function _eventsPanelHtml(serialArg){
 
   // Text Info
   var lines = [];
-  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
+  lines.push('<div style="font-weight:bold;margin:3px 0;"><b>Current Date:</b> ' + esc(currentDateLabel()) + '</div>');
 
   // Bulleted events only if displayed month is the current month
   if (dd.year === c.year && dd.mi === c.month){
@@ -494,13 +494,20 @@ function _eventsPanelHtml(serialArg){
   // Management (GM only)
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Add Event','add ?{Date DD or MM DD or MM DD YYYY} ?{Event Name} ?{Color (hex)|#50C878}') + ' ' +
-    button('Add Monthly','addmonthly ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') + ' ' +
-    button('Add Yearly','addyearly ?{Month MM} ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') +
+    button('Add Single Event','add ?{Date DD or MM DD or MM DD YYYY} ?{Event Name} ?{Color (hex)|#50C878}') +
     '</div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Manage Sources','events source') + ' ' +
-    button('Hide / Show','events list', { icon:'' }) +
+    button('Add Monthly Event','addmonthly ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') +
+    '</div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Add Yearly Event','addyearly ?{Month MM} ?{Day DD} ?{Event Name} ?{Color (hex)|#50C878}') +
+    '</div>');
+  btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Manage Event Sources','events source') +
+    '</div>');
+  btns.push('<div style="margin:3px 0;">' +
+    button('Hide/Show Event','events list', { icon:'' }) +
     '</div>');
 
   return _menuBox('Events — ' + esc(mobj.name + ' ' + dd.year),
@@ -961,7 +968,7 @@ export var commands = {
     function listSources(){
       var seen  = allSources();
       var keys  = Object.keys(seen);
-      if (!keys.length){ return whisper(m.who, '<div><b>Manage Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
+      if (!keys.length){ return whisper(m.who, '<div><b>Manage Event Sources</b></div><div style="opacity:.7;">No sources found.</div>'); }
 
       var pList = ensureSettings().eventSourcePriority;
 
@@ -979,7 +986,7 @@ export var commands = {
         return sourceDefaultKeys(k).length > 0;
       });
       if (!displayKeys.length){
-        return whisper(m.who, '<div><b>Manage Sources</b></div><div style="opacity:.7;">No sources are available for this calendar.</div>');
+        return whisper(m.who, '<div><b>Manage Event Sources</b></div><div style="opacity:.7;">No sources are available for this calendar.</div>');
       }
 
       var head = '<tr>'+
@@ -1015,7 +1022,7 @@ export var commands = {
       }).join('');
 
       whisper(m.who,
-        '<div style="margin:4px 0;"><b>Manage Sources</b></div>'+
+        '<div style="margin:4px 0;"><b>Manage Event Sources</b></div>'+
         '<div style="overflow-x:auto;max-width:100%;"><table style="'+tableStyle+'">'+head+rows+'</table></div>'+
         '<div style="font-size:.8em;opacity:.7;margin-top:4px;">'+
         'Order = priority. Top source sets cell color. Hide/show acts like a bulk toggle for each source&#39;s default events, and hidden entries still appear in the main hide/show list.'+
