@@ -4,6 +4,7 @@ import { buildCalendarPreview } from '../src/showcase/calendar-preview.js';
 import { buildSkyScene, moonPhasesForDay } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
+import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
 
 type ShowcaseState = {
   worldId: string;
@@ -47,6 +48,12 @@ var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
 
 if (!ctx) throw new Error('Canvas context not available.');
+
+var planarCard = document.getElementById('planar-card');
+var planarCanvas = document.getElementById('planar-canvas') as HTMLCanvasElement | null;
+var planarCtx = planarCanvas ? planarCanvas.getContext('2d') : null;
+var planarLegend = document.getElementById('planar-legend');
+var lastPlanarLegendHtml = '';
 
 _renderWorldOptions();
 _renderGalleryWorldOptions();
@@ -196,6 +203,7 @@ function _syncControlsFromState(){
     heroStats.innerHTML = _buildHeroStats(state.worldId);
     heroStats.dataset.worldId = state.worldId;
   }
+  if (planarCard) planarCard.hidden = state.worldId !== 'eberron';
 }
 
 function _render(forceDetails: boolean, forceUrl: boolean, now: number){
@@ -208,6 +216,13 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   _drawScene(scene);
+  if (state.worldId === 'eberron' && planarCtx) {
+    var planarPhases = getAllShowcasePlanarPhases(state.serial);
+    _drawPlanarDiagram(planarPhases);
+    if (forceDetails || (now - lastDetailSync) >= DETAIL_SYNC_INTERVAL_MS) {
+      _renderPlanarLegend(planarPhases);
+    }
+  }
   if (forceDetails || (now - lastDetailSync) >= DETAIL_SYNC_INTERVAL_MS) {
     _renderMoonList(scene);
     lastDetailSync = now;
@@ -498,6 +513,220 @@ function _drawSiberysRing(cx: number, cy: number, radius: number){
   ctx.shadowBlur = radius * 0.05;
   ctx.stroke();
   ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Planar Orbital Diagram
+// ---------------------------------------------------------------------------
+
+var PLANAR_TILT = 0.4; // Y-axis compression for pseudo-3D (similar to Siberys ring's 0.34)
+var PLANAR_CX = 250;
+var PLANAR_CY = 250;
+var PLANAR_R_COT = 55;      // coterminous band radius
+var PLANAR_R_NEU = 135;     // neutral band radius
+var PLANAR_R_REM = 195;     // remote band radius
+var PLANAR_R_DAL = 228;     // Dal Quor outer orbit radius
+var PLANAR_DISC_R = 10;     // base disc radius
+
+function _planarProject(angleDeg: number, radius: number): { x: number; y: number } {
+  var rad = angleDeg * Math.PI / 180;
+  return {
+    x: PLANAR_CX + Math.cos(rad) * radius,
+    y: PLANAR_CY + Math.sin(rad) * radius * PLANAR_TILT
+  };
+}
+
+function _planarRadiusForPosition(pos: number): number {
+  // 0.0 = coterminous (inner), 0.5 = neutral (mid), 1.0 = remote (outer)
+  if (pos <= 0.5) {
+    return PLANAR_R_COT + (PLANAR_R_NEU - PLANAR_R_COT) * (pos / 0.5);
+  }
+  return PLANAR_R_NEU + (PLANAR_R_REM - PLANAR_R_NEU) * ((pos - 0.5) / 0.5);
+}
+
+function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
+  if (!planarCtx || !planarCanvas) return;
+  var pCtx = planarCtx;
+  var w = planarCanvas.width;
+  var h = planarCanvas.height;
+  pCtx.clearRect(0, 0, w, h);
+
+  // Background
+  var bg = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 20, PLANAR_CX, PLANAR_CY, 260);
+  bg.addColorStop(0, 'rgba(12, 18, 30, 0.95)');
+  bg.addColorStop(1, 'rgba(5, 10, 18, 0.98)');
+  pCtx.fillStyle = bg;
+  pCtx.fillRect(0, 0, w, h);
+
+  // Draw concentric band ellipses
+  var bandRadii = [PLANAR_R_COT, PLANAR_R_NEU, PLANAR_R_REM];
+  var bandLabels = ['Coterminous', 'Neutral', 'Remote'];
+  for (var b = 0; b < bandRadii.length; b++) {
+    pCtx.beginPath();
+    pCtx.ellipse(PLANAR_CX, PLANAR_CY, bandRadii[b], bandRadii[b] * PLANAR_TILT, 0, 0, Math.PI * 2);
+    pCtx.lineWidth = 1;
+    pCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    pCtx.stroke();
+  }
+
+  // Dal Quor orbit ring (dashed)
+  pCtx.save();
+  pCtx.setLineDash([4, 6]);
+  pCtx.beginPath();
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_DAL, PLANAR_R_DAL * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.lineWidth = 0.8;
+  pCtx.strokeStyle = 'rgba(123, 104, 174, 0.2)';
+  pCtx.stroke();
+  pCtx.restore();
+
+  // Draw 12 axis lines (faint, as elliptical arcs through center)
+  for (var a = 0; a < 12; a++) {
+    var angleDeg = a * 15;
+    var p1 = _planarProject(angleDeg, PLANAR_R_REM + 8);
+    var p2 = _planarProject(angleDeg + 180, PLANAR_R_REM + 8);
+    pCtx.beginPath();
+    pCtx.moveTo(p1.x, p1.y);
+    pCtx.lineTo(p2.x, p2.y);
+    pCtx.lineWidth = 0.6;
+    pCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    pCtx.stroke();
+  }
+
+  // Band labels along the right edge
+  pCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+  pCtx.font = '10px "Trebuchet MS", sans-serif';
+  pCtx.textAlign = 'left';
+  for (var bl = 0; bl < bandLabels.length; bl++) {
+    pCtx.fillText(bandLabels[bl], PLANAR_CX + bandRadii[bl] + 6, PLANAR_CY + 4);
+  }
+
+  // Compute plane positions and sort back-to-front by Y for depth ordering
+  type PlaneDrawItem = {
+    phase: PlanarPhaseResult;
+    x: number;
+    y: number;
+    depth: number; // sin(angle) for depth ordering: negative = back, positive = front
+    discR: number;
+    alpha: number;
+  };
+
+  var items: PlaneDrawItem[] = [];
+  for (var pi = 0; pi < phases.length; pi++) {
+    var ph = phases[pi];
+    var effectiveAngle: number;
+    var radius: number;
+
+    if (ph.isDalQuor) {
+      effectiveAngle = ph.dalQuorOrbitAngle || 0;
+      radius = PLANAR_R_DAL;
+    } else {
+      effectiveAngle = ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180);
+      radius = _planarRadiusForPosition(ph.position);
+    }
+
+    var pos = _planarProject(effectiveAngle, radius);
+    var depthVal = Math.sin(effectiveAngle * Math.PI / 180);
+    // Depth-based sizing and brightness: back is smaller/dimmer, front is larger/brighter
+    var depthScale = 0.85 + depthVal * 0.15; // 0.7 to 1.0
+    var discR = PLANAR_DISC_R * depthScale;
+    var alpha = 0.7 + depthVal * 0.3; // 0.4 to 1.0
+
+    items.push({ phase: ph, x: pos.x, y: pos.y, depth: depthVal, discR: discR, alpha: alpha });
+  }
+
+  // Sort: back (negative depth / top of ellipse) first, front (positive / bottom) last
+  items.sort(function(a, b) { return a.depth - b.depth; });
+
+  // Draw items: back planes first, then center marker, then front planes
+  var centerDrawn = false;
+  for (var di = 0; di < items.length; di++) {
+    // Draw center "Eberron" marker before drawing front-hemisphere planes
+    if (!centerDrawn && items[di].depth >= 0) {
+      _drawEberronCenter(pCtx);
+      centerDrawn = true;
+    }
+    _drawPlaneDisc(pCtx, items[di]);
+  }
+  // If all planes are behind (unlikely), draw center last
+  if (!centerDrawn) _drawEberronCenter(pCtx);
+}
+
+function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
+  // Glowing center marker
+  pCtx.save();
+  pCtx.beginPath();
+  pCtx.arc(PLANAR_CX, PLANAR_CY, 10, 0, Math.PI * 2);
+  pCtx.fillStyle = 'rgba(180, 200, 220, 0.15)';
+  pCtx.shadowColor = 'rgba(180, 200, 220, 0.4)';
+  pCtx.shadowBlur = 12;
+  pCtx.fill();
+  pCtx.restore();
+
+  pCtx.beginPath();
+  pCtx.arc(PLANAR_CX, PLANAR_CY, 5, 0, Math.PI * 2);
+  pCtx.fillStyle = 'rgba(200, 215, 230, 0.6)';
+  pCtx.fill();
+  pCtx.lineWidth = 1;
+  pCtx.strokeStyle = 'rgba(200, 215, 230, 0.3)';
+  pCtx.stroke();
+
+  pCtx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  pCtx.font = '10px "Trebuchet MS", sans-serif';
+  pCtx.textAlign = 'center';
+  pCtx.fillText('Eberron', PLANAR_CX, PLANAR_CY + 20);
+}
+
+function _drawPlaneDisc(pCtx: CanvasRenderingContext2D, item: { phase: PlanarPhaseResult; x: number; y: number; discR: number; alpha: number }) {
+  var ph = item.phase;
+  var color = ph.color;
+  var r = item.discR;
+
+  // For very dark colors (Mabar), use a lighter outline
+  var isDark = color === '#111111' || color === '#000000';
+  var fillColor = isDark ? '#333333' : color;
+
+  pCtx.save();
+  pCtx.globalAlpha = item.alpha;
+
+  // Glow
+  pCtx.beginPath();
+  pCtx.arc(item.x, item.y, r, 0, Math.PI * 2);
+  pCtx.fillStyle = fillColor;
+  pCtx.shadowColor = fillColor;
+  pCtx.shadowBlur = r * 1.5;
+  pCtx.fill();
+  pCtx.restore();
+
+  // Outline
+  pCtx.beginPath();
+  pCtx.arc(item.x, item.y, r, 0, Math.PI * 2);
+  pCtx.lineWidth = isDark ? 1.2 : 0.8;
+  pCtx.strokeStyle = isDark ? 'rgba(200, 200, 200, 0.5)' : 'rgba(255, 255, 255, 0.4)';
+  pCtx.stroke();
+
+  // Label
+  pCtx.fillStyle = 'rgba(255, 255, 255, ' + (item.alpha * 0.85) + ')';
+  pCtx.font = (item.discR > 9 ? '11' : '9') + 'px "Trebuchet MS", sans-serif';
+  pCtx.textAlign = 'center';
+  pCtx.fillText(ph.name, item.x, item.y + r + 14);
+}
+
+function _renderPlanarLegend(phases: PlanarPhaseResult[]) {
+  if (!planarLegend) return;
+  var html = '';
+  for (var i = 0; i < phases.length; i++) {
+    var ph = phases[i];
+    var phaseName = ph.isDalQuor ? 'remote (severed)' : (ph.isFixed ? ph.phase + ' (fixed)' : ph.phase);
+    html += '<div class="planar-legend-row">' +
+      '<span class="planar-legend-dot" style="background:' + _esc(ph.color) + ';"></span>' +
+      '<span class="planar-legend-name">' + _esc(ph.name) + '</span>' +
+      '<span class="planar-legend-phase">' + _esc(phaseName) + '</span>' +
+      '</div>';
+  }
+  if (html !== lastPlanarLegendHtml) {
+    planarLegend.innerHTML = html;
+    lastPlanarLegendHtml = html;
+  }
 }
 
 function _renderGalleryWorldOptions(){
