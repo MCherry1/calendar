@@ -39,6 +39,7 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Events"));
     assert(msg.includes("Send to Players"));
     assert(msg.includes("Add Event"));
+    assert(msg.includes("Manage Sources"));
     assert(msg.includes("events source"));
     assert(msg.includes("events list"));
     assert(!msg.includes("events removeflow"));
@@ -61,12 +62,14 @@ describe("Redesigned panel routing", () => {
 
     handleInput(gmMessage("!cal events manage source"));
     let msg = String(lastChat().msg);
-    assert(msg.includes("Sources"));
+    assert(msg.includes("Manage Sources"));
     assert(msg.includes("source"));
 
     handleInput(gmMessage("!cal events manage list"));
     msg = String(lastChat().msg);
     assert(msg.includes("Current Status"));
+    assert(msg.includes("Source"));
+    assert(!msg.includes(">Index<"));
     assert(msg.includes("[➖ Hide](!cal remove "));
     assert(!msg.includes("events removeflow"));
   });
@@ -116,6 +119,32 @@ describe("Redesigned panel routing", () => {
     msg = String(lastChat().msg);
     assert(msg.includes("Hidden"));
     assert(msg.includes("[➕ Show](!cal restore key "));
+  });
+
+  it("treats source controls as bulk hide/show for the shared event list", () => {
+    freshInstall();
+    completeSetup();
+
+    const evt = getCal().events.find((entry: any) => entry.name === "Day of Cleansing Fire" && entry.source === "silver flame");
+    assert(evt);
+    const key = encodeURIComponent(eventKey(evt));
+
+    handleInput(gmMessage("!cal source disable Silver Flame"));
+    handleInput(gmMessage("!cal list"));
+
+    let msg = String(lastChat().msg);
+    assert(msg.includes("Day of Cleansing Fire"));
+    assert(msg.includes("#F2F7FF"));
+    assert(msg.includes("Silver Flame"));
+    assert(msg.includes("[âž• Show](!cal restore key "));
+
+    handleInput(gmMessage("!cal restore key " + key));
+    handleInput(gmMessage("!cal source list"));
+
+    msg = String(lastChat().msg);
+    assert(msg.includes("Partially Hidden"));
+    assert(msg.includes("[Show All](!cal source enable Silver Flame"));
+    assert(msg.includes("[Hide All](!cal source disable Silver Flame"));
   });
 
   it("builds viewed-date Additional Ranges commands for events and renders year, rolling, and month ranges", () => {
