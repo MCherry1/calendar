@@ -3233,13 +3233,13 @@ function _weatherCalendarCellHtml(serial: any, opts?: any){
   else if (!showContent) cellStyle += 'opacity:.58;';
 
   var middle = '&nbsp;';
-  var bottom = '<div style="grid-column:1 / span 2;">&nbsp;</div>';
+  var details = '<div style="font-size:.74em;opacity:.55;text-align:center;">&nbsp;</div>';
+  var revealLine = '';
   if (showContent && rec && rec.final){
     var useCurrentPeriod = !!(opts.currentPeriodForToday && isToday && isTimeOfDayActive());
+    var temps = _weatherDayTempRange(rec);
     if (useCurrentPeriod){
-      var activePeriod = currentTimeBucket() || WEATHER_PRIMARY_PERIOD;
-      var activeTemp = _weatherPeriodTempF(rec, activePeriod);
-      middle = _weatherEmojiForPeriod(rec, activePeriod);
+      middle = _weatherEmojiForPeriod(rec, currentTimeBucket() || WEATHER_PRIMARY_PERIOD);
       bottom = '<div style="grid-column:1 / span 2;text-align:center;font-size:.78em;font-weight:bold;">' +
         esc(activeTemp == null ? '—' : (activeTemp + 'F')) +
       '</div>';
