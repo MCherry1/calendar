@@ -29,8 +29,6 @@ describe("Task-focused UI", () => {
     freshInstall();
     helpRootMenu({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = (globalThis as any)._chatLog.slice(-1)[0];
-    assert(msg.msg.includes("Today&#39;s Calendar"));
-    assert(msg.msg.includes("Subsystems"));
     assertEquals(msg.opts.noarchive, true);
     assert(msg.msg.includes("Set Date"));
     assert(msg.msg.includes("?{Set Date &#40;mm dd yyyy&#41;|"));
@@ -47,6 +45,8 @@ describe("Task-focused UI", () => {
     freshInstall();
     _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = (globalThis as any)._chatLog.slice(-1)[0];
+    assert(msg.msg.includes("Today&#39;s Calendar"));
+    assert(msg.msg.includes("Subsystems"));
     assert(msg.msg.includes("retreat 1") || msg.msg.includes("⬅"), "should have retreat/back button");
     assert(msg.msg.includes("advance 1") || msg.msg.includes("➡"), "should have advance/forward button");
     assert(msg.msg.includes("send"), "should have send-to-players action");
