@@ -17,7 +17,7 @@ const DRAGONLANCE_FIXED_ANCHOR = {
   // Summer Run 7 in a 336-day year lands 174 days into the year. At local
   // midnight, opposition to the sun puts the aligned moons on the meridian.
   skyLongDeg: 6.428571428571429,
-  overheadAtAnchor: true,
+  overheadAtAnchor: false,
   observerLatitudeDeg: 30,
 };
 
