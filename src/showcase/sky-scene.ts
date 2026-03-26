@@ -78,7 +78,7 @@ type BuildSkySceneResolvedInput = {
   retrogradeAt?: (moon: MoonLike, serial: number) => boolean;
 };
 
-export var DEFAULT_OBSERVER_LATITUDE = 30;
+export var DEFAULT_OBSERVER_LATITUDE = 37.77; // San Francisco latitude
 export var SUN_ANGULAR_DIAM_DEG = 0.53;
 var LUNA_ANALOG = {
   synodicPeriod: 29.53059,
