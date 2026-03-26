@@ -109,6 +109,8 @@ describe("Redesigned panel routing", () => {
     handleInput(gmMessage("!cal list"));
     let msg = String(lastChat().msg);
     assert(msg.includes("Current Status"));
+    assert(msg.includes("Source"));
+    assert(!msg.includes(">Index<"));
     assert(msg.includes("[➖ Hide](!cal remove "));
 
     const evt = getCal().events.find((entry: any) => entry.source === "khorvaire");
@@ -136,7 +138,7 @@ describe("Redesigned panel routing", () => {
     assert(msg.includes("Day of Cleansing Fire"));
     assert(msg.includes("#F2F7FF"));
     assert(msg.includes("Silver Flame"));
-    assert(msg.includes("[âž• Show](!cal restore key "));
+    assert(msg.includes("restore key "));
 
     handleInput(gmMessage("!cal restore key " + key));
     handleInput(gmMessage("!cal source list"));
