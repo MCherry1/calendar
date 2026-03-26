@@ -32,6 +32,7 @@ export type SkyScene = {
   worldLabel: string;
   serial: number;
   timeFrac: number;
+  observerLatitude: number;
   moons: SkySceneMoon[];
 };
 
@@ -77,7 +78,7 @@ type BuildSkySceneResolvedInput = {
   retrogradeAt?: (moon: MoonLike, serial: number) => boolean;
 };
 
-export var DEFAULT_OBSERVER_LATITUDE = 30;
+export var DEFAULT_OBSERVER_LATITUDE = 37.77; // San Francisco latitude
 export var SUN_ANGULAR_DIAM_DEG = 0.53;
 var LUNA_ANALOG = {
   synodicPeriod: 29.53059,
@@ -182,6 +183,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
     worldLabel: world ? world.label : String(input.worldId || ''),
     serial: input.serial | 0,
     timeFrac: timeFrac,
+    observerLatitude: observerLatitude,
     moons: moons
   };
 }

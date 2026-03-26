@@ -3246,7 +3246,7 @@ export function _degSeparation(a, b){
 // Simplification: treats ecliptic ≈ celestial equator (axial tilt shifts
 // everything, but for categorization into broad buckets this is fine).
 
-export var OBSERVER_LATITUDE = 30;  // degrees N — Sharn equivalent
+export var OBSERVER_LATITUDE = 37.77; // degrees N — San Francisco latitude
 
 export function _moonHourAngleDeg(moon, serial, timeFrac){
   var skyLong = _moonSkyLong(moon, serial);

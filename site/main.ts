@@ -335,54 +335,74 @@ function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
   }
 }
 
+var PANO_AZ_MIN = 80;
+var PANO_AZ_MAX = 280;
+var PANO_ALT_MAX = 75;
+var PANO_TOP_MARGIN = 70;
+var PANO_BOTTOM_MARGIN = 32;
+
+function _panoramicPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
+  var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
+  var x = (azimuthDeg - PANO_AZ_MIN) / (PANO_AZ_MAX - PANO_AZ_MIN) * width;
+  var y = PANO_TOP_MARGIN + (1 - Math.max(0, Math.min(PANO_ALT_MAX, altitudeDeg)) / PANO_ALT_MAX) * usableHeight;
+  return { x: x, y: y };
+}
+
 function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   if (!ctx) return;
   var width = canvas.width;
   var height = canvas.height;
   ctx.clearRect(0, 0, width, height);
 
-  var gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, '#0f2741');
-  gradient.addColorStop(0.45, '#142138');
-  gradient.addColorStop(1, '#080c14');
+  var skyBottom = height - PANO_BOTTOM_MARGIN;
+  var gradient = ctx.createLinearGradient(0, PANO_TOP_MARGIN, 0, skyBottom);
+  gradient.addColorStop(0, '#0a1e35');
+  gradient.addColorStop(0.6, '#122030');
+  gradient.addColorStop(1, '#1c1712');
   ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, width, PANO_TOP_MARGIN);
 
   _drawStars(width, height, state.timeFrac);
 
-  var cx = width / 2;
-  var cy = height / 2 + 34;
-  var radius = Math.min(width, height) * 0.47;
+  var horizonY = height - PANO_BOTTOM_MARGIN;
+  ctx.beginPath();
+  ctx.moveTo(0, horizonY);
+  ctx.lineTo(width, horizonY);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(127, 196, 216, 0.4)';
+  ctx.stroke();
 
+  var alt30 = _panoramicPoint(width, height, 180, 30);
+  var alt60 = _panoramicPoint(width, height, 180, 60);
+  ctx.setLineDash([4, 8]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(127, 196, 216, 0.15)';
   ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(8, 15, 24, 0.28)';
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(247, 242, 232, 0.18)';
+  ctx.moveTo(0, alt30.y);
+  ctx.lineTo(width, alt30.y);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(cx, cy + radius * 0.06, radius * 0.84, Math.PI * 1.02, Math.PI * 1.98);
-  ctx.lineWidth = 1.8;
-  ctx.strokeStyle = 'rgba(127, 196, 216, 0.32)';
+  ctx.moveTo(0, alt60.y);
+  ctx.lineTo(width, alt60.y);
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(cx, cy + radius * 0.11, radius * 0.66, Math.PI * 1.06, Math.PI * 1.94);
-  ctx.lineWidth = 1.2;
-  ctx.strokeStyle = 'rgba(127, 196, 216, 0.24)';
-  ctx.stroke();
-  if (scene.worldId === 'eberron') _drawSiberysRing(cx, cy, radius);
+  ctx.setLineDash([]);
 
-  _drawCompass(cx, cy, radius);
+  if (scene.worldId === 'eberron') _drawSiberysRing(width, height, scene.observerLatitude);
+
+  _drawCompass(width, height);
 
   var labeled = 0;
   for (var i = 0; i < scene.moons.length; i++){
     var moon = scene.moons[i];
     if (moon.category === 'below') continue;
-    var position = _scenePoint(cx, cy, radius, moon.azimuth, Math.max(0, moon.altitudeExact));
-    var moonRadius = Math.max(6, Math.min(26, moon.angularDiameterDeg * 5.5));
+    var az = moon.azimuth;
+    if (az < PANO_AZ_MIN - 5 || az > PANO_AZ_MAX + 5) continue;
+    var position = _panoramicPoint(width, height, az, Math.max(0, moon.altitudeExact));
+    var moonRadius = Math.max(8, Math.min(32, moon.angularDiameterDeg * 8));
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde);
-    if (labeled < 5 && moon.altitudeExact >= 4){
+    if (labeled < 5 && moon.altitudeExact >= 2){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
       ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
       ctx.textAlign = 'center';
@@ -401,10 +421,12 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
 function _drawStars(width: number, height: number, timeFrac: number){
   if (!ctx) return;
   var twinkle = 0.76 + Math.sin(timeFrac * Math.PI * 2) * 0.08;
+  var skyBottom = height - PANO_BOTTOM_MARGIN;
+  var skyHeight = skyBottom - PANO_TOP_MARGIN;
   for (var i = 0; i < 160; i++){
     var seed = _hash(i + ':' + state.worldId);
     var x = (seed * 9301 % 1000) / 1000 * width;
-    var y = (_hash('y:' + i + ':' + state.worldId) * 8117 % 1000) / 1000 * height * 0.9;
+    var y = PANO_TOP_MARGIN + (_hash('y:' + i + ':' + state.worldId) * 8117 % 1000) / 1000 * skyHeight;
     var size = 0.5 + ((_hash('s:' + i + ':' + state.worldId) * 3571) % 1000) / 1000 * 2.1;
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
@@ -413,30 +435,31 @@ function _drawStars(width: number, height: number, timeFrac: number){
   }
 }
 
-function _drawCompass(cx: number, cy: number, radius: number){
+function _drawCompass(width: number, height: number){
   if (!ctx) return;
-  var labels = [
-    { text: 'N', x: cx, y: cy - radius - 18 },
-    { text: 'E', x: cx + radius + 18, y: cy + 5 },
-    { text: 'S', x: cx, y: cy + radius + 30 },
-    { text: 'W', x: cx - radius - 18, y: cy + 5 }
+  var compassLabels = [
+    { text: 'E', az: 90 }, { text: 'SE', az: 135 }, { text: 'S', az: 180 },
+    { text: 'SW', az: 225 }, { text: 'W', az: 270 }
   ];
   ctx.fillStyle = 'rgba(247, 242, 232, 0.66)';
   ctx.font = '14px "Trebuchet MS", "Gill Sans", sans-serif';
   ctx.textAlign = 'center';
-  labels.forEach(function(label){
-    ctx.fillText(label.text, label.x, label.y);
+  var labelY = height - 8;
+  compassLabels.forEach(function(label){
+    var pt = _panoramicPoint(width, height, label.az, 0);
+    ctx.fillText(label.text, pt.x, labelY);
   });
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(127, 196, 216, 0.5)';
+  ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
+  var pt30 = _panoramicPoint(width, height, PANO_AZ_MIN, 30);
+  var pt60 = _panoramicPoint(width, height, PANO_AZ_MIN, 60);
+  ctx.fillText('30°', 6, pt30.y + 4);
+  ctx.fillText('60°', 6, pt60.y + 4);
 }
 
 function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number, altitudeDeg: number){
-  var altitude = Math.max(0, Math.min(90, altitudeDeg));
-  var radial = radius * (1 - altitude / 90);
-  var azimuth = azimuthDeg * Math.PI / 180;
-  return {
-    x: cx + Math.sin(azimuth) * radial,
-    y: cy - Math.cos(azimuth) * radial
-  };
+  return _panoramicPoint(canvas.width, canvas.height, azimuthDeg, altitudeDeg);
 }
 
 function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean){
@@ -480,23 +503,52 @@ function _buildHeroStats(worldId: string){
   ].join('');
 }
 
-function _drawSiberysRing(cx: number, cy: number, radius: number){
+function _drawSiberysRing(width: number, height: number, observerLatDeg: number){
   if (!ctx) return;
+  var lat = observerLatDeg * Math.PI / 180;
+  var altPeak = 90 - observerLatDeg;
+  var steps = 120;
+  var outerPts: {x: number; y: number}[] = [];
+  var innerPts: {x: number; y: number}[] = [];
+  var centerPts: {x: number; y: number}[] = [];
+
+  for (var i = 0; i <= steps; i++){
+    var H = (-90 + 180 * i / steps) * Math.PI / 180;
+    var sinAlt = Math.cos(lat) * Math.cos(H);
+    var altRad = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+    var altDeg = altRad * 180 / Math.PI;
+    if (altDeg < 0) continue;
+
+    var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
+    var azDeg = ((azRaw * 180 / Math.PI) + 180 + 360) % 360;
+
+    var halfWidth = 8 * (altDeg / altPeak);
+    centerPts.push(_panoramicPoint(width, height, azDeg, altDeg));
+    outerPts.push(_panoramicPoint(width, height, azDeg, altDeg + halfWidth));
+    innerPts.push(_panoramicPoint(width, height, azDeg, altDeg - halfWidth));
+  }
+
+  if (centerPts.length < 2) return;
+
   ctx.save();
-  ctx.translate(cx, cy - radius * 0.06);
-  ctx.rotate(-12 * Math.PI / 180);
+
   ctx.beginPath();
-  ctx.ellipse(0, 0, radius * 0.94, radius * 0.34, 0, Math.PI, Math.PI * 2);
-  ctx.lineWidth = Math.max(1.4, radius * 0.01);
-  ctx.strokeStyle = 'rgba(232, 203, 118, 0.25)';
-  ctx.stroke();
+  ctx.moveTo(outerPts[0].x, outerPts[0].y);
+  for (var j = 1; j < outerPts.length; j++) ctx.lineTo(outerPts[j].x, outerPts[j].y);
+  for (var k = innerPts.length - 1; k >= 0; k--) ctx.lineTo(innerPts[k].x, innerPts[k].y);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(232, 203, 118, 0.13)';
+  ctx.fill();
+
   ctx.beginPath();
-  ctx.ellipse(0, 0, radius * 0.94, radius * 0.34, 0, 0, Math.PI * 2);
-  ctx.lineWidth = Math.max(1.6, radius * 0.012);
-  ctx.strokeStyle = 'rgba(232, 203, 118, 0.46)';
-  ctx.shadowColor = 'rgba(232, 203, 118, 0.48)';
-  ctx.shadowBlur = radius * 0.05;
+  ctx.moveTo(centerPts[0].x, centerPts[0].y);
+  for (var m = 1; m < centerPts.length; m++) ctx.lineTo(centerPts[m].x, centerPts[m].y);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(232, 203, 118, 0.48)';
+  ctx.shadowColor = 'rgba(232, 203, 118, 0.55)';
+  ctx.shadowBlur = 12;
   ctx.stroke();
+
   ctx.restore();
 }
 
