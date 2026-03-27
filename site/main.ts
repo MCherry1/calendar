@@ -355,6 +355,9 @@ function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
       '</div>'
     );
   }).join('');
+  if (!nextHtml) {
+    nextHtml = '<div class="moon-row"><div class="moon-main"><strong>No moon data</strong><span>This world has no configured moon display rows.</span></div></div>';
+  }
   if (nextHtml !== lastMoonListHtml) {
     moonList.innerHTML = nextHtml;
     lastMoonListHtml = nextHtml;
