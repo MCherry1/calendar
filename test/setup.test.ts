@@ -217,6 +217,29 @@ describe("Setup onboarding", () => {
     assert(summary.msg.includes("!cal planes seed Daanvi"));
   });
 
+  it("supports applying setup-style planar seed questions through planes seedinit", () => {
+    freshInstall();
+    completeSetup();
+    ensureSettings().calendarSystem = "eberron";
+    ensureSettings().planesEnabled = true;
+
+    handleInput(gmMsg("!cal planes seedinit linked fernia-coterminous remote neither roll roll roll roll remote"));
+
+    const ps = getPlanesState();
+    assertEquals(ps.ferniaRisiaLinkMode, "linked");
+    assert(ps.seedOverrides.Fernia != null);
+    assert(ps.seedOverrides.Daanvi != null);
+    assert(ps.seedOverrides.Dolurrh != null);
+    assert(ps.seedOverrides.Mabar != null);
+
+    const log = (globalThis as any)._chatLog;
+    const summary = [...log].reverse().find((entry: any) =>
+      String(entry.msg).includes("Planar Seed Procedure Applied")
+    );
+    assert(summary);
+    assert(summary.msg.includes("Fernia/Risia link mode"));
+  });
+
   it("resetcalendar returns the campaign to the onboarding gate", () => {
     freshInstall();
     completeSetup();
