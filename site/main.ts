@@ -22,6 +22,7 @@ var lastFrame = performance.now();
 var lastDetailSync = 0;
 var lastUrlSync = 0;
 var lastMoonListHtml = '';
+var lastRenderError = '';
 
 var worldSelect = _must<HTMLSelectElement>('hero-world');
 var yearInput = _must<HTMLInputElement>('hero-year');
@@ -70,7 +71,7 @@ try {
   console.error('Showcase init error:', err);
 }
 _bindEvents();
-_render(true, true, performance.now());
+_attemptRender(true, true, performance.now());
 requestAnimationFrame(_tick);
 
 function _initialState(): ShowcaseState {
@@ -104,7 +105,7 @@ function _bindEvents(){
     state.serial = toWorldSerial(next, world.defaultDate.year, regularMonthIndexToSlotIndex(next, world.defaultDate.month), world.defaultDate.day);
     state.timeFrac = 22 / 24;
     _syncControlsFromState();
-    _render(true, true, performance.now());
+    _attemptRender(true, true, performance.now());
     _renderGallerySourceOptions(next, 'all');
     _renderGalleryVariantOptions(next);
     galleryYearInput.value = String(world.defaultDate.year);
@@ -117,7 +118,7 @@ function _bindEvents(){
   timeInput.addEventListener('input', function(){
     state.timeFrac = (parseInt(timeInput.value, 10) || 0) / 1440;
     _syncControlsFromState();
-    _render(true, true, performance.now());
+    _attemptRender(true, true, performance.now());
   });
 
   playToggle.addEventListener('click', function(){
@@ -127,13 +128,13 @@ function _bindEvents(){
       lastUrlSync = 0;
     }
     playToggle.textContent = state.playing ? 'Pause' : 'Play';
-    _render(true, true, performance.now());
+    _attemptRender(true, true, performance.now());
   });
 
   speedSelect.addEventListener('change', function(){
     state.speedHoursPerSecond = parseFloat(speedSelect.value) || 12;
     _syncControlsFromState();
-    _render(true, true, performance.now());
+    _attemptRender(true, true, performance.now());
   });
 
   copyLinkButton.addEventListener('click', async function(){
@@ -164,7 +165,24 @@ function _updateStateFromControls(){
   var day = clampDayForSlot(state.worldId, slotIndex, parseInt(dayInput.value, 10) || 1);
   state.serial = toWorldSerial(state.worldId, year, slotIndex, day);
   _syncControlsFromState();
-  _render(true, true, performance.now());
+  _attemptRender(true, true, performance.now());
+}
+
+function _attemptRender(forceDetails: boolean, forceUrl: boolean, now: number){
+  try {
+    _render(forceDetails, forceUrl, now);
+    if (lastRenderError) {
+      sceneSubtitle.textContent = WORLDS[state.worldId].description;
+      lastRenderError = '';
+    }
+  } catch (err) {
+    var message = err instanceof Error ? err.message : String(err || 'Unknown render error');
+    if (message !== lastRenderError) {
+      console.error('Showcase render error:', err);
+      sceneSubtitle.textContent = 'Render error: ' + message;
+      lastRenderError = message;
+    }
+  }
 }
 
 function _renderWorldOptions(){
@@ -1051,16 +1069,19 @@ function _sourceLabel(worldId: string, source: string){
 }
 
 function _tick(now: number){
-  var dtSeconds = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
-  lastFrame = now;
-  if (state.playing){
-    var totalDays = state.serial + state.timeFrac + ((dtSeconds * state.speedHoursPerSecond) / 24);
-    state.serial = Math.floor(totalDays);
-    state.timeFrac = totalDays - state.serial;
-    _syncControlsFromState();
-    _render(false, false, now);
+  try {
+    var dtSeconds = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
+    lastFrame = now;
+    if (state.playing){
+      var totalDays = state.serial + state.timeFrac + ((dtSeconds * state.speedHoursPerSecond) / 24);
+      state.serial = Math.floor(totalDays);
+      state.timeFrac = totalDays - state.serial;
+      _syncControlsFromState();
+      _attemptRender(false, false, now);
+    }
+  } finally {
+    requestAnimationFrame(_tick);
   }
-  requestAnimationFrame(_tick);
 }
 
 function _parseDateParam(worldId: string, raw: string | null){
