@@ -131,8 +131,11 @@ function _anchorSerial(plane: ShowcasePlane): number {
 
 type PhaseWalkResult = {
   phase: string;
-  position: number; // 0=coterminous, 1=remote, continuous
+  position: number; // 0=center, 1=remote outer edge (band-based continuous position)
   orbitNum: number;
+  phaseIntoDays: number;
+  phaseDurationDays: number;
+  previousPhase: string;
 };
 
 function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
@@ -160,32 +163,61 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
     var ph = cycle.phases[idx];
     if (offset < accumulated + ph.dur) {
       var into = offset - accumulated;
-      var position: number;
+      var previousIdx = (idx + cycle.phases.length - 1) % cycle.phases.length;
+      var previousPhase = cycle.phases[previousIdx].name;
 
-      if (ph.name === 'coterminous') {
-        position = 0.0;
-      } else if (ph.name === 'remote') {
-        position = 1.0;
-      } else {
-        // Neutral phase: determine direction
-        var prevIdx = (idx + cycle.phases.length - 1) % cycle.phases.length;
-        var prevPhase = cycle.phases[prevIdx].name;
-        if (prevPhase === 'coterminous') {
-          // Transitioning from coterminous to remote
-          position = into / ph.dur;
-        } else {
-          // Transitioning from remote to coterminous
-          position = 1.0 - (into / ph.dur);
-        }
-      }
-
-      return { phase: ph.name, position: position, orbitNum: orbitNum };
+      return {
+        phase: ph.name,
+        position: _bandPositionFromPhase(ph.name, into, ph.dur, previousPhase),
+        orbitNum: orbitNum,
+        phaseIntoDays: into,
+        phaseDurationDays: ph.dur,
+        previousPhase: previousPhase
+      };
     }
     accumulated += ph.dur;
   }
 
   // Fallback (shouldn't reach here)
-  return { phase: 'neutral', position: 0.5, orbitNum: orbitNum };
+  return {
+    phase: 'neutral',
+    position: 0.5,
+    orbitNum: orbitNum,
+    phaseIntoDays: 0,
+    phaseDurationDays: 1,
+    previousPhase: 'coterminous'
+  };
+}
+
+function _bandPositionFromPhase(phase: string, phaseIntoDays: number, phaseDurationDays: number, previousPhase: string): number {
+  var denom = Math.max(1, phaseDurationDays);
+  var t = Math.max(0, Math.min(1, phaseIntoDays / denom));
+  var bandMin = 0;
+  var bandMax = 1;
+
+  if (phase === 'coterminous') {
+    bandMin = 0.0;
+    bandMax = 1 / 3;
+    return bandMin + ((bandMax - bandMin) * t);
+  }
+
+  if (phase === 'remote') {
+    bandMin = 2 / 3;
+    bandMax = 1.0;
+    return bandMin + ((bandMax - bandMin) * t);
+  }
+
+  // Neutral has two passes each cycle:
+  // after coterminous it moves outward (coterminous -> remote),
+  // after remote it moves inward (remote -> coterminous).
+  if (previousPhase === 'coterminous') {
+    bandMin = 1 / 3;
+    bandMax = 2 / 3;
+    return bandMin + ((bandMax - bandMin) * t);
+  }
+  bandMin = 1 / 3;
+  bandMax = 2 / 3;
+  return bandMax - ((bandMax - bandMin) * t);
 }
 
 // ---------------------------------------------------------------------------
@@ -281,8 +313,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
     var cycle = _cycleMetrics(pl);
     var anchor = _anchorSerial(pl);
     var cycleOffset = ((serial - anchor) % cycle.orbitDays + cycle.orbitDays) % cycle.orbitDays;
-    var positionT = cycleOffset / cycle.orbitDays;
-    var position = positionT <= 0.5 ? (positionT * 2) : ((1 - positionT) * 2);
+    var position = walk.position;
     var onPrimary = (walk.orbitNum % 2 === 0);
 
     // Mabar special case: 5-year remote window around summer solstice
@@ -303,7 +334,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
 
         if (dayOfYear >= remoteStart && dayOfYear <= remoteEnd) {
           phase = 'remote';
-          position = 1.0;
+          position = _bandPositionFromPhase('remote', dayOfYear - remoteStart, remoteDur, 'neutral');
         }
       }
     }

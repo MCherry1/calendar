@@ -801,9 +801,11 @@ function _planarProject(angleDeg: number, radius: number): { x: number; y: numbe
 }
 
 function _planarRadiusForPosition(pos: number): number {
-  // 0.0 = coterminous border, 0.5 = neutral outer border, 1.0 = remote outer border
-  if (pos <= 0.5) return PLANAR_R_COT + (PLANAR_R_NEU - PLANAR_R_COT) * (pos / 0.5);
-  return PLANAR_R_NEU + (PLANAR_R_REM - PLANAR_R_NEU) * ((pos - 0.5) / 0.5);
+  // 0.0 = center, 1/3 = coterminous outer border, 2/3 = neutral outer border, 1.0 = remote outer border
+  var t = Math.max(0, Math.min(1, pos));
+  if (t <= (1 / 3)) return PLANAR_R_COT * (t / (1 / 3));
+  if (t <= (2 / 3)) return PLANAR_R_COT + (PLANAR_R_NEU - PLANAR_R_COT) * ((t - (1 / 3)) / (1 / 3));
+  return PLANAR_R_NEU + (PLANAR_R_REM - PLANAR_R_NEU) * ((t - (2 / 3)) / (1 / 3));
 }
 
 function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
@@ -823,7 +825,7 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   // Draw concentric band ellipses
   var bandRadii = [PLANAR_R_COT, PLANAR_R_NEU, PLANAR_R_REM];
   var bandLabels = [
-    { name: 'Coterminous', radius: PLANAR_R_COT * 0.6 },
+    { name: 'Coterminous', radius: PLANAR_R_COT * 0.5 },
     { name: 'Neutral', radius: (PLANAR_R_COT + PLANAR_R_NEU) / 2 },
     { name: 'Remote', radius: (PLANAR_R_NEU + PLANAR_R_REM) / 2 }
   ];

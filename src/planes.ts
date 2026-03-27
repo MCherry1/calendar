@@ -2068,7 +2068,7 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
 
     // Management dropdown
     gmControls += '<div style="margin:4px 0;">' +
-      button('Management','planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|remote|neutral\\} ?\\{Days (blank = indefinite)|\\}|Clear Override,clear ?\\{Plane|All|' + planeQueryOpts + '\\}|Set Anchor,anchorwizard ?\\{Plane|' + planeQueryOpts + '\\}|Seed Override,seed ?\\{Plane|' + seedPlaneQueryOpts + '\\} ?\\{Year or clear|998\\}}') +
+      button('Management','planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set ?\\{Plane|' + planeQueryOpts + '\\} ?\\{Phase|coterminous|remote|neutral\\} ?\\{Days (blank = indefinite)|\\}|Clear Override,clear ?\\{Plane|All|' + planeQueryOpts + '\\}|Set Anchor,anchorwizard ?\\{Plane|' + planeQueryOpts + '\\}|Seed Override,seed ?\\{Plane|' + seedPlaneQueryOpts + '\\} ?\\{Year or clear|998\\}|Seed Procedure (Setup Questions),seedinit ?\\{Fernia/Risia Link|roll|linked|independent\\} ?\\{Climate Pair|roll|fernia-coterminous|fernia-remote|risia-coterminous|risia-remote|neither\\} ?\\{Daanvi|roll|coterminous|remote|neither\\} ?\\{Dolurrh|roll|coterminous|remote|neither\\} ?\\{Irian|roll|coterminous|remote|neither\\} ?\\{Shavarath|roll|coterminous|remote|neither\\} ?\\{Syrania|roll|coterminous|remote|neither\\} ?\\{Thelanis|roll|coterminous|remote|neither\\} ?\\{Mabar Remote|roll|remote|neither\\}}') +
       '</div>';
 
     // Utility buttons
@@ -2384,6 +2384,27 @@ export function _isGeneratedNote(note){
 
 function _refreshPlanesHandout(){
   refreshHandout('planes');
+}
+
+function _seedProcedureSummaryHtml(startSerial, selections, resolved){
+  var startLabel = dateLabelFromSerial(startSerial);
+  var endLabel = dateLabelFromSerial(startSerial + _planarYearDays() - 1);
+  var rows = [
+    '<div><b>Year-one window:</b> ' + esc(startLabel) + ' through ' + esc(endLabel) + '</div>',
+    '<div><b>Fernia/Risia link mode:</b> ' + esc(String(selections.linkModeChoice || 'roll')) + ' <span style="opacity:.72;">(' + esc(resolved.items.link.preview || '') + ')</span></div>',
+    '<div><b>Fernia/Risia climate pair:</b> ' + esc(String(selections.climateChoice || 'roll')) + ' <span style="opacity:.72;">(' + esc(resolved.items.climate.preview || '') + ')</span></div>'
+  ];
+  var ordered = ['Daanvi', 'Dolurrh', 'Irian', 'Shavarath', 'Syrania', 'Thelanis', 'Mabar'];
+  for (var i = 0; i < ordered.length; i++){
+    var name = ordered[i];
+    var choice = (name === 'Mabar')
+      ? String(selections.mabarChoice || 'roll')
+      : String((selections.planeChoices && selections.planeChoices[name]) || 'roll');
+    var item = resolved.items[name];
+    if (!item) continue;
+    rows.push('<div><b>' + esc(name === 'Mabar' ? 'Mabar remote' : name) + ':</b> ' + esc(choice) + ' <span style="opacity:.72;">(' + esc(item.preview || '') + ')</span></div>');
+  }
+  return _menuBox('🌀 Planar Seed Procedure Applied', rows.join(''));
 }
 
 
@@ -2810,6 +2831,68 @@ export function handlePlanesCommand(m, args){
     return whisperParts(m.who, planesPanelHtml(true));
   }
 
+  // !cal planes seedinit <link> <climate> <Daanvi> <Dolurrh> <Irian> <Shavarath> <Syrania> <Thelanis> <Mabar>
+  // Applies the same year-one setup questions used by the setup wizard, but from the planes panel.
+  if (sub === 'seedinit' || sub === 'seedsetup' || sub === 'seedwizard'){
+    var linkChoice = String(args[2] || 'roll').toLowerCase();
+    var climateChoice = String(args[3] || 'roll').toLowerCase();
+    var daanviChoice = String(args[4] || 'roll').toLowerCase();
+    var dolurrhChoice = String(args[5] || 'roll').toLowerCase();
+    var irianChoice = String(args[6] || 'roll').toLowerCase();
+    var shavarathChoice = String(args[7] || 'roll').toLowerCase();
+    var syraniaChoice = String(args[8] || 'roll').toLowerCase();
+    var thelanisChoice = String(args[9] || 'roll').toLowerCase();
+    var mabarChoice = String(args[10] || 'roll').toLowerCase();
+
+    if (!/^(roll|linked|independent)$/.test(linkChoice)){
+      return whisper(m.who, 'Usage: <code>!cal planes seedinit (roll|linked|independent) ...</code>');
+    }
+    if (!/^(roll|fernia-coterminous|fernia-remote|risia-coterminous|risia-remote|neither)$/.test(climateChoice)){
+      return whisper(m.who, 'Invalid climate option. Use one of: roll, fernia-coterminous, fernia-remote, risia-coterminous, risia-remote, neither.');
+    }
+    var planeChoicesOk = /^(roll|coterminous|remote|neither)$/;
+    if (!planeChoicesOk.test(daanviChoice) ||
+        !planeChoicesOk.test(dolurrhChoice) ||
+        !planeChoicesOk.test(irianChoice) ||
+        !planeChoicesOk.test(shavarathChoice) ||
+        !planeChoicesOk.test(syraniaChoice) ||
+        !planeChoicesOk.test(thelanisChoice)){
+      return whisper(m.who, 'Plane choices must be one of: roll, coterminous, remote, neither.');
+    }
+    if (!/^(roll|remote|neither)$/.test(mabarChoice)){
+      return whisper(m.who, 'Mabar choice must be one of: roll, remote, neither.');
+    }
+
+    var selections = {
+      linkModeChoice: linkChoice,
+      climateChoice: climateChoice,
+      planeChoices: {
+        Daanvi: daanviChoice,
+        Dolurrh: dolurrhChoice,
+        Irian: irianChoice,
+        Shavarath: shavarathChoice,
+        Syrania: syraniaChoice,
+        Thelanis: thelanisChoice
+      },
+      mabarChoice: mabarChoice
+    };
+    var startSerial = todaySerial();
+    var resolved = resolveEberronPlanarInitialization(startSerial, selections);
+
+    var psSeedInit = getPlanesState();
+    psSeedInit.ferniaRisiaLinkMode = resolved.storedLinkMode;
+    if (!psSeedInit.seedOverrides) psSeedInit.seedOverrides = {};
+    var touched = ['Fernia','Risia','Daanvi','Dolurrh','Irian','Shavarath','Syrania','Thelanis','Mabar'];
+    for (var ti = 0; ti < touched.length; ti++) delete psSeedInit.seedOverrides[touched[ti]];
+    Object.keys(resolved.seedOverrides || {}).forEach(function(name){
+      psSeedInit.seedOverrides[name] = resolved.seedOverrides[name];
+    });
+
+    _refreshPlanesHandout();
+    whisper(m.who, _seedProcedureSummaryHtml(startSerial, selections, resolved));
+    return whisperParts(m.who, planesPanelHtml(true));
+  }
+
   // !cal planes ranges <rangeArgs>  — Additional Ranges (same as events/moons)
   if (sub === 'ranges'){
     var rangeArgs = args.slice(2);
@@ -2836,6 +2919,7 @@ export function handlePlanesCommand(m, args){
     '<code>!cal planes link fernia-risia &lt;mode&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes anchor &lt;name&gt; &lt;phase&gt; &lt;dateSpec&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes seed &lt;name&gt; &lt;year&gt;</code> &nbsp;\u00B7&nbsp; '+
+    '<code>!cal planes seedinit &lt;setup choices...&gt;</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes suppress &lt;name&gt; [dateSpec]</code> &nbsp;\u00B7&nbsp; '+
     '<code>!cal planes clear [&lt;name&gt;]</code>'
   );
