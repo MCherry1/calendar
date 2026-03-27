@@ -89,6 +89,7 @@
                 <h3 id="scene-date-label"></h3>
               </div>
               <p id="scene-subtitle"></p>
+              <p id="scene-view-note" class="scene-view-note"></p>
             </div>
           </div>
 
@@ -107,16 +108,30 @@
             </div>
             <div class="scene-card scene-card-planar" id="planar-card" hidden>
               <p class="scene-card-label">Planar Orbits</p>
-              <label class="planar-speed-control">
-                <span>Planar Playback</span>
-                <select id="planar-speed">
-                  <option value="28" selected>1 month/s</option>
-                  <option value="168">6 months/s</option>
-                  <option value="336">1 year/s</option>
-                  <option value="1680">5 years/s</option>
-                  <option value="3360">10 years/s</option>
-                </select>
-              </label>
+              <div class="planar-controls">
+                <label class="planar-speed-control">
+                  <span>Planar Playback</span>
+                  <div class="playback-row">
+                    <button class="play-button" id="planar-play-toggle" type="button">Play</button>
+                    <select id="planar-speed">
+                      <option value="28" selected>1 month/s</option>
+                      <option value="168">6 months/s</option>
+                      <option value="336">1 year/s</option>
+                      <option value="1680">5 years/s</option>
+                      <option value="3360">10 years/s</option>
+                    </select>
+                  </div>
+                </label>
+                <label class="planar-speed-control planar-scrub-control">
+                  <span>Planar Scrub</span>
+                  <div class="time-joystick-wrap">
+                    <button id="planar-time-joystick" class="time-joystick" type="button" aria-label="Hold left/right to move planar time backward/forward">
+                      <span class="time-joystick-center"></span>
+                    </button>
+                    <div id="planar-time-joystick-speed" class="time-joystick-speed">Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)</div>
+                  </div>
+                </label>
+              </div>
               <canvas id="planar-canvas" width="500" height="500" aria-label="Planar orbital diagram"></canvas>
               <div id="planar-legend"></div>
             </div>

@@ -229,9 +229,9 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
 
     // Dal Quor: unpaired, orbits outside
     if (pl.name === 'Dal Quor') {
-      var dalCycleDays = YEAR_DAYS * 10;
+      var dalCycleDays = YEAR_DAYS * 13;
       var dalOffset = ((serial % dalCycleDays) + dalCycleDays) % dalCycleDays;
-      var dalAngle = (dalOffset / dalCycleDays) * 360;
+      var dalAngle = 360 - ((dalOffset / dalCycleDays) * 360);
       results.push({
         name: pl.name,
         color: pl.color,

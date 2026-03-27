@@ -10,11 +10,15 @@ type ShowcaseState = {
   worldId: string;
   serial: number;
   timeFrac: number;
-  playing: boolean;
+  skyPlaying: boolean;
   speedHoursPerSecond: number;
-  timeNudgeHoursPerSecond: number;
+  skyScrubHoursPerSecond: number;
+  skyScrubActive: boolean;
   planarSerial: number;
+  planarPlaying: boolean;
   planarDaysPerSecond: number;
+  planarScrubDaysPerSecond: number;
+  planarScrubActive: boolean;
 };
 
 var DETAIL_SYNC_INTERVAL_MS = 160;
@@ -36,10 +40,14 @@ var timeJoystickSpeed = _must<HTMLElement>('hero-time-joystick-speed');
 var timeLabel = _must<HTMLOutputElement>('hero-time-label');
 var playToggle = _must<HTMLButtonElement>('play-toggle');
 var speedSelect = _must<HTMLSelectElement>('hero-speed');
+var planarPlayToggle = document.getElementById('planar-play-toggle') as HTMLButtonElement | null;
 var planarSpeedSelect = document.getElementById('planar-speed') as HTMLSelectElement | null;
+var planarTimeJoystick = document.getElementById('planar-time-joystick') as HTMLButtonElement | null;
+var planarTimeJoystickSpeed = document.getElementById('planar-time-joystick-speed') as HTMLElement | null;
 var worldLabel = _must<HTMLElement>('hero-world-label');
 var sceneDateLabel = _must<HTMLElement>('scene-date-label');
 var sceneSubtitle = _must<HTMLElement>('scene-subtitle');
+var sceneViewNote = _must<HTMLElement>('scene-view-note');
 var moonList = _must<HTMLElement>('moon-list');
 var heroStats = _must<HTMLElement>('hero-stats');
 var calendarGallery = _must<HTMLElement>('calendar-gallery');
@@ -96,11 +104,15 @@ function _initialState(): ShowcaseState {
     worldId: worldId,
     serial: serial,
     timeFrac: _parseTimeParam(url.searchParams.get('time')),
-    playing: false,
+    skyPlaying: false,
     speedHoursPerSecond: 12,
-    timeNudgeHoursPerSecond: 0,
+    skyScrubHoursPerSecond: 0,
+    skyScrubActive: false,
     planarSerial: serial,
-    planarDaysPerSecond: 28
+    planarPlaying: false,
+    planarDaysPerSecond: 28,
+    planarScrubDaysPerSecond: 0,
+    planarScrubActive: false
   };
 }
 
@@ -123,15 +135,16 @@ function _bindEvents(){
   yearInput.addEventListener('change', _updateStateFromControls);
   slotSelect.addEventListener('change', _updateStateFromControls);
   dayInput.addEventListener('change', _updateStateFromControls);
-  _bindTimeJoystick();
+  _bindSkyJoystick();
+  _bindPlanarJoystick();
 
   playToggle.addEventListener('click', function(){
-    state.playing = !state.playing;
-    if (state.playing) {
+    state.skyPlaying = !state.skyPlaying;
+    if (state.skyPlaying) {
       lastDetailSync = 0;
       lastUrlSync = 0;
     }
-    playToggle.textContent = state.playing ? 'Pause' : 'Play';
+    playToggle.textContent = state.skyPlaying ? 'Pause' : 'Play';
     _attemptRender(true, true, performance.now());
   });
 
@@ -144,6 +157,13 @@ function _bindEvents(){
     planarSpeedSelect.addEventListener('change', function(){
       state.planarDaysPerSecond = parseFloat(planarSpeedSelect.value) || 28;
       _syncControlsFromState();
+      _attemptRender(true, true, performance.now());
+    });
+  }
+  if (planarPlayToggle) {
+    planarPlayToggle.addEventListener('click', function(){
+      state.planarPlaying = !state.planarPlaying;
+      planarPlayToggle!.textContent = state.planarPlaying ? 'Pause' : 'Play';
       _attemptRender(true, true, performance.now());
     });
   }
@@ -226,12 +246,16 @@ function _syncControlsFromState(){
   dayInput.value = String(date.day);
   var totalMinutes = Math.round(state.timeFrac * 1440) % 1440;
   timeLabel.textContent = _formatClock(totalMinutes);
-  if (!state.timeNudgeHoursPerSecond) {
+  if (!state.skyScrubHoursPerSecond) {
     timeJoystickSpeed.textContent = 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
+  }
+  if (planarTimeJoystickSpeed && !state.planarScrubDaysPerSecond) {
+    planarTimeJoystickSpeed.textContent = 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
   }
   speedSelect.value = String(state.speedHoursPerSecond);
   if (planarSpeedSelect) planarSpeedSelect.value = String(state.planarDaysPerSecond);
-  playToggle.textContent = state.playing ? 'Pause' : 'Play';
+  playToggle.textContent = state.skyPlaying ? 'Pause' : 'Play';
+  if (planarPlayToggle) planarPlayToggle.textContent = state.planarPlaying ? 'Pause' : 'Play';
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   sceneSubtitle.textContent = world.description;
   if (heroStats.dataset.worldId !== state.worldId) {
@@ -246,10 +270,11 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
     worldId: state.worldId,
     serial: state.serial,
     timeFrac: state.timeFrac,
-    observerLatitude: 37.7749
+    observerLatitude: SCENE_OBSERVER_LATITUDE
   });
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
+  sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet.';
   _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
@@ -401,6 +426,7 @@ var PANO_AZ_MAX = 280;
 var PANO_ALT_MAX = 75;
 var PANO_TOP_MARGIN = 70;
 var PANO_BOTTOM_MARGIN = 32;
+var SCENE_OBSERVER_LATITUDE = 37.7749;
 
 function _panoramicPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
   var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
@@ -536,6 +562,20 @@ function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number,
   return _panoramicPoint(canvas.width, canvas.height, azimuthDeg, altitudeDeg);
 }
 
+function _sceneFacingDirection(){
+  var centerAz = ((PANO_AZ_MIN + PANO_AZ_MAX) / 2 + 360) % 360;
+  if (centerAz >= 45 && centerAz < 135) return 'East';
+  if (centerAz >= 135 && centerAz < 225) return 'South';
+  if (centerAz >= 225 && centerAz < 315) return 'West';
+  return 'North';
+}
+
+function _formatLatitude(latitudeDeg: number){
+  var abs = Math.abs(latitudeDeg);
+  var hemisphere = latitudeDeg >= 0 ? 'N' : 'S';
+  return abs.toFixed(2) + '° ' + hemisphere;
+}
+
 function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean, albedo: number){
   if (!ctx) return;
   var albedoScale = Math.max(0.25, Math.min(2.2, albedo / 0.12));
@@ -584,11 +624,11 @@ function _buildHeroStats(worldId: string){
 function _drawSiberysRing(width: number, height: number, observerLatDeg: number){
   if (!ctx) return;
   var lat = observerLatDeg * Math.PI / 180;
-  var altPeak = 90 - observerLatDeg;
   var steps = 120;
   var outerPts: {x: number; y: number}[] = [];
   var innerPts: {x: number; y: number}[] = [];
   var centerPts: {x: number; y: number}[] = [];
+  var halfWidthDeg = 6;
 
   for (var i = 0; i <= steps; i++){
     var H = (-90 + 180 * i / steps) * Math.PI / 180;
@@ -600,10 +640,9 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
     var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
     var azDeg = ((azRaw * 180 / Math.PI) + 180 + 360) % 360;
 
-    var halfWidth = 8 * (altDeg / altPeak);
     centerPts.push(_panoramicPoint(width, height, azDeg, altDeg));
-    outerPts.push(_panoramicPoint(width, height, azDeg, altDeg + halfWidth));
-    innerPts.push(_panoramicPoint(width, height, azDeg, altDeg - halfWidth));
+    outerPts.push(_panoramicPoint(width, height, azDeg, altDeg + halfWidthDeg));
+    innerPts.push(_panoramicPoint(width, height, azDeg, Math.max(0, altDeg - halfWidthDeg)));
   }
 
   if (centerPts.length < 2) return;
@@ -627,10 +666,17 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
   ctx.shadowBlur = 16;
   ctx.stroke();
 
-  var sparkleCount = Math.max(12, Math.round(centerPts.length / 6));
+  var sparkleCount = Math.max(36, Math.round(centerPts.length * 0.9));
   for (var s = 0; s < sparkleCount; s++){
-    var idx = Math.floor((centerPts.length - 1) * (s / sparkleCount));
-    var pt = centerPts[idx];
+    var t = (s + 0.5) / sparkleCount;
+    var idx = Math.min(centerPts.length - 1, Math.floor((centerPts.length - 1) * t));
+    var outer = outerPts[idx];
+    var inner = innerPts[idx];
+    var bandMix = ((_hash('siberys:' + s + ':' + state.serial) % 1000) / 1000);
+    var pt = {
+      x: inner.x + (outer.x - inner.x) * bandMix,
+      y: inner.y + (outer.y - inner.y) * bandMix
+    };
     var pulse = 0.45 + 0.55 * Math.sin((state.timeFrac * Math.PI * 2 * 7) + (s * 1.37));
     var r = 0.8 + pulse * 1.9;
     ctx.beginPath();
@@ -648,7 +694,7 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
   ctx.restore();
 }
 
-function _bindTimeJoystick(){
+function _bindSkyJoystick(){
   var active = false;
   var setFromClientX = function(clientX: number){
     var rect = timeJoystick.getBoundingClientRect();
@@ -659,7 +705,7 @@ function _bindTimeJoystick(){
     var speeds = [0.5, 1, 4, 12, 24];
     var idx = Math.min(speeds.length - 1, Math.floor(mag * speeds.length));
     var base = mag < 0.06 ? 0 : speeds[idx];
-    state.timeNudgeHoursPerSecond = base * sign;
+    state.skyScrubHoursPerSecond = base * sign;
     var dir = sign >= 0 ? 'forward' : 'backward';
     timeJoystickSpeed.textContent = base
       ? ('Scrubbing ' + dir + ' at ' + (base < 1 ? '30m' : (base + 'hr')) + '/s')
@@ -668,12 +714,14 @@ function _bindTimeJoystick(){
   var stop = function(){
     if (!active) return;
     active = false;
-    state.timeNudgeHoursPerSecond = 0;
+    state.skyScrubHoursPerSecond = 0;
+    state.skyScrubActive = false;
     timeJoystickSpeed.textContent = 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
   };
 
   timeJoystick.addEventListener('pointerdown', function(ev){
     active = true;
+    state.skyScrubActive = true;
     timeJoystick.setPointerCapture(ev.pointerId);
     setFromClientX(ev.clientX);
   });
@@ -687,6 +735,50 @@ function _bindTimeJoystick(){
   window.addEventListener('blur', stop);
 }
 
+function _bindPlanarJoystick(){
+  if (!planarTimeJoystick || !planarTimeJoystickSpeed) return;
+  var active = false;
+  var setFromClientX = function(clientX: number){
+    if (!planarTimeJoystick) return;
+    var rect = planarTimeJoystick.getBoundingClientRect();
+    if (!rect.width) return;
+    var normalized = ((clientX - rect.left) / rect.width) * 2 - 1;
+    var mag = Math.max(0, Math.min(1, Math.abs(normalized)));
+    var sign = normalized >= 0 ? 1 : -1;
+    var speeds = [28, 168, 336, 1680, 3360];
+    var labels = ['1 month', '6 months', '1 year', '5 years', '10 years'];
+    var idx = Math.min(speeds.length - 1, Math.floor(mag * speeds.length));
+    var base = mag < 0.06 ? 0 : speeds[idx];
+    state.planarScrubDaysPerSecond = base * sign;
+    var dir = sign >= 0 ? 'forward' : 'backward';
+    planarTimeJoystickSpeed!.textContent = base
+      ? ('Scrubbing ' + dir + ' at ' + labels[idx] + '/s')
+      : 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
+  };
+  var stop = function(){
+    if (!active) return;
+    active = false;
+    state.planarScrubDaysPerSecond = 0;
+    state.planarScrubActive = false;
+    planarTimeJoystickSpeed!.textContent = 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
+  };
+
+  planarTimeJoystick.addEventListener('pointerdown', function(ev){
+    active = true;
+    state.planarScrubActive = true;
+    planarTimeJoystick!.setPointerCapture(ev.pointerId);
+    setFromClientX(ev.clientX);
+  });
+  planarTimeJoystick.addEventListener('pointermove', function(ev){
+    if (!active) return;
+    setFromClientX(ev.clientX);
+  });
+  planarTimeJoystick.addEventListener('pointerup', stop);
+  planarTimeJoystick.addEventListener('pointercancel', stop);
+  planarTimeJoystick.addEventListener('lostpointercapture', stop);
+  window.addEventListener('blur', stop);
+}
+
 // ---------------------------------------------------------------------------
 // Planar Orbital Diagram
 // ---------------------------------------------------------------------------
@@ -694,9 +786,10 @@ function _bindTimeJoystick(){
 var PLANAR_TILT = Math.sin(75 * Math.PI / 180); // More top-down view (~75°)
 var PLANAR_CX = 250;
 var PLANAR_CY = 250;
-var PLANAR_R_NEU = 135;     // neutral band radius
-var PLANAR_R_REM = 195;     // remote band radius
-var PLANAR_R_DAL = 228;     // Dal Quor outer orbit radius
+var PLANAR_R_COT = 70;      // coterminous outer border radius (x)
+var PLANAR_R_NEU = 140;     // neutral outer border radius (2x)
+var PLANAR_R_REM = 210;     // remote outer border radius (3x)
+var PLANAR_R_DAL = 246;     // Dal Quor outer orbit radius
 var PLANAR_DISC_R = 10;     // base disc radius
 
 function _planarProject(angleDeg: number, radius: number): { x: number; y: number } {
@@ -708,8 +801,8 @@ function _planarProject(angleDeg: number, radius: number): { x: number; y: numbe
 }
 
 function _planarRadiusForPosition(pos: number): number {
-  // 0.0 = center, 0.5 = neutral ring, 1.0 = remote ring
-  if (pos <= 0.5) return PLANAR_R_NEU * (pos / 0.5);
+  // 0.0 = coterminous border, 0.5 = neutral outer border, 1.0 = remote outer border
+  if (pos <= 0.5) return PLANAR_R_COT + (PLANAR_R_NEU - PLANAR_R_COT) * (pos / 0.5);
   return PLANAR_R_NEU + (PLANAR_R_REM - PLANAR_R_NEU) * ((pos - 0.5) / 0.5);
 }
 
@@ -728,8 +821,12 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   pCtx.fillRect(0, 0, w, h);
 
   // Draw concentric band ellipses
-  var bandRadii = [PLANAR_R_NEU, PLANAR_R_REM];
-  var bandLabels = ['Neutral', 'Remote'];
+  var bandRadii = [PLANAR_R_COT, PLANAR_R_NEU, PLANAR_R_REM];
+  var bandLabels = [
+    { name: 'Coterminous', radius: PLANAR_R_COT * 0.6 },
+    { name: 'Neutral', radius: (PLANAR_R_COT + PLANAR_R_NEU) / 2 },
+    { name: 'Remote', radius: (PLANAR_R_NEU + PLANAR_R_REM) / 2 }
+  ];
   for (var b = 0; b < bandRadii.length; b++) {
     pCtx.beginPath();
     pCtx.ellipse(PLANAR_CX, PLANAR_CY, bandRadii[b], bandRadii[b] * PLANAR_TILT, 0, 0, Math.PI * 2);
@@ -749,10 +846,11 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   pCtx.restore();
 
   // Draw 12 axis lines (faint, as elliptical arcs through center)
+  var globalSpinDeg = ((state.planarSerial / (12 * 336)) * 360) % 360;
   for (var a = 0; a < 12; a++) {
     var angleDeg = a * 15;
-    var p1 = _planarProject(angleDeg, PLANAR_R_REM);
-    var p2 = _planarProject(angleDeg + 180, PLANAR_R_REM);
+    var p1 = _planarProject(angleDeg + globalSpinDeg, PLANAR_R_REM);
+    var p2 = _planarProject(angleDeg + 180 + globalSpinDeg, PLANAR_R_REM);
     pCtx.beginPath();
     pCtx.moveTo(p1.x, p1.y);
     pCtx.lineTo(p2.x, p2.y);
@@ -761,12 +859,13 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
     pCtx.stroke();
   }
 
-  // Band labels along the right edge
+  // Band labels inside each band
   pCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
   pCtx.font = '10px "Trebuchet MS", sans-serif';
-  pCtx.textAlign = 'left';
+  pCtx.textAlign = 'center';
   for (var bl = 0; bl < bandLabels.length; bl++) {
-    pCtx.fillText(bandLabels[bl], PLANAR_CX + bandRadii[bl] + 6, PLANAR_CY + 4);
+    var labelPos = _planarProject(-24 + globalSpinDeg, bandLabels[bl].radius);
+    pCtx.fillText(bandLabels[bl].name, labelPos.x, labelPos.y + 4);
   }
 
   // Compute plane positions and sort back-to-front by Y for depth ordering
@@ -786,10 +885,10 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
     var radius: number;
 
     if (ph.isDalQuor) {
-      effectiveAngle = ph.dalQuorOrbitAngle || 0;
+      effectiveAngle = (ph.dalQuorOrbitAngle || 0) + globalSpinDeg;
       radius = PLANAR_R_DAL;
     } else {
-      effectiveAngle = ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180);
+      effectiveAngle = (ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180)) + globalSpinDeg;
       radius = _planarRadiusForPosition(ph.position);
     }
 
@@ -913,7 +1012,7 @@ function _renderPlanarLegend(phases: PlanarPhaseResult[]) {
 }
 
 function _planarStatusText(ph: PlanarPhaseResult): string {
-  if (ph.isDalQuor) return 'remote (severed), 10-year orbit';
+  if (ph.isDalQuor) return 'remote (severed), 13-year orbit';
   if (ph.isFixed) return ph.phase + ' (fixed)';
   if (ph.phase !== 'neutral') return ph.phase;
   var toCot = (ph.toCoterminousDays == null) ? Number.POSITIVE_INFINITY : ph.toCoterminousDays;
@@ -1191,12 +1290,19 @@ function _tick(now: number){
   try {
     var dtSeconds = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
     lastFrame = now;
-    var totalHoursPerSecond = (state.playing ? state.speedHoursPerSecond : 0) + state.timeNudgeHoursPerSecond;
-    if (state.playing || state.timeNudgeHoursPerSecond){
-      var totalDays = state.serial + state.timeFrac + ((dtSeconds * totalHoursPerSecond) / 24);
-      state.serial = Math.floor(totalDays);
-      state.timeFrac = totalDays - state.serial;
-      if (state.playing) state.planarSerial += dtSeconds * state.planarDaysPerSecond;
+    var skyHoursPerSecond = state.skyScrubActive
+      ? state.skyScrubHoursPerSecond
+      : (state.skyPlaying ? state.speedHoursPerSecond : 0);
+    var planarDaysPerSecond = state.planarScrubActive
+      ? state.planarScrubDaysPerSecond
+      : (state.planarPlaying ? state.planarDaysPerSecond : 0);
+    if (skyHoursPerSecond || planarDaysPerSecond){
+      if (skyHoursPerSecond) {
+        var totalDays = state.serial + state.timeFrac + ((dtSeconds * skyHoursPerSecond) / 24);
+        state.serial = Math.floor(totalDays);
+        state.timeFrac = totalDays - state.serial;
+      }
+      if (planarDaysPerSecond) state.planarSerial += dtSeconds * planarDaysPerSecond;
       _syncControlsFromState();
       _attemptRender(false, false, now);
     }
