@@ -395,6 +395,16 @@ function _panoramicPoint(width: number, height: number, azimuthDeg: number, alti
   return { x: x, y: y };
 }
 
+function _panoramicMoonPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
+  var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
+  var x = (azimuthDeg - PANO_AZ_MIN) / (PANO_AZ_MAX - PANO_AZ_MIN) * width;
+  // Keep motion continuous through the horizon by allowing a small below-horizon
+  // overscan for "peeking" moons instead of pinning them at 0° altitude.
+  var altCapped = Math.max(-12, Math.min(PANO_ALT_MAX, altitudeDeg));
+  var y = PANO_TOP_MARGIN + (1 - (altCapped / PANO_ALT_MAX)) * usableHeight;
+  return { x: x, y: y };
+}
+
 function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   if (!ctx) return;
   var width = canvas.width;
@@ -446,7 +456,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
     if (moon.category === 'below') continue;
     var az = moon.azimuth;
     if (az < PANO_AZ_MIN - 5 || az > PANO_AZ_MAX + 5) continue;
-    var position = _panoramicPoint(width, height, az, Math.max(0, moon.altitudeExact));
+    var position = _panoramicMoonPoint(width, height, az, moon.altitudeExact);
     var moonRadius = Math.max(14, Math.min(38, moon.angularDiameterDeg * 22));
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde);
     if (labeled < 5 && moon.altitudeExact >= 2){
