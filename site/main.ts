@@ -355,6 +355,9 @@ function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
       '</div>'
     );
   }).join('');
+  if (!nextHtml) {
+    nextHtml = '<div class="moon-row"><div class="moon-main"><strong>No moon data</strong><span>This world has no configured moon display rows.</span></div></div>';
+  }
   if (nextHtml !== lastMoonListHtml) {
     moonList.innerHTML = nextHtml;
     lastMoonListHtml = nextHtml;
@@ -1055,7 +1058,9 @@ function _tick(now: number){
     state.serial = Math.floor(totalDays);
     state.timeFrac = totalDays - state.serial;
     _syncControlsFromState();
-    _render(false, false, now);
+    // Keep all preview panes in lock-step with playback so the visual cards
+    // never appear blank while the date/time advances.
+    _render(true, false, now);
   }
   requestAnimationFrame(_tick);
 }
