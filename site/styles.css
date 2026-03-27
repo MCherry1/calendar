@@ -588,6 +588,24 @@ body {
   grid-column: 1 / -1;
 }
 
+.planar-speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.planar-speed-control select {
+  border-radius: 999px;
+  border: 1px solid rgba(230, 224, 213, 0.24);
+  background: rgba(11, 15, 25, 0.55);
+  color: var(--text-primary);
+  padding: 0.22rem 0.65rem;
+  font-size: 0.78rem;
+}
+
 #planar-canvas {
   display: block;
   width: 100%;
