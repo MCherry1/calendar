@@ -47,6 +47,7 @@ var planarTimeJoystickSpeed = document.getElementById('planar-time-joystick-spee
 var worldLabel = _must<HTMLElement>('hero-world-label');
 var sceneDateLabel = _must<HTMLElement>('scene-date-label');
 var sceneSubtitle = _must<HTMLElement>('scene-subtitle');
+var sceneViewNote = _must<HTMLElement>('scene-view-note');
 var moonList = _must<HTMLElement>('moon-list');
 var heroStats = _must<HTMLElement>('hero-stats');
 var calendarGallery = _must<HTMLElement>('calendar-gallery');
@@ -269,10 +270,11 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
     worldId: state.worldId,
     serial: state.serial,
     timeFrac: state.timeFrac,
-    observerLatitude: 37.7749
+    observerLatitude: SCENE_OBSERVER_LATITUDE
   });
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
+  sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet.';
   _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
@@ -424,6 +426,7 @@ var PANO_AZ_MAX = 280;
 var PANO_ALT_MAX = 75;
 var PANO_TOP_MARGIN = 70;
 var PANO_BOTTOM_MARGIN = 32;
+var SCENE_OBSERVER_LATITUDE = 37.7749;
 
 function _panoramicPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
   var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
@@ -557,6 +560,20 @@ function _drawCompass(width: number, height: number){
 
 function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number, altitudeDeg: number){
   return _panoramicPoint(canvas.width, canvas.height, azimuthDeg, altitudeDeg);
+}
+
+function _sceneFacingDirection(){
+  var centerAz = ((PANO_AZ_MIN + PANO_AZ_MAX) / 2 + 360) % 360;
+  if (centerAz >= 45 && centerAz < 135) return 'East';
+  if (centerAz >= 135 && centerAz < 225) return 'South';
+  if (centerAz >= 225 && centerAz < 315) return 'West';
+  return 'North';
+}
+
+function _formatLatitude(latitudeDeg: number){
+  var abs = Math.abs(latitudeDeg);
+  var hemisphere = latitudeDeg >= 0 ? 'N' : 'S';
+  return abs.toFixed(2) + '° ' + hemisphere;
 }
 
 function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean, albedo: number){

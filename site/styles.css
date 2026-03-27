@@ -307,6 +307,12 @@ body {
   font-family: var(--serif);
 }
 
+.scene-view-note {
+  margin: 0.5rem 0 0;
+  color: rgba(231, 224, 210, 0.78);
+  font-size: 0.8rem;
+}
+
 .scene-grid {
   display: grid;
   grid-template-columns: 1.2fr 0.9fr;
