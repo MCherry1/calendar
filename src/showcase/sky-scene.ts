@@ -13,6 +13,8 @@ export type SkySceneMoon = {
   name: string;
   title?: string;
   color?: string;
+  albedo?: number;
+  orbitalDistance?: number;
   altitude: number;
   altitudeExact: number;
   azimuth: number;
@@ -75,6 +77,7 @@ type BuildSkySceneResolvedInput = {
   skyLongAt: (moon: MoonLike, serial: number, phase: SkyScenePhase) => number;
   eclipticLatAt: (moon: MoonLike, serial: number, skyLongDeg: number) => number;
   angularDiameterDegAt: (moon: MoonLike, serial: number) => number;
+  orbitalDistanceAt?: (moon: MoonLike, serial: number) => number;
   retrogradeAt?: (moon: MoonLike, serial: number) => boolean;
 };
 
@@ -162,6 +165,8 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
       name: moon.name,
       title: moon.title,
       color: moon.color,
+      albedo: Number(moon.albedo || 0),
+      orbitalDistance: input.orbitalDistanceAt ? input.orbitalDistanceAt(moon, positionSerial) : Number(moon.distance || 0),
       altitude: Math.round(alt),
       altitudeExact: alt,
       azimuth: az,
@@ -213,6 +218,9 @@ export function buildSkyScene(input: { worldId: string; serial: number; timeFrac
     },
     angularDiameterDegAt: function(moon, serial){
       return _moonAngularDiameterDeg(moon, serial, worldId);
+    },
+    orbitalDistanceAt: function(moon, serial){
+      return _orbitalParams(worldId, moon, serial).distance;
     },
     retrogradeAt: function(moon, serial){
       return !!_orbitalParams(worldId, moon, serial).retrograde;

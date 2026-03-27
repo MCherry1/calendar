@@ -12,6 +12,7 @@ type ShowcaseState = {
   timeFrac: number;
   playing: boolean;
   speedHoursPerSecond: number;
+  timeNudgeHoursPerSecond: number;
   planarSerial: number;
   planarDaysPerSecond: number;
 };
@@ -30,7 +31,8 @@ var worldSelect = _must<HTMLSelectElement>('hero-world');
 var yearInput = _must<HTMLInputElement>('hero-year');
 var slotSelect = _must<HTMLSelectElement>('hero-slot');
 var dayInput = _must<HTMLInputElement>('hero-day');
-var timeInput = _must<HTMLInputElement>('hero-time');
+var timeJoystick = _must<HTMLButtonElement>('hero-time-joystick');
+var timeJoystickSpeed = _must<HTMLElement>('hero-time-joystick-speed');
 var timeLabel = _must<HTMLOutputElement>('hero-time-label');
 var playToggle = _must<HTMLButtonElement>('play-toggle');
 var speedSelect = _must<HTMLSelectElement>('hero-speed');
@@ -96,6 +98,7 @@ function _initialState(): ShowcaseState {
     timeFrac: _parseTimeParam(url.searchParams.get('time')),
     playing: false,
     speedHoursPerSecond: 12,
+    timeNudgeHoursPerSecond: 0,
     planarSerial: serial,
     planarDaysPerSecond: 28
   };
@@ -120,11 +123,7 @@ function _bindEvents(){
   yearInput.addEventListener('change', _updateStateFromControls);
   slotSelect.addEventListener('change', _updateStateFromControls);
   dayInput.addEventListener('change', _updateStateFromControls);
-  timeInput.addEventListener('input', function(){
-    state.timeFrac = (parseInt(timeInput.value, 10) || 0) / 1440;
-    _syncControlsFromState();
-    _attemptRender(true, true, performance.now());
-  });
+  _bindTimeJoystick();
 
   playToggle.addEventListener('click', function(){
     state.playing = !state.playing;
@@ -226,8 +225,10 @@ function _syncControlsFromState(){
   dayInput.max = String(Math.max(1, getWorldCalendarSlots(state.worldId)[date.slotIndex].days | 0));
   dayInput.value = String(date.day);
   var totalMinutes = Math.round(state.timeFrac * 1440) % 1440;
-  timeInput.value = String(totalMinutes < 0 ? totalMinutes + 1440 : totalMinutes);
   timeLabel.textContent = _formatClock(totalMinutes);
+  if (!state.timeNudgeHoursPerSecond) {
+    timeJoystickSpeed.textContent = 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
+  }
   speedSelect.value = String(state.speedHoursPerSecond);
   if (planarSpeedSelect) planarSpeedSelect.value = String(state.planarDaysPerSecond);
   playToggle.textContent = state.playing ? 'Pause' : 'Play';
@@ -463,15 +464,18 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
 
   _drawCompass(width, height);
 
+  var drawMoons = scene.moons.slice().sort(function(a, b){
+    return Number(b.orbitalDistance || 0) - Number(a.orbitalDistance || 0);
+  });
   var labeled = 0;
-  for (var i = 0; i < scene.moons.length; i++){
-    var moon = scene.moons[i];
+  for (var i = 0; i < drawMoons.length; i++){
+    var moon = drawMoons[i];
     if (moon.category === 'below') continue;
     var az = moon.azimuth;
     if (az < PANO_AZ_MIN - 5 || az > PANO_AZ_MAX + 5) continue;
     var position = _panoramicMoonPoint(width, height, az, moon.altitudeExact);
     var moonRadius = Math.max(14, Math.min(38, moon.angularDiameterDeg * 22));
-    _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde);
+    _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12));
     if (labeled < 5 && moon.altitudeExact >= 2){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
       ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
@@ -532,14 +536,18 @@ function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number,
   return _panoramicPoint(canvas.width, canvas.height, azimuthDeg, altitudeDeg);
 }
 
-function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean){
+function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean, albedo: number){
   if (!ctx) return;
+  var albedoScale = Math.max(0.25, Math.min(2.2, albedo / 0.12));
+  var glowAlpha = Math.max(0.18, Math.min(0.8, 0.22 + albedoScale * 0.23));
+  var edgeAlpha = Math.max(0.28, Math.min(0.92, 0.4 + albedoScale * 0.2));
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.shadowColor = color;
-  ctx.shadowBlur = radius * 1.2;
+  ctx.shadowBlur = radius * (0.7 + albedoScale * 0.7);
+  ctx.globalAlpha = glowAlpha;
   ctx.fill();
   ctx.restore();
 
@@ -558,7 +566,7 @@ function _drawMoonDisk(x: number, y: number, radius: number, color: string, phas
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.lineWidth = 1.2;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, ' + edgeAlpha + ')';
   ctx.stroke();
 }
 
@@ -607,19 +615,76 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
   for (var j = 1; j < outerPts.length; j++) ctx.lineTo(outerPts[j].x, outerPts[j].y);
   for (var k = innerPts.length - 1; k >= 0; k--) ctx.lineTo(innerPts[k].x, innerPts[k].y);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(232, 203, 118, 0.13)';
+  ctx.fillStyle = 'rgba(232, 203, 118, 0.2)';
   ctx.fill();
 
   ctx.beginPath();
   ctx.moveTo(centerPts[0].x, centerPts[0].y);
   for (var m = 1; m < centerPts.length; m++) ctx.lineTo(centerPts[m].x, centerPts[m].y);
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = 'rgba(232, 203, 118, 0.48)';
-  ctx.shadowColor = 'rgba(232, 203, 118, 0.55)';
-  ctx.shadowBlur = 12;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(248, 216, 129, 0.62)';
+  ctx.shadowColor = 'rgba(244, 207, 104, 0.8)';
+  ctx.shadowBlur = 16;
   ctx.stroke();
 
+  var sparkleCount = Math.max(12, Math.round(centerPts.length / 6));
+  for (var s = 0; s < sparkleCount; s++){
+    var idx = Math.floor((centerPts.length - 1) * (s / sparkleCount));
+    var pt = centerPts[idx];
+    var pulse = 0.45 + 0.55 * Math.sin((state.timeFrac * Math.PI * 2 * 7) + (s * 1.37));
+    var r = 0.8 + pulse * 1.9;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 237, 178, ' + (0.25 + pulse * 0.55) + ')';
+    ctx.fill();
+  }
+  var crest = centerPts[Math.floor(centerPts.length * 0.55)];
+  if (crest) {
+    ctx.fillStyle = 'rgba(255, 235, 191, 0.8)';
+    ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Ring of Siberys', crest.x + 10, crest.y - 8);
+  }
   ctx.restore();
+}
+
+function _bindTimeJoystick(){
+  var active = false;
+  var setFromClientX = function(clientX: number){
+    var rect = timeJoystick.getBoundingClientRect();
+    if (!rect.width) return;
+    var normalized = ((clientX - rect.left) / rect.width) * 2 - 1;
+    var mag = Math.max(0, Math.min(1, Math.abs(normalized)));
+    var sign = normalized >= 0 ? 1 : -1;
+    var speeds = [0.5, 1, 4, 12, 24];
+    var idx = Math.min(speeds.length - 1, Math.floor(mag * speeds.length));
+    var base = mag < 0.06 ? 0 : speeds[idx];
+    state.timeNudgeHoursPerSecond = base * sign;
+    var dir = sign >= 0 ? 'forward' : 'backward';
+    timeJoystickSpeed.textContent = base
+      ? ('Scrubbing ' + dir + ' at ' + (base < 1 ? '30m' : (base + 'hr')) + '/s')
+      : 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
+  };
+  var stop = function(){
+    if (!active) return;
+    active = false;
+    state.timeNudgeHoursPerSecond = 0;
+    timeJoystickSpeed.textContent = 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
+  };
+
+  timeJoystick.addEventListener('pointerdown', function(ev){
+    active = true;
+    timeJoystick.setPointerCapture(ev.pointerId);
+    setFromClientX(ev.clientX);
+  });
+  timeJoystick.addEventListener('pointermove', function(ev){
+    if (!active) return;
+    setFromClientX(ev.clientX);
+  });
+  timeJoystick.addEventListener('pointerup', stop);
+  timeJoystick.addEventListener('pointercancel', stop);
+  timeJoystick.addEventListener('lostpointercapture', stop);
+  window.addEventListener('blur', stop);
 }
 
 // ---------------------------------------------------------------------------
@@ -1126,11 +1191,12 @@ function _tick(now: number){
   try {
     var dtSeconds = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
     lastFrame = now;
-    if (state.playing){
-      var totalDays = state.serial + state.timeFrac + ((dtSeconds * state.speedHoursPerSecond) / 24);
+    var totalHoursPerSecond = (state.playing ? state.speedHoursPerSecond : 0) + state.timeNudgeHoursPerSecond;
+    if (state.playing || state.timeNudgeHoursPerSecond){
+      var totalDays = state.serial + state.timeFrac + ((dtSeconds * totalHoursPerSecond) / 24);
       state.serial = Math.floor(totalDays);
       state.timeFrac = totalDays - state.serial;
-      state.planarSerial += dtSeconds * state.planarDaysPerSecond;
+      if (state.playing) state.planarSerial += dtSeconds * state.planarDaysPerSecond;
       _syncControlsFromState();
       _attemptRender(false, false, now);
     }
