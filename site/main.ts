@@ -1,7 +1,7 @@
 import { WORLD_ORDER, WORLDS } from '../src/worlds/index.js';
 import { COLOR_THEMES } from '../src/constants.js';
 import { buildCalendarPreview } from '../src/showcase/calendar-preview.js';
-import { buildSkyScene, moonPhasesForDay } from '../src/showcase/sky-scene.js';
+import { buildSkyScene } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
@@ -37,7 +37,6 @@ var sceneSubtitle = _must<HTMLElement>('scene-subtitle');
 var moonList = _must<HTMLElement>('moon-list');
 var heroStats = _must<HTMLElement>('hero-stats');
 var calendarGallery = _must<HTMLElement>('calendar-gallery');
-var galleryWorldSelect = _must<HTMLSelectElement>('gallery-world');
 var gallerySourceSelect = _must<HTMLSelectElement>('gallery-source');
 var galleryYearInput = _must<HTMLInputElement>('gallery-year');
 var galleryVariantSelect = _must<HTMLSelectElement>('gallery-variant');
@@ -62,11 +61,14 @@ function _ensurePlanarCtx(): CanvasRenderingContext2D | null {
   return planarCtx;
 }
 
-_renderWorldOptions();
-_renderGalleryWorldOptions();
-_syncGalleryControlsFromState();
-_renderCalendarGallery();
-_syncControlsFromState();
+try {
+  _renderWorldOptions();
+  _syncGalleryControlsFromState();
+  _renderCalendarGallery();
+  _syncControlsFromState();
+} catch (err) {
+  console.error('Showcase init error:', err);
+}
 _bindEvents();
 _render(true, true, performance.now());
 requestAnimationFrame(_tick);
@@ -103,6 +105,10 @@ function _bindEvents(){
     state.timeFrac = 22 / 24;
     _syncControlsFromState();
     _render(true, true, performance.now());
+    _renderGallerySourceOptions(next, 'all');
+    _renderGalleryVariantOptions(next);
+    galleryYearInput.value = String(world.defaultDate.year);
+    _renderCalendarGallery();
   });
 
   yearInput.addEventListener('change', _updateStateFromControls);
@@ -144,16 +150,6 @@ function _bindEvents(){
         copyLinkButton.textContent = 'Copy Scene URL';
       }, 1200);
     }
-  });
-
-  galleryWorldSelect.addEventListener('change', function(){
-    var nextWorld = String(galleryWorldSelect.value || state.worldId).toLowerCase();
-    if (!WORLDS[nextWorld]) nextWorld = state.worldId;
-    galleryWorldSelect.value = nextWorld;
-    _renderGallerySourceOptions(nextWorld, 'all');
-    _renderGalleryVariantOptions(nextWorld);
-    galleryYearInput.value = String(WORLDS[nextWorld].defaultDate.year);
-    _renderCalendarGallery();
   });
 
   gallerySourceSelect.addEventListener('change', _renderCalendarGallery);
@@ -242,7 +238,14 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
 }
 
 function _renderCalendarGallery(){
-  var worldId = String(galleryWorldSelect.value || state.worldId || 'eberron').toLowerCase();
+  try { _renderCalendarGalleryInner(); } catch (err) {
+    console.error('Gallery render error:', err);
+    calendarGallery.innerHTML = '<p style="color:#9a9590;padding:1rem;">Calendar gallery could not render.</p>';
+  }
+}
+
+function _renderCalendarGalleryInner(){
+  var worldId = String(state.worldId || 'eberron').toLowerCase();
   if (!WORLDS[worldId]) worldId = 'eberron';
   var world = WORLDS[worldId];
   var year = parseInt(galleryYearInput.value, 10);
@@ -789,15 +792,8 @@ function _renderPlanarLegend(phases: PlanarPhaseResult[]) {
   }
 }
 
-function _renderGalleryWorldOptions(){
-  galleryWorldSelect.innerHTML = WORLD_ORDER.map(function(worldId){
-    return '<option value="' + worldId + '">' + _esc(WORLDS[worldId].label) + '</option>';
-  }).join('');
-}
-
 function _syncGalleryControlsFromState(){
   var worldId = state.worldId;
-  galleryWorldSelect.value = worldId;
   _renderGallerySourceOptions(worldId, 'all');
   _renderGalleryVariantOptions(worldId);
   galleryYearInput.value = String(WORLDS[worldId].defaultDate.year);
