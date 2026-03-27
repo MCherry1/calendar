@@ -1058,9 +1058,7 @@ function _tick(now: number){
     state.serial = Math.floor(totalDays);
     state.timeFrac = totalDays - state.serial;
     _syncControlsFromState();
-    // Keep all preview panes in lock-step with playback so the visual cards
-    // never appear blank while the date/time advances.
-    _render(true, false, now);
+    _render(false, false, now);
   }
   requestAnimationFrame(_tick);
 }
