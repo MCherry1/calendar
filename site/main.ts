@@ -51,9 +51,16 @@ if (!ctx) throw new Error('Canvas context not available.');
 
 var planarCard = document.getElementById('planar-card');
 var planarCanvas = document.getElementById('planar-canvas') as HTMLCanvasElement | null;
-var planarCtx = planarCanvas ? planarCanvas.getContext('2d') : null;
+var planarCtx: CanvasRenderingContext2D | null = null;
 var planarLegend = document.getElementById('planar-legend');
 var lastPlanarLegendHtml = '';
+
+function _ensurePlanarCtx(): CanvasRenderingContext2D | null {
+  if (planarCtx) return planarCtx;
+  if (!planarCanvas) return null;
+  planarCtx = planarCanvas.getContext('2d');
+  return planarCtx;
+}
 
 _renderWorldOptions();
 _renderGalleryWorldOptions();
@@ -216,7 +223,8 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   _drawScene(scene);
-  if (state.worldId === 'eberron' && planarCtx) {
+  var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
+  if (pCtxReady) {
     var planarPhases = getAllShowcasePlanarPhases(state.serial);
     _drawPlanarDiagram(planarPhases);
     if (forceDetails || (now - lastDetailSync) >= DETAIL_SYNC_INTERVAL_MS) {
@@ -415,7 +423,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
     var az = moon.azimuth;
     if (az < PANO_AZ_MIN - 5 || az > PANO_AZ_MAX + 5) continue;
     var position = _panoramicPoint(width, height, az, Math.max(0, moon.altitudeExact));
-    var moonRadius = Math.max(8, Math.min(32, moon.angularDiameterDeg * 8));
+    var moonRadius = Math.max(14, Math.min(38, moon.angularDiameterDeg * 22));
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde);
     if (labeled < 5 && moon.altitudeExact >= 2){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
