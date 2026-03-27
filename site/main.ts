@@ -12,6 +12,8 @@ type ShowcaseState = {
   timeFrac: number;
   playing: boolean;
   speedHoursPerSecond: number;
+  planarSerial: number;
+  planarDaysPerSecond: number;
 };
 
 var DETAIL_SYNC_INTERVAL_MS = 160;
@@ -32,6 +34,7 @@ var timeInput = _must<HTMLInputElement>('hero-time');
 var timeLabel = _must<HTMLOutputElement>('hero-time-label');
 var playToggle = _must<HTMLButtonElement>('play-toggle');
 var speedSelect = _must<HTMLSelectElement>('hero-speed');
+var planarSpeedSelect = document.getElementById('planar-speed') as HTMLSelectElement | null;
 var worldLabel = _must<HTMLElement>('hero-world-label');
 var sceneDateLabel = _must<HTMLElement>('scene-date-label');
 var sceneSubtitle = _must<HTMLElement>('scene-subtitle');
@@ -92,7 +95,9 @@ function _initialState(): ShowcaseState {
     serial: serial,
     timeFrac: _parseTimeParam(url.searchParams.get('time')),
     playing: false,
-    speedHoursPerSecond: 12
+    speedHoursPerSecond: 12,
+    planarSerial: serial,
+    planarDaysPerSecond: 28
   };
 }
 
@@ -136,6 +141,13 @@ function _bindEvents(){
     _syncControlsFromState();
     _attemptRender(true, true, performance.now());
   });
+  if (planarSpeedSelect) {
+    planarSpeedSelect.addEventListener('change', function(){
+      state.planarDaysPerSecond = parseFloat(planarSpeedSelect.value) || 28;
+      _syncControlsFromState();
+      _attemptRender(true, true, performance.now());
+    });
+  }
 
   copyLinkButton.addEventListener('click', async function(){
     var link = window.location.href;
@@ -217,6 +229,7 @@ function _syncControlsFromState(){
   timeInput.value = String(totalMinutes < 0 ? totalMinutes + 1440 : totalMinutes);
   timeLabel.textContent = _formatClock(totalMinutes);
   speedSelect.value = String(state.speedHoursPerSecond);
+  if (planarSpeedSelect) planarSpeedSelect.value = String(state.planarDaysPerSecond);
   playToggle.textContent = state.playing ? 'Pause' : 'Play';
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   sceneSubtitle.textContent = world.description;
@@ -239,7 +252,7 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
-    var planarPhases = getAllShowcasePlanarPhases(state.serial);
+    var planarPhases = getAllShowcasePlanarPhases(state.planarSerial);
     _drawPlanarDiagram(planarPhases);
     if (forceDetails || (now - lastDetailSync) >= DETAIL_SYNC_INTERVAL_MS) {
       _renderPlanarLegend(planarPhases);
@@ -613,10 +626,9 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
 // Planar Orbital Diagram
 // ---------------------------------------------------------------------------
 
-var PLANAR_TILT = 0.4; // Y-axis compression for pseudo-3D (similar to Siberys ring's 0.34)
+var PLANAR_TILT = Math.sin(75 * Math.PI / 180); // More top-down view (~75°)
 var PLANAR_CX = 250;
 var PLANAR_CY = 250;
-var PLANAR_R_COT = 55;      // coterminous band radius
 var PLANAR_R_NEU = 135;     // neutral band radius
 var PLANAR_R_REM = 195;     // remote band radius
 var PLANAR_R_DAL = 228;     // Dal Quor outer orbit radius
@@ -631,10 +643,8 @@ function _planarProject(angleDeg: number, radius: number): { x: number; y: numbe
 }
 
 function _planarRadiusForPosition(pos: number): number {
-  // 0.0 = coterminous (inner), 0.5 = neutral (mid), 1.0 = remote (outer)
-  if (pos <= 0.5) {
-    return PLANAR_R_COT + (PLANAR_R_NEU - PLANAR_R_COT) * (pos / 0.5);
-  }
+  // 0.0 = center, 0.5 = neutral ring, 1.0 = remote ring
+  if (pos <= 0.5) return PLANAR_R_NEU * (pos / 0.5);
   return PLANAR_R_NEU + (PLANAR_R_REM - PLANAR_R_NEU) * ((pos - 0.5) / 0.5);
 }
 
@@ -653,8 +663,8 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   pCtx.fillRect(0, 0, w, h);
 
   // Draw concentric band ellipses
-  var bandRadii = [PLANAR_R_COT, PLANAR_R_NEU, PLANAR_R_REM];
-  var bandLabels = ['Coterminous', 'Neutral', 'Remote'];
+  var bandRadii = [PLANAR_R_NEU, PLANAR_R_REM];
+  var bandLabels = ['Neutral', 'Remote'];
   for (var b = 0; b < bandRadii.length; b++) {
     pCtx.beginPath();
     pCtx.ellipse(PLANAR_CX, PLANAR_CY, bandRadii[b], bandRadii[b] * PLANAR_TILT, 0, 0, Math.PI * 2);
@@ -676,8 +686,8 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   // Draw 12 axis lines (faint, as elliptical arcs through center)
   for (var a = 0; a < 12; a++) {
     var angleDeg = a * 15;
-    var p1 = _planarProject(angleDeg, PLANAR_R_REM + 8);
-    var p2 = _planarProject(angleDeg + 180, PLANAR_R_REM + 8);
+    var p1 = _planarProject(angleDeg, PLANAR_R_REM);
+    var p2 = _planarProject(angleDeg + 180, PLANAR_R_REM);
     pCtx.beginPath();
     pCtx.moveTo(p1.x, p1.y);
     pCtx.lineTo(p2.x, p2.y);
@@ -746,23 +756,37 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
 }
 
 function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
-  // Glowing center marker
+  // Eberron: ocean planet with continents
   pCtx.save();
   pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 10, 0, Math.PI * 2);
-  pCtx.fillStyle = 'rgba(180, 200, 220, 0.15)';
-  pCtx.shadowColor = 'rgba(180, 200, 220, 0.4)';
-  pCtx.shadowBlur = 12;
+  pCtx.arc(PLANAR_CX, PLANAR_CY, 12, 0, Math.PI * 2);
+  pCtx.fillStyle = '#2f75b7';
+  pCtx.shadowColor = 'rgba(70, 135, 200, 0.55)';
+  pCtx.shadowBlur = 14;
   pCtx.fill();
   pCtx.restore();
 
+  pCtx.save();
+  pCtx.fillStyle = '#4ab06d';
   pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 5, 0, Math.PI * 2);
-  pCtx.fillStyle = 'rgba(200, 215, 230, 0.6)';
+  pCtx.ellipse(PLANAR_CX - 3, PLANAR_CY - 1, 4, 2.2, 0.3, 0, Math.PI * 2);
   pCtx.fill();
-  pCtx.lineWidth = 1;
-  pCtx.strokeStyle = 'rgba(200, 215, 230, 0.3)';
-  pCtx.stroke();
+  pCtx.beginPath();
+  pCtx.ellipse(PLANAR_CX + 4, PLANAR_CY + 2, 3.4, 1.8, -0.2, 0, Math.PI * 2);
+  pCtx.fill();
+  pCtx.beginPath();
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY - 5, 2.6, 1.5, 0.7, 0, Math.PI * 2);
+  pCtx.fill();
+  pCtx.restore();
+
+  pCtx.save();
+  pCtx.beginPath();
+  pCtx.arc(PLANAR_CX, PLANAR_CY, 15, 0, Math.PI * 2);
+  pCtx.fillStyle = 'rgba(180, 200, 220, 0.08)';
+  pCtx.shadowColor = 'rgba(180, 200, 220, 0.35)';
+  pCtx.shadowBlur = 12;
+  pCtx.fill();
+  pCtx.restore();
 
   pCtx.fillStyle = 'rgba(255, 255, 255, 0.45)';
   pCtx.font = '10px "Trebuchet MS", sans-serif';
@@ -810,7 +834,7 @@ function _renderPlanarLegend(phases: PlanarPhaseResult[]) {
   var html = '';
   for (var i = 0; i < phases.length; i++) {
     var ph = phases[i];
-    var phaseName = ph.isDalQuor ? 'remote (severed)' : (ph.isFixed ? ph.phase + ' (fixed)' : ph.phase);
+    var phaseName = _planarStatusText(ph);
     html += '<div class="planar-legend-row">' +
       '<span class="planar-legend-dot" style="background:' + _esc(ph.color) + ';"></span>' +
       '<span class="planar-legend-name">' + _esc(ph.name) + '</span>' +
@@ -821,6 +845,26 @@ function _renderPlanarLegend(phases: PlanarPhaseResult[]) {
     planarLegend.innerHTML = html;
     lastPlanarLegendHtml = html;
   }
+}
+
+function _planarStatusText(ph: PlanarPhaseResult): string {
+  if (ph.isDalQuor) return 'remote (severed), 10-year orbit';
+  if (ph.isFixed) return ph.phase + ' (fixed)';
+  if (ph.phase !== 'neutral') return ph.phase;
+  var toCot = (ph.toCoterminousDays == null) ? Number.POSITIVE_INFINITY : ph.toCoterminousDays;
+  var toRem = (ph.toRemoteDays == null) ? Number.POSITIVE_INFINITY : ph.toRemoteDays;
+  if (toCot <= toRem) return 'coterminous in ' + _formatPlanarEta(toCot);
+  return 'remote in ' + _formatPlanarEta(toRem);
+}
+
+function _formatPlanarEta(days: number): string {
+  var monthDays = 28;
+  if (!isFinite(days) || days < 0) return 'unknown';
+  if (days < monthDays) return Math.max(1, Math.round(days)) + ' d';
+  var months = days / monthDays;
+  if (months < 12) return Math.max(1, Math.round(months)) + ' mo';
+  var years = months / 12;
+  return years.toFixed(years >= 10 ? 0 : 1) + ' yr';
 }
 
 function _syncGalleryControlsFromState(){
@@ -1086,6 +1130,7 @@ function _tick(now: number){
       var totalDays = state.serial + state.timeFrac + ((dtSeconds * state.speedHoursPerSecond) / 24);
       state.serial = Math.floor(totalDays);
       state.timeFrac = totalDays - state.serial;
+      state.planarSerial += dtSeconds * state.planarDaysPerSecond;
       _syncControlsFromState();
       _attemptRender(false, false, now);
     }

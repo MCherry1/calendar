@@ -205,6 +205,10 @@ export type PlanarPhaseResult = {
   isFixed: boolean;
   isDalQuor: boolean;
   dalQuorOrbitAngle?: number;
+  cycleDays?: number;
+  cycleOffsetDays?: number;
+  toCoterminousDays?: number | null;
+  toRemoteDays?: number | null;
 };
 
 export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] {
@@ -225,7 +229,9 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
 
     // Dal Quor: unpaired, orbits outside
     if (pl.name === 'Dal Quor') {
-      var dalAngle = ((serial % YEAR_DAYS) / YEAR_DAYS) * 360;
+      var dalCycleDays = YEAR_DAYS * 10;
+      var dalOffset = ((serial % dalCycleDays) + dalCycleDays) % dalCycleDays;
+      var dalAngle = (dalOffset / dalCycleDays) * 360;
       results.push({
         name: pl.name,
         color: pl.color,
@@ -235,7 +241,11 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         onPrimarySide: true,
         isFixed: true,
         isDalQuor: true,
-        dalQuorOrbitAngle: dalAngle
+        dalQuorOrbitAngle: dalAngle,
+        cycleDays: dalCycleDays,
+        cycleOffsetDays: dalOffset,
+        toCoterminousDays: null,
+        toRemoteDays: null
       });
       continue;
     }
@@ -256,7 +266,9 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         axisAngle: axis.angle,
         onPrimarySide: !partnerOnPrimary,
         isFixed: true,
-        isDalQuor: false
+        isDalQuor: false,
+        toCoterminousDays: null,
+        toRemoteDays: null
       });
       continue;
     }
@@ -266,7 +278,11 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
     if (!walk) continue;
 
     var phase = walk.phase;
-    var position = walk.position;
+    var cycle = _cycleMetrics(pl);
+    var anchor = _anchorSerial(pl);
+    var cycleOffset = ((serial - anchor) % cycle.orbitDays + cycle.orbitDays) % cycle.orbitDays;
+    var positionT = cycleOffset / cycle.orbitDays;
+    var position = positionT <= 0.5 ? (positionT * 2) : ((1 - positionT) * 2);
     var onPrimary = (walk.orbitNum % 2 === 0);
 
     // Mabar special case: 5-year remote window around summer solstice
@@ -300,9 +316,29 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
       axisAngle: axis.angle,
       onPrimarySide: onPrimary,
       isFixed: false,
-      isDalQuor: false
+      isDalQuor: false,
+      cycleDays: cycle.orbitDays,
+      cycleOffsetDays: cycleOffset,
+      toCoterminousDays: _timeToPhase(cycle, cycleOffset, 'coterminous'),
+      toRemoteDays: _timeToPhase(cycle, cycleOffset, 'remote')
     });
   }
 
   return results;
+}
+
+function _timeToPhase(cycle: CycleMetrics, cycleOffset: number, targetPhase: 'coterminous' | 'remote'): number {
+  var offsetToTarget = 0;
+  var found = false;
+  for (var i = 0; i < cycle.phases.length; i++) {
+    if (cycle.phases[i].name === targetPhase) {
+      found = true;
+      break;
+    }
+    offsetToTarget += cycle.phases[i].dur;
+  }
+  if (!found) return cycle.orbitDays;
+  var delta = offsetToTarget - cycleOffset;
+  if (delta <= 0) delta += cycle.orbitDays;
+  return delta;
 }

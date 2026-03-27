@@ -103,6 +103,16 @@
             </div>
             <div class="scene-card scene-card-planar" id="planar-card" hidden>
               <p class="scene-card-label">Planar Orbits</p>
+              <label class="planar-speed-control">
+                <span>Planar Playback</span>
+                <select id="planar-speed">
+                  <option value="28" selected>1 month/s</option>
+                  <option value="168">6 months/s</option>
+                  <option value="336">1 year/s</option>
+                  <option value="1680">5 years/s</option>
+                  <option value="3360">10 years/s</option>
+                </select>
+              </label>
               <canvas id="planar-canvas" width="500" height="500" aria-label="Planar orbital diagram"></canvas>
               <div id="planar-legend"></div>
             </div>
