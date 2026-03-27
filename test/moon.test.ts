@@ -96,7 +96,7 @@ describe("Moon System", () => {
     }
   });
 
-  it("uses the default Dragonlance Night of the Eye anchor for phase and sky alignment", () => {
+  it("uses the default Dragonlance Night of the Eye anchor for phase and Luna-like sky alignment", () => {
     freshInstall();
     applyCalendarSystem("dragonlance", "standard");
     invalidateMoonModel(false);
@@ -112,7 +112,7 @@ describe("Moon System", () => {
     const visible = _moonVisibilityAll(anchorSerial, 0);
     assertEquals(visible.length, 3);
     for (const moon of visible) {
-      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead on the default Night of the Eye`);
+      assert(moon.altitudeExact > 50 && moon.altitudeExact < 65, `${moon.name} should follow a Luna-like non-zenith path on the default Night of the Eye`);
     }
     assertEquals(new Set(visible.map((moon: any) => moon.direction)).size, 1);
   });
@@ -135,7 +135,7 @@ describe("Moon System", () => {
     const visible = _moonVisibilityAll(overrideSerial, 0);
     assertEquals(visible.length, 3);
     for (const moon of visible) {
-      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead on the overridden Night of the Eye`);
+      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead when the Night of the Eye is manually overridden`);
     }
 
     const ms = getMoonState();
