@@ -58,7 +58,12 @@
             </label>
             <label class="wide">
               <span>Time</span>
-              <input id="hero-time" type="range" min="0" max="1439" step="10">
+              <div class="time-joystick-wrap">
+                <button id="hero-time-joystick" class="time-joystick" type="button" aria-label="Hold left/right to move time backward/forward">
+                  <span class="time-joystick-center"></span>
+                </button>
+                <div id="hero-time-joystick-speed" class="time-joystick-speed">Hold to scrub time (±30m/hr/4hr/12hr/24hr)</div>
+              </div>
               <output id="hero-time-label"></output>
             </label>
             <label>
@@ -66,12 +71,11 @@
               <div class="playback-row">
                 <button class="play-button" id="play-toggle" type="button">Play</button>
                 <select id="hero-speed">
-                  <option value="1">1 hr/s</option>
-                  <option value="4">4 hr/s</option>
+                  <option value="0.5">30m/s</option>
+                  <option value="1">1hr/s</option>
+                  <option value="4">4hrs/s</option>
                   <option value="12" selected>12 hr/s</option>
-                  <option value="24">24 hr/s</option>
-                  <option value="72">72 hr/s</option>
-                  <option value="168">168 hr/s</option>
+                  <option value="24">24hrs/s</option>
                 </select>
               </div>
             </label>
