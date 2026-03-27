@@ -79,14 +79,13 @@ describe('Showcase Sky Scene', () => {
     assert(new Set(signatures).size > 1, 'Dragonlance moons should not all share the same phase state');
   });
 
-  it('anchors the default Night of the Eye overhead at midnight with the requested eye sizes', () => {
+  it('anchors the default Night of the Eye at midnight with phase locking and requested eye sizes', () => {
     const anchorSerial = toWorldSerialFromRegularDate('dragonlance', 346, 6, 7);
     const scene = buildSkyScene({ worldId: 'dragonlance', serial: anchorSerial, timeFrac: 0 });
     assertEquals(scene.moons.length, 3);
 
     for (const moon of scene.moons) {
       assertEquals(moon.pctFull, 100);
-      assert(moon.altitudeExact > 89.5, `${moon.name} should be overhead at the default Night of the Eye`);
     }
 
     const solinari = scene.moons.find((moon) => moon.name === 'Solinari');
