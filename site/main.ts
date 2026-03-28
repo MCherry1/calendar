@@ -5,6 +5,7 @@ import { buildSkyScene } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
+import { getMoonTexture, clearTextureCache, generateStarField, generateMilkyWay, StarData } from './sky-textures.js';
 
 type ShowcaseState = {
   worldId: string;
@@ -31,6 +32,10 @@ var lastDetailSync = 0;
 var lastUrlSync = 0;
 var lastMoonListHtml = '';
 var lastRenderError = '';
+
+var _starField: StarData[] | null = null;
+var _milkyWay: HTMLCanvasElement | null = null;
+var _starWorldId = '';
 
 var worldSelect = _must<HTMLSelectElement>('hero-world');
 var yearInput = _must<HTMLInputElement>('hero-year');
@@ -127,6 +132,7 @@ function _bindEvents(){
     state.worldId = next;
     state.serial = toWorldSerial(next, world.defaultDate.year, regularMonthIndexToSlotIndex(next, world.defaultDate.month), world.defaultDate.day);
     state.timeFrac = 22 / 24;
+    clearTextureCache();
     _syncControlsFromState();
     _attemptRender(true, true, performance.now());
     _renderGallerySourceOptions(next, 'all');
@@ -463,13 +469,36 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
 
   var skyBottom = height - PANO_BOTTOM_MARGIN;
   var gradient = ctx.createLinearGradient(0, PANO_TOP_MARGIN, 0, skyBottom);
-  gradient.addColorStop(0, '#0a1e35');
-  gradient.addColorStop(0.6, '#122030');
-  gradient.addColorStop(1, '#1c1712');
+  gradient.addColorStop(0, '#060e1e');
+  gradient.addColorStop(0.15, '#0a1a30');
+  gradient.addColorStop(0.4, '#0c1e30');
+  gradient.addColorStop(0.65, '#0e1f2f');
+  gradient.addColorStop(0.85, '#1a1a20');
+  gradient.addColorStop(1, '#1e1510');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
-  ctx.fillStyle = '#080c14';
+  ctx.fillStyle = '#040810';
   ctx.fillRect(0, 0, width, PANO_TOP_MARGIN);
+  // nebula washes
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  var neb1 = ctx.createRadialGradient(width * 0.3, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.25, 0, width * 0.3, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.25, width * 0.35);
+  neb1.addColorStop(0, 'rgba(30,15,50,0.04)');
+  neb1.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = neb1;
+  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
+  var neb2 = ctx.createRadialGradient(width * 0.75, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.4, 0, width * 0.75, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.4, width * 0.3);
+  neb2.addColorStop(0, 'rgba(10,30,40,0.03)');
+  neb2.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = neb2;
+  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
+  ctx.restore();
+  // vignette
+  var vig = ctx.createRadialGradient(width / 2, (PANO_TOP_MARGIN + skyBottom) / 2, Math.min(width, skyBottom - PANO_TOP_MARGIN) * 0.35, width / 2, (PANO_TOP_MARGIN + skyBottom) / 2, Math.max(width, skyBottom - PANO_TOP_MARGIN) * 0.7);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.15)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
 
   _drawStars(width, height, state.timeFrac);
 
@@ -513,7 +542,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
     if (panoAz < PANO_AZ_MIN - 5 || panoAz > PANO_AZ_MAX + 5) continue;
     var position = _panoramicMoonPoint(width, height, panoAz, moon.altitudeExact);
     var moonRadius = _moonRadiusPx(moon.angularDiameterDeg, state.lunarSizeMode);
-    _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12));
+    _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12), moon.name);
     if (labeled < 5 && moon.altitudeExact >= 2){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
       ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
@@ -532,18 +561,56 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
 
 function _drawStars(width: number, height: number, timeFrac: number){
   if (!ctx) return;
-  var twinkle = 0.76 + Math.sin(timeFrac * Math.PI * 2) * 0.08;
-  var skyBottom = height - PANO_BOTTOM_MARGIN;
-  var skyHeight = skyBottom - PANO_TOP_MARGIN;
-  for (var i = 0; i < 160; i++){
-    var seed = _hash(i + ':' + state.worldId);
-    var x = (seed * 9301 % 1000) / 1000 * width;
-    var y = PANO_TOP_MARGIN + (_hash('y:' + i + ':' + state.worldId) * 8117 % 1000) / 1000 * skyHeight;
-    var size = 0.5 + ((_hash('s:' + i + ':' + state.worldId) * 3571) % 1000) / 1000 * 2.1;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 247, 225, ' + (0.18 + ((_hash('a:' + i + ':' + state.worldId) % 1000) / 1000) * twinkle) + ')';
-    ctx.fill();
+  // lazily init / re-init star field when world changes
+  if (!_starField || _starWorldId !== state.worldId){
+    _starField = generateStarField(width, height, state.worldId, PANO_TOP_MARGIN, PANO_BOTTOM_MARGIN);
+    _milkyWay = generateMilkyWay(width, height, state.worldId, PANO_TOP_MARGIN, PANO_BOTTOM_MARGIN);
+    _starWorldId = state.worldId;
+  }
+  // draw milky-way band
+  if (_milkyWay){
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.drawImage(_milkyWay, 0, 0);
+    ctx.restore();
+  }
+  // draw stars with independent twinkle
+  var t2pi = timeFrac * Math.PI * 2;
+  for (var i = 0; i < _starField.length; i++){
+    var s = _starField[i];
+    var twinkle = Math.sin(t2pi * s.twinkleFreq + s.twinklePhase);
+    var alpha = Math.max(0, s.baseAlpha + twinkle * (s.tier === 0 ? 0.25 : s.tier === 1 ? 0.15 : 0.08));
+    if (alpha < 0.01) continue;
+    if (s.tier === 2){
+      // dim stars: single pixel
+      ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
+      ctx.fillRect(s.x, s.y, s.size * 2, s.size * 2);
+    } else if (s.tier === 1){
+      // medium stars: soft dot
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
+      ctx.fill();
+    } else {
+      // bright stars: diffraction spikes + halo
+      ctx.save();
+      ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
+      // horizontal spike
+      ctx.fillRect(s.x - s.size * 2.5, s.y - 0.4, s.size * 5, 0.8);
+      // vertical spike
+      ctx.fillRect(s.x - 0.4, s.y - s.size * 2.5, 0.8, s.size * 5);
+      // central dot
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      // halo glow
+      var halo = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.size * 4);
+      halo.addColorStop(0, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + (alpha * 0.12) + ')');
+      halo.addColorStop(1, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(s.x - s.size * 4, s.y - s.size * 4, s.size * 8, s.size * 8);
+      ctx.restore();
+    }
   }
 }
 
@@ -588,36 +655,71 @@ function _formatLatitude(latitudeDeg: number){
   return abs.toFixed(2) + '° ' + hemisphere;
 }
 
-function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean, albedo: number){
+function _drawMoonDisk(x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean, albedo: number, moonName: string){
   if (!ctx) return;
   var albedoScale = Math.max(0.25, Math.min(2.2, albedo / 0.12));
-  var glowAlpha = Math.max(0.18, Math.min(0.8, 0.22 + albedoScale * 0.23));
-  var edgeAlpha = Math.max(0.28, Math.min(0.92, 0.4 + albedoScale * 0.2));
+  var isBarrakas = moonName === 'Barrakas';
+  var glowRadius = radius * (1.5 + albedoScale * 0.5) * (isBarrakas ? 1.8 : 1);
+
+  // atmospheric glow halo (drawn behind the disk)
+  var glowGrad = ctx.createRadialGradient(x, y, radius * 0.5, x, y, glowRadius);
+  glowGrad.addColorStop(0, color.replace(')', ',0.15)').replace('rgb(', 'rgba(').replace('#', '#'));
+  // use a simpler approach for hex colors
+  var glowAlpha = Math.max(0.08, Math.min(0.35, 0.1 + albedoScale * 0.08)) * (isBarrakas ? 2.5 : 1);
   ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
   ctx.fillStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = radius * (0.7 + albedoScale * 0.7);
   ctx.globalAlpha = glowAlpha;
+  ctx.filter = 'blur(' + Math.round(radius * 0.6) + 'px)';
   ctx.fill();
   ctx.restore();
 
+  // draw cached procedural texture
+  var tex = getMoonTexture(moonName, color, radius);
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.clip();
-  ctx.fillStyle = 'rgba(5, 10, 18, 0.92)';
+  ctx.drawImage(tex, x - radius, y - radius, radius * 2, radius * 2);
+
+  // Zarantyr storm rotation effect
+  if (moonName === 'Zarantyr'){
+    ctx.globalAlpha = 0.15;
+    ctx.translate(x, y);
+    ctx.rotate(state.timeFrac * Math.PI * 0.3);
+    ctx.drawImage(tex, -radius, -radius, radius * 2, radius * 2);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  // phase shadow — elliptical terminator
+  var illum = Math.max(0, Math.min(1, phase.illum));
   var waxing = retrograde ? !phase.waxing : phase.waxing;
-  var shift = (1 - (2 * Math.max(0, Math.min(1, phase.illum)))) * radius * (waxing ? -1 : 1);
-  ctx.beginPath();
-  ctx.arc(x + shift, y, radius, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = 'rgba(3, 6, 12, 0.92)';
+  if (illum < 0.995){
+    ctx.beginPath();
+    // draw shadow on the unlit side
+    var terminatorX = Math.cos(illum * Math.PI) * radius;
+    if (waxing){
+      // shadow on the left (waxing: lit from right)
+      ctx.arc(x, y, radius, Math.PI * 0.5, Math.PI * 1.5); // left semicircle
+      ctx.ellipse(x, y, Math.abs(terminatorX), radius, 0, Math.PI * 1.5, Math.PI * 0.5, terminatorX > 0);
+    } else {
+      // shadow on the right (waning: lit from left)
+      ctx.arc(x, y, radius, -Math.PI * 0.5, Math.PI * 0.5); // right semicircle
+      ctx.ellipse(x, y, Math.abs(terminatorX), radius, 0, Math.PI * 0.5, -Math.PI * 0.5, terminatorX > 0);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 
+  // subtle edge highlight
+  var edgeAlpha = Math.max(0.2, Math.min(0.7, 0.3 + albedoScale * 0.15));
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 0.8;
   ctx.strokeStyle = 'rgba(255, 255, 255, ' + edgeAlpha + ')';
   ctx.stroke();
 }
@@ -661,41 +763,117 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
 
   ctx.save();
 
-  ctx.beginPath();
-  ctx.moveTo(outerPts[0].x, outerPts[0].y);
-  for (var j = 1; j < outerPts.length; j++) ctx.lineTo(outerPts[j].x, outerPts[j].y);
-  for (var k = innerPts.length - 1; k >= 0; k--) ctx.lineTo(innerPts[k].x, innerPts[k].y);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(232, 203, 118, 0.2)';
-  ctx.fill();
+  // helper: interpolate between inner and outer at fraction f (0=inner, 1=outer)
+  function _bandPts(f: number): {x: number; y: number}[] {
+    var pts: {x: number; y: number}[] = [];
+    for (var i = 0; i < innerPts.length; i++){
+      pts.push({
+        x: innerPts[i].x + (outerPts[i].x - innerPts[i].x) * f,
+        y: innerPts[i].y + (outerPts[i].y - innerPts[i].y) * f
+      });
+    }
+    return pts;
+  }
 
+  // multi-band sub-layers
+  var bandDefs = [
+    { f0: 0.0,  f1: 0.2,  color: 'rgba(180,155,80,0.06)' },
+    { f0: 0.2,  f1: 0.45, color: 'rgba(232,203,118,0.14)' },
+    { f0: 0.38, f1: 0.62, color: 'rgba(248,220,140,0.22)' },
+    { f0: 0.55, f1: 0.8,  color: 'rgba(232,203,118,0.14)' },
+    { f0: 0.8,  f1: 1.0,  color: 'rgba(200,170,90,0.06)' }
+  ];
+  for (var bd of bandDefs){
+    var lo = _bandPts(bd.f0);
+    var hi = _bandPts(bd.f1);
+    ctx.beginPath();
+    ctx.moveTo(hi[0].x, hi[0].y);
+    for (var j = 1; j < hi.length; j++) ctx.lineTo(hi[j].x, hi[j].y);
+    for (var k = lo.length - 1; k >= 0; k--) ctx.lineTo(lo[k].x, lo[k].y);
+    ctx.closePath();
+    ctx.fillStyle = bd.color;
+    ctx.fill();
+  }
+
+  // double-pass glow center line
   ctx.beginPath();
   ctx.moveTo(centerPts[0].x, centerPts[0].y);
   for (var m = 1; m < centerPts.length; m++) ctx.lineTo(centerPts[m].x, centerPts[m].y);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(248, 216, 129, 0.62)';
-  ctx.shadowColor = 'rgba(244, 207, 104, 0.8)';
-  ctx.shadowBlur = 16;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(248, 216, 129, 0.45)';
+  ctx.shadowColor = 'rgba(244, 207, 104, 0.7)';
+  ctx.shadowBlur = 24;
   ctx.stroke();
+  // second wider bloom pass
+  ctx.strokeStyle = 'rgba(248, 216, 129, 0.2)';
+  ctx.shadowBlur = 48;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  var sparkleCount = Math.max(36, Math.round(centerPts.length * 0.9));
+  // edge softening
+  var edgeInner = _bandPts(0.02);
+  var edgeOuter = _bandPts(0.98);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(232,203,118,0.04)';
+  ctx.shadowColor = 'rgba(232,203,118,0.15)';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(edgeOuter[0].x, edgeOuter[0].y);
+  for (var eo = 1; eo < edgeOuter.length; eo++) ctx.lineTo(edgeOuter[eo].x, edgeOuter[eo].y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(edgeInner[0].x, edgeInner[0].y);
+  for (var ei = 1; ei < edgeInner.length; ei++) ctx.lineTo(edgeInner[ei].x, edgeInner[ei].y);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // ~120 particles with independent twinkle
+  var sparkleCount = 120;
+  var t2pi = state.timeFrac * Math.PI * 2;
   for (var s = 0; s < sparkleCount; s++){
     var t = (s + 0.5) / sparkleCount;
     var idx = Math.min(centerPts.length - 1, Math.floor((centerPts.length - 1) * t));
     var outer = outerPts[idx];
     var inner = innerPts[idx];
-    var bandMix = ((_hash('siberys:' + s + ':' + state.serial) % 1000) / 1000);
+    var bandMix = _hash('sib:' + s + ':' + state.serial);
     var pt = {
       x: inner.x + (outer.x - inner.x) * bandMix,
       y: inner.y + (outer.y - inner.y) * bandMix
     };
-    var pulse = 0.45 + 0.55 * Math.sin((state.timeFrac * Math.PI * 2 * 7) + (s * 1.37));
-    var r = 0.8 + pulse * 1.9;
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 237, 178, ' + (0.25 + pulse * 0.55) + ')';
-    ctx.fill();
+    var particleFreq = 3 + _hash('sf:' + s) * 12;
+    var particlePhase = _hash('sph:' + s) * Math.PI * 2;
+    var pulse = 0.5 + 0.5 * Math.sin(t2pi * particleFreq + particlePhase);
+    var alpha = 0.15 + pulse * 0.65;
+    var r = 0.4 + pulse * 1.2;
+
+    if (s < 8){
+      // large "dragonshard" sparkles with additive bloom
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(255,237,178,' + (alpha * 0.7) + ')';
+      ctx.fillRect(pt.x - r * 2, pt.y - 0.3, r * 4, 0.6);
+      ctx.fillRect(pt.x - 0.3, pt.y - r * 2, 0.6, r * 4);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, r * 0.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (pulse > 0.65){
+      // bright particles: cross spike + halo
+      ctx.fillStyle = 'rgba(255,237,178,' + alpha + ')';
+      ctx.fillRect(pt.x - r * 1.8, pt.y - 0.3, r * 3.6, 0.6);
+      ctx.fillRect(pt.x - 0.3, pt.y - r * 1.8, 0.6, r * 3.6);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, r * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // normal particles: simple dot
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 237, 178, ' + alpha + ')';
+      ctx.fill();
+    }
   }
+
   var crest = centerPts[Math.floor(centerPts.length * 0.55)];
   if (crest) {
     ctx.fillStyle = 'rgba(255, 235, 191, 0.8)';
