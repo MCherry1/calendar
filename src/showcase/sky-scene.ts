@@ -18,6 +18,7 @@ export type SkySceneMoon = {
   altitude: number;
   altitudeExact: number;
   azimuth: number;
+  hourAngle: number;
   direction: string;
   motion: string;
   angularDiameterDeg: number;
@@ -150,8 +151,9 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
     var positionPhase = input.phaseAt(moon, positionSerial) || phase;
     var skyLong = input.skyLongAt(moon, positionSerial, positionPhase);
     var eclipticLat = input.eclipticLatAt(moon, positionSerial, skyLong);
-    var alt = moonAltitudeDeg(observerLatitude, eclipticLat, moonHourAngleDeg(skyLong, sunSkyLong(positionSerial, input.worldId), timeFrac));
-    var az = moonAzimuthDeg(observerLatitude, eclipticLat, moonHourAngleDeg(skyLong, sunSkyLong(positionSerial, input.worldId), timeFrac));
+    var hourAngle = moonHourAngleDeg(skyLong, sunSkyLong(positionSerial, input.worldId), timeFrac);
+    var alt = moonAltitudeDeg(observerLatitude, eclipticLat, hourAngle);
+    var az = moonAzimuthDeg(observerLatitude, eclipticLat, hourAngle);
     var angularDiameterDeg = input.angularDiameterDegAt(moon, positionSerial);
     var category = moonSkyPositionCategory(alt, angularDiameterDeg);
     var motion = moonMotionLabel(observerLatitude, moon, positionSerial, timeFrac, input.skyLongAt, input.eclipticLatAt, input.phaseAt, input.worldId);
@@ -170,6 +172,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
       altitude: Math.round(alt),
       altitudeExact: alt,
       azimuth: az,
+      hourAngle: hourAngle,
       direction: direction,
       motion: motion,
       angularDiameterDeg: angularDiameterDeg,
