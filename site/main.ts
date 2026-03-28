@@ -10,7 +10,7 @@ type ShowcaseState = {
   worldId: string;
   serial: number;
   timeFrac: number;
-  lunarSizeMode: 'enhanced' | 'realistic';
+  lunarSizeMode: 'useful' | 'true';
   skyPlaying: boolean;
   speedHoursPerSecond: number;
   skyScrubHoursPerSecond: number;
@@ -283,7 +283,7 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   });
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
-  var lunarSizeLabel = state.lunarSizeMode === 'realistic' ? 'Realistic lunar scale' : 'Enhanced lunar scale';
+  var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
   sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet. ' + lunarSizeLabel + '.';
   _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
@@ -1344,17 +1344,25 @@ function _parseTimeParam(raw: string | null){
   return ((hours * 60) + minutes) / 1440;
 }
 
-function _parseLunarSizeParam(raw: string | null): 'enhanced' | 'realistic' {
-  return _normalizeLunarSizeMode(raw || 'enhanced');
+function _parseLunarSizeParam(raw: string | null): 'useful' | 'true' {
+  return _normalizeLunarSizeMode(raw || 'useful');
 }
 
-function _normalizeLunarSizeMode(raw: string): 'enhanced' | 'realistic' {
-  return String(raw || '').toLowerCase() === 'realistic' ? 'realistic' : 'enhanced';
+function _normalizeLunarSizeMode(raw: string): 'useful' | 'true' {
+  var mode = String(raw || '').toLowerCase();
+  if (mode === 'true' || mode === 'realsize' || mode === 'true_size' || mode === 'truesize' || mode === 'realistic') return 'true';
+  return 'useful';
 }
 
-function _moonRadiusPx(angularDiameterDeg: number, mode: 'enhanced' | 'realistic'){
-  if (mode === 'realistic') return Math.max(4, Math.min(14, angularDiameterDeg * 5.5));
-  return Math.max(14, Math.min(38, angularDiameterDeg * 22));
+function _moonRadiusPx(angularDiameterDeg: number, mode: 'useful' | 'true'){
+  if (mode === 'true') {
+    var usableHeight = canvas.height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
+    var pxPerDegree = usableHeight / PANO_ALT_MAX;
+    var trueRadiusPx = (Math.max(0, angularDiameterDeg) * pxPerDegree) / 2;
+    return Math.max(0.5, trueRadiusPx);
+  }
+  var usefulDiameterPx = Math.max(25, Math.min(50, angularDiameterDeg * 22));
+  return usefulDiameterPx / 2;
 }
 
 function _updateUrl(){
