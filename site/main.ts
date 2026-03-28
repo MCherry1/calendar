@@ -10,6 +10,7 @@ type ShowcaseState = {
   worldId: string;
   serial: number;
   timeFrac: number;
+  lunarSizeMode: 'enhanced' | 'realistic';
   skyPlaying: boolean;
   speedHoursPerSecond: number;
   skyScrubHoursPerSecond: number;
@@ -40,6 +41,7 @@ var timeJoystickSpeed = _must<HTMLElement>('hero-time-joystick-speed');
 var timeLabel = _must<HTMLOutputElement>('hero-time-label');
 var playToggle = _must<HTMLButtonElement>('play-toggle');
 var speedSelect = _must<HTMLSelectElement>('hero-speed');
+var lunarSizeSelect = _must<HTMLSelectElement>('hero-lunar-size');
 var planarPlayToggle = document.getElementById('planar-play-toggle') as HTMLButtonElement | null;
 var planarSpeedSelect = document.getElementById('planar-speed') as HTMLSelectElement | null;
 var planarTimeJoystick = document.getElementById('planar-time-joystick') as HTMLButtonElement | null;
@@ -104,6 +106,7 @@ function _initialState(): ShowcaseState {
     worldId: worldId,
     serial: serial,
     timeFrac: _parseTimeParam(url.searchParams.get('time')),
+    lunarSizeMode: _parseLunarSizeParam(url.searchParams.get('lunarSize')),
     skyPlaying: false,
     speedHoursPerSecond: 12,
     skyScrubHoursPerSecond: 0,
@@ -150,6 +153,11 @@ function _bindEvents(){
 
   speedSelect.addEventListener('change', function(){
     state.speedHoursPerSecond = parseFloat(speedSelect.value) || 12;
+    _syncControlsFromState();
+    _attemptRender(true, true, performance.now());
+  });
+  lunarSizeSelect.addEventListener('change', function(){
+    state.lunarSizeMode = _normalizeLunarSizeMode(lunarSizeSelect.value);
     _syncControlsFromState();
     _attemptRender(true, true, performance.now());
   });
@@ -253,6 +261,7 @@ function _syncControlsFromState(){
     planarTimeJoystickSpeed.textContent = 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
   }
   speedSelect.value = String(state.speedHoursPerSecond);
+  lunarSizeSelect.value = state.lunarSizeMode;
   if (planarSpeedSelect) planarSpeedSelect.value = String(state.planarDaysPerSecond);
   playToggle.textContent = state.skyPlaying ? 'Pause' : 'Play';
   if (planarPlayToggle) planarPlayToggle.textContent = state.planarPlaying ? 'Pause' : 'Play';
@@ -274,7 +283,8 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   });
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
-  sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet.';
+  var lunarSizeLabel = state.lunarSizeMode === 'realistic' ? 'Realistic lunar scale' : 'Enhanced lunar scale';
+  sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet. ' + lunarSizeLabel + '.';
   _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
@@ -500,7 +510,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
     var az = moon.azimuth;
     if (az < PANO_AZ_MIN - 5 || az > PANO_AZ_MAX + 5) continue;
     var position = _panoramicMoonPoint(width, height, az, moon.altitudeExact);
-    var moonRadius = Math.max(14, Math.min(38, moon.angularDiameterDeg * 22));
+    var moonRadius = _moonRadiusPx(moon.angularDiameterDeg, state.lunarSizeMode);
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12));
     if (labeled < 5 && moon.altitudeExact >= 2){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
@@ -1332,6 +1342,19 @@ function _parseTimeParam(raw: string | null){
   return ((hours * 60) + minutes) / 1440;
 }
 
+function _parseLunarSizeParam(raw: string | null): 'enhanced' | 'realistic' {
+  return _normalizeLunarSizeMode(raw || 'enhanced');
+}
+
+function _normalizeLunarSizeMode(raw: string): 'enhanced' | 'realistic' {
+  return String(raw || '').toLowerCase() === 'realistic' ? 'realistic' : 'enhanced';
+}
+
+function _moonRadiusPx(angularDiameterDeg: number, mode: 'enhanced' | 'realistic'){
+  if (mode === 'realistic') return Math.max(4, Math.min(14, angularDiameterDeg * 5.5));
+  return Math.max(14, Math.min(38, angularDiameterDeg * 22));
+}
+
 function _updateUrl(){
   var date = fromWorldSerial(state.worldId, state.serial);
   var dateParam = [
@@ -1347,6 +1370,7 @@ function _updateUrl(){
   next.searchParams.set('world', state.worldId);
   next.searchParams.set('date', dateParam);
   next.searchParams.set('time', String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0'));
+  next.searchParams.set('lunarSize', state.lunarSizeMode);
   history.replaceState(null, '', next.toString());
 }
 
