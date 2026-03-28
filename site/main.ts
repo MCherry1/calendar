@@ -507,9 +507,11 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   for (var i = 0; i < drawMoons.length; i++){
     var moon = drawMoons[i];
     if (moon.category === 'below') continue;
-    var az = moon.azimuth;
-    if (az < PANO_AZ_MIN - 5 || az > PANO_AZ_MAX + 5) continue;
-    var position = _panoramicMoonPoint(width, height, az, moon.altitudeExact);
+    // Use hour-angle space for horizontal placement to avoid apparent
+    // acceleration when azimuth curves sharply near the top of the arc.
+    var panoAz = (isFinite(Number((moon as any).hourAngle)) ? (180 + Number((moon as any).hourAngle)) : moon.azimuth);
+    if (panoAz < PANO_AZ_MIN - 5 || panoAz > PANO_AZ_MAX + 5) continue;
+    var position = _panoramicMoonPoint(width, height, panoAz, moon.altitudeExact);
     var moonRadius = _moonRadiusPx(moon.angularDiameterDeg, state.lunarSizeMode);
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12));
     if (labeled < 5 && moon.altitudeExact >= 2){
