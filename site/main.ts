@@ -662,16 +662,26 @@ function _drawMoonDisk(x: number, y: number, radius: number, color: string, phas
   var glowRadius = radius * (1.5 + albedoScale * 0.5) * (isBarrakas ? 1.8 : 1);
 
   // atmospheric glow halo (drawn behind the disk)
-  var glowGrad = ctx.createRadialGradient(x, y, radius * 0.5, x, y, glowRadius);
-  glowGrad.addColorStop(0, color.replace(')', ',0.15)').replace('rgb(', 'rgba(').replace('#', '#'));
-  // use a simpler approach for hex colors
-  var glowAlpha = Math.max(0.08, Math.min(0.35, 0.1 + albedoScale * 0.08)) * (isBarrakas ? 2.5 : 1);
+  // Use a multi-stop radial gradient for a soft, natural feather with no hard edge
+  var glowAlpha = Math.max(0.04, Math.min(0.18, 0.05 + albedoScale * 0.04)) * (isBarrakas ? 2.2 : 1);
+  var glowGrad = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+  glowGrad.addColorStop(0, color);
+  glowGrad.addColorStop(0.3, color);
+  glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.save();
+  ctx.globalAlpha = glowAlpha;
+  ctx.fillStyle = glowGrad;
   ctx.beginPath();
   ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.globalAlpha = glowAlpha;
-  ctx.filter = 'blur(' + Math.round(radius * 0.6) + 'px)';
+  ctx.fill();
+  // second wider pass for very faint outer haze
+  var outerGlow = ctx.createRadialGradient(x, y, glowRadius * 0.3, x, y, glowRadius * 1.6);
+  outerGlow.addColorStop(0, color);
+  outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = glowAlpha * 0.3;
+  ctx.fillStyle = outerGlow;
+  ctx.beginPath();
+  ctx.arc(x, y, glowRadius * 1.6, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
