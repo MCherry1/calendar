@@ -6,6 +6,7 @@ import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlot
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
 import { getMoonTexture, clearTextureCache, generateStarField, generateMilkyWay, StarData } from './sky-textures.js';
+import { createRenderer3D, type Renderer3D } from './renderer3d.js';
 
 type ShowcaseState = {
   worldId: string;
@@ -68,6 +69,18 @@ var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
 
 if (!ctx) throw new Error('Canvas context not available.');
+
+// ── 3D renderer setup ──
+var heroSceneContainer = document.querySelector('.hero-scene') as HTMLElement;
+var renderer3d: Renderer3D | null = null;
+var _lastSkyScene: ReturnType<typeof buildSkyScene> | null = null;
+try {
+  renderer3d = createRenderer3D(heroSceneContainer);
+  // Hide the 2D sky canvas since 3D renderer provides its own canvas
+  canvas.style.display = 'none';
+} catch (err) {
+  console.warn('WebGL not available, falling back to 2D canvas:', err);
+}
 
 var planarCard = document.getElementById('planar-card');
 var planarCanvas = document.getElementById('planar-canvas') as HTMLCanvasElement | null;
@@ -291,7 +304,12 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
   sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet. ' + lunarSizeLabel + '.';
-  _drawScene(scene);
+  _lastSkyScene = scene;
+  if (renderer3d) {
+    renderer3d.update(scene, state.timeFrac);
+  } else {
+    _drawScene(scene);
+  }
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
     var planarPhases = getAllShowcasePlanarPhases(state.planarSerial);
@@ -1642,6 +1660,9 @@ function _tick(now: number){
       if (planarDaysPerSecond) state.planarSerial += dtSeconds * planarDaysPerSecond;
       _syncControlsFromState();
       _attemptRender(false, false, now);
+    } else if (renderer3d && _lastSkyScene) {
+      // Even when paused, update the 3D renderer for OrbitControls damping and star twinkle
+      renderer3d.update(_lastSkyScene, state.timeFrac);
     }
   } finally {
     requestAnimationFrame(_tick);

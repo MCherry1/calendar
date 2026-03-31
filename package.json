@@ -12,8 +12,12 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/three": "^0.183.1",
     "esbuild": "^0.25.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "three": "^0.183.2"
   }
 }
