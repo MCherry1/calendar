@@ -282,6 +282,7 @@ body {
 }
 
 .hero-scene {
+  position: relative;
   margin-top: 0.8rem;
   border-radius: 24px;
   overflow: hidden;
@@ -294,6 +295,15 @@ body {
   width: 100%;
   height: auto;
   aspect-ratio: 7 / 5;
+}
+
+/* Three.js WebGL canvas inside .hero-scene */
+.hero-scene canvas:not(#sky-canvas) {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 7 / 5;
+  border-radius: 24px 24px 0 0;
 }
 
 .scene-readout {
