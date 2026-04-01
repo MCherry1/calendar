@@ -241,6 +241,10 @@ export type PlanarPhaseResult = {
   cycleOffsetDays?: number;
   toCoterminousDays?: number | null;
   toRemoteDays?: number | null;
+  /** Days elapsed into the current phase */
+  phaseIntoDays: number;
+  /** Total duration of the current phase in days */
+  phaseDurationDays: number;
 };
 
 export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] {
@@ -277,7 +281,9 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         cycleDays: dalCycleDays,
         cycleOffsetDays: dalOffset,
         toCoterminousDays: null,
-        toRemoteDays: null
+        toRemoteDays: null,
+        phaseIntoDays: dalOffset,
+        phaseDurationDays: dalCycleDays
       });
       continue;
     }
@@ -300,7 +306,9 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         isFixed: true,
         isDalQuor: false,
         toCoterminousDays: null,
-        toRemoteDays: null
+        toRemoteDays: null,
+        phaseIntoDays: 0,
+        phaseDurationDays: 1
       });
       continue;
     }
@@ -351,7 +359,9 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
       cycleDays: cycle.orbitDays,
       cycleOffsetDays: cycleOffset,
       toCoterminousDays: _timeToPhase(cycle, cycleOffset, 'coterminous'),
-      toRemoteDays: _timeToPhase(cycle, cycleOffset, 'remote')
+      toRemoteDays: _timeToPhase(cycle, cycleOffset, 'remote'),
+      phaseIntoDays: walk.phaseIntoDays,
+      phaseDurationDays: walk.phaseDurationDays
     });
   }
 

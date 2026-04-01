@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Calendar Showcase</title>
+    <title>Fantasy Calendar</title>
     <meta
       name="description"
-      content="A GitHub-hosted showcase for the Roll20 fantasy calendar script: animated moon skies, compact calendar previews, and subsystem highlights."
+      content="An interactive fantasy calendar tool with animated moon skies, planar orbits, and year-at-a-glance previews for Eberron, Faerûn, and more."
     >
     <link rel="stylesheet" href="./assets/styles.css">
   </head>
@@ -14,36 +14,37 @@
     <div class="backdrop backdrop-one"></div>
     <div class="backdrop backdrop-two"></div>
     <main class="site-shell">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Roll20 Script Showcase</p>
-          <h1>Fantasy calendars with a living sky.</h1>
-          <p class="lede">
-            This microsite advertises the project outside Roll20: an animated sky scene, compact calendar cards for every supported world, and a quick read on the moons, weather, and planes systems.
-          </p>
-          <div class="hero-stats" id="hero-stats"></div>
-          <div class="cta-row">
-            <a class="cta primary" href="https://github.com/mcherry1/calendar" target="_blank" rel="noreferrer">View Repository</a>
-            <a class="cta" href="https://github.com/mcherry1/calendar/releases" target="_blank" rel="noreferrer">Browse Releases</a>
-            <a class="cta" href="https://github.com/mcherry1/calendar/actions" target="_blank" rel="noreferrer">Get CI Artifact</a>
-            <a class="cta" href="./style-samples.html">Style Samples</a>
-          </div>
+
+      <header class="title-strip">
+        <span class="title-strip-name">Fantasy Calendar</span>
+        <div class="cta-row">
+          <a class="cta primary" href="https://github.com/mcherry1/calendar" target="_blank" rel="noreferrer">Repository</a>
+          <a class="cta" href="https://github.com/mcherry1/calendar/releases" target="_blank" rel="noreferrer">Releases</a>
+          <a class="cta" href="https://github.com/mcherry1/calendar/actions" target="_blank" rel="noreferrer">CI Artifact</a>
+          <a class="cta" href="./style-samples.html">Style Samples</a>
         </div>
+      </header>
 
+      <div class="world-selector-bar">
+        <div class="world-selector-left">
+          <label class="world-selector-label">
+            <span>World</span>
+            <select id="hero-world"></select>
+          </label>
+          <label class="world-selector-label">
+            <span>Seed</span>
+            <input id="gallery-seed" type="text" placeholder="default" spellcheck="false" autocomplete="off">
+          </label>
+        </div>
+        <div class="world-selector-right">
+          <div id="world-summary" class="world-summary"></div>
+          <button class="ghost-button" id="copy-link" type="button">Copy Scene URL</button>
+        </div>
+      </div>
+
+      <section class="hero">
         <div class="hero-panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Animated Hero Sky</p>
-              <h2 id="hero-world-label">Eberron</h2>
-            </div>
-            <button class="ghost-button" id="copy-link" type="button">Copy Scene URL</button>
-          </div>
-
           <div class="control-grid">
-            <label>
-              <span>World</span>
-              <select id="hero-world"></select>
-            </label>
             <label>
               <span>Year</span>
               <input id="hero-year" type="number" step="1">
@@ -55,6 +56,13 @@
             <label>
               <span>Day</span>
               <input id="hero-day" type="number" min="1" step="1">
+            </label>
+            <label>
+              <span>Lunar Size</span>
+              <select id="hero-lunar-size">
+                <option value="useful" selected>Visually Useful</option>
+                <option value="true">True Size</option>
+              </select>
             </label>
             <label class="wide">
               <span>Time</span>
@@ -79,13 +87,6 @@
                 </select>
               </div>
             </label>
-            <label>
-              <span>Lunar Size</span>
-              <select id="hero-lunar-size">
-                <option value="useful" selected>Visually Useful</option>
-                <option value="true">True Size</option>
-              </select>
-            </label>
           </div>
 
           <div class="hero-scene">
@@ -105,13 +106,9 @@
               <p class="scene-card-label">Moon Positions</p>
               <div id="moon-list"></div>
             </div>
-            <div class="scene-card">
-              <p class="scene-card-label">What This Demo Shows</p>
-              <div class="feature-list">
-                <p>2D animated sky rendering driven by the same moon-position math the script can expose in Roll20.</p>
-                <p>Shareable URLs with `world`, `date`, and `time` query params.</p>
-                <p>Calendar cards generated from structured world definitions instead of chat markup.</p>
-              </div>
+            <div class="scene-card scene-card-wide" id="solar-system-card" hidden>
+              <p class="scene-card-label">Solar System</p>
+              <canvas id="solar-system-canvas" width="900" height="160" aria-label="Static solar system diagram"></canvas>
             </div>
             <div class="scene-card scene-card-planar" id="planar-card" hidden>
               <p class="scene-card-label">Planar Orbits</p>
@@ -121,11 +118,11 @@
                   <div class="playback-row">
                     <button class="play-button" id="planar-play-toggle" type="button">Play</button>
                     <select id="planar-speed">
-                      <option value="28" selected>1 month/s</option>
+                      <option value="1" selected>1 day/s</option>
+                      <option value="28">1 month/s</option>
                       <option value="168">6 months/s</option>
                       <option value="336">1 year/s</option>
                       <option value="1680">5 years/s</option>
-                      <option value="3360">10 years/s</option>
                     </select>
                   </div>
                 </label>
@@ -135,7 +132,7 @@
                     <button id="planar-time-joystick" class="time-joystick" type="button" aria-label="Hold left/right to move planar time backward/forward">
                       <span class="time-joystick-center"></span>
                     </button>
-                    <div id="planar-time-joystick-speed" class="time-joystick-speed">Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)</div>
+                    <div id="planar-time-joystick-speed" class="time-joystick-speed">Hold to scrub planar time (±1d/1mo/6mo/1yr/5yr per sec)</div>
                   </div>
                 </label>
               </div>
@@ -146,46 +143,29 @@
         </div>
       </section>
 
-      <section class="feature-strip">
-        <article>
-          <p class="feature-kicker">Moons</p>
-          <h3>Sky state, not flavor text</h3>
-          <p>Phases, apparent size, rise and set direction, and positional sorting all come from explicit model data.</p>
-        </article>
-        <article>
-          <p class="feature-kicker">Weather</p>
-          <h3>Readable forecast surfaces</h3>
-          <p>Location-based generated weather supports narrative-only and mechanics-aware campaign play.</p>
-        </article>
-        <article>
-          <p class="feature-kicker">Planes</p>
-          <h3>Eberron-specific motion</h3>
-          <p>Coterminous and remote windows can reshape moon presentation and calendar context for the GM.</p>
-        </article>
-      </section>
-
       <section class="gallery-section">
         <div class="section-heading">
-          <p class="eyebrow">Calendar Gallery</p>
-          <h2>Year-at-a-glance preview for the selected setting.</h2>
-          <p>Change the world above to preview minicals, shading, and event tooltips for an entire year.</p>
+          <h2>Calendar Gallery</h2>
         </div>
         <div class="gallery-controls">
           <label>
             <span>Calendar source</span>
-            <select id="gallery-source"></select>
+            <div class="multi-select-wrap" id="gallery-source-wrap">
+              <button type="button" class="multi-select-toggle" id="gallery-source-toggle">All sources</button>
+              <div class="multi-select-dropdown" id="gallery-source-dropdown" hidden></div>
+            </div>
           </label>
           <label>
-            <span>Year</span>
-            <input id="gallery-year" type="number" step="1">
+            <span>Current date</span>
+            <div class="date-input-group">
+              <input id="gallery-year" type="number" step="1">
+              <select id="gallery-month"></select>
+              <input id="gallery-day" type="number" min="1" step="1">
+            </div>
           </label>
           <label id="gallery-variant-label" hidden>
             <span>Calendar variant</span>
             <select id="gallery-variant"></select>
-          </label>
-          <label>
-            <span>Seed word</span>
-            <input id="gallery-seed" type="text" placeholder="default" spellcheck="false" autocomplete="off">
           </label>
         </div>
         <div class="calendar-gallery" id="calendar-gallery"></div>

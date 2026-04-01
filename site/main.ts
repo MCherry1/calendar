@@ -6,7 +6,8 @@ import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlot
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
 import { getMoonTexture, clearTextureCache, generateStarField, generateMilkyWay, StarData } from './sky-textures.js';
-import { createRenderer3D, type Renderer3D } from './renderer3d.js';
+import { getMoonOrbitalData } from '../src/showcase/solar-system-data.js';
+
 
 type ShowcaseState = {
   worldId: string;
@@ -52,35 +53,28 @@ var planarPlayToggle = document.getElementById('planar-play-toggle') as HTMLButt
 var planarSpeedSelect = document.getElementById('planar-speed') as HTMLSelectElement | null;
 var planarTimeJoystick = document.getElementById('planar-time-joystick') as HTMLButtonElement | null;
 var planarTimeJoystickSpeed = document.getElementById('planar-time-joystick-speed') as HTMLElement | null;
-var worldLabel = _must<HTMLElement>('hero-world-label');
 var sceneDateLabel = _must<HTMLElement>('scene-date-label');
 var sceneSubtitle = _must<HTMLElement>('scene-subtitle');
 var sceneViewNote = _must<HTMLElement>('scene-view-note');
 var moonList = _must<HTMLElement>('moon-list');
-var heroStats = _must<HTMLElement>('hero-stats');
+var worldSummary = _must<HTMLElement>('world-summary');
 var calendarGallery = _must<HTMLElement>('calendar-gallery');
-var gallerySourceSelect = _must<HTMLSelectElement>('gallery-source');
+var gallerySourceToggle = _must<HTMLButtonElement>('gallery-source-toggle');
+var gallerySourceDropdown = _must<HTMLElement>('gallery-source-dropdown');
 var galleryYearInput = _must<HTMLInputElement>('gallery-year');
+var galleryMonthSelect = _must<HTMLSelectElement>('gallery-month');
+var galleryDayInput = _must<HTMLInputElement>('gallery-day');
 var galleryVariantSelect = _must<HTMLSelectElement>('gallery-variant');
 var galleryVariantLabel = _must<HTMLElement>('gallery-variant-label');
 var gallerySeedInput = _must<HTMLInputElement>('gallery-seed');
+var solarSystemCard = document.getElementById('solar-system-card');
+var solarSystemCanvas = document.getElementById('solar-system-canvas') as HTMLCanvasElement | null;
 var copyLinkButton = _must<HTMLButtonElement>('copy-link');
 var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
 
 if (!ctx) throw new Error('Canvas context not available.');
 
-// ── 3D renderer setup ──
-var heroSceneContainer = document.querySelector('.hero-scene') as HTMLElement;
-var renderer3d: Renderer3D | null = null;
-var _lastSkyScene: ReturnType<typeof buildSkyScene> | null = null;
-try {
-  renderer3d = createRenderer3D(heroSceneContainer);
-  // Hide the 2D sky canvas since 3D renderer provides its own canvas
-  canvas.style.display = 'none';
-} catch (err) {
-  console.warn('WebGL not available, falling back to 2D canvas:', err);
-}
 
 var planarCard = document.getElementById('planar-card');
 var planarCanvas = document.getElementById('planar-canvas') as HTMLCanvasElement | null;
@@ -100,6 +94,7 @@ try {
   _syncGalleryControlsFromState();
   _renderCalendarGallery();
   _syncControlsFromState();
+  _drawSolarSystem(state.worldId);
 } catch (err) {
   console.error('Showcase init error:', err);
 }
@@ -131,7 +126,7 @@ function _initialState(): ShowcaseState {
     skyScrubActive: false,
     planarSerial: serial,
     planarPlaying: false,
-    planarDaysPerSecond: 28,
+    planarDaysPerSecond: 1,
     planarScrubDaysPerSecond: 0,
     planarScrubActive: false
   };
@@ -148,9 +143,12 @@ function _bindEvents(){
     clearTextureCache();
     _syncControlsFromState();
     _attemptRender(true, true, performance.now());
-    _renderGallerySourceOptions(next, 'all');
+    _renderGallerySourceOptions(next);
     _renderGalleryVariantOptions(next);
+    _renderGalleryMonthOptions(next);
     galleryYearInput.value = String(world.defaultDate.year);
+    galleryDayInput.value = String(world.defaultDate.day);
+    _drawSolarSystem(next);
     _renderCalendarGallery();
   });
 
@@ -182,7 +180,7 @@ function _bindEvents(){
   });
   if (planarSpeedSelect) {
     planarSpeedSelect.addEventListener('change', function(){
-      state.planarDaysPerSecond = parseFloat(planarSpeedSelect.value) || 28;
+      state.planarDaysPerSecond = parseFloat(planarSpeedSelect.value) || 1;
       _syncControlsFromState();
       _attemptRender(true, true, performance.now());
     });
@@ -211,8 +209,19 @@ function _bindEvents(){
     }
   });
 
-  gallerySourceSelect.addEventListener('change', _renderCalendarGallery);
+  // Gallery source multi-select
+  gallerySourceToggle.addEventListener('click', function(){
+    gallerySourceDropdown.hidden = !gallerySourceDropdown.hidden;
+  });
+  document.addEventListener('click', function(ev){
+    if (!gallerySourceDropdown.hidden && !(ev.target as HTMLElement).closest('#gallery-source-wrap')) {
+      gallerySourceDropdown.hidden = true;
+    }
+  });
+
   galleryYearInput.addEventListener('change', _renderCalendarGallery);
+  galleryMonthSelect.addEventListener('change', _renderCalendarGallery);
+  galleryDayInput.addEventListener('change', _renderCalendarGallery);
   galleryVariantSelect.addEventListener('change', _renderCalendarGallery);
   gallerySeedInput.addEventListener('input', _renderCalendarGallery);
 }
@@ -262,7 +271,6 @@ function _syncControlsFromState(){
   var world = WORLDS[state.worldId];
   var date = fromWorldSerial(state.worldId, state.serial);
   worldSelect.value = state.worldId;
-  worldLabel.textContent = world.label;
   yearInput.value = String(date.year);
   if (slotSelect.dataset.worldId !== state.worldId) {
     _renderSlotOptions(state.worldId, date.slotIndex);
@@ -277,7 +285,7 @@ function _syncControlsFromState(){
     timeJoystickSpeed.textContent = 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
   }
   if (planarTimeJoystickSpeed && !state.planarScrubDaysPerSecond) {
-    planarTimeJoystickSpeed.textContent = 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
+    planarTimeJoystickSpeed.textContent = 'Hold to scrub planar time (±1d/1mo/6mo/1yr/5yr per sec)';
   }
   speedSelect.value = String(state.speedHoursPerSecond);
   lunarSizeSelect.value = state.lunarSizeMode;
@@ -286,11 +294,12 @@ function _syncControlsFromState(){
   if (planarPlayToggle) planarPlayToggle.textContent = state.planarPlaying ? 'Pause' : 'Play';
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   sceneSubtitle.textContent = world.description;
-  if (heroStats.dataset.worldId !== state.worldId) {
-    heroStats.innerHTML = _buildHeroStats(state.worldId);
-    heroStats.dataset.worldId = state.worldId;
+  if (worldSummary.dataset.worldId !== state.worldId) {
+    worldSummary.innerHTML = _buildWorldSummary(state.worldId);
+    worldSummary.dataset.worldId = state.worldId;
   }
   if (planarCard) planarCard.hidden = state.worldId !== 'eberron';
+  if (solarSystemCard) solarSystemCard.hidden = !_hasOrbitalData(state.worldId);
 }
 
 function _render(forceDetails: boolean, forceUrl: boolean, now: number){
@@ -304,12 +313,7 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
   sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet. ' + lunarSizeLabel + '.';
-  _lastSkyScene = scene;
-  if (renderer3d) {
-    renderer3d.update(scene, state.timeFrac);
-  } else {
-    _drawScene(scene);
-  }
+  _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
     var planarPhases = getAllShowcasePlanarPhases(state.planarSerial);
@@ -342,14 +346,17 @@ function _renderCalendarGalleryInner(){
   var year = parseInt(galleryYearInput.value, 10);
   if (!isFinite(year)) year = world.defaultDate.year;
   galleryYearInput.value = String(year);
-  var sourceKey = String(gallerySourceSelect.value || 'all').toLowerCase();
+  var sourceKeys = _getSelectedSources();
   var months = getWorldCalendarSlots(worldId).filter(function(slot){
     return slot.isIntercalary !== true;
   });
-  var eventRows = _eventRowsForSource(worldId, sourceKey, year);
+  var eventRows = _eventRowsForSources(worldId, sourceKeys, year);
   var eventsBySlotDay = _indexEventsBySlotDay(worldId, eventRows, year);
 
-  var seedWord = gallerySeedInput.value.trim() || null;
+  // Compute "today" from gallery date controls
+  var todayMonthIndex = parseInt(galleryMonthSelect.value, 10) || 0;
+  var todayDay = parseInt(galleryDayInput.value, 10) || 1;
+  var todaySlotIndex = regularMonthIndexToSlotIndex(worldId, todayMonthIndex);
 
   calendarGallery.innerHTML = months.map(function(slot, monthIndex){
     var preview = buildCalendarPreview({
@@ -367,6 +374,8 @@ function _renderCalendarGalleryInner(){
       var prevPreview = buildCalendarPreview({ worldId: worldId, year: year, monthIndex: monthIndex - 1 });
       prevMonthDays = prevPreview.daysInMonth;
     }
+
+    var isCurrentMonth = (preview.slotIndex === todaySlotIndex);
 
     // Build PureCell array from preview cells + events
     var pureCells: PureCell[] = preview.cells.map(function(cell, idx){
@@ -387,7 +396,7 @@ function _renderCalendarGalleryInner(){
       return {
         kind: 'day' as const,
         day: cell.day,
-        isToday: false,
+        isToday: isCurrentMonth && cell.day === todayDay,
         isPast: false,
         isFuture: false,
         events: events.map(function(e){ return { color: e.color || '#e6b85c' }; }),
@@ -408,12 +417,6 @@ function _renderCalendarGalleryInner(){
 
     return (
       '<article class="calendar-card">' +
-        '<div class="calendar-card-meta">' +
-          '<span class="meta-chip">' + _esc(world.label) + '</span>' +
-          '<span class="meta-chip">' + _esc(String(preview.moonCount) + ' moon' + (preview.moonCount === 1 ? '' : 's')) + '</span>' +
-          '<span class="meta-chip">' + _esc(sourceKey === 'all' ? 'All sources' : _sourceLabel(worldId, sourceKey)) + '</span>' +
-          (seedWord ? '<span class="meta-chip seed-chip">Seed: ' + _esc(seedWord) + '</span>' : '') +
-        '</div>' +
         '<div class="mini-calendar">' + tableHtml + '</div>' +
         _festivalRail(preview.intercalaryBefore.concat(preview.intercalaryAfter)) +
         _monthEventsList(monthEvents, worldId) +
@@ -752,15 +755,141 @@ function _drawMoonDisk(x: number, y: number, radius: number, color: string, phas
   ctx.stroke();
 }
 
-function _buildHeroStats(worldId: string){
+function _buildWorldSummary(worldId: string){
   var world = WORLDS[worldId];
   var moonCount = world.moons && world.moons.bodies ? world.moons.bodies.length : 0;
-  var monthCount = getWorldCalendarSlots(worldId).length;
-  return [
-    '<span class="stat-pill">' + _esc(world.calendar.label) + '</span>',
-    '<span class="stat-pill">' + _esc(String(moonCount) + ' moons') + '</span>',
-    '<span class="stat-pill">' + _esc(String(monthCount) + ' slots') + '</span>'
-  ].join('');
+  var items: string[] = [];
+  items.push('<span class="world-summary-item">' + _esc(world.calendar.label) + '</span>');
+  if (moonCount > 0) {
+    var moonNames = world.moons.bodies.slice(0, 6).map(function(m: any){ return m.name; }).join(', ');
+    if (moonCount > 6) moonNames += ' +' + (moonCount - 6);
+    items.push('<span class="world-summary-item">' + _esc(String(moonCount) + ' moon' + (moonCount !== 1 ? 's' : '')) + '</span>');
+    items.push('<span class="world-summary-item" title="' + _esc(moonNames) + '">' + _esc(moonNames) + '</span>');
+  }
+  if (worldId === 'eberron') {
+    items.push('<span class="world-summary-item">13 Planes</span>');
+  }
+  return items.join('');
+}
+
+function _hasOrbitalData(worldId: string): boolean {
+  return worldId === 'eberron';
+}
+
+var _lastSolarSystemWorld = '';
+function _drawSolarSystem(worldId: string){
+  if (!solarSystemCanvas || !solarSystemCard) return;
+  if (worldId === _lastSolarSystemWorld) return;
+  _lastSolarSystemWorld = worldId;
+  var moonData = getMoonOrbitalData(worldId);
+  if (!moonData.length) { solarSystemCard.hidden = true; return; }
+  solarSystemCard.hidden = false;
+  var ssCtx = solarSystemCanvas.getContext('2d');
+  if (!ssCtx) return;
+  var w = solarSystemCanvas.width;
+  var h = solarSystemCanvas.height;
+  ssCtx.clearRect(0, 0, w, h);
+
+  // Background
+  var bg = ssCtx.createLinearGradient(0, 0, w, 0);
+  bg.addColorStop(0, 'rgba(18, 24, 48, 0.97)');
+  bg.addColorStop(1, 'rgba(4, 8, 16, 0.99)');
+  ssCtx.fillStyle = bg;
+  ssCtx.fillRect(0, 0, w, h);
+
+  var padLeft = 60;
+  var padRight = 30;
+  var usableW = w - padLeft - padRight;
+  var cy = h * 0.45;
+
+  // Sun
+  var sunR = 14;
+  var sunGrad = ssCtx.createRadialGradient(padLeft - 20, cy, 0, padLeft - 20, cy, sunR * 2);
+  sunGrad.addColorStop(0, 'rgba(255, 230, 120, 0.4)');
+  sunGrad.addColorStop(1, 'rgba(255, 230, 120, 0)');
+  ssCtx.fillStyle = sunGrad;
+  ssCtx.beginPath(); ssCtx.arc(padLeft - 20, cy, sunR * 2, 0, Math.PI * 2); ssCtx.fill();
+  var sunBody = ssCtx.createRadialGradient(padLeft - 20, cy, 0, padLeft - 20, cy, sunR);
+  sunBody.addColorStop(0, '#fff5c0');
+  sunBody.addColorStop(1, '#e6b85c');
+  ssCtx.fillStyle = sunBody;
+  ssCtx.beginPath(); ssCtx.arc(padLeft - 20, cy, sunR, 0, Math.PI * 2); ssCtx.fill();
+  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ssCtx.font = '9px "Trebuchet MS", sans-serif';
+  ssCtx.textAlign = 'center';
+  ssCtx.fillText('Sun', padLeft - 20, cy + sunR + 12);
+
+  // Eberron
+  var eberronX = padLeft + 10;
+  var eberronR = 6;
+  var eGrad = ssCtx.createRadialGradient(eberronX, cy, 0, eberronX, cy, eberronR);
+  eGrad.addColorStop(0, '#4a9fd4');
+  eGrad.addColorStop(1, '#2060a0');
+  ssCtx.fillStyle = eGrad;
+  ssCtx.beginPath(); ssCtx.arc(eberronX, cy, eberronR, 0, Math.PI * 2); ssCtx.fill();
+  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ssCtx.font = '9px "Trebuchet MS", sans-serif';
+  ssCtx.textAlign = 'center';
+  ssCtx.fillText('Eberron', eberronX, cy + eberronR + 12);
+
+  // Scale: map orbital distances linearly to remaining space
+  var maxDist = moonData[moonData.length - 1].avgOrbitalDistance;
+  var moonStartX = eberronX + 30;
+  var moonEndX = w - padRight;
+  var moonUsableW = moonEndX - moonStartX;
+
+  for (var i = 0; i < moonData.length; i++){
+    var m = moonData[i];
+    var t = m.avgOrbitalDistance / maxDist;
+    var mx = moonStartX + t * moonUsableW;
+    // Size proportional to diameter, clamped
+    var mr = Math.max(2.5, Math.min(6, (m.diameter / 2000) * 5));
+    // Glow
+    var mGlow = ssCtx.createRadialGradient(mx, cy, 0, mx, cy, mr * 2);
+    mGlow.addColorStop(0, m.color.replace(')', ',0.15)').replace('rgb(', 'rgba(').replace('#', ''));
+    // Simple approach: use color directly with alpha
+    ssCtx.globalAlpha = 0.2;
+    ssCtx.fillStyle = m.color;
+    ssCtx.beginPath(); ssCtx.arc(mx, cy, mr * 2.5, 0, Math.PI * 2); ssCtx.fill();
+    ssCtx.globalAlpha = 1;
+    // Body
+    var isDark = m.color === '#696969' || m.color === '#111111';
+    ssCtx.fillStyle = isDark ? '#999' : m.color;
+    ssCtx.beginPath(); ssCtx.arc(mx, cy, mr, 0, Math.PI * 2); ssCtx.fill();
+    // Edge
+    ssCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ssCtx.lineWidth = 0.5;
+    ssCtx.stroke();
+    // Label (alternate above/below to avoid overlap)
+    ssCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ssCtx.font = '8px "Trebuchet MS", sans-serif';
+    ssCtx.textAlign = 'center';
+    var labelY = (i % 2 === 0) ? cy - mr - 6 : cy + mr + 11;
+    ssCtx.fillText(m.name, mx, labelY);
+    // Distance label (tiny)
+    ssCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ssCtx.font = '7px "Trebuchet MS", sans-serif';
+    var distLabel = m.avgOrbitalDistance >= 1000 ? Math.round(m.avgOrbitalDistance / 1000) + 'k mi' : m.avgOrbitalDistance + ' mi';
+    var distY = (i % 2 === 0) ? cy - mr - 15 : cy + mr + 19;
+    ssCtx.fillText(distLabel, mx, distY);
+  }
+
+  // Scale bar along the bottom
+  ssCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ssCtx.lineWidth = 1;
+  ssCtx.beginPath();
+  ssCtx.moveTo(moonStartX, h - 12);
+  ssCtx.lineTo(moonEndX, h - 12);
+  ssCtx.stroke();
+  // Tick marks at 50k intervals
+  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+  ssCtx.font = '7px "Trebuchet MS", sans-serif';
+  ssCtx.textAlign = 'center';
+  for (var dist = 50000; dist <= maxDist; dist += 50000){
+    var tx = moonStartX + (dist / maxDist) * moonUsableW;
+    ssCtx.beginPath(); ssCtx.moveTo(tx, h - 15); ssCtx.lineTo(tx, h - 9); ssCtx.stroke();
+    ssCtx.fillText(Math.round(dist / 1000) + 'k', tx, h - 2);
+  }
 }
 
 function _drawSiberysRing(width: number, height: number, observerLatDeg: number){
@@ -934,6 +1063,8 @@ function _bindSkyJoystick(){
     active = false;
     state.skyScrubHoursPerSecond = 0;
     state.skyScrubActive = false;
+    state.skyPlaying = false;
+    playToggle.textContent = 'Play';
     timeJoystickSpeed.textContent = 'Hold to scrub time (±30m/hr/4hr/12hr/24hr)';
   };
 
@@ -963,22 +1094,24 @@ function _bindPlanarJoystick(){
     var normalized = ((clientX - rect.left) / rect.width) * 2 - 1;
     var mag = Math.max(0, Math.min(1, Math.abs(normalized)));
     var sign = normalized >= 0 ? 1 : -1;
-    var speeds = [28, 168, 336, 1680, 3360];
-    var labels = ['1 month', '6 months', '1 year', '5 years', '10 years'];
+    var speeds = [1, 28, 168, 336, 1680];
+    var labels = ['1 day', '1 month', '6 months', '1 year', '5 years'];
     var idx = Math.min(speeds.length - 1, Math.floor(mag * speeds.length));
     var base = mag < 0.06 ? 0 : speeds[idx];
     state.planarScrubDaysPerSecond = base * sign;
     var dir = sign >= 0 ? 'forward' : 'backward';
     planarTimeJoystickSpeed!.textContent = base
       ? ('Scrubbing ' + dir + ' at ' + labels[idx] + '/s')
-      : 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
+      : 'Hold to scrub planar time (±1d/1mo/6mo/1yr/5yr per sec)';
   };
   var stop = function(){
     if (!active) return;
     active = false;
     state.planarScrubDaysPerSecond = 0;
     state.planarScrubActive = false;
-    planarTimeJoystickSpeed!.textContent = 'Hold to scrub planar time (±1mo/6mo/1yr/5yr/10yr per sec)';
+    state.planarPlaying = false;
+    if (planarPlayToggle) planarPlayToggle.textContent = 'Play';
+    planarTimeJoystickSpeed!.textContent = 'Hold to scrub planar time (±1d/1mo/6mo/1yr/5yr per sec)';
   };
 
   planarTimeJoystick.addEventListener('pointerdown', function(ev){
@@ -1001,15 +1134,13 @@ function _bindPlanarJoystick(){
 // Planar Orbital Diagram
 // ---------------------------------------------------------------------------
 
-var PLANAR_TILT = Math.sin(75 * Math.PI / 180); // More top-down view (~75°)
+var PLANAR_TILT = Math.sin(75 * Math.PI / 180);
 var PLANAR_CX = 250;
 var PLANAR_CY = 250;
-var PLANAR_R_MIN = 18;      // minimum orbit radius (inside coterminous band)
-var PLANAR_R_COT = 30;      // coterminous outer border radius (was 70)
-var PLANAR_R_NEU = 185;     // neutral outer border radius (was 140)
-var PLANAR_R_REM = 210;     // remote outer border radius
-var PLANAR_R_DAL = 246;     // Dal Quor outer orbit radius
-var PLANAR_DISC_R = 10;     // base disc radius
+var PLANAR_R_NEU = 180;     // neutral outer radius
+var PLANAR_R_REM = 210;     // remote ring radius (line, not band)
+var PLANAR_R_DAL = 246;     // Dal Quor orbit radius
+var PLANAR_DISC_R = 10;
 
 function _planarProject(angleDeg: number, radius: number): { x: number; y: number } {
   var rad = angleDeg * Math.PI / 180;
@@ -1020,12 +1151,19 @@ function _planarProject(angleDeg: number, radius: number): { x: number; y: numbe
 }
 
 function _planarRadiusForPosition(pos: number): number {
-  // Compressed coterminous (18-30px) and remote (185-210px) bands;
-  // neutral gets the bulk of radial space (30-185px) for smooth transitions.
+  // Eberron (center) = coterminous. Neutral spans 0 to PLANAR_R_NEU.
+  // Remote planes sit on the PLANAR_R_REM ring.
   var t = Math.max(0, Math.min(1, pos));
-  if (t <= (1 / 3)) return PLANAR_R_MIN + (PLANAR_R_COT - PLANAR_R_MIN) * (t / (1 / 3));
-  if (t <= (2 / 3)) return PLANAR_R_COT + (PLANAR_R_NEU - PLANAR_R_COT) * ((t - (1 / 3)) / (1 / 3));
-  return PLANAR_R_NEU + (PLANAR_R_REM - PLANAR_R_NEU) * ((t - (2 / 3)) / (1 / 3));
+  if (t <= (1 / 3)) {
+    // Coterminous: near center (radius 0 to ~20)
+    return t * 3 * 20;
+  }
+  if (t <= (2 / 3)) {
+    // Neutral: 20 to PLANAR_R_NEU
+    return 20 + ((t - 1/3) * 3) * (PLANAR_R_NEU - 20);
+  }
+  // Remote: PLANAR_R_NEU to PLANAR_R_REM
+  return PLANAR_R_NEU + ((t - 2/3) * 3) * (PLANAR_R_REM - PLANAR_R_NEU);
 }
 
 function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
@@ -1035,7 +1173,7 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   var h = planarCanvas.height;
   pCtx.clearRect(0, 0, w, h);
 
-  // Background — multi-stop radial gradient
+  // Background
   var bg = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 0, PLANAR_CX, PLANAR_CY, 280);
   bg.addColorStop(0,   'rgba(18, 24, 48, 0.97)');
   bg.addColorStop(0.3, 'rgba(12, 18, 35, 0.97)');
@@ -1052,53 +1190,38 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   neb1.addColorStop(1, 'rgba(0, 0, 0, 0)');
   pCtx.fillStyle = neb1;
   pCtx.fillRect(0, 0, w, h);
-  var neb2 = pCtx.createRadialGradient(PLANAR_CX + 90, PLANAR_CY + 50, 0, PLANAR_CX + 90, PLANAR_CY + 50, 140);
-  neb2.addColorStop(0, 'rgba(15, 30, 45, 0.04)');
-  neb2.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  pCtx.fillStyle = neb2;
-  pCtx.fillRect(0, 0, w, h);
   pCtx.restore();
 
-  // Gradient-filled band zones (evenodd annular fills)
-  var bandFills = [
-    { inner: 0, outer: PLANAR_R_COT, color: 'rgba(80, 160, 255, 0.04)' },
-    { inner: PLANAR_R_COT, outer: PLANAR_R_NEU, color: 'rgba(180, 180, 200, 0.02)' },
-    { inner: PLANAR_R_NEU, outer: PLANAR_R_REM, color: 'rgba(160, 80, 80, 0.04)' }
-  ];
-  for (var bf = 0; bf < bandFills.length; bf++) {
-    var band = bandFills[bf];
-    pCtx.save();
-    pCtx.beginPath();
-    pCtx.ellipse(PLANAR_CX, PLANAR_CY, band.outer, band.outer * PLANAR_TILT, 0, 0, Math.PI * 2);
-    if (band.inner > 0) {
-      pCtx.ellipse(PLANAR_CX, PLANAR_CY, band.inner, band.inner * PLANAR_TILT, 0, Math.PI * 2, 0, true);
-    }
-    pCtx.fillStyle = band.color;
-    pCtx.fill('evenodd');
-    pCtx.restore();
-  }
-
-  // Band boundary ellipses
-  var bandRadii = [PLANAR_R_COT, PLANAR_R_NEU, PLANAR_R_REM];
-  for (var b = 0; b < bandRadii.length; b++) {
-    pCtx.beginPath();
-    pCtx.ellipse(PLANAR_CX, PLANAR_CY, bandRadii[b], bandRadii[b] * PLANAR_TILT, 0, 0, Math.PI * 2);
-    pCtx.lineWidth = 0.8;
-    pCtx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
-    pCtx.stroke();
-  }
-
-  // Dal Quor orbit glow band
+  // Neutral zone fill (center to PLANAR_R_NEU)
   pCtx.save();
-  pCtx.globalCompositeOperation = 'screen';
   pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_DAL, PLANAR_R_DAL * PLANAR_TILT, 0, 0, Math.PI * 2);
-  pCtx.lineWidth = 6;
-  pCtx.strokeStyle = 'rgba(123, 104, 174, 0.04)';
-  pCtx.stroke();
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_NEU, PLANAR_R_NEU * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.fillStyle = 'rgba(180, 180, 200, 0.02)';
+  pCtx.fill();
   pCtx.restore();
 
-  // Dal Quor orbit ring (dashed)
+  // Neutral boundary ellipse
+  pCtx.beginPath();
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_NEU, PLANAR_R_NEU * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.lineWidth = 0.8;
+  pCtx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+  pCtx.stroke();
+
+  // Remote ring (LINE, not band)
+  pCtx.beginPath();
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_REM, PLANAR_R_REM * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.lineWidth = 1.5;
+  pCtx.strokeStyle = 'rgba(160, 80, 80, 0.25)';
+  pCtx.stroke();
+  // Remote label
+  pCtx.save();
+  pCtx.font = '8px "Trebuchet MS", sans-serif';
+  pCtx.fillStyle = 'rgba(160, 80, 80, 0.3)';
+  pCtx.textAlign = 'center';
+  pCtx.fillText('Remote', PLANAR_CX, PLANAR_CY - PLANAR_R_REM * PLANAR_TILT - 4);
+  pCtx.restore();
+
+  // Dal Quor orbit (dashed)
   pCtx.save();
   pCtx.setLineDash([4, 6]);
   pCtx.beginPath();
@@ -1108,7 +1231,7 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   pCtx.stroke();
   pCtx.restore();
 
-  // Draw 12 axis lines with radial gradient fade
+  // Draw 12 axis lines
   var globalSpinDeg = ((state.planarSerial / (12 * 336)) * 360) % 360;
   for (var a = 0; a < 12; a++) {
     var angleDeg = a * 15;
@@ -1128,44 +1251,34 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
     pCtx.stroke();
   }
 
-  // Band labels (repositioned for compressed bands)
-  var bandLabelsNew = [
-    { name: 'Coterminous', radius: PLANAR_R_COT + 10, fontSize: 8, alpha: 0.15 },
-    { name: 'Neutral', radius: (PLANAR_R_COT + PLANAR_R_NEU) / 2, fontSize: 10, alpha: 0.18 },
-    { name: 'Remote', radius: (PLANAR_R_NEU + PLANAR_R_REM) / 2, fontSize: 9, alpha: 0.15 }
-  ];
-  for (var bl = 0; bl < bandLabelsNew.length; bl++) {
-    var lb = bandLabelsNew[bl];
-    pCtx.save();
-    pCtx.font = lb.fontSize + 'px "Trebuchet MS", sans-serif';
-    pCtx.fillStyle = 'rgba(255, 255, 255, ' + lb.alpha + ')';
-    pCtx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    pCtx.shadowBlur = 4;
-    pCtx.textAlign = 'center';
-    var labelPos = _planarProject(-24 + globalSpinDeg, lb.radius);
-    pCtx.fillText(lb.name, labelPos.x, labelPos.y + 4);
-    pCtx.restore();
-  }
-
-  // Compute plane positions and sort back-to-front by Y for depth ordering
+  // Separate planes into coterminous, remote, and neutral/orbiting
   type PlaneDrawItem = {
     phase: PlanarPhaseResult;
-    x: number;
-    y: number;
-    depth: number; // sin(angle) for depth ordering: negative = back, positive = front
-    discR: number;
-    alpha: number;
+    x: number; y: number; depth: number; discR: number; alpha: number;
   };
+  var orbitingItems: PlaneDrawItem[] = [];
+  var coterminousPlanes: PlanarPhaseResult[] = [];
+  var remotePlanes: PlanarPhaseResult[] = [];
 
-  var items: PlaneDrawItem[] = [];
   for (var pi = 0; pi < phases.length; pi++) {
     var ph = phases[pi];
+
+    if (!ph.isDalQuor && !ph.isFixed && ph.phase === 'coterminous') {
+      coterminousPlanes.push(ph);
+      continue;
+    }
+
     var effectiveAngle: number;
     var radius: number;
 
     if (ph.isDalQuor) {
       effectiveAngle = (ph.dalQuorOrbitAngle || 0) + globalSpinDeg;
       radius = PLANAR_R_DAL;
+    } else if (!ph.isDalQuor && !ph.isFixed && ph.phase === 'remote') {
+      // Remote planes sit ON the remote ring
+      effectiveAngle = (ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180)) + globalSpinDeg;
+      radius = PLANAR_R_REM;
+      remotePlanes.push(ph);
     } else {
       effectiveAngle = (ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180)) + globalSpinDeg;
       radius = _planarRadiusForPosition(ph.position);
@@ -1173,33 +1286,85 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
 
     var pos = _planarProject(effectiveAngle, radius);
     var depthVal = Math.sin(effectiveAngle * Math.PI / 180);
-    // Depth-based sizing and brightness: back is smaller/dimmer, front is larger/brighter
-    var depthScale = 0.85 + depthVal * 0.15; // 0.7 to 1.0
+    var depthScale = 0.85 + depthVal * 0.15;
     var discR = PLANAR_DISC_R * depthScale;
-    var alpha = 0.7 + depthVal * 0.3; // 0.4 to 1.0
-
-    items.push({ phase: ph, x: pos.x, y: pos.y, depth: depthVal, discR: discR, alpha: alpha });
+    var alpha = 0.7 + depthVal * 0.3;
+    orbitingItems.push({ phase: ph, x: pos.x, y: pos.y, depth: depthVal, discR: discR, alpha: alpha });
   }
 
-  // Sort: back (negative depth / top of ellipse) first, front (positive / bottom) last
-  items.sort(function(a, b) { return a.depth - b.depth; });
+  orbitingItems.sort(function(a, b) { return a.depth - b.depth; });
 
-  // Draw items: back planes first, then center marker, then front planes
   var centerDrawn = false;
-  for (var di = 0; di < items.length; di++) {
-    // Draw center "Eberron" marker before drawing front-hemisphere planes
-    if (!centerDrawn && items[di].depth >= 0) {
+  for (var di = 0; di < orbitingItems.length; di++) {
+    if (!centerDrawn && orbitingItems[di].depth >= 0) {
       _drawEberronCenter(pCtx);
       centerDrawn = true;
     }
-    _drawPlaneDisc(pCtx, items[di]);
+    _drawPlaneDisc(pCtx, orbitingItems[di]);
   }
-  // If all planes are behind (unlikely), draw center last
   if (!centerDrawn) _drawEberronCenter(pCtx);
+
+  // Draw coterminous status box (bottom-left)
+  if (coterminousPlanes.length > 0) {
+    _drawStatusBox(pCtx, coterminousPlanes, 'coterminous', 10, h - 10);
+  }
+  // Draw remote status box (bottom-right)
+  if (remotePlanes.length > 0) {
+    _drawStatusBox(pCtx, remotePlanes, 'remote', w - 10, h - 10);
+  }
+}
+
+function _drawStatusBox(pCtx: CanvasRenderingContext2D, planes: PlanarPhaseResult[], label: string, anchorX: number, anchorY: number) {
+  var lineHeight = 14;
+  var padding = 8;
+  var boxHeight = padding * 2 + planes.length * lineHeight;
+  var boxWidth = 170;
+  var isRight = label === 'remote';
+  var x = isRight ? anchorX - boxWidth : anchorX;
+  var y = anchorY - boxHeight;
+
+  pCtx.save();
+  pCtx.fillStyle = 'rgba(5, 15, 27, 0.75)';
+  pCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  pCtx.lineWidth = 1;
+  pCtx.beginPath();
+  _roundRect(pCtx, x, y, boxWidth, boxHeight, 8);
+  pCtx.fill();
+  pCtx.stroke();
+
+  pCtx.font = '10px "Trebuchet MS", sans-serif';
+  pCtx.textAlign = isRight ? 'right' : 'left';
+  var textX = isRight ? x + boxWidth - padding : x + padding;
+
+  for (var i = 0; i < planes.length; i++) {
+    var ph = planes[i];
+    var remaining = Math.max(0, ph.phaseDurationDays - ph.phaseIntoDays);
+    var remLabel = _formatPlanarEta(remaining) + ' remaining';
+    pCtx.fillStyle = ph.color;
+    var dotY = y + padding + i * lineHeight + 5;
+    pCtx.beginPath();
+    pCtx.arc(isRight ? textX + 6 : textX - 6, dotY, 3, 0, Math.PI * 2);
+    pCtx.fill();
+
+    pCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    pCtx.fillText(ph.name + ' · ' + remLabel, textX, y + padding + i * lineHeight + 9);
+  }
+  pCtx.restore();
+}
+
+function _roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
 }
 
 function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
-  // Feathered atmospheric halo (no hard cutoff)
   var haloGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 0, PLANAR_CX, PLANAR_CY, 28);
   haloGrad.addColorStop(0,   'rgba(70, 135, 200, 0.20)');
   haloGrad.addColorStop(0.4, 'rgba(70, 135, 200, 0.12)');
@@ -1210,16 +1375,6 @@ function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
   pCtx.arc(PLANAR_CX, PLANAR_CY, 28, 0, Math.PI * 2);
   pCtx.fill();
 
-  // Second wider faint haze
-  var outerHaze = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 10, PLANAR_CX, PLANAR_CY, 40);
-  outerHaze.addColorStop(0, 'rgba(80, 150, 220, 0.06)');
-  outerHaze.addColorStop(1, 'rgba(80, 150, 220, 0)');
-  pCtx.fillStyle = outerHaze;
-  pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 40, 0, Math.PI * 2);
-  pCtx.fill();
-
-  // Ocean body — radial gradient
   var oceanGrad = pCtx.createRadialGradient(PLANAR_CX - 2, PLANAR_CY - 2, 1, PLANAR_CX, PLANAR_CY, 12);
   oceanGrad.addColorStop(0, '#4a9fd4');
   oceanGrad.addColorStop(1, '#2060a0');
@@ -1228,24 +1383,16 @@ function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
   pCtx.fillStyle = oceanGrad;
   pCtx.fill();
 
-  // Continents — gradient green
   pCtx.save();
   var contGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 0, PLANAR_CX, PLANAR_CY, 12);
   contGrad.addColorStop(0, '#5ac47a');
   contGrad.addColorStop(1, '#388a50');
   pCtx.fillStyle = contGrad;
-  pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX - 3, PLANAR_CY - 1, 4, 2.2, 0.3, 0, Math.PI * 2);
-  pCtx.fill();
-  pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX + 4, PLANAR_CY + 2, 3.4, 1.8, -0.2, 0, Math.PI * 2);
-  pCtx.fill();
-  pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX, PLANAR_CY - 5, 2.6, 1.5, 0.7, 0, Math.PI * 2);
-  pCtx.fill();
+  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX - 3, PLANAR_CY - 1, 4, 2.2, 0.3, 0, Math.PI * 2); pCtx.fill();
+  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX + 4, PLANAR_CY + 2, 3.4, 1.8, -0.2, 0, Math.PI * 2); pCtx.fill();
+  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX, PLANAR_CY - 5, 2.6, 1.5, 0.7, 0, Math.PI * 2); pCtx.fill();
   pCtx.restore();
 
-  // Specular highlight (upper-left)
   var specGrad = pCtx.createRadialGradient(PLANAR_CX - 3, PLANAR_CY - 4, 0, PLANAR_CX - 3, PLANAR_CY - 4, 6);
   specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
   specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
@@ -1254,16 +1401,6 @@ function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
   pCtx.arc(PLANAR_CX, PLANAR_CY, 12, 0, Math.PI * 2);
   pCtx.fill();
 
-  // Limb darkening
-  var limbGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 7, PLANAR_CX, PLANAR_CY, 12);
-  limbGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-  limbGrad.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
-  pCtx.fillStyle = limbGrad;
-  pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 12, 0, Math.PI * 2);
-  pCtx.fill();
-
-  // Label
   pCtx.fillStyle = 'rgba(255, 255, 255, 0.50)';
   pCtx.font = '10px "Trebuchet MS", sans-serif';
   pCtx.textAlign = 'center';
@@ -1275,18 +1412,14 @@ function _drawPlaneDisc(pCtx: CanvasRenderingContext2D, item: { phase: PlanarPha
   var color = ph.color;
   var r = item.discR;
   var x = item.x, y = item.y;
-
   var isDark = color === '#111111' || color === '#000000';
   var fillColor = isDark ? '#333333' : color;
-
-  // Parse hex to RGB
   var cv = parseInt(fillColor.replace('#', ''), 16);
   var cr = (cv >> 16) & 255, cg = (cv >> 8) & 255, cb = cv & 255;
 
   pCtx.save();
   pCtx.globalAlpha = item.alpha;
 
-  // Feathered glow halo (multi-stop, no hard edge)
   var glowR = r * 2.5;
   var glowAlpha = 0.12;
   var glowGrad = pCtx.createRadialGradient(x, y, 0, x, y, glowR);
@@ -1294,50 +1427,23 @@ function _drawPlaneDisc(pCtx: CanvasRenderingContext2D, item: { phase: PlanarPha
   glowGrad.addColorStop(0.3, 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (glowAlpha * 0.6) + ')');
   glowGrad.addColorStop(1,   'rgba(' + cr + ',' + cg + ',' + cb + ',0)');
   pCtx.fillStyle = glowGrad;
-  pCtx.beginPath();
-  pCtx.arc(x, y, glowR, 0, Math.PI * 2);
-  pCtx.fill();
+  pCtx.beginPath(); pCtx.arc(x, y, glowR, 0, Math.PI * 2); pCtx.fill();
 
-  // Second wider faint glow
-  var outerGlowR = glowR * 1.5;
-  var outerGlowGrad = pCtx.createRadialGradient(x, y, glowR * 0.3, x, y, outerGlowR);
-  outerGlowGrad.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (glowAlpha * 0.2) + ')');
-  outerGlowGrad.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0)');
-  pCtx.fillStyle = outerGlowGrad;
-  pCtx.beginPath();
-  pCtx.arc(x, y, outerGlowR, 0, Math.PI * 2);
-  pCtx.fill();
-
-  // Disc body — radial gradient with limb darkening
   var lighterR = Math.min(255, cr + 40), lighterG = Math.min(255, cg + 40), lighterB = Math.min(255, cb + 40);
   var darkerR = Math.max(0, cr - 30), darkerG = Math.max(0, cg - 30), darkerB = Math.max(0, cb - 30);
   var discGrad = pCtx.createRadialGradient(x - r * 0.2, y - r * 0.25, r * 0.1, x, y, r);
   discGrad.addColorStop(0, 'rgb(' + lighterR + ',' + lighterG + ',' + lighterB + ')');
   discGrad.addColorStop(1, 'rgb(' + darkerR + ',' + darkerG + ',' + darkerB + ')');
   pCtx.fillStyle = discGrad;
-  pCtx.beginPath();
-  pCtx.arc(x, y, r, 0, Math.PI * 2);
-  pCtx.fill();
-
-  // Specular highlight (upper-left)
-  var specGrad = pCtx.createRadialGradient(x - r * 0.25, y - r * 0.3, 0, x - r * 0.25, y - r * 0.3, r * 0.5);
-  specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
-  specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  pCtx.fillStyle = specGrad;
-  pCtx.beginPath();
-  pCtx.arc(x, y, r, 0, Math.PI * 2);
-  pCtx.fill();
+  pCtx.beginPath(); pCtx.arc(x, y, r, 0, Math.PI * 2); pCtx.fill();
 
   pCtx.restore();
 
-  // Outline (softer)
-  pCtx.beginPath();
-  pCtx.arc(x, y, r, 0, Math.PI * 2);
+  pCtx.beginPath(); pCtx.arc(x, y, r, 0, Math.PI * 2);
   pCtx.lineWidth = isDark ? 1.0 : 0.6;
   pCtx.strokeStyle = isDark ? 'rgba(200, 200, 200, 0.35)' : 'rgba(255, 255, 255, 0.25)';
   pCtx.stroke();
 
-  // Label with text shadow
   pCtx.save();
   pCtx.shadowColor = 'rgba(0, 0, 0, 0.6)';
   pCtx.shadowBlur = 3;
@@ -1367,9 +1473,16 @@ function _renderPlanarLegend(phases: PlanarPhaseResult[]) {
 }
 
 function _planarStatusText(ph: PlanarPhaseResult): string {
-  if (ph.isDalQuor) return 'remote (severed), 13-year orbit';
+  if (ph.isDalQuor) return 'remote (severed)';
   if (ph.isFixed) return ph.phase + ' (fixed)';
-  if (ph.phase !== 'neutral') return ph.phase;
+  if (ph.phase === 'coterminous') {
+    var cotRemaining = Math.max(0, ph.phaseDurationDays - ph.phaseIntoDays);
+    return 'coterminous · ' + _formatPlanarEta(cotRemaining) + ' left';
+  }
+  if (ph.phase === 'remote') {
+    var remRemaining = Math.max(0, ph.phaseDurationDays - ph.phaseIntoDays);
+    return 'remote · ' + _formatPlanarEta(remRemaining) + ' left';
+  }
   var toCot = (ph.toCoterminousDays == null) ? Number.POSITIVE_INFINITY : ph.toCoterminousDays;
   var toRem = (ph.toRemoteDays == null) ? Number.POSITIVE_INFINITY : ph.toRemoteDays;
   if (toCot <= toRem) return 'coterminous in ' + _formatPlanarEta(toCot);
@@ -1388,9 +1501,12 @@ function _formatPlanarEta(days: number): string {
 
 function _syncGalleryControlsFromState(){
   var worldId = state.worldId;
-  _renderGallerySourceOptions(worldId, 'all');
+  var world = WORLDS[worldId];
+  _renderGallerySourceOptions(worldId);
   _renderGalleryVariantOptions(worldId);
-  galleryYearInput.value = String(WORLDS[worldId].defaultDate.year);
+  _renderGalleryMonthOptions(worldId);
+  galleryYearInput.value = String(world.defaultDate.year);
+  galleryDayInput.value = String(world.defaultDate.day);
 }
 
 function _renderGalleryVariantOptions(worldId: string){
@@ -1407,13 +1523,54 @@ function _renderGalleryVariantOptions(worldId: string){
   }).join('');
 }
 
-function _renderGallerySourceOptions(worldId: string, preferred: string){
+function _renderGallerySourceOptions(worldId: string){
   var world = WORLDS[worldId];
-  var packs = (world.eventPacks || []).map(function(pack){
-    return '<option value="' + _esc(pack.key.toLowerCase()) + '">' + _esc(pack.label) + '</option>';
+  var packs = world.eventPacks || [];
+  gallerySourceDropdown.innerHTML = packs.map(function(pack){
+    return '<label><input type="checkbox" value="' + _esc(pack.key.toLowerCase()) + '" checked> ' + _esc(pack.label) + '</label>';
+  }).join('');
+  // Re-bind checkbox change events
+  var checkboxes = gallerySourceDropdown.querySelectorAll('input[type="checkbox"]');
+  checkboxes.forEach(function(cb){
+    cb.addEventListener('change', function(){
+      _updateSourceToggleLabel();
+      _renderCalendarGallery();
+    });
   });
-  gallerySourceSelect.innerHTML = '<option value="all">All default events</option>' + packs.join('');
-  gallerySourceSelect.value = preferred;
+  _updateSourceToggleLabel();
+}
+
+function _updateSourceToggleLabel(){
+  var checkboxes = gallerySourceDropdown.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+  var total = checkboxes.length;
+  var checked = 0;
+  checkboxes.forEach(function(cb){ if (cb.checked) checked++; });
+  if (checked === 0 || checked === total) {
+    gallerySourceToggle.textContent = 'All sources';
+  } else {
+    gallerySourceToggle.textContent = checked + ' of ' + total + ' sources';
+  }
+}
+
+function _getSelectedSources(): string[] {
+  var checkboxes = gallerySourceDropdown.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+  var selected: string[] = [];
+  var allChecked = true;
+  checkboxes.forEach(function(cb){
+    if (cb.checked) selected.push(cb.value);
+    else allChecked = false;
+  });
+  if (allChecked || selected.length === 0) return ['all'];
+  return selected;
+}
+
+function _renderGalleryMonthOptions(worldId: string){
+  var months = getWorldCalendarSlots(worldId).filter(function(slot){ return slot.isIntercalary !== true; });
+  var world = WORLDS[worldId];
+  galleryMonthSelect.innerHTML = months.map(function(slot, idx){
+    var selected = idx === world.defaultDate.month ? ' selected' : '';
+    return '<option value="' + idx + '"' + selected + '>' + _esc(slot.name) + '</option>';
+  }).join('');
 }
 
 type PreviewEventRow = {
@@ -1424,11 +1581,12 @@ type PreviewEventRow = {
   day: number;
 };
 
-function _eventRowsForSource(worldId: string, sourceKey: string, year: number): PreviewEventRow[] {
+function _eventRowsForSources(worldId: string, sourceKeys: string[], year: number): PreviewEventRow[] {
   var world = WORLDS[worldId];
+  var isAll = sourceKeys.indexOf('all') >= 0;
   var packs = (world.eventPacks || []).filter(function(pack){
-    if (sourceKey === 'all') return true;
-    return String(pack.key || '').toLowerCase() === sourceKey;
+    if (isAll) return true;
+    return sourceKeys.indexOf(String(pack.key || '').toLowerCase()) >= 0;
   });
   var rows: PreviewEventRow[] = [];
   packs.forEach(function(pack){
@@ -1660,9 +1818,6 @@ function _tick(now: number){
       if (planarDaysPerSecond) state.planarSerial += dtSeconds * planarDaysPerSecond;
       _syncControlsFromState();
       _attemptRender(false, false, now);
-    } else if (renderer3d && _lastSkyScene) {
-      // Even when paused, update the 3D renderer for OrbitControls damping and star twinkle
-      renderer3d.update(_lastSkyScene, state.timeFrac);
     }
   } finally {
     requestAnimationFrame(_tick);
