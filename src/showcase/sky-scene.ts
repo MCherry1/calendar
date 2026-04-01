@@ -185,7 +185,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
     });
   }
 
-  // Keep moons in world-definition order for a stable list display.
+  moons.sort(function(a, b){ return b.altitudeExact - a.altitudeExact; });
   return {
     worldId: String(input.worldId || '').toLowerCase(),
     worldLabel: world ? world.label : String(input.worldId || ''),

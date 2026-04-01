@@ -19,7 +19,7 @@ describe('Showcase Site Build', () => {
     const js = readFileSync(resolve(repoRoot, 'dist-site/assets/main.js'), 'utf8');
     const css = readFileSync(resolve(repoRoot, 'dist-site/assets/styles.css'), 'utf8');
 
-    assert(html.includes('Animated Hero Sky'));
+    assert(html.includes('Fantasy Calendar'));
     assert(html.includes('calendar-gallery'));
     assert(html.includes('Copy Scene URL'));
     assert(js.includes('buildSkyScene'));

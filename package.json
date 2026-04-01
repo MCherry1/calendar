@@ -7,7 +7,7 @@
     "build": "node build.mjs",
     "build:site": "node build-site.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/**/*.test.ts",
+    "test": "node --import tsx --test --test-force-exit test/**/*.test.ts",
     "check": "npm run typecheck && npm test"
   },
   "devDependencies": {
