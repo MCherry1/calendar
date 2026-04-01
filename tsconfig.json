@@ -11,7 +11,8 @@
     "declaration": false,
     "sourceMap": false,
     "allowJs": false,
-    "types": ["node"]
+    "types": ["node"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": ["src/**/*.ts", "site/**/*.ts", "test/**/*.ts"]
 }
