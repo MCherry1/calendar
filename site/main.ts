@@ -25,6 +25,8 @@ type ShowcaseState = {
   planarScrubActive: boolean;
   viewCenterAz: number;
   viewFovDeg: number;
+  planarTiltDeg: number;
+  planarRotOffsetDeg: number;
 };
 
 var DETAIL_SYNC_INTERVAL_MS = 160;
@@ -134,7 +136,9 @@ function _initialState(): ShowcaseState {
     planarScrubDaysPerSecond: 0,
     planarScrubActive: false,
     viewCenterAz: isFinite(viewAzRaw) ? ((viewAzRaw % 360) + 360) % 360 : 180,
-    viewFovDeg: isFinite(viewFovRaw) ? Math.max(40, Math.min(360, viewFovRaw)) : 200
+    viewFovDeg: isFinite(viewFovRaw) ? Math.max(40, Math.min(360, viewFovRaw)) : 200,
+    planarTiltDeg: 75,
+    planarRotOffsetDeg: 0
   };
 }
 
@@ -306,6 +310,61 @@ function _bindEvents(){
       _attemptRender(true, true, performance.now());
     }
   });
+
+  // ── Planar canvas: 3D orbit drag ──
+  if (planarCanvas) {
+    planarCanvas.style.cursor = 'grab';
+    planarCanvas.style.touchAction = 'none';
+
+    planarCanvas.addEventListener('mousedown', function(e){
+      if (e.button !== 0) return;
+      _planarDragState = { active: true, startX: e.clientX, startY: e.clientY, startTilt: state.planarTiltDeg, startRot: state.planarRotOffsetDeg };
+      planarCanvas!.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', function(e){
+      if (!_planarDragState || !_planarDragState.active) return;
+      var dx = e.clientX - _planarDragState.startX;
+      var dy = e.clientY - _planarDragState.startY;
+      state.planarRotOffsetDeg = _planarDragState.startRot + dx * 0.5;
+      state.planarTiltDeg = Math.max(15, Math.min(89, _planarDragState.startTilt + dy * 0.3));
+      _attemptRender(false, false, performance.now());
+    });
+
+    window.addEventListener('mouseup', function(){
+      if (_planarDragState && _planarDragState.active) {
+        _planarDragState = null;
+        if (planarCanvas) planarCanvas.style.cursor = 'grab';
+        _attemptRender(true, true, performance.now());
+      }
+    });
+
+    planarCanvas.addEventListener('touchstart', function(e){
+      if (e.touches.length !== 1) return;
+      var t = e.touches[0];
+      _planarDragState = { active: true, startX: t.clientX, startY: t.clientY, startTilt: state.planarTiltDeg, startRot: state.planarRotOffsetDeg };
+      e.preventDefault();
+    }, { passive: false });
+
+    planarCanvas.addEventListener('touchmove', function(e){
+      if (!_planarDragState || !_planarDragState.active || e.touches.length !== 1) return;
+      var t = e.touches[0];
+      var dx = t.clientX - _planarDragState.startX;
+      var dy = t.clientY - _planarDragState.startY;
+      state.planarRotOffsetDeg = _planarDragState.startRot + dx * 0.5;
+      state.planarTiltDeg = Math.max(15, Math.min(89, _planarDragState.startTilt + dy * 0.3));
+      _attemptRender(false, false, performance.now());
+      e.preventDefault();
+    }, { passive: false });
+
+    planarCanvas.addEventListener('touchend', function(){
+      _planarDragState = null;
+    });
+
+    // Suppress zoom on the planar canvas
+    planarCanvas.addEventListener('wheel', function(e){ e.preventDefault(); }, { passive: false });
+  }
 }
 
 function _canvasMouseCoords(e: MouseEvent): { cx: number; cy: number } | null {
@@ -1313,36 +1372,52 @@ function _bindPlanarJoystick(){
 // Planar Orbital Diagram
 // ---------------------------------------------------------------------------
 
-var PLANAR_TILT = Math.sin(75 * Math.PI / 180);
 var PLANAR_CX = 250;
 var PLANAR_CY = 250;
+var PLANAR_R_COT = 0;       // coterminous: at center (merged glow with Eberron)
+var PLANAR_R_MID = 95;      // midpoint for half-bounce
 var PLANAR_R_NEU = 180;     // neutral outer radius
-var PLANAR_R_REM = 210;     // remote ring radius (line, not band)
+var PLANAR_R_REM = 210;     // remote ring radius
 var PLANAR_R_DAL = 246;     // Dal Quor orbit radius
 var PLANAR_DISC_R = 10;
 
+// Drag state for 3D orbit
+var _planarDragState: { active: boolean; startX: number; startY: number; startTilt: number; startRot: number } | null = null;
+
+function _planarTiltFactor(): number {
+  return Math.sin(state.planarTiltDeg * Math.PI / 180);
+}
+
 function _planarProject(angleDeg: number, radius: number): { x: number; y: number } {
-  var rad = angleDeg * Math.PI / 180;
+  var totalAngle = angleDeg + state.planarRotOffsetDeg;
+  var rad = totalAngle * Math.PI / 180;
+  var tilt = _planarTiltFactor();
   return {
     x: PLANAR_CX + Math.cos(rad) * radius,
-    y: PLANAR_CY + Math.sin(rad) * radius * PLANAR_TILT
+    y: PLANAR_CY + Math.sin(rad) * radius * tilt
   };
 }
 
-function _planarRadiusForPosition(pos: number): number {
-  // Eberron (center) = coterminous. Neutral spans 0 to PLANAR_R_NEU.
-  // Remote planes sit on the PLANAR_R_REM ring.
-  var t = Math.max(0, Math.min(1, pos));
-  if (t <= (1 / 3)) {
-    // Coterminous: near center (radius 0 to ~20)
-    return t * 3 * 20;
+function _planarRadiusForPhase(ph: PlanarPhaseResult): number {
+  if (ph.phase === 'coterminous') return PLANAR_R_COT;
+  if (ph.phase === 'remote') return PLANAR_R_REM;
+  // Neutral phase: radial movement
+  var t = Math.max(0, Math.min(1, ph.phaseProgress));
+  if (ph.isHalfBounce) {
+    // Triangle wave: go to midpoint and back
+    var halfT = t < 0.5 ? t * 2 : (1 - t) * 2;
+    if (ph.previousPhase === 'coterminous' || ph.nextPhase === 'coterminous') {
+      return PLANAR_R_COT + halfT * PLANAR_R_MID;
+    }
+    // remote half-bounce (unlikely but handle generically)
+    return PLANAR_R_REM - halfT * (PLANAR_R_REM - PLANAR_R_MID);
   }
-  if (t <= (2 / 3)) {
-    // Neutral: 20 to PLANAR_R_NEU
-    return 20 + ((t - 1/3) * 3) * (PLANAR_R_NEU - 20);
+  // Full traversal: lerp between coterminous and remote
+  if (ph.previousPhase === 'coterminous') {
+    return PLANAR_R_COT + t * (PLANAR_R_REM - PLANAR_R_COT);
   }
-  // Remote: PLANAR_R_NEU to PLANAR_R_REM
-  return PLANAR_R_NEU + ((t - 2/3) * 3) * (PLANAR_R_REM - PLANAR_R_NEU);
+  // After remote, moving inward
+  return PLANAR_R_REM - t * (PLANAR_R_REM - PLANAR_R_COT);
 }
 
 function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
@@ -1371,43 +1446,73 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   pCtx.fillRect(0, 0, w, h);
   pCtx.restore();
 
-  // Neutral zone fill (center to PLANAR_R_NEU)
+  var tilt = _planarTiltFactor();
+
+  // Scattered background stars
   pCtx.save();
+  for (var si = 0; si < 60; si++){
+    var sx = _hash('ps:x:' + si) * w;
+    var sy = _hash('ps:y:' + si) * h;
+    var salpha = 0.03 + _hash('ps:a:' + si) * 0.06;
+    pCtx.fillStyle = 'rgba(220, 220, 240, ' + salpha + ')';
+    pCtx.fillRect(sx, sy, 1, 1);
+  }
+  pCtx.restore();
+
+  // Neutral zone fill with ethereal gradient
+  pCtx.save();
+  var neuGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 20, PLANAR_CX, PLANAR_CY, PLANAR_R_NEU);
+  neuGrad.addColorStop(0,   'rgba(80, 100, 160, 0.04)');
+  neuGrad.addColorStop(0.4, 'rgba(100, 120, 180, 0.025)');
+  neuGrad.addColorStop(0.7, 'rgba(80, 90, 140, 0.015)');
+  neuGrad.addColorStop(1.0, 'rgba(60, 70, 120, 0.005)');
   pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_NEU, PLANAR_R_NEU * PLANAR_TILT, 0, 0, Math.PI * 2);
-  pCtx.fillStyle = 'rgba(180, 180, 200, 0.02)';
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_NEU, PLANAR_R_NEU * tilt, 0, 0, Math.PI * 2);
+  pCtx.fillStyle = neuGrad;
   pCtx.fill();
   pCtx.restore();
 
+  // Midpoint subtle ring
+  pCtx.beginPath();
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_MID, PLANAR_R_MID * tilt, 0, 0, Math.PI * 2);
+  pCtx.lineWidth = 0.5;
+  pCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+  pCtx.stroke();
+
   // Neutral boundary ellipse
   pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_NEU, PLANAR_R_NEU * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_NEU, PLANAR_R_NEU * tilt, 0, 0, Math.PI * 2);
   pCtx.lineWidth = 0.8;
   pCtx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
   pCtx.stroke();
 
-  // Remote ring (LINE, not band)
+  // Remote ring (gradient dashed)
+  pCtx.save();
+  pCtx.setLineDash([6, 4]);
   pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_REM, PLANAR_R_REM * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_REM, PLANAR_R_REM * tilt, 0, 0, Math.PI * 2);
   pCtx.lineWidth = 1.5;
-  pCtx.strokeStyle = 'rgba(160, 80, 80, 0.25)';
+  pCtx.strokeStyle = 'rgba(160, 80, 80, 0.30)';
   pCtx.stroke();
+  pCtx.setLineDash([]);
+  pCtx.restore();
   // Remote label
   pCtx.save();
   pCtx.font = '8px "Trebuchet MS", sans-serif';
-  pCtx.fillStyle = 'rgba(160, 80, 80, 0.3)';
+  pCtx.fillStyle = 'rgba(160, 80, 80, 0.35)';
   pCtx.textAlign = 'center';
-  pCtx.fillText('Remote', PLANAR_CX, PLANAR_CY - PLANAR_R_REM * PLANAR_TILT - 4);
+  pCtx.fillText('Remote', PLANAR_CX, PLANAR_CY - PLANAR_R_REM * tilt - 4);
   pCtx.restore();
 
   // Dal Quor orbit (dashed)
   pCtx.save();
   pCtx.setLineDash([4, 6]);
   pCtx.beginPath();
-  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_DAL, PLANAR_R_DAL * PLANAR_TILT, 0, 0, Math.PI * 2);
+  pCtx.ellipse(PLANAR_CX, PLANAR_CY, PLANAR_R_DAL, PLANAR_R_DAL * tilt, 0, 0, Math.PI * 2);
   pCtx.lineWidth = 0.8;
   pCtx.strokeStyle = 'rgba(123, 104, 174, 0.25)';
   pCtx.stroke();
+  pCtx.setLineDash([]);
   pCtx.restore();
 
   // Draw 12 axis lines
@@ -1430,41 +1535,39 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
     pCtx.stroke();
   }
 
-  // Separate planes into coterminous, remote, and neutral/orbiting
+  // Categorize planes
   type PlaneDrawItem = {
     phase: PlanarPhaseResult;
     x: number; y: number; depth: number; discR: number; alpha: number;
   };
   var orbitingItems: PlaneDrawItem[] = [];
-  var coterminousPlanes: PlanarPhaseResult[] = [];
+  var coterminousGlows: PlanarPhaseResult[] = [];
   var remotePlanes: PlanarPhaseResult[] = [];
 
   for (var pi = 0; pi < phases.length; pi++) {
     var ph = phases[pi];
-
-    if (!ph.isDalQuor && !ph.isFixed && ph.phase === 'coterminous') {
-      coterminousPlanes.push(ph);
-      continue;
-    }
-
     var effectiveAngle: number;
     var radius: number;
 
     if (ph.isDalQuor) {
       effectiveAngle = (ph.dalQuorOrbitAngle || 0) + globalSpinDeg;
       radius = PLANAR_R_DAL;
-    } else if (!ph.isDalQuor && !ph.isFixed && ph.phase === 'remote') {
-      // Remote planes sit ON the remote ring
+    } else if (!ph.isFixed && ph.phase === 'coterminous') {
+      // Coterminous: merged glow on Eberron (drawn later)
+      coterminousGlows.push(ph);
+      continue;
+    } else if (!ph.isFixed && ph.phase === 'remote') {
       effectiveAngle = (ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180)) + globalSpinDeg;
       radius = PLANAR_R_REM;
       remotePlanes.push(ph);
     } else {
       effectiveAngle = (ph.onPrimarySide ? ph.axisAngle : (ph.axisAngle + 180)) + globalSpinDeg;
-      radius = _planarRadiusForPosition(ph.position);
+      radius = ph.isFixed ? _planarRadiusForFixedPosition(ph) : _planarRadiusForPhase(ph);
     }
 
     var pos = _planarProject(effectiveAngle, radius);
-    var depthVal = Math.sin(effectiveAngle * Math.PI / 180);
+    var totalAngle = effectiveAngle + state.planarRotOffsetDeg;
+    var depthVal = Math.sin(totalAngle * Math.PI / 180);
     var depthScale = 0.85 + depthVal * 0.15;
     var discR = PLANAR_DISC_R * depthScale;
     var alpha = 0.7 + depthVal * 0.3;
@@ -1477,20 +1580,73 @@ function _drawPlanarDiagram(phases: PlanarPhaseResult[]) {
   for (var di = 0; di < orbitingItems.length; di++) {
     if (!centerDrawn && orbitingItems[di].depth >= 0) {
       _drawEberronCenter(pCtx);
+      _drawCoterminousGlows(pCtx, coterminousGlows);
       centerDrawn = true;
     }
     _drawPlaneDisc(pCtx, orbitingItems[di]);
   }
-  if (!centerDrawn) _drawEberronCenter(pCtx);
-
-  // Draw coterminous status box (bottom-left)
-  if (coterminousPlanes.length > 0) {
-    _drawStatusBox(pCtx, coterminousPlanes, 'coterminous', 10, h - 10);
+  if (!centerDrawn) {
+    _drawEberronCenter(pCtx);
+    _drawCoterminousGlows(pCtx, coterminousGlows);
   }
+
   // Draw remote status box (bottom-right)
   if (remotePlanes.length > 0) {
     _drawStatusBox(pCtx, remotePlanes, 'remote', w - 10, h - 10);
   }
+
+  // Draw coterminous labels below Eberron
+  if (coterminousGlows.length > 0) {
+    _drawCoterminousLabels(pCtx, coterminousGlows);
+  }
+}
+
+function _planarRadiusForFixedPosition(ph: PlanarPhaseResult): number {
+  if (ph.phase === 'remote') return PLANAR_R_REM;
+  if (ph.phase === 'neutral') return PLANAR_R_MID;
+  return PLANAR_R_COT;
+}
+
+function _drawCoterminousGlows(pCtx: CanvasRenderingContext2D, planes: PlanarPhaseResult[]) {
+  if (planes.length === 0) return;
+  pCtx.save();
+  pCtx.globalCompositeOperation = 'screen';
+  for (var i = 0; i < planes.length; i++) {
+    var ph = planes[i];
+    var color = ph.color;
+    var isDark = color === '#111111' || color === '#000000';
+    var fillColor = isDark ? '#444466' : color;
+    var cv = parseInt(fillColor.replace('#', ''), 16);
+    var cr = (cv >> 16) & 255, cg = (cv >> 8) & 255, cb = cv & 255;
+
+    // Pulsing glow merged with Eberron
+    var glowR = 30 + i * 4;
+    var glowGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 4, PLANAR_CX, PLANAR_CY, glowR);
+    glowGrad.addColorStop(0,   'rgba(' + cr + ',' + cg + ',' + cb + ',0.25)');
+    glowGrad.addColorStop(0.3, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.15)');
+    glowGrad.addColorStop(0.6, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.06)');
+    glowGrad.addColorStop(1,   'rgba(' + cr + ',' + cg + ',' + cb + ',0)');
+    pCtx.fillStyle = glowGrad;
+    pCtx.beginPath();
+    pCtx.arc(PLANAR_CX, PLANAR_CY, glowR, 0, Math.PI * 2);
+    pCtx.fill();
+  }
+  pCtx.restore();
+}
+
+function _drawCoterminousLabels(pCtx: CanvasRenderingContext2D, planes: PlanarPhaseResult[]) {
+  pCtx.save();
+  pCtx.font = '9px "Trebuchet MS", sans-serif';
+  pCtx.textAlign = 'center';
+  var baseY = PLANAR_CY + 28;
+  for (var i = 0; i < planes.length; i++) {
+    var ph = planes[i];
+    var remaining = Math.max(0, ph.phaseDurationDays - ph.phaseIntoDays);
+    pCtx.fillStyle = ph.color === '#111111' ? 'rgba(180,180,200,0.6)' : ph.color;
+    pCtx.globalAlpha = 0.8;
+    pCtx.fillText(ph.name + ' · ' + _formatPlanarEta(remaining), PLANAR_CX, baseY + i * 13);
+  }
+  pCtx.restore();
 }
 
 function _drawStatusBox(pCtx: CanvasRenderingContext2D, planes: PlanarPhaseResult[], label: string, anchorX: number, anchorY: number) {
@@ -1544,46 +1700,62 @@ function _roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 }
 
 function _drawEberronCenter(pCtx: CanvasRenderingContext2D) {
-  var haloGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 0, PLANAR_CX, PLANAR_CY, 28);
-  haloGrad.addColorStop(0,   'rgba(70, 135, 200, 0.20)');
-  haloGrad.addColorStop(0.4, 'rgba(70, 135, 200, 0.12)');
-  haloGrad.addColorStop(0.7, 'rgba(70, 135, 200, 0.04)');
-  haloGrad.addColorStop(1,   'rgba(70, 135, 200, 0)');
-  pCtx.fillStyle = haloGrad;
+  var R = 14;
+  // Atmospheric glow ring
+  var atmoGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, R * 0.6, PLANAR_CX, PLANAR_CY, 32);
+  atmoGrad.addColorStop(0,   'rgba(70, 160, 220, 0.18)');
+  atmoGrad.addColorStop(0.3, 'rgba(70, 140, 200, 0.10)');
+  atmoGrad.addColorStop(0.6, 'rgba(70, 120, 180, 0.04)');
+  atmoGrad.addColorStop(1,   'rgba(70, 100, 160, 0)');
+  pCtx.fillStyle = atmoGrad;
   pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 28, 0, Math.PI * 2);
+  pCtx.arc(PLANAR_CX, PLANAR_CY, 32, 0, Math.PI * 2);
   pCtx.fill();
 
-  var oceanGrad = pCtx.createRadialGradient(PLANAR_CX - 2, PLANAR_CY - 2, 1, PLANAR_CX, PLANAR_CY, 12);
-  oceanGrad.addColorStop(0, '#4a9fd4');
-  oceanGrad.addColorStop(1, '#2060a0');
+  // Ocean
+  var oceanGrad = pCtx.createRadialGradient(PLANAR_CX - 2, PLANAR_CY - 2, 1, PLANAR_CX, PLANAR_CY, R);
+  oceanGrad.addColorStop(0, '#5ab0e0');
+  oceanGrad.addColorStop(0.6, '#3080c0');
+  oceanGrad.addColorStop(1, '#1a5090');
   pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 12, 0, Math.PI * 2);
+  pCtx.arc(PLANAR_CX, PLANAR_CY, R, 0, Math.PI * 2);
   pCtx.fillStyle = oceanGrad;
   pCtx.fill();
 
+  // Continents
   pCtx.save();
-  var contGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 0, PLANAR_CX, PLANAR_CY, 12);
+  var contGrad = pCtx.createRadialGradient(PLANAR_CX, PLANAR_CY, 0, PLANAR_CX, PLANAR_CY, R);
   contGrad.addColorStop(0, '#5ac47a');
   contGrad.addColorStop(1, '#388a50');
   pCtx.fillStyle = contGrad;
-  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX - 3, PLANAR_CY - 1, 4, 2.2, 0.3, 0, Math.PI * 2); pCtx.fill();
-  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX + 4, PLANAR_CY + 2, 3.4, 1.8, -0.2, 0, Math.PI * 2); pCtx.fill();
-  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX, PLANAR_CY - 5, 2.6, 1.5, 0.7, 0, Math.PI * 2); pCtx.fill();
+  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX - 3, PLANAR_CY - 1, 5, 2.6, 0.3, 0, Math.PI * 2); pCtx.fill();
+  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX + 5, PLANAR_CY + 2, 4, 2.2, -0.2, 0, Math.PI * 2); pCtx.fill();
+  pCtx.beginPath(); pCtx.ellipse(PLANAR_CX, PLANAR_CY - 6, 3, 1.8, 0.7, 0, Math.PI * 2); pCtx.fill();
   pCtx.restore();
 
-  var specGrad = pCtx.createRadialGradient(PLANAR_CX - 3, PLANAR_CY - 4, 0, PLANAR_CX - 3, PLANAR_CY - 4, 6);
-  specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+  // Specular highlight (animated)
+  var specAngle = (state.planarSerial / 200) % (Math.PI * 2);
+  var specX = PLANAR_CX + Math.cos(specAngle) * 2 - 2;
+  var specY = PLANAR_CY + Math.sin(specAngle) * 1 - 4;
+  var specGrad = pCtx.createRadialGradient(specX, specY, 0, specX, specY, 7);
+  specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
   specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
   pCtx.fillStyle = specGrad;
   pCtx.beginPath();
-  pCtx.arc(PLANAR_CX, PLANAR_CY, 12, 0, Math.PI * 2);
+  pCtx.arc(PLANAR_CX, PLANAR_CY, R, 0, Math.PI * 2);
   pCtx.fill();
 
-  pCtx.fillStyle = 'rgba(255, 255, 255, 0.50)';
+  // Edge highlight
+  pCtx.beginPath();
+  pCtx.arc(PLANAR_CX, PLANAR_CY, R, 0, Math.PI * 2);
+  pCtx.lineWidth = 0.5;
+  pCtx.strokeStyle = 'rgba(150, 200, 255, 0.25)';
+  pCtx.stroke();
+
+  pCtx.fillStyle = 'rgba(255, 255, 255, 0.55)';
   pCtx.font = '10px "Trebuchet MS", sans-serif';
   pCtx.textAlign = 'center';
-  pCtx.fillText('Eberron', PLANAR_CX, PLANAR_CY + 22);
+  pCtx.fillText('Eberron', PLANAR_CX, PLANAR_CY + 24);
 }
 
 function _drawPlaneDisc(pCtx: CanvasRenderingContext2D, item: { phase: PlanarPhaseResult; x: number; y: number; discR: number; alpha: number }) {
@@ -1592,41 +1764,57 @@ function _drawPlaneDisc(pCtx: CanvasRenderingContext2D, item: { phase: PlanarPha
   var r = item.discR;
   var x = item.x, y = item.y;
   var isDark = color === '#111111' || color === '#000000';
-  var fillColor = isDark ? '#333333' : color;
+  var fillColor = isDark ? '#444455' : color;
   var cv = parseInt(fillColor.replace('#', ''), 16);
   var cr = (cv >> 16) & 255, cg = (cv >> 8) & 255, cb = cv & 255;
 
   pCtx.save();
   pCtx.globalAlpha = item.alpha;
 
-  var glowR = r * 2.5;
-  var glowAlpha = 0.12;
+  // Shadow beneath
+  pCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  pCtx.beginPath(); pCtx.arc(x + 1.5, y + 2, r * 0.9, 0, Math.PI * 2); pCtx.fill();
+
+  // Outer glow
+  var glowR = r * 3;
+  var glowAlpha = 0.15;
   var glowGrad = pCtx.createRadialGradient(x, y, 0, x, y, glowR);
   glowGrad.addColorStop(0,   'rgba(' + cr + ',' + cg + ',' + cb + ',' + glowAlpha + ')');
-  glowGrad.addColorStop(0.3, 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (glowAlpha * 0.6) + ')');
+  glowGrad.addColorStop(0.25,'rgba(' + cr + ',' + cg + ',' + cb + ',' + (glowAlpha * 0.5) + ')');
   glowGrad.addColorStop(1,   'rgba(' + cr + ',' + cg + ',' + cb + ',0)');
   pCtx.fillStyle = glowGrad;
   pCtx.beginPath(); pCtx.arc(x, y, glowR, 0, Math.PI * 2); pCtx.fill();
 
-  var lighterR = Math.min(255, cr + 40), lighterG = Math.min(255, cg + 40), lighterB = Math.min(255, cb + 40);
-  var darkerR = Math.max(0, cr - 30), darkerG = Math.max(0, cg - 30), darkerB = Math.max(0, cb - 30);
-  var discGrad = pCtx.createRadialGradient(x - r * 0.2, y - r * 0.25, r * 0.1, x, y, r);
+  // Disc body with gradient
+  var lighterR = Math.min(255, cr + 50), lighterG = Math.min(255, cg + 50), lighterB = Math.min(255, cb + 50);
+  var darkerR = Math.max(0, cr - 35), darkerG = Math.max(0, cg - 35), darkerB = Math.max(0, cb - 35);
+  var discGrad = pCtx.createRadialGradient(x - r * 0.25, y - r * 0.3, r * 0.05, x, y, r);
   discGrad.addColorStop(0, 'rgb(' + lighterR + ',' + lighterG + ',' + lighterB + ')');
+  discGrad.addColorStop(0.7, 'rgb(' + cr + ',' + cg + ',' + cb + ')');
   discGrad.addColorStop(1, 'rgb(' + darkerR + ',' + darkerG + ',' + darkerB + ')');
   pCtx.fillStyle = discGrad;
   pCtx.beginPath(); pCtx.arc(x, y, r, 0, Math.PI * 2); pCtx.fill();
 
+  // Inner specular highlight
+  var specGrad = pCtx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x - r * 0.2, y - r * 0.2, r * 0.6);
+  specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.30)');
+  specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  pCtx.fillStyle = specGrad;
+  pCtx.beginPath(); pCtx.arc(x, y, r, 0, Math.PI * 2); pCtx.fill();
+
   pCtx.restore();
 
+  // Edge
   pCtx.beginPath(); pCtx.arc(x, y, r, 0, Math.PI * 2);
-  pCtx.lineWidth = isDark ? 1.0 : 0.6;
-  pCtx.strokeStyle = isDark ? 'rgba(200, 200, 200, 0.35)' : 'rgba(255, 255, 255, 0.25)';
+  pCtx.lineWidth = isDark ? 0.8 : 0.5;
+  pCtx.strokeStyle = isDark ? 'rgba(200, 200, 200, 0.30)' : 'rgba(255, 255, 255, 0.20)';
   pCtx.stroke();
 
+  // Label
   pCtx.save();
-  pCtx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+  pCtx.shadowColor = 'rgba(0, 0, 0, 0.7)';
   pCtx.shadowBlur = 3;
-  pCtx.fillStyle = 'rgba(255, 255, 255, ' + (item.alpha * 0.85) + ')';
+  pCtx.fillStyle = 'rgba(255, 255, 255, ' + (item.alpha * 0.88) + ')';
   pCtx.font = (item.discR > 9 ? '11' : '9') + 'px "Trebuchet MS", sans-serif';
   pCtx.textAlign = 'center';
   pCtx.fillText(ph.name, x, y + r + 14);

@@ -845,6 +845,12 @@ body {
   height: auto;
   aspect-ratio: 1;
   margin: 0 auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+#planar-canvas:active {
+  cursor: grabbing;
 }
 
 #planar-legend {
