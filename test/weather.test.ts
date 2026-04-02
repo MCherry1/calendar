@@ -10,7 +10,8 @@ import {
   _bestTier, _locSig, _weatherRevealBucket, _recordReveal,
   _weatherRevealForSerial, _grantCommonWeatherReveals,
   _parseWeatherRevealDayToken, _parseWeatherRevealDateSpec,
-  weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml, weatherMechanicsHandoutHtml
+  weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml, weatherMechanicsHandoutHtml,
+  _composeFormula, _rollTrait, _deriveConditions, _evaluateExtremeEvents, _weatherTraitBadge, _nudge
 } from "../src/weather.js";
 import { _subsystemIsVerbose, _subsystemVerbosityValue, _displayMonthDayParts, currentDateLabel, stepDays } from "../src/ui.js";
 import { _todayAllHtml, _todayWeatherIsStable } from "../src/today.js";
@@ -669,6 +670,243 @@ describe("Weather: _parseWeatherRevealDateSpec", () => {
 // ============================================================================
 // HARPTOS
 // ============================================================================
+
+// ============================================================================
+// WEATHER: _composeFormula
+// ============================================================================
+
+describe("Weather: _composeFormula", () => {
+  it("temperate/inland/open produces expected formula shape", () => {
+    freshInstall();
+    const f = _composeFormula("temperate", "inland", "open", 6);
+    assert(f.temp, "should have temp formula");
+    assert(f.wind, "should have wind formula");
+    assert(f.precip, "should have precip formula");
+    assert(typeof f.arcMult === "number", "should have arcMult");
+    assert(f.temp.min <= f.temp.base && f.temp.base <= f.temp.max, "base within [min, max]");
+    assert(f.wind.min <= f.wind.base && f.wind.base <= f.wind.max, "wind base within [min, max]");
+    assert(f.precip.min <= f.precip.base && f.precip.base <= f.precip.max, "precip base within [min, max]");
+  });
+
+  it("geography shift applies to formula", () => {
+    freshInstall();
+    const inland = _composeFormula("temperate", "inland", "open", 6);
+    const coastal = _composeFormula("temperate", "coastal", "open", 6);
+    // Coastal geography should shift wind upward relative to inland
+    assert(
+      coastal.wind.base >= inland.wind.base || coastal.wind.max >= inland.wind.max,
+      "coastal wind should be >= inland wind"
+    );
+  });
+
+  it("TRAIT_MAX clamps formula max values", () => {
+    freshInstall();
+    // Monsoon climate with coastal geography and swamp terrain should push precip high
+    const f = _composeFormula("monsoon", "coastal", "swamp", 6);
+    assert(f.precip.max <= 5, "precip max should not exceed TRAIT_MAX of 5");
+    assert(f.wind.max <= 5, "wind max should not exceed TRAIT_MAX of 5");
+  });
+
+  it("all climate types produce valid formulas", () => {
+    freshInstall();
+    const climates = Object.keys(WEATHER_CLIMATES);
+    for (const c of climates) {
+      for (let m = 0; m < 12; m++) {
+        const f = _composeFormula(c, "inland", "open", m);
+        assert(f.temp.min <= f.temp.max, `${c} month ${m}: temp min <= max`);
+        assert(f.wind.min <= f.wind.max, `${c} month ${m}: wind min <= max`);
+        assert(f.precip.min <= f.precip.max, `${c} month ${m}: precip min <= max`);
+      }
+    }
+  });
+});
+
+// ============================================================================
+// WEATHER: _rollTrait
+// ============================================================================
+
+describe("Weather: _rollTrait", () => {
+  it("with fixed dice returns expected value", () => {
+    freshInstall();
+    // Override randomInteger to always return 1 (minimum roll)
+    const origRandom = (globalThis as any).randomInteger;
+    (globalThis as any).randomInteger = () => 1;
+    try {
+      const formula = { base: 5, die: 3, min: 2, max: 8 };
+      // _rollTrait = base + rollDie(die) - rollDie(die) + seedNudge
+      // With always-1: base + 1 - 1 + 0 = base = 5
+      const result = _rollTrait(formula, 0);
+      assertEquals(result, 5);
+    } finally {
+      (globalThis as any).randomInteger = origRandom;
+    }
+  });
+
+  it("clamps to min", () => {
+    freshInstall();
+    const formula = { base: 3, die: 1, min: 3, max: 8 };
+    // With seedNudge = -5 and die=1 (rolls 1): 3 + 1 - 1 - 5 = -2, clamped to min=3
+    const result = _rollTrait(formula, -5);
+    assertEquals(result, 3);
+  });
+
+  it("clamps to max", () => {
+    freshInstall();
+    const formula = { base: 7, die: 1, min: 0, max: 8 };
+    // With seedNudge = +5 and die=1: 7 + 1 - 1 + 5 = 12, clamped to max=8
+    const result = _rollTrait(formula, 5);
+    assertEquals(result, 8);
+  });
+});
+
+// ============================================================================
+// WEATHER: _deriveConditions
+// ============================================================================
+
+describe("Weather: _deriveConditions", () => {
+  it("cold + precip = snow", () => {
+    freshInstall();
+    const cond = _deriveConditions({ temp: 2, wind: 1, precip: 3 }, null, "afternoon", false, "none");
+    assert(cond.precipType === "snow" || cond.precipType === "snow_light" || cond.precipType === "blizzard",
+      `expected snow variant, got ${cond.precipType}`);
+  });
+
+  it("warm + precip = rain", () => {
+    freshInstall();
+    const cond = _deriveConditions({ temp: 7, wind: 1, precip: 3 }, null, "afternoon", false, "none");
+    assertEquals(cond.precipType, "rain");
+  });
+
+  it("tropical climate floor prevents snow", () => {
+    freshInstall();
+    const loc = { climate: "tropical", geography: "inland", terrain: "open" };
+    const cond = _deriveConditions({ temp: 2, wind: 1, precip: 3 }, loc, "afternoon", false, "none");
+    assert(
+      cond.precipType === "rain" || cond.precipType === "rain_light" || cond.precipType === "heavy_rain" || cond.precipType === "deluge",
+      `tropical should produce rain variant, got ${cond.precipType}`
+    );
+  });
+
+  it("blizzard causes heavy obscured visibility", () => {
+    freshInstall();
+    const cond = _deriveConditions({ temp: 1, wind: 3, precip: 4 }, null, "afternoon", false, "none");
+    assertEquals(cond.precipType, "blizzard");
+    assertEquals(cond.visibility.tier, "C");
+    assertEquals(cond.visibility.beyond, 30);
+  });
+
+  it("no precip = none", () => {
+    freshInstall();
+    const cond = _deriveConditions({ temp: 7, wind: 1, precip: 0 }, null, "afternoon", false, "none");
+    assertEquals(cond.precipType, "none");
+  });
+
+  it("dense fog causes heavy obscured visibility", () => {
+    freshInstall();
+    const cond = _deriveConditions({ temp: 7, wind: 0, precip: 0 }, null, "afternoon", false, "dense");
+    assertEquals(cond.visibility.tier, "C");
+    assertEquals(cond.visibility.beyond, 30);
+  });
+});
+
+// ============================================================================
+// WEATHER: _evaluateExtremeEvents
+// ============================================================================
+
+describe("Weather: _evaluateExtremeEvents", () => {
+  it("returns empty array when hazards disabled", () => {
+    freshInstall();
+    ensureSettings().weatherHazardsEnabled = false;
+    const ws = getWeatherState();
+    ws.location = { name: "Test", climate: "temperate", geography: "river_valley", terrain: "open", sig: "temperate/river_valley/open" };
+    weatherEnsureForecast();
+    const rec = _forecastRecord(todaySerial());
+    const events = _evaluateExtremeEvents(rec);
+    assertEquals(events.length, 0);
+  });
+
+  it("returns array (possibly with events) when hazards enabled and record exists", () => {
+    freshInstall();
+    ensureSettings().weatherHazardsEnabled = true;
+    const ws = getWeatherState();
+    ws.location = { name: "Test", climate: "temperate", geography: "river_valley", terrain: "open", sig: "temperate/river_valley/open" };
+    weatherEnsureForecast();
+    const rec = _forecastRecord(todaySerial());
+    const events = _evaluateExtremeEvents(rec);
+    assert(Array.isArray(events), "should return an array");
+    // Each qualifying event should have key, event, and probability
+    for (const e of events) {
+      assert(typeof e.key === "string", "event should have a key");
+      assert(typeof e.probability === "number", "event should have a probability");
+      assert(e.probability > 0 && e.probability <= 1, "probability in (0, 1]");
+    }
+  });
+});
+
+// ============================================================================
+// WEATHER: Badge palette coverage
+// ============================================================================
+
+describe("Weather: badge palette coverage", () => {
+  it("wind badge renders distinct colors for all 6 levels (0-5)", () => {
+    freshInstall();
+    const colors = new Set<string>();
+    for (let level = 0; level <= 5; level++) {
+      const html = _weatherTraitBadge("wind", level);
+      const match = html.match(/background:([^;]+)/);
+      assert(match, `level ${level} should have a background color`);
+      colors.add(match[1]);
+    }
+    assertEquals(colors.size, 6, "all 6 wind levels should have distinct colors");
+  });
+
+  it("precip badge renders distinct colors for all 6 levels (0-5)", () => {
+    freshInstall();
+    const colors = new Set<string>();
+    for (let level = 0; level <= 5; level++) {
+      const html = _weatherTraitBadge("precip", level);
+      const match = html.match(/background:([^;]+)/);
+      assert(match, `level ${level} should have a background color`);
+      colors.add(match[1]);
+    }
+    assertEquals(colors.size, 6, "all 6 precip levels should have distinct colors");
+  });
+});
+
+// ============================================================================
+// WEATHER: _nudge (mean reversion)
+// ============================================================================
+
+describe("Weather: _nudge (proportional mean reversion)", () => {
+  it("returns 0 for deviation within ±1", () => {
+    freshInstall();
+    assertEquals(_nudge(5, 5), 0);  // deviation 0
+    assertEquals(_nudge(6, 5), 0);  // deviation +1
+    assertEquals(_nudge(4, 5), 0);  // deviation -1
+  });
+
+  it("returns pull-back for deviation of 2", () => {
+    freshInstall();
+    // dev = +2: magnitude = 1 + 0*0.5 = 1, sign = -1, result = round(-1*1) = -1
+    assertEquals(_nudge(7, 5), -1);  // deviation +2 → nudge -1
+    assertEquals(_nudge(3, 5), 1);   // deviation -2 → nudge +1
+  });
+
+  it("returns stronger pull-back for larger deviations", () => {
+    freshInstall();
+    const nudge2 = Math.abs(_nudge(7, 5));  // deviation +2
+    const nudge3 = Math.abs(_nudge(8, 5));  // deviation +3
+    const nudge4 = Math.abs(_nudge(9, 5));  // deviation +4
+    assert(nudge3 >= nudge2, "deviation 3 should nudge at least as much as deviation 2");
+    assert(nudge4 >= nudge3, "deviation 4 should nudge at least as much as deviation 3");
+  });
+
+  it("is symmetric for positive and negative deviations", () => {
+    freshInstall();
+    assertEquals(_nudge(8, 5), -_nudge(2, 5));  // +3 vs -3
+    assertEquals(_nudge(7, 5), -_nudge(3, 5));  // +2 vs -2
+  });
+});
 
 describe("Harptos: _ordinal", () => {
   it("handles 1st, 2nd, 3rd", () => { freshInstall(); assertEquals(_ordinal(1), "1st"); assertEquals(_ordinal(2), "2nd"); assertEquals(_ordinal(3), "3rd"); });
