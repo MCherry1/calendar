@@ -236,23 +236,23 @@ var WEATHER_CLIMATE_BASE: any = {
 
   // Frostfell, Demon Wastes — perpetually cold, windswept, low moisture
   polar: [
-    /*0  mid-win */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*1  late-win*/ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*2  early-sp*/ {temp:{base:-3,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*0  mid-win */ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1  late-win*/ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2  early-sp*/ {temp:{base:-2,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
     /*3  mid-sp  */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
     /*4  late-sp */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
     /*5  early-su*/ {temp:{base:1,die:2,min:0,max:4},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*6  mid-su  */ {temp:{base:1,die:2,min:0,max:4},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*7  late-su */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8  early-au*/ {temp:{base:-3,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*10 late-au */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*11 early-wn*/ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
+    /*8  early-au*/ {temp:{base:-2,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:-1}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10 late-au */ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Karrnath, Mror Holds interior — wide seasonal swing, harsh winters
   continental: [
-    /*0 */ {temp:{base:-3,die:3,min:-2,max:0},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*0 */ {temp:{base:-2,die:3,min:-2,max:0},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*1 */ {temp:{base:0,die:3,min:-2,max:1},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*2 */ {temp:{base:1,die:3,min:0,max:6},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*3 */ {temp:{base:4,die:2,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
@@ -260,15 +260,15 @@ var WEATHER_CLIMATE_BASE: any = {
     /*5 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*6 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*7 */ {temp:{base:6,die:2,min:4,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:4,die:3,min:0,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*8 */ {temp:{base:4,die:3,min:2,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
     /*9 */ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*10*/ {temp:{base:0,die:2,min:-3,max:1},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:-3,die:3,min:-2,max:0},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*11*/ {temp:{base:-2,die:3,min:-2,max:0},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Breland, Shadow Marches, most of Khorvaire — moderate, maritime-influenced
   temperate: [
-    /*0 */ {temp:{base:0,die:2,min:-3,max:4},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*0 */ {temp:{base:0,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*1 */ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*2 */ {temp:{base:4,die:2,min:1,max:6},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*3 */ {temp:{base:4,die:2,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
@@ -279,7 +279,7 @@ var WEATHER_CLIMATE_BASE: any = {
     /*8 */ {temp:{base:6,die:2,min:3,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
     /*9 */ {temp:{base:4,die:2,min:1,max:6},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*10*/ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:0,die:2,min:-3,max:4},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*11*/ {temp:{base:0,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Blade Desert, Valenar interior — heat-dominated, wide daily swings, very low precip
@@ -979,7 +979,7 @@ function _getModEntry(table: any, monthIdx: any){
 // Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
 export function _composeFormula(climate: any, geography: any, terrain: any, monthIdx: any){
   var TRAIT_MIN: any = { temp:WEATHER_TEMP_BAND_MIN, wind:0, precip:0 };
-  var TRAIT_MAX: any = { temp:WEATHER_TEMP_BAND_MAX, wind:3, precip:3 };
+  var TRAIT_MAX: any = { temp:WEATHER_TEMP_BAND_MAX, wind:5, precip:5 };
   var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
   var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
   var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
