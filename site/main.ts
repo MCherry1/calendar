@@ -5,7 +5,7 @@ import { buildSkyScene } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
-import { getMoonTexture, clearTextureCache, generateStarField, generateMilkyWay, StarData } from './sky-textures.js';
+import { getMoonTexture, clearTextureCache, generateStarField, generateMilkyWay, StarData, MilkyWayParticle } from './sky-textures.js';
 import { getMoonOrbitalData } from '../src/showcase/solar-system-data.js';
 
 
@@ -23,6 +23,8 @@ type ShowcaseState = {
   planarDaysPerSecond: number;
   planarScrubDaysPerSecond: number;
   planarScrubActive: boolean;
+  viewCenterAz: number;
+  viewFovDeg: number;
 };
 
 var DETAIL_SYNC_INTERVAL_MS = 160;
@@ -36,7 +38,7 @@ var lastMoonListHtml = '';
 var lastRenderError = '';
 
 var _starField: StarData[] | null = null;
-var _milkyWay: HTMLCanvasElement | null = null;
+var _milkyWay: MilkyWayParticle[] | null = null;
 var _starWorldId = '';
 
 var worldSelect = _must<HTMLSelectElement>('hero-world');
@@ -115,6 +117,8 @@ function _initialState(): ShowcaseState {
   var year = dateBits ? dateBits.year : world.defaultDate.year;
   var day = dateBits ? dateBits.day : world.defaultDate.day;
   var serial = toWorldSerial(worldId, year, slotIndex, day);
+  var viewAzRaw = parseFloat(url.searchParams.get('viewAz') || '');
+  var viewFovRaw = parseFloat(url.searchParams.get('viewFov') || '');
   return {
     worldId: worldId,
     serial: serial,
@@ -128,7 +132,9 @@ function _initialState(): ShowcaseState {
     planarPlaying: false,
     planarDaysPerSecond: 1,
     planarScrubDaysPerSecond: 0,
-    planarScrubActive: false
+    planarScrubActive: false,
+    viewCenterAz: isFinite(viewAzRaw) ? ((viewAzRaw % 360) + 360) % 360 : 180,
+    viewFovDeg: isFinite(viewFovRaw) ? Math.max(40, Math.min(360, viewFovRaw)) : 200
   };
 }
 
@@ -224,6 +230,147 @@ function _bindEvents(){
   galleryDayInput.addEventListener('change', _renderCalendarGallery);
   galleryVariantSelect.addEventListener('change', _renderCalendarGallery);
   gallerySeedInput.addEventListener('input', _renderCalendarGallery);
+
+  // ── Sky canvas: drag-to-pan ──
+  canvas.style.cursor = 'grab';
+
+  canvas.addEventListener('mousedown', function(e){
+    if (e.button !== 0) return;
+    _dragState = { active: true, startX: e.clientX, startAz: state.viewCenterAz, moved: false };
+    canvas.style.cursor = 'grabbing';
+    // Hide tooltip on interaction
+    var tip = document.getElementById('sky-tooltip');
+    if (tip) tip.hidden = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e){
+    if (_dragState && _dragState.active){
+      var dx = e.clientX - _dragState.startX;
+      // Convert pixel delta to degrees using the canvas display size
+      var rect = canvas.getBoundingClientRect();
+      var deltaAz = (dx / rect.width) * state.viewFovDeg;
+      state.viewCenterAz = ((_dragState.startAz - deltaAz) % 360 + 360) % 360;
+      if (Math.abs(dx) > 3) _dragState.moved = true;
+      _attemptRender(false, false, performance.now());
+    } else {
+      // Hover cursor: check if over a moon
+      _updateMoonHoverCursor(e);
+    }
+  });
+
+  window.addEventListener('mouseup', function(e){
+    if (_dragState && _dragState.active){
+      var wasDrag = _dragState.moved;
+      _dragState = null;
+      canvas.style.cursor = 'grab';
+      if (!wasDrag){
+        // It was a click, not a drag — check for moon hit
+        _handleMoonClick(e);
+      }
+      _attemptRender(true, true, performance.now());
+    }
+  });
+
+  // ── Sky canvas: scroll-to-zoom ──
+  canvas.addEventListener('wheel', function(e){
+    e.preventDefault();
+    var zoomFactor = e.deltaY > 0 ? 1.1 : (1 / 1.1);
+    state.viewFovDeg = Math.max(VIEW_FOV_MIN, Math.min(VIEW_FOV_MAX, state.viewFovDeg * zoomFactor));
+    _attemptRender(false, false, performance.now());
+  }, { passive: false });
+
+  // ── Sky canvas: touch support ──
+  canvas.addEventListener('touchstart', function(e){
+    if (e.touches.length !== 1) return;
+    var t = e.touches[0];
+    _dragState = { active: true, startX: t.clientX, startAz: state.viewCenterAz, moved: false };
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', function(e){
+    if (!_dragState || !_dragState.active || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var dx = t.clientX - _dragState.startX;
+    var rect = canvas.getBoundingClientRect();
+    var deltaAz = (dx / rect.width) * state.viewFovDeg;
+    state.viewCenterAz = ((_dragState.startAz - deltaAz) % 360 + 360) % 360;
+    if (Math.abs(dx) > 3) _dragState.moved = true;
+    _attemptRender(false, false, performance.now());
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', function(){
+    if (_dragState){
+      _dragState = null;
+      _attemptRender(true, true, performance.now());
+    }
+  });
+}
+
+function _canvasMouseCoords(e: MouseEvent): { cx: number; cy: number } | null {
+  var rect = canvas.getBoundingClientRect();
+  var scaleX = canvas.width / rect.width;
+  var scaleY = canvas.height / rect.height;
+  return { cx: (e.clientX - rect.left) * scaleX, cy: (e.clientY - rect.top) * scaleY };
+}
+
+function _hitTestMoon(cx: number, cy: number): typeof _drawnMoons[0] | null {
+  for (var i = _drawnMoons.length - 1; i >= 0; i--){
+    var m = _drawnMoons[i];
+    var dx = cx - m.x, dy = cy - m.y;
+    if (dx * dx + dy * dy <= (m.radius + 6) * (m.radius + 6)) return m;
+  }
+  return null;
+}
+
+function _updateMoonHoverCursor(e: MouseEvent){
+  var coords = _canvasMouseCoords(e);
+  if (!coords) return;
+  var rect = canvas.getBoundingClientRect();
+  // Only if mouse is over the canvas
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+  var hit = _hitTestMoon(coords.cx, coords.cy);
+  canvas.style.cursor = hit ? 'pointer' : 'grab';
+}
+
+var skyTooltip: HTMLElement | null = null;
+
+function _handleMoonClick(e: MouseEvent){
+  var coords = _canvasMouseCoords(e);
+  if (!coords) return;
+  var hit = _hitTestMoon(coords.cx, coords.cy);
+  if (!skyTooltip) skyTooltip = document.getElementById('sky-tooltip');
+  if (!skyTooltip) return;
+  if (!hit){
+    skyTooltip.hidden = true;
+    return;
+  }
+  var moon = hit.moon;
+  var phasePct = Math.round(moon.pctFull);
+  var phaseLabel = moon.phase.waxing
+    ? (phasePct < 3 ? 'New' : phasePct < 47 ? 'Waxing Crescent' : phasePct < 53 ? 'First Quarter' : phasePct < 97 ? 'Waxing Gibbous' : 'Full')
+    : (phasePct < 3 ? 'New' : phasePct < 47 ? 'Waning Crescent' : phasePct < 53 ? 'Last Quarter' : phasePct < 97 ? 'Waning Gibbous' : 'Full');
+  skyTooltip.innerHTML =
+    '<strong>' + _esc(moon.name) + '</strong>' +
+    (moon.title ? '<br><em>' + _esc(moon.title) + '</em>' : '') +
+    '<br>' + phaseLabel + ' (' + phasePct + '%)' +
+    '<br>Altitude: ' + Math.round(moon.altitudeExact) + '°' +
+    '<br>Direction: ' + _esc(moon.direction) +
+    '<br>Angular size: ' + moon.angularDiameterDeg.toFixed(2) + '°';
+  // Position tooltip near the click in the hero-scene container
+  var rect = canvas.getBoundingClientRect();
+  var heroScene = canvas.parentElement;
+  if (!heroScene) return;
+  var heroRect = heroScene.getBoundingClientRect();
+  var left = e.clientX - heroRect.left + 12;
+  var top = e.clientY - heroRect.top + 12;
+  // Clamp to stay inside
+  if (left + 180 > heroRect.width) left = left - 200;
+  if (top + 120 > heroRect.height) top = top - 130;
+  skyTooltip.style.left = Math.max(4, left) + 'px';
+  skyTooltip.style.top = Math.max(4, top) + 'px';
+  skyTooltip.hidden = false;
 }
 
 function _updateStateFromControls(){
@@ -458,23 +605,42 @@ function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
   }
 }
 
-var PANO_AZ_MIN = 80;
-var PANO_AZ_MAX = 280;
+var PANO_DEFAULT_FOV = 200;
 var PANO_ALT_MAX = 75;
 var PANO_TOP_MARGIN = 70;
 var PANO_BOTTOM_MARGIN = 32;
 var SCENE_OBSERVER_LATITUDE = 37.7749;
+var VIEW_FOV_MIN = 40;
+var VIEW_FOV_MAX = 360;
+
+// Drag-to-pan state
+var _dragState: { active: boolean; startX: number; startAz: number; moved: boolean } | null = null;
+
+// Hit-test cache for drawn moons (rebuilt each frame)
+var _drawnMoons: { name: string; x: number; y: number; radius: number; moon: any }[] = [];
+
+function _viewMin(){ return state.viewCenterAz - state.viewFovDeg / 2; }
+function _viewMax(){ return state.viewCenterAz + state.viewFovDeg / 2; }
+
+function _normalizeAzToView(azimuthDeg: number){
+  // Normalize azimuth relative to the view window so wrapping works
+  var vMin = _viewMin();
+  var rel = ((azimuthDeg - vMin) % 360 + 360) % 360;
+  return rel;
+}
 
 function _panoramicPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
   var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
-  var x = (azimuthDeg - PANO_AZ_MIN) / (PANO_AZ_MAX - PANO_AZ_MIN) * width;
+  var rel = _normalizeAzToView(azimuthDeg);
+  var x = (rel / state.viewFovDeg) * width;
   var y = PANO_TOP_MARGIN + (1 - Math.max(0, Math.min(PANO_ALT_MAX, altitudeDeg)) / PANO_ALT_MAX) * usableHeight;
   return { x: x, y: y };
 }
 
 function _panoramicMoonPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
   var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
-  var x = (azimuthDeg - PANO_AZ_MIN) / (PANO_AZ_MAX - PANO_AZ_MIN) * width;
+  var rel = _normalizeAzToView(azimuthDeg);
+  var x = (rel / state.viewFovDeg) * width;
   // Keep motion continuous through the horizon by allowing a small below-horizon
   // overscan for "peeking" moons instead of pinning them at 0° altitude.
   var altCapped = Math.max(-12, Math.min(PANO_ALT_MAX, altitudeDeg));
@@ -550,6 +716,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
 
   _drawCompass(width, height);
 
+  _drawnMoons = [];
   var drawMoons = scene.moons.slice().sort(function(a, b){
     return Number(b.orbitalDistance || 0) - Number(a.orbitalDistance || 0);
   });
@@ -560,10 +727,12 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
     // Use hour-angle space for horizontal placement to avoid apparent
     // acceleration when azimuth curves sharply near the top of the arc.
     var panoAz = (isFinite(Number((moon as any).hourAngle)) ? (180 + Number((moon as any).hourAngle)) : moon.azimuth);
-    if (panoAz < PANO_AZ_MIN - 5 || panoAz > PANO_AZ_MAX + 5) continue;
+    var relAz = _normalizeAzToView(panoAz);
+    if (relAz < -5 || relAz > state.viewFovDeg + 5) continue;
     var position = _panoramicMoonPoint(width, height, panoAz, moon.altitudeExact);
     var moonRadius = _moonRadiusPx(moon.angularDiameterDeg, state.lunarSizeMode);
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12), moon.name);
+    _drawnMoons.push({ name: moon.name, x: position.x, y: position.y, radius: moonRadius, moon: moon });
     if (labeled < 5 && moon.altitudeExact >= 2){
       ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
       ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
@@ -588,48 +757,53 @@ function _drawStars(width: number, height: number, timeFrac: number){
     _milkyWay = generateMilkyWay(width, height, state.worldId, PANO_TOP_MARGIN, PANO_BOTTOM_MARGIN);
     _starWorldId = state.worldId;
   }
-  // draw milky-way band
+  var zoomScale = PANO_DEFAULT_FOV / state.viewFovDeg;
+  // draw milky-way particles
   if (_milkyWay){
     ctx.save();
-    ctx.globalAlpha = 0.15;
-    ctx.drawImage(_milkyWay, 0, 0);
+    for (var mi = 0; mi < _milkyWay.length; mi++){
+      var mp = _milkyWay[mi];
+      var mRel = _normalizeAzToView(mp.az);
+      if (mRel < -2 || mRel > state.viewFovDeg + 2) continue;
+      var mPt = _panoramicPoint(width, height, mp.az, mp.alt);
+      ctx.fillStyle = 'rgba(220,215,200,' + (mp.alpha * 0.15) + ')';
+      ctx.fillRect(mPt.x, mPt.y, mp.size * zoomScale, mp.size * zoomScale);
+    }
     ctx.restore();
   }
   // draw stars with independent twinkle
   var t2pi = timeFrac * Math.PI * 2;
   for (var i = 0; i < _starField.length; i++){
     var s = _starField[i];
+    // skip stars outside the current view
+    var sRel = _normalizeAzToView(s.az);
+    if (sRel < -2 || sRel > state.viewFovDeg + 2) continue;
+    var pt = _panoramicPoint(width, height, s.az, s.alt);
     var twinkle = Math.sin(t2pi * s.twinkleFreq + s.twinklePhase);
     var alpha = Math.max(0, s.baseAlpha + twinkle * (s.tier === 0 ? 0.25 : s.tier === 1 ? 0.15 : 0.08));
     if (alpha < 0.01) continue;
+    var sz = s.size * zoomScale;
     if (s.tier === 2){
-      // dim stars: single pixel
       ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
-      ctx.fillRect(s.x, s.y, s.size * 2, s.size * 2);
+      ctx.fillRect(pt.x, pt.y, sz * 2, sz * 2);
     } else if (s.tier === 1){
-      // medium stars: soft dot
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, sz, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
       ctx.fill();
     } else {
-      // bright stars: diffraction spikes + halo
       ctx.save();
       ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
-      // horizontal spike
-      ctx.fillRect(s.x - s.size * 2.5, s.y - 0.4, s.size * 5, 0.8);
-      // vertical spike
-      ctx.fillRect(s.x - 0.4, s.y - s.size * 2.5, 0.8, s.size * 5);
-      // central dot
+      ctx.fillRect(pt.x - sz * 2.5, pt.y - 0.4, sz * 5, 0.8);
+      ctx.fillRect(pt.x - 0.4, pt.y - sz * 2.5, 0.8, sz * 5);
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size * 0.8, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, sz * 0.8, 0, Math.PI * 2);
       ctx.fill();
-      // halo glow
-      var halo = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.size * 4);
+      var halo = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, sz * 4);
       halo.addColorStop(0, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + (alpha * 0.12) + ')');
       halo.addColorStop(1, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',0)');
       ctx.fillStyle = halo;
-      ctx.fillRect(s.x - s.size * 4, s.y - s.size * 4, s.size * 8, s.size * 8);
+      ctx.fillRect(pt.x - sz * 4, pt.y - sz * 4, sz * 8, sz * 8);
       ctx.restore();
     }
   }
@@ -637,23 +811,28 @@ function _drawStars(width: number, height: number, timeFrac: number){
 
 function _drawCompass(width: number, height: number){
   if (!ctx) return;
-  var compassLabels = [
-    { text: 'E', az: 90 }, { text: 'SE', az: 135 }, { text: 'S', az: 180 },
-    { text: 'SW', az: 225 }, { text: 'W', az: 270 }
+  var allDirections = [
+    { text: 'N', az: 0 }, { text: 'NE', az: 45 }, { text: 'E', az: 90 },
+    { text: 'SE', az: 135 }, { text: 'S', az: 180 }, { text: 'SW', az: 225 },
+    { text: 'W', az: 270 }, { text: 'NW', az: 315 }
   ];
   ctx.fillStyle = 'rgba(247, 242, 232, 0.66)';
   ctx.font = '14px "Trebuchet MS", "Gill Sans", sans-serif';
   ctx.textAlign = 'center';
   var labelY = height - 8;
-  compassLabels.forEach(function(label){
+  for (var d = 0; d < allDirections.length; d++){
+    var label = allDirections[d];
+    var rel = _normalizeAzToView(label.az);
+    if (rel < 0 || rel > state.viewFovDeg) continue;
     var pt = _panoramicPoint(width, height, label.az, 0);
-    ctx.fillText(label.text, pt.x, labelY);
-  });
+    ctx!.fillText(label.text, pt.x, labelY);
+  }
   ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(127, 196, 216, 0.5)';
   ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
-  var pt30 = _panoramicPoint(width, height, PANO_AZ_MIN, 30);
-  var pt60 = _panoramicPoint(width, height, PANO_AZ_MIN, 60);
+  var vMin = _viewMin();
+  var pt30 = _panoramicPoint(width, height, vMin, 30);
+  var pt60 = _panoramicPoint(width, height, vMin, 60);
   ctx.fillText('30°', 6, pt30.y + 4);
   ctx.fillText('60°', 6, pt60.y + 4);
 }
@@ -663,7 +842,7 @@ function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number,
 }
 
 function _sceneFacingDirection(){
-  var centerAz = ((PANO_AZ_MIN + PANO_AZ_MAX) / 2 + 360) % 360;
+  var centerAz = ((state.viewCenterAz) + 360) % 360;
   if (centerAz >= 45 && centerAz < 135) return 'East';
   if (centerAz >= 135 && centerAz < 225) return 'South';
   if (centerAz >= 225 && centerAz < 315) return 'West';
@@ -902,7 +1081,7 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
   var halfWidthDeg = 6;
 
   for (var i = 0; i <= steps; i++){
-    var H = (-90 + 180 * i / steps) * Math.PI / 180;
+    var H = (-180 + 360 * i / steps) * Math.PI / 180;
     var sinAlt = Math.cos(lat) * Math.cos(H);
     var altRad = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
     var altDeg = altRad * 180 / Math.PI;
@@ -1854,13 +2033,14 @@ function _normalizeLunarSizeMode(raw: string): 'useful' | 'true' {
 }
 
 function _moonRadiusPx(angularDiameterDeg: number, mode: 'useful' | 'true'){
+  var zoomScale = PANO_DEFAULT_FOV / state.viewFovDeg;
   if (mode === 'true') {
     var usableHeight = canvas.height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
-    var pxPerDegree = usableHeight / PANO_ALT_MAX;
+    var pxPerDegree = (usableHeight / PANO_ALT_MAX) * zoomScale;
     var trueRadiusPx = (Math.max(0, angularDiameterDeg) * pxPerDegree) / 2;
     return Math.max(0.5, trueRadiusPx);
   }
-  var usefulDiameterPx = Math.max(25, Math.min(50, angularDiameterDeg * 22));
+  var usefulDiameterPx = Math.max(25, Math.min(50, angularDiameterDeg * 22)) * zoomScale;
   return usefulDiameterPx / 2;
 }
 
@@ -1880,6 +2060,10 @@ function _updateUrl(){
   next.searchParams.set('date', dateParam);
   next.searchParams.set('time', String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0'));
   next.searchParams.set('lunarSize', state.lunarSizeMode);
+  if (Math.abs(state.viewCenterAz - 180) > 0.5) next.searchParams.set('viewAz', state.viewCenterAz.toFixed(1));
+  else next.searchParams.delete('viewAz');
+  if (Math.abs(state.viewFovDeg - 200) > 0.5) next.searchParams.set('viewFov', state.viewFovDeg.toFixed(1));
+  else next.searchParams.delete('viewFov');
   history.replaceState(null, '', next.toString());
 }
 
