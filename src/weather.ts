@@ -236,23 +236,23 @@ var WEATHER_CLIMATE_BASE: any = {
 
   // Frostfell, Demon Wastes — perpetually cold, windswept, low moisture
   polar: [
-    /*0  mid-win */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*1  late-win*/ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*2  early-sp*/ {temp:{base:-3,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*0  mid-win */ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*1  late-win*/ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*2  early-sp*/ {temp:{base:-2,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
     /*3  mid-sp  */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
     /*4  late-sp */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:1,die:2,min:0,max:2}},
     /*5  early-su*/ {temp:{base:1,die:2,min:0,max:4},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*6  mid-su  */ {temp:{base:1,die:2,min:0,max:4},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*7  late-su */ {temp:{base:0,die:2,min:-3,max:1},   wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8  early-au*/ {temp:{base:-3,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*10 late-au */ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
-    /*11 early-wn*/ {temp:{base:-2,die:2,min:-3,max:-3}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
+    /*8  early-au*/ {temp:{base:-2,die:2,min:-2,max:0},  wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*9  mid-au  */ {temp:{base:-2,die:2,min:-3,max:-1}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*10 late-au */ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}},
+    /*11 early-wn*/ {temp:{base:-3,die:2,min:-4,max:-2}, wind:{base:2,die:2,min:1,max:3}, precip:{base:1,die:2,min:0,max:2}}
   ],
 
   // Karrnath, Mror Holds interior — wide seasonal swing, harsh winters
   continental: [
-    /*0 */ {temp:{base:-3,die:3,min:-2,max:0},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*0 */ {temp:{base:-2,die:3,min:-2,max:0},  wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*1 */ {temp:{base:0,die:3,min:-2,max:1},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*2 */ {temp:{base:1,die:3,min:0,max:6},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*3 */ {temp:{base:4,die:2,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
@@ -260,15 +260,15 @@ var WEATHER_CLIMATE_BASE: any = {
     /*5 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*6 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*7 */ {temp:{base:6,die:2,min:4,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:4,die:3,min:0,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*8 */ {temp:{base:4,die:3,min:2,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
     /*9 */ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*10*/ {temp:{base:0,die:2,min:-3,max:1},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:-3,die:3,min:-2,max:0},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*11*/ {temp:{base:-2,die:3,min:-2,max:0},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Breland, Shadow Marches, most of Khorvaire — moderate, maritime-influenced
   temperate: [
-    /*0 */ {temp:{base:0,die:2,min:-3,max:4},   wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
+    /*0 */ {temp:{base:0,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*1 */ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*2 */ {temp:{base:4,die:2,min:1,max:6},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*3 */ {temp:{base:4,die:2,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
@@ -276,10 +276,10 @@ var WEATHER_CLIMATE_BASE: any = {
     /*5 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*6 */ {temp:{base:9,die:2,min:6,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
     /*7 */ {temp:{base:6,die:2,min:4,max:10},    wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:2,min:1,max:3}},
-    /*8 */ {temp:{base:6,die:3,min:1,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
+    /*8 */ {temp:{base:6,die:2,min:3,max:9},     wind:{base:1,die:2,min:0,max:2}, precip:{base:2,die:3,min:0,max:3}},
     /*9 */ {temp:{base:4,die:2,min:1,max:6},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
     /*10*/ {temp:{base:1,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}},
-    /*11*/ {temp:{base:0,die:2,min:-3,max:4},    wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
+    /*11*/ {temp:{base:0,die:2,min:0,max:4},     wind:{base:2,die:2,min:0,max:3}, precip:{base:2,die:2,min:1,max:3}}
   ],
 
   // Blade Desert, Valenar interior — heat-dominated, wide daily swings, very low precip
@@ -979,7 +979,7 @@ function _getModEntry(table: any, monthIdx: any){
 // Returns { temp, wind, precip, arcMult } where each trait is {base,die,min,max}.
 export function _composeFormula(climate: any, geography: any, terrain: any, monthIdx: any){
   var TRAIT_MIN: any = { temp:WEATHER_TEMP_BAND_MIN, wind:0, precip:0 };
-  var TRAIT_MAX: any = { temp:WEATHER_TEMP_BAND_MAX, wind:3, precip:3 };
+  var TRAIT_MAX: any = { temp:WEATHER_TEMP_BAND_MAX, wind:5, precip:5 };
   var clBase  = WEATHER_CLIMATE_BASE[climate]   || WEATHER_CLIMATE_BASE.temperate;
   var base    = clBase[_weatherMonthIndex(monthIdx)] || clBase[0];
   var gMod    = _getModEntry(WEATHER_GEO_MOD[geography]     || WEATHER_GEO_MOD.inland,   monthIdx);
@@ -2307,7 +2307,7 @@ function _weatherRevealTierHtml(serial: any, opts?: any){
     : _weatherRevealForSerial(ws, serial, loc);
   var label = _weatherRevealTierLabel(reveal);
   var opacity = (label === 'Unrevealed') ? '.58' : '.82';
-  return '<div style="margin-top:4px;padding-top:3px;border-top:1px solid rgba(0,0,0,.12);font-size:.68em;line-height:1.1;text-align:center;opacity:' + opacity + ';">Knowledge: <b>' + esc(label) + '</b></div>';
+  return '<div style="margin-top:4px;padding-top:3px;border-top:1px solid rgba(0,0,0,.12);font-size:.68em;line-height:1.1;text-align:center;opacity:' + opacity + ';"><b>' + esc(label) + '</b></div>';
 }
 
 // Render one player-facing day block at the given detail tier.
@@ -2629,7 +2629,7 @@ function _playerForecastViewData(maxDays: any){
   if (displayMode !== 'list'){
     body += miniCal;
     body += _legendLine(['🌅 Early', '☀ Morning', '☁ Afternoon', '🌆 Evening', '🌙 Night', 'Emoji row = afternoon outlook']);
-    body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">Only weather you currently know is marked.</div>';
+    body += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">Only weather you currently know is marked. Player knowledge level shown in cell.</div>';
   }
   if (displayMode !== 'calendar'){
     body += blocks.join('');
@@ -3154,9 +3154,9 @@ function _weatherForecastCellHtml(serial: any){
   return '<div data-weather-forecast-cell="1"' + titleAttr + ' style="min-height:74px;display:flex;flex-direction:column;justify-content:space-between;">' +
     '<div style="font-size:.72em;opacity:.7;line-height:1.1;">' + dateLabel + '</div>' +
     '<div style="font-size:1.3em;line-height:1;text-align:center;margin:5px 0 8px 0;">' + _weatherEmojiForRecord(rec) + '</div>' +
-    '<div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:.8em;font-weight:bold;">' +
-      '<span style="color:#1565C0;">' + esc(lowText) + '</span>' +
-      '<span style="color:#B71C1C;">' + esc(highText) + '</span>' +
+    '<div style="display:flex;width:100%;font-size:.8em;font-weight:bold;">' +
+      '<span style="flex:1;text-align:center;color:#1565C0;">' + esc(lowText) + '</span>' +
+      '<span style="flex:1;text-align:center;color:#B71C1C;">' + esc(highText) + '</span>' +
     '</div>' +
     '</div>';
 }
@@ -3240,9 +3240,9 @@ function _weatherCalendarCellHtml(serial: any, opts?: any){
     } else {
       middle = _weatherEmojiForRecord(rec);
     }
-    details = '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:.74em;font-weight:bold;">' +
-      '<span style="color:#1565C0;text-align:left;">' + esc(temps ? (temps.lowF + 'F') : '\u2014') + '</span>' +
-      '<span style="color:#B71C1C;text-align:right;">' + esc(temps ? (temps.highF + 'F') : '\u2014') + '</span>' +
+    details = '<div style="display:flex;width:100%;font-size:.74em;font-weight:bold;">' +
+      '<span style="flex:1;text-align:center;color:#1565C0;">' + esc(temps ? (temps.lowF + 'F') : '\u2014') + '</span>' +
+      '<span style="flex:1;text-align:center;color:#B71C1C;">' + esc(temps ? (temps.highF + 'F') : '\u2014') + '</span>' +
     '</div>';
     if (opts.showRevealTier !== false){
       revealLine = _weatherRevealTierHtml(serial, opts);
@@ -3678,7 +3678,7 @@ function _playerForecastCalendarHtml(data: any){
         knownSerials: knownSerials,
         currentPeriodForToday: true
       }) +
-      '<div style="font-size:.78em;opacity:.6;margin-top:2px;">Only revealed days are shown.</div>' +
+      '<div style="font-size:.78em;opacity:.6;margin-top:2px;">Only revealed days are shown. Player knowledge level shown in cell.</div>' +
     '</div>';
 }
 

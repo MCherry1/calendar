@@ -26,7 +26,8 @@ export function esc(s){
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/'/g, '&#39;')
+    .replace(/[\r\n]/g, '&#10;');
 }
 
 export function swatchHtml(colLike){
@@ -178,11 +179,11 @@ export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEv
       else grouped.other.push(en);
     }
     var parts = [];
-    if (grouped['New'].length) parts.push('New:\n  ' + grouped['New'].join('\n  '));
-    if (grouped['Full'].length) parts.push('Full:\n  ' + grouped['Full'].join('\n  '));
-    if (grouped['Eclipse'].length) parts.push('Eclipse:\n  ' + grouped['Eclipse'].join('\n  '));
+    if (grouped['New'].length) parts.push('New: ' + grouped['New'].join(', '));
+    if (grouped['Full'].length) parts.push('Full: ' + grouped['Full'].join(', '));
+    if (grouped['Eclipse'].length) parts.push('Eclipse: ' + grouped['Eclipse'].join(', '));
     if (grouped.other.length) parts.push(grouped.other.join(', '));
-    label = parts.length > 1 ? parts.join('\n') : (parts[0] || names.join(', '));
+    label = parts.length > 1 ? parts.join(' · ') : (parts[0] || names.join(', '));
   }
   return {
     y:y, mi:mi, d:d, serial:ser,
