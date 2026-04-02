@@ -338,13 +338,9 @@ body {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 7 / 5;
-  cursor: grab;
-  touch-action: none;
-}
-
-#sky-canvas:active {
-  cursor: grabbing;
+  aspect-ratio: 16 / 9;
+  cursor: default;
+  border-radius: 6px;
 }
 
 .sky-tooltip {

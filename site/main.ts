@@ -1,7 +1,7 @@
 import { WORLD_ORDER, WORLDS } from '../src/worlds/index.js';
 import { COLOR_THEMES } from '../src/constants.js';
 import { buildCalendarPreview } from '../src/showcase/calendar-preview.js';
-import { buildSkyScene } from '../src/showcase/sky-scene.js';
+import { buildSkyScene, sunSkyLong, moonAltitudeDeg, moonAzimuthDeg } from '../src/showcase/sky-scene.js';
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
@@ -231,80 +231,15 @@ function _bindEvents(){
   galleryVariantSelect.addEventListener('change', _renderCalendarGallery);
   gallerySeedInput.addEventListener('input', _renderCalendarGallery);
 
-  // ── Sky canvas: drag-to-pan ──
-  canvas.style.cursor = 'grab';
+  // ── Sky canvas: click on moons ──
+  canvas.style.cursor = 'default';
 
-  canvas.addEventListener('mousedown', function(e){
-    if (e.button !== 0) return;
-    _dragState = { active: true, startX: e.clientX, startAz: state.viewCenterAz, moved: false };
-    canvas.style.cursor = 'grabbing';
-    // Hide tooltip on interaction
-    var tip = document.getElementById('sky-tooltip');
-    if (tip) tip.hidden = true;
-    e.preventDefault();
+  canvas.addEventListener('click', function(e){
+    _handleMoonClick(e);
   });
 
   window.addEventListener('mousemove', function(e){
-    if (_dragState && _dragState.active){
-      var dx = e.clientX - _dragState.startX;
-      // Convert pixel delta to degrees using the canvas display size
-      var rect = canvas.getBoundingClientRect();
-      var deltaAz = (dx / rect.width) * state.viewFovDeg;
-      state.viewCenterAz = ((_dragState.startAz - deltaAz) % 360 + 360) % 360;
-      if (Math.abs(dx) > 3) _dragState.moved = true;
-      _attemptRender(false, false, performance.now());
-    } else {
-      // Hover cursor: check if over a moon
-      _updateMoonHoverCursor(e);
-    }
-  });
-
-  window.addEventListener('mouseup', function(e){
-    if (_dragState && _dragState.active){
-      var wasDrag = _dragState.moved;
-      _dragState = null;
-      canvas.style.cursor = 'grab';
-      if (!wasDrag){
-        // It was a click, not a drag — check for moon hit
-        _handleMoonClick(e);
-      }
-      _attemptRender(true, true, performance.now());
-    }
-  });
-
-  // ── Sky canvas: scroll-to-zoom ──
-  canvas.addEventListener('wheel', function(e){
-    e.preventDefault();
-    var zoomFactor = e.deltaY > 0 ? 1.1 : (1 / 1.1);
-    state.viewFovDeg = Math.max(VIEW_FOV_MIN, Math.min(VIEW_FOV_MAX, state.viewFovDeg * zoomFactor));
-    _attemptRender(false, false, performance.now());
-  }, { passive: false });
-
-  // ── Sky canvas: touch support ──
-  canvas.addEventListener('touchstart', function(e){
-    if (e.touches.length !== 1) return;
-    var t = e.touches[0];
-    _dragState = { active: true, startX: t.clientX, startAz: state.viewCenterAz, moved: false };
-    e.preventDefault();
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', function(e){
-    if (!_dragState || !_dragState.active || e.touches.length !== 1) return;
-    var t = e.touches[0];
-    var dx = t.clientX - _dragState.startX;
-    var rect = canvas.getBoundingClientRect();
-    var deltaAz = (dx / rect.width) * state.viewFovDeg;
-    state.viewCenterAz = ((_dragState.startAz - deltaAz) % 360 + 360) % 360;
-    if (Math.abs(dx) > 3) _dragState.moved = true;
-    _attemptRender(false, false, performance.now());
-    e.preventDefault();
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', function(){
-    if (_dragState){
-      _dragState = null;
-      _attemptRender(true, true, performance.now());
-    }
+    _updateMoonHoverCursor(e);
   });
 }
 
@@ -331,7 +266,7 @@ function _updateMoonHoverCursor(e: MouseEvent){
   // Only if mouse is over the canvas
   if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
   var hit = _hitTestMoon(coords.cx, coords.cy);
-  canvas.style.cursor = hit ? 'pointer' : 'grab';
+  canvas.style.cursor = hit ? 'pointer' : 'default';
 }
 
 var skyTooltip: HTMLElement | null = null;
@@ -459,7 +394,7 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
-  sceneViewNote.textContent = 'Sky When Viewed Looking ' + _sceneFacingDirection() + ' from ' + _formatLatitude(scene.observerLatitude) + '. Earth-sized planet. ' + lunarSizeLabel + '.';
+  sceneViewNote.textContent = 'Looking South from ' + _formatLatitude(scene.observerLatitude) + '. ' + lunarSizeLabel + '.';
   _drawScene(scene);
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
@@ -605,184 +540,552 @@ function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
   }
 }
 
-var PANO_DEFAULT_FOV = 200;
-var PANO_ALT_MAX = 75;
-var PANO_TOP_MARGIN = 70;
-var PANO_BOTTOM_MARGIN = 32;
+// ── Fixed sky view constants ──
+var SKY_AZ_MIN = 90;    // East edge
+var SKY_AZ_MAX = 270;   // West edge
+var SKY_ALT_MAX = 70;   // Top of view in degrees
+var LAND_FRAC = 0.12;   // Bottom 12% of canvas = landscape
 var SCENE_OBSERVER_LATITUDE = 37.7749;
-var VIEW_FOV_MIN = 40;
-var VIEW_FOV_MAX = 360;
-
-// Drag-to-pan state
-var _dragState: { active: boolean; startX: number; startAz: number; moved: boolean } | null = null;
 
 // Hit-test cache for drawn moons (rebuilt each frame)
 var _drawnMoons: { name: string; x: number; y: number; radius: number; moon: any }[] = [];
 
-function _viewMin(){ return state.viewCenterAz - state.viewFovDeg / 2; }
-function _viewMax(){ return state.viewCenterAz + state.viewFovDeg / 2; }
-
-function _normalizeAzToView(azimuthDeg: number){
-  // Normalize azimuth relative to the view window so wrapping works
-  var vMin = _viewMin();
-  var rel = ((azimuthDeg - vMin) % 360 + 360) % 360;
-  return rel;
-}
-
-function _panoramicPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
-  var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
-  var rel = _normalizeAzToView(azimuthDeg);
-  var x = (rel / state.viewFovDeg) * width;
-  var y = PANO_TOP_MARGIN + (1 - Math.max(0, Math.min(PANO_ALT_MAX, altitudeDeg)) / PANO_ALT_MAX) * usableHeight;
+// ── Coordinate mapping: fixed southern view ──
+function _skyPoint(azDeg: number, altDeg: number): { x: number; y: number } {
+  var w = canvas.width;
+  var h = canvas.height;
+  var skyH = h * (1 - LAND_FRAC);
+  // Normalize azimuth to view range (handle wrap)
+  var az = ((azDeg - SKY_AZ_MIN) % 360 + 360) % 360;
+  var range = SKY_AZ_MAX - SKY_AZ_MIN; // 180
+  var x = (az / range) * w;
+  var alt = Math.max(-5, Math.min(SKY_ALT_MAX, altDeg));
+  var y = skyH * (1 - alt / SKY_ALT_MAX);
   return { x: x, y: y };
 }
 
-function _panoramicMoonPoint(width: number, height: number, azimuthDeg: number, altitudeDeg: number){
-  var usableHeight = height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
-  var rel = _normalizeAzToView(azimuthDeg);
-  var x = (rel / state.viewFovDeg) * width;
-  // Keep motion continuous through the horizon by allowing a small below-horizon
-  // overscan for "peeking" moons instead of pinning them at 0° altitude.
-  var altCapped = Math.max(-12, Math.min(PANO_ALT_MAX, altitudeDeg));
-  var y = PANO_TOP_MARGIN + (1 - (altCapped / PANO_ALT_MAX)) * usableHeight;
+function _skyPointRaw(w: number, h: number, azDeg: number, altDeg: number): { x: number; y: number } {
+  var skyH = h * (1 - LAND_FRAC);
+  var az = ((azDeg - SKY_AZ_MIN) % 360 + 360) % 360;
+  var range = SKY_AZ_MAX - SKY_AZ_MIN;
+  var x = (az / range) * w;
+  var alt = Math.max(-5, Math.min(SKY_ALT_MAX, altDeg));
+  var y = skyH * (1 - alt / SKY_ALT_MAX);
   return { x: x, y: y };
 }
 
+// ── Sun position ──
+function _sunPosition(serial: number, timeFrac: number, worldId: string): { altitude: number; azimuth: number } {
+  var sunHA = (timeFrac - 0.5) * 360;
+  var alt = moonAltitudeDeg(SCENE_OBSERVER_LATITUDE, 0, sunHA);
+  var az = moonAzimuthDeg(SCENE_OBSERVER_LATITUDE, 0, sunHA);
+  return { altitude: alt, azimuth: az };
+}
+
+// ── Smoothstep helper ──
+function _smoothstep(edge0: number, edge1: number, x: number): number {
+  var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+// ── Color interpolation ──
+function _lerpColor(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number, t: number): [number, number, number] {
+  return [
+    Math.round(r1 + (r2 - r1) * t),
+    Math.round(g1 + (g2 - g1) * t),
+    Math.round(b1 + (b2 - b1) * t)
+  ];
+}
+
+// ── Sky gradient based on sun altitude ──
+function _drawSkyGradient(sunAlt: number){
+  if (!ctx) return;
+  var w = canvas.width;
+  var h = canvas.height;
+  var skyH = h * (1 - LAND_FRAC);
+
+  // Blend factor: 0 = full night, 1 = full day
+  var nightFade = _smoothstep(-18, -6, sunAlt);     // stars/night elements fade
+  var twilightFade = _smoothstep(-6, 0, sunAlt);     // twilight colors
+  var dayFade = _smoothstep(0, 12, sunAlt);           // full day blue
+
+  // Night colors
+  var nightTop: [number, number, number] = [6, 14, 30];
+  var nightMid: [number, number, number] = [10, 26, 48];
+  var nightBot: [number, number, number] = [30, 21, 16];
+
+  // Twilight colors (sunrise/sunset)
+  var twiTop: [number, number, number] = [15, 25, 60];
+  var twiBotE: [number, number, number] = [200, 100, 50];  // east/west warm
+  var twiBotS: [number, number, number] = [180, 80, 40];   // south warm
+
+  // Day colors
+  var dayTop: [number, number, number] = [30, 80, 160];
+  var dayMid: [number, number, number] = [70, 140, 210];
+  var dayBot: [number, number, number] = [140, 190, 230];
+
+  // Interpolate
+  var topC = _lerpColor(..._lerpColor(...nightTop, ...twiTop, nightFade), ...dayTop, dayFade);
+  var midC = _lerpColor(..._lerpColor(...nightMid, ...twiTop, nightFade), ...dayMid, dayFade);
+  var botC: [number, number, number];
+  if (twilightFade > 0.01 && dayFade < 0.9) {
+    // During twilight, warm horizon glow
+    var warmth = Math.sin(twilightFade * Math.PI) * (1 - dayFade);
+    botC = _lerpColor(..._lerpColor(...nightBot, ...twiBotS, warmth), ...dayBot, dayFade);
+  } else {
+    botC = _lerpColor(...nightBot, ...dayBot, dayFade);
+  }
+
+  var grad = ctx.createLinearGradient(0, 0, 0, skyH);
+  grad.addColorStop(0, 'rgb(' + topC[0] + ',' + topC[1] + ',' + topC[2] + ')');
+  grad.addColorStop(0.5, 'rgb(' + midC[0] + ',' + midC[1] + ',' + midC[2] + ')');
+  grad.addColorStop(1, 'rgb(' + botC[0] + ',' + botC[1] + ',' + botC[2] + ')');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, skyH);
+
+  // Horizon glow during twilight/golden hour
+  if (sunAlt > -12 && sunAlt < 15) {
+    var glowStrength = 1 - _smoothstep(-12, -6, sunAlt) < 0.5 ?
+      _smoothstep(-12, -2, sunAlt) : (1 - _smoothstep(6, 15, sunAlt));
+    if (sunAlt >= -2) glowStrength = 1 - _smoothstep(6, 15, sunAlt);
+    if (glowStrength > 0.01) {
+      var sunPt = _skyPointRaw(w, h, 180, 0); // center of glow near south horizon
+      var glowGrad = ctx.createRadialGradient(sunPt.x, skyH, 0, sunPt.x, skyH, skyH * 0.6);
+      var warmR = sunAlt < 2 ? 255 : 255;
+      var warmG = sunAlt < 2 ? Math.round(140 + sunAlt * 10) : 200;
+      var warmB = sunAlt < 2 ? Math.round(50 + sunAlt * 10) : 130;
+      glowGrad.addColorStop(0, 'rgba(' + warmR + ',' + warmG + ',' + warmB + ',' + (glowStrength * 0.25) + ')');
+      glowGrad.addColorStop(0.4, 'rgba(' + warmR + ',' + warmG + ',' + warmB + ',' + (glowStrength * 0.08) + ')');
+      glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(0, 0, w, skyH);
+    }
+  }
+
+  // Nebula washes (night only)
+  var nebulaAlpha = Math.max(0, 1 - nightFade);
+  if (nebulaAlpha > 0.01) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = nebulaAlpha;
+    var neb1 = ctx.createRadialGradient(w * 0.3, skyH * 0.25, 0, w * 0.3, skyH * 0.25, w * 0.35);
+    neb1.addColorStop(0, 'rgba(30,15,50,0.05)');
+    neb1.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = neb1;
+    ctx.fillRect(0, 0, w, skyH);
+    var neb2 = ctx.createRadialGradient(w * 0.75, skyH * 0.35, 0, w * 0.75, skyH * 0.35, w * 0.3);
+    neb2.addColorStop(0, 'rgba(10,30,40,0.04)');
+    neb2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = neb2;
+    ctx.fillRect(0, 0, w, skyH);
+    ctx.restore();
+  }
+
+  // Vignette (subtle, always)
+  var vig = ctx.createRadialGradient(w / 2, skyH / 2, Math.min(w, skyH) * 0.35, w / 2, skyH / 2, Math.max(w, skyH) * 0.7);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.12)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, w, skyH);
+}
+
+// ── Sun rendering ──
+function _drawSun(sunAz: number, sunAlt: number){
+  if (!ctx) return;
+  if (sunAlt < -2) return; // sun below horizon, don't draw
+  var pt = _skyPoint(sunAz, sunAlt);
+  var w = canvas.width;
+  var skyH = canvas.height * (1 - LAND_FRAC);
+  // Sun size: 0.53° angular diameter — in our 70° view over skyH pixels
+  var pxPerDeg = skyH / SKY_ALT_MAX;
+  var sunRadius = Math.max(4, (0.53 / 2) * pxPerDeg);
+
+  // Corona glow
+  ctx.save();
+  var coronaR = sunRadius * 12;
+  var corona = ctx.createRadialGradient(pt.x, pt.y, sunRadius * 0.5, pt.x, pt.y, coronaR);
+  corona.addColorStop(0, 'rgba(255, 240, 180, 0.35)');
+  corona.addColorStop(0.15, 'rgba(255, 220, 140, 0.15)');
+  corona.addColorStop(0.4, 'rgba(255, 200, 100, 0.04)');
+  corona.addColorStop(1, 'rgba(255, 180, 80, 0)');
+  ctx.fillStyle = corona;
+  ctx.beginPath();
+  ctx.arc(pt.x, pt.y, coronaR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Sun disk
+  var sunGrad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, sunRadius);
+  sunGrad.addColorStop(0, '#fffbe8');
+  sunGrad.addColorStop(0.7, '#fff4c0');
+  sunGrad.addColorStop(1, '#ffe880');
+  ctx.fillStyle = sunGrad;
+  ctx.beginPath();
+  ctx.arc(pt.x, pt.y, sunRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bright center
+  ctx.globalCompositeOperation = 'lighter';
+  var bright = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, sunRadius * 0.6);
+  bright.addColorStop(0, 'rgba(255,255,255,0.6)');
+  bright.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = bright;
+  ctx.beginPath();
+  ctx.arc(pt.x, pt.y, sunRadius * 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ── Cloud rendering ──
+var _cloudSeeds: { cx: number; cy: number; rx: number; ry: number; alpha: number; speed: number }[] | null = null;
+
+function _initClouds(){
+  if (_cloudSeeds) return;
+  _cloudSeeds = [];
+  // 3 cloud layers with different characteristics
+  for (var layer = 0; layer < 3; layer++){
+    var numBlobs = 5 + layer * 3;
+    var baseAlt = 10 + layer * 15; // altitude in degrees
+    var speed = 0.02 + layer * 0.01;
+    for (var b = 0; b < numBlobs; b++){
+      var seed1 = _hash('cloud:' + layer + ':' + b + ':x');
+      var seed2 = _hash('cloud:' + layer + ':' + b + ':y');
+      var seed3 = _hash('cloud:' + layer + ':' + b + ':rx');
+      var seed4 = _hash('cloud:' + layer + ':' + b + ':a');
+      _cloudSeeds.push({
+        cx: seed1 * 360, // azimuth position (will be offset by time)
+        cy: baseAlt + (seed2 - 0.5) * 10, // altitude
+        rx: 30 + seed3 * 40, // width in pixels
+        ry: 8 + seed3 * 12, // height in pixels
+        alpha: 0.015 + seed4 * 0.035,
+        speed: speed * (0.7 + seed1 * 0.6)
+      });
+    }
+  }
+}
+
+function _drawClouds(timeFrac: number, sunAlt: number){
+  if (!ctx) return;
+  _initClouds();
+  if (!_cloudSeeds) return;
+  var w = canvas.width;
+  var h = canvas.height;
+  var skyH = h * (1 - LAND_FRAC);
+
+  // Cloud tint based on sun
+  var isNight = sunAlt < -6;
+  var isTwilight = sunAlt >= -6 && sunAlt < 6;
+  var cloudR = isNight ? 100 : isTwilight ? 255 : 220;
+  var cloudG = isNight ? 110 : isTwilight ? 180 : 225;
+  var cloudB = isNight ? 130 : isTwilight ? 140 : 240;
+  var baseFade = isNight ? 0.6 : 1.0;
+
+  ctx.save();
+  for (var i = 0; i < _cloudSeeds.length; i++){
+    var c = _cloudSeeds[i];
+    // Drift based on time
+    var driftAz = (c.cx + timeFrac * c.speed * 3600) % 360;
+    // Only draw if in view
+    if (driftAz < SKY_AZ_MIN - 30 || driftAz > SKY_AZ_MAX + 30) continue;
+    var pt = _skyPointRaw(w, h, driftAz, c.cy);
+    if (pt.y < 0 || pt.y > skyH) continue;
+
+    var grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, Math.max(c.rx, c.ry));
+    var alpha = c.alpha * baseFade;
+    grad.addColorStop(0, 'rgba(' + cloudR + ',' + cloudG + ',' + cloudB + ',' + alpha + ')');
+    grad.addColorStop(0.5, 'rgba(' + cloudR + ',' + cloudG + ',' + cloudB + ',' + (alpha * 0.5) + ')');
+    grad.addColorStop(1, 'rgba(' + cloudR + ',' + cloudG + ',' + cloudB + ',0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(pt.x, pt.y, c.rx, c.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Landscape silhouette ──
+function _drawLandscape(sunAlt: number){
+  if (!ctx) return;
+  var w = canvas.width;
+  var h = canvas.height;
+  var skyH = h * (1 - LAND_FRAC);
+  var landH = h - skyH;
+
+  // Landscape color based on sun altitude
+  var isDark = sunAlt < 0;
+  var backColor = isDark ? '#080c16' : '#0e1820';
+  var midColor = isDark ? '#060a12' : '#0a1418';
+  var frontColor = isDark ? '#040810' : '#080e14';
+
+  // ── Back ridge: tall, smooth mountains ──
+  ctx.fillStyle = backColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH);
+  for (var x = 0; x <= w; x += 2){
+    var t = x / w;
+    var ridge =
+      Math.sin(t * Math.PI * 2.3 + 0.5) * 0.4 +
+      Math.sin(t * Math.PI * 4.7 + 1.2) * 0.25 +
+      Math.sin(t * Math.PI * 7.1 + 2.8) * 0.12 +
+      Math.sin(t * Math.PI * 11.3 + 0.3) * 0.06;
+    var peakH = landH * (0.6 + ridge * 0.7);
+    ctx.lineTo(x, skyH - peakH + landH * 0.4);
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Mid ridge: medium detail ──
+  ctx.fillStyle = midColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH);
+  for (var x2 = 0; x2 <= w; x2 += 2){
+    var t2 = x2 / w;
+    var ridge2 =
+      Math.sin(t2 * Math.PI * 3.1 + 2.1) * 0.35 +
+      Math.sin(t2 * Math.PI * 6.3 + 0.7) * 0.2 +
+      Math.sin(t2 * Math.PI * 13.7 + 1.9) * 0.08;
+    var peakH2 = landH * (0.35 + ridge2 * 0.5);
+    ctx.lineTo(x2, skyH - peakH2 + landH * 0.5);
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Farmhouse on mid ridge (at ~70% from left) ──
+  var farmX = w * 0.7;
+  var farmBaseY = skyH + landH * 0.15;
+  var farmW = 18;
+  var farmH = 14;
+  ctx.fillStyle = frontColor;
+  // Walls
+  ctx.fillRect(farmX - farmW / 2, farmBaseY - farmH, farmW, farmH);
+  // Peaked roof
+  ctx.beginPath();
+  ctx.moveTo(farmX - farmW / 2 - 3, farmBaseY - farmH);
+  ctx.lineTo(farmX, farmBaseY - farmH - 10);
+  ctx.lineTo(farmX + farmW / 2 + 3, farmBaseY - farmH);
+  ctx.closePath();
+  ctx.fill();
+  // Chimney
+  ctx.fillRect(farmX + farmW / 4, farmBaseY - farmH - 14, 4, 8);
+
+  // ── Trees (conifers scattered on ridges) ──
+  var treePositions = [
+    { x: w * 0.08, baseY: skyH + landH * 0.18, h: 22 },
+    { x: w * 0.15, baseY: skyH + landH * 0.14, h: 28 },
+    { x: w * 0.22, baseY: skyH + landH * 0.2, h: 18 },
+    { x: w * 0.55, baseY: skyH + landH * 0.16, h: 24 },
+    { x: w * 0.62, baseY: skyH + landH * 0.12, h: 20 },
+    { x: w * 0.85, baseY: skyH + landH * 0.18, h: 26 },
+    { x: w * 0.92, baseY: skyH + landH * 0.22, h: 16 },
+  ];
+  ctx.fillStyle = frontColor;
+  for (var ti = 0; ti < treePositions.length; ti++){
+    var tree = treePositions[ti];
+    // Triangle conifer
+    ctx.beginPath();
+    ctx.moveTo(tree.x, tree.baseY - tree.h);
+    ctx.lineTo(tree.x - tree.h * 0.3, tree.baseY);
+    ctx.lineTo(tree.x + tree.h * 0.3, tree.baseY);
+    ctx.closePath();
+    ctx.fill();
+    // Trunk
+    ctx.fillRect(tree.x - 1.5, tree.baseY, 3, 5);
+  }
+
+  // ── Front ridge: low rolling hills ──
+  ctx.fillStyle = frontColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH + landH * 0.35);
+  for (var x3 = 0; x3 <= w; x3 += 2){
+    var t3 = x3 / w;
+    var ridge3 =
+      Math.sin(t3 * Math.PI * 5.7 + 0.3) * 0.3 +
+      Math.sin(t3 * Math.PI * 9.2 + 2.1) * 0.15;
+    var y3 = skyH + landH * (0.35 + ridge3 * 0.15);
+    ctx.lineTo(x3, y3);
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Fence posts along bottom ──
+  ctx.strokeStyle = isDark ? '#0a0e18' : '#101820';
+  ctx.lineWidth = 1.5;
+  var fenceY = h - landH * 0.15;
+  // Horizontal rail
+  ctx.beginPath();
+  ctx.moveTo(0, fenceY);
+  ctx.lineTo(w, fenceY);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, fenceY - 6);
+  ctx.lineTo(w, fenceY - 6);
+  ctx.stroke();
+  // Vertical posts
+  for (var fp = 0; fp < w; fp += 40){
+    ctx.beginPath();
+    ctx.moveTo(fp, fenceY + 4);
+    ctx.lineTo(fp, fenceY - 10);
+    ctx.stroke();
+  }
+
+  // Fill the very bottom solid
+  ctx.fillStyle = frontColor;
+  ctx.fillRect(0, h - 8, w, 8);
+}
+
+// ── Main scene drawing ──
 function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   if (!ctx) return;
   var width = canvas.width;
   var height = canvas.height;
+  var skyH = height * (1 - LAND_FRAC);
   ctx.clearRect(0, 0, width, height);
 
-  var skyBottom = height - PANO_BOTTOM_MARGIN;
-  var gradient = ctx.createLinearGradient(0, PANO_TOP_MARGIN, 0, skyBottom);
-  gradient.addColorStop(0, '#060e1e');
-  gradient.addColorStop(0.15, '#0a1a30');
-  gradient.addColorStop(0.4, '#0c1e30');
-  gradient.addColorStop(0.65, '#0e1f2f');
-  gradient.addColorStop(0.85, '#1a1a20');
-  gradient.addColorStop(1, '#1e1510');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
-  ctx.fillStyle = '#040810';
-  ctx.fillRect(0, 0, width, PANO_TOP_MARGIN);
-  // nebula washes
-  ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  var neb1 = ctx.createRadialGradient(width * 0.3, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.25, 0, width * 0.3, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.25, width * 0.35);
-  neb1.addColorStop(0, 'rgba(30,15,50,0.04)');
-  neb1.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = neb1;
-  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
-  var neb2 = ctx.createRadialGradient(width * 0.75, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.4, 0, width * 0.75, PANO_TOP_MARGIN + (skyBottom - PANO_TOP_MARGIN) * 0.4, width * 0.3);
-  neb2.addColorStop(0, 'rgba(10,30,40,0.03)');
-  neb2.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = neb2;
-  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
-  ctx.restore();
-  // vignette
-  var vig = ctx.createRadialGradient(width / 2, (PANO_TOP_MARGIN + skyBottom) / 2, Math.min(width, skyBottom - PANO_TOP_MARGIN) * 0.35, width / 2, (PANO_TOP_MARGIN + skyBottom) / 2, Math.max(width, skyBottom - PANO_TOP_MARGIN) * 0.7);
-  vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, 'rgba(0,0,0,0.15)');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, PANO_TOP_MARGIN, width, skyBottom - PANO_TOP_MARGIN);
+  // Compute sun position
+  var sun = _sunPosition(state.serial, state.timeFrac, state.worldId);
+  var sunAlt = sun.altitude;
+  var sunAz = sun.azimuth;
 
-  _drawStars(width, height, state.timeFrac);
+  // Day/night blend factors
+  var nightAlpha = 1 - _smoothstep(-18, -2, sunAlt);   // night elements visibility
+  var starAlpha = 1 - _smoothstep(-12, 6, sunAlt);      // star fade
+  var moonDimming = Math.max(0.4, 1 - _smoothstep(-6, 12, sunAlt) * 0.6); // moons stay ≥40% visible
 
-  var horizonY = height - PANO_BOTTOM_MARGIN;
-  ctx.beginPath();
-  ctx.moveTo(0, horizonY);
-  ctx.lineTo(width, horizonY);
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = 'rgba(127, 196, 216, 0.4)';
-  ctx.stroke();
+  // 1. Sky gradient
+  _drawSkyGradient(sunAlt);
 
-  var alt30 = _panoramicPoint(width, height, 180, 30);
-  var alt60 = _panoramicPoint(width, height, 180, 60);
-  ctx.setLineDash([4, 8]);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(127, 196, 216, 0.15)';
-  ctx.beginPath();
-  ctx.moveTo(0, alt30.y);
-  ctx.lineTo(width, alt30.y);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, alt60.y);
-  ctx.lineTo(width, alt60.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // 2. Milky Way (night only)
+  if (starAlpha > 0.01) {
+    ctx.save();
+    ctx.globalAlpha = starAlpha;
+    _drawMilkyWay(width, height);
+    ctx.restore();
+  }
 
-  if (scene.worldId === 'eberron') _drawSiberysRing(width, height, scene.observerLatitude);
+  // 3. Stars (fade with daylight)
+  if (starAlpha > 0.01) {
+    _drawStars(width, height, state.timeFrac, starAlpha);
+  }
 
-  _drawCompass(width, height);
+  // 4. Siberys Ring (Eberron only, fade with daylight)
+  if (scene.worldId === 'eberron') {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.15, starAlpha);
+    _drawSiberysRing(width, height, scene.observerLatitude);
+    ctx.restore();
+  }
 
+  // 5. Sun
+  _drawSun(sunAz, sunAlt);
+
+  // 6. Clouds
+  _drawClouds(state.timeFrac, sunAlt);
+
+  // 7. Moons
   _drawnMoons = [];
   var drawMoons = scene.moons.slice().sort(function(a, b){
     return Number(b.orbitalDistance || 0) - Number(a.orbitalDistance || 0);
   });
+  ctx.save();
+  ctx.globalAlpha = moonDimming;
   var labeled = 0;
   for (var i = 0; i < drawMoons.length; i++){
     var moon = drawMoons[i];
     if (moon.category === 'below') continue;
-    // Use hour-angle space for horizontal placement to avoid apparent
-    // acceleration when azimuth curves sharply near the top of the arc.
     var panoAz = (isFinite(Number((moon as any).hourAngle)) ? (180 + Number((moon as any).hourAngle)) : moon.azimuth);
-    var relAz = _normalizeAzToView(panoAz);
-    if (relAz < -5 || relAz > state.viewFovDeg + 5) continue;
-    var position = _panoramicMoonPoint(width, height, panoAz, moon.altitudeExact);
+    // Check if in our fixed view range
+    var normAz = ((panoAz - SKY_AZ_MIN) % 360 + 360) % 360;
+    if (normAz > (SKY_AZ_MAX - SKY_AZ_MIN) + 10) continue;
+    if (moon.altitudeExact < -3) continue;
+    var position = _skyPoint(panoAz, moon.altitudeExact);
+    if (position.y > skyH + 10) continue; // behind landscape
     var moonRadius = _moonRadiusPx(moon.angularDiameterDeg, state.lunarSizeMode);
     _drawMoonDisk(position.x, position.y, moonRadius, moon.color || '#d8dee7', moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12), moon.name);
     _drawnMoons.push({ name: moon.name, x: position.x, y: position.y, radius: moonRadius, moon: moon });
-    if (labeled < 5 && moon.altitudeExact >= 2){
-      ctx.fillStyle = 'rgba(247, 242, 232, 0.92)';
-      ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
+    if (labeled < 8 && moon.altitudeExact >= 2){
+      var labelAlpha = moonDimming * 0.92;
+      ctx.fillStyle = 'rgba(247, 242, 232, ' + labelAlpha + ')';
+      ctx.font = '14px "Trebuchet MS", "Gill Sans", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(moon.name, position.x, position.y + moonRadius + 18);
+      ctx.fillText(moon.name, position.x, position.y + moonRadius + 16);
       labeled++;
     }
   }
+  ctx.restore();
 
-  ctx.fillStyle = 'rgba(247, 242, 232, 0.72)';
-  ctx.font = '16px "Trebuchet MS", "Gill Sans", sans-serif';
+  // 8. Landscape (drawn on top — covers everything below horizon)
+  _drawLandscape(sunAlt);
+
+  // 9. Scene info overlay
+  ctx.fillStyle = sunAlt > 0 ? 'rgba(30, 40, 60, 0.85)' : 'rgba(247, 242, 232, 0.72)';
+  ctx.font = '15px "Trebuchet MS", "Gill Sans", sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(scene.worldLabel + ' sky', 28, 36);
-  ctx.fillText(_formatClock(Math.round(scene.timeFrac * 1440)), 28, 58);
+  ctx.fillText(scene.worldLabel + ' sky', 20, 24);
+  ctx.fillText(_formatClock(Math.round(scene.timeFrac * 1440)), 20, 44);
+
+  // Compass labels along horizon
+  var compassLabels = [
+    { text: 'E', az: 90 }, { text: 'SE', az: 135 }, { text: 'S', az: 180 },
+    { text: 'SW', az: 225 }, { text: 'W', az: 270 }
+  ];
+  ctx.fillStyle = sunAlt > 0 ? 'rgba(30, 40, 60, 0.5)' : 'rgba(200, 210, 220, 0.4)';
+  ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
+  ctx.textAlign = 'center';
+  for (var ci = 0; ci < compassLabels.length; ci++){
+    var cl = compassLabels[ci];
+    var clPt = _skyPointRaw(width, height, cl.az, 1);
+    ctx.fillText(cl.text, clPt.x, skyH - 4);
+  }
 }
 
-function _drawStars(width: number, height: number, timeFrac: number){
+function _drawMilkyWay(width: number, height: number){
   if (!ctx) return;
-  // lazily init / re-init star field when world changes
+  _ensureStarData(width, height);
+  if (!_milkyWay) return;
+  var skyH = height * (1 - LAND_FRAC);
+  for (var mi = 0; mi < _milkyWay.length; mi++){
+    var mp = _milkyWay[mi];
+    // Only draw if in our azimuth range
+    var azNorm = ((mp.az - SKY_AZ_MIN) % 360 + 360) % 360;
+    if (azNorm > (SKY_AZ_MAX - SKY_AZ_MIN) + 5) continue;
+    var pt = _skyPointRaw(width, height, mp.az, mp.alt);
+    if (pt.y > skyH) continue;
+    ctx.fillStyle = 'rgba(220,215,200,' + (mp.alpha * 0.15) + ')';
+    ctx.fillRect(pt.x, pt.y, mp.size, mp.size);
+  }
+}
+
+function _ensureStarData(width: number, height: number){
   if (!_starField || _starWorldId !== state.worldId){
-    _starField = generateStarField(width, height, state.worldId, PANO_TOP_MARGIN, PANO_BOTTOM_MARGIN);
-    _milkyWay = generateMilkyWay(width, height, state.worldId, PANO_TOP_MARGIN, PANO_BOTTOM_MARGIN);
+    _starField = generateStarField(width, height, state.worldId, 0, 0);
+    _milkyWay = generateMilkyWay(width, height, state.worldId, 0, 0);
     _starWorldId = state.worldId;
   }
-  var zoomScale = PANO_DEFAULT_FOV / state.viewFovDeg;
-  // draw milky-way particles
-  if (_milkyWay){
-    ctx.save();
-    for (var mi = 0; mi < _milkyWay.length; mi++){
-      var mp = _milkyWay[mi];
-      var mRel = _normalizeAzToView(mp.az);
-      if (mRel < -2 || mRel > state.viewFovDeg + 2) continue;
-      var mPt = _panoramicPoint(width, height, mp.az, mp.alt);
-      ctx.fillStyle = 'rgba(220,215,200,' + (mp.alpha * 0.15) + ')';
-      ctx.fillRect(mPt.x, mPt.y, mp.size * zoomScale, mp.size * zoomScale);
-    }
-    ctx.restore();
-  }
+}
+
+function _drawStars(width: number, height: number, timeFrac: number, alphaScale: number){
+  if (!ctx) return;
+  _ensureStarData(width, height);
+  var skyH = height * (1 - LAND_FRAC);
   // draw stars with independent twinkle
   var t2pi = timeFrac * Math.PI * 2;
   for (var i = 0; i < _starField.length; i++){
     var s = _starField[i];
-    // skip stars outside the current view
-    var sRel = _normalizeAzToView(s.az);
-    if (sRel < -2 || sRel > state.viewFovDeg + 2) continue;
-    var pt = _panoramicPoint(width, height, s.az, s.alt);
+    // skip stars outside our fixed view
+    var azNorm = ((s.az - SKY_AZ_MIN) % 360 + 360) % 360;
+    if (azNorm > (SKY_AZ_MAX - SKY_AZ_MIN) + 5) continue;
+    var pt = _skyPointRaw(width, height, s.az, s.alt);
+    if (pt.y > skyH) continue;
     var twinkle = Math.sin(t2pi * s.twinkleFreq + s.twinklePhase);
     var alpha = Math.max(0, s.baseAlpha + twinkle * (s.tier === 0 ? 0.25 : s.tier === 1 ? 0.15 : 0.08));
+    alpha *= alphaScale;
     if (alpha < 0.01) continue;
-    var sz = s.size * zoomScale;
+    var sz = s.size;
     if (s.tier === 2){
       ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
       ctx.fillRect(pt.x, pt.y, sz * 2, sz * 2);
@@ -809,44 +1112,8 @@ function _drawStars(width: number, height: number, timeFrac: number){
   }
 }
 
-function _drawCompass(width: number, height: number){
-  if (!ctx) return;
-  var allDirections = [
-    { text: 'N', az: 0 }, { text: 'NE', az: 45 }, { text: 'E', az: 90 },
-    { text: 'SE', az: 135 }, { text: 'S', az: 180 }, { text: 'SW', az: 225 },
-    { text: 'W', az: 270 }, { text: 'NW', az: 315 }
-  ];
-  ctx.fillStyle = 'rgba(247, 242, 232, 0.66)';
-  ctx.font = '14px "Trebuchet MS", "Gill Sans", sans-serif';
-  ctx.textAlign = 'center';
-  var labelY = height - 8;
-  for (var d = 0; d < allDirections.length; d++){
-    var label = allDirections[d];
-    var rel = _normalizeAzToView(label.az);
-    if (rel < 0 || rel > state.viewFovDeg) continue;
-    var pt = _panoramicPoint(width, height, label.az, 0);
-    ctx!.fillText(label.text, pt.x, labelY);
-  }
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(127, 196, 216, 0.5)';
-  ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
-  var vMin = _viewMin();
-  var pt30 = _panoramicPoint(width, height, vMin, 30);
-  var pt60 = _panoramicPoint(width, height, vMin, 60);
-  ctx.fillText('30°', 6, pt30.y + 4);
-  ctx.fillText('60°', 6, pt60.y + 4);
-}
-
-function _scenePoint(cx: number, cy: number, radius: number, azimuthDeg: number, altitudeDeg: number){
-  return _panoramicPoint(canvas.width, canvas.height, azimuthDeg, altitudeDeg);
-}
-
 function _sceneFacingDirection(){
-  var centerAz = ((state.viewCenterAz) + 360) % 360;
-  if (centerAz >= 45 && centerAz < 135) return 'East';
-  if (centerAz >= 135 && centerAz < 225) return 'South';
-  if (centerAz >= 225 && centerAz < 315) return 'West';
-  return 'North';
+  return 'South';
 }
 
 function _formatLatitude(latitudeDeg: number){
@@ -1090,9 +1357,9 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
     var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
     var azDeg = ((azRaw * 180 / Math.PI) + 180 + 360) % 360;
 
-    centerPts.push(_panoramicPoint(width, height, azDeg, altDeg));
-    outerPts.push(_panoramicPoint(width, height, azDeg, altDeg + halfWidthDeg));
-    innerPts.push(_panoramicPoint(width, height, azDeg, Math.max(0, altDeg - halfWidthDeg)));
+    centerPts.push(_skyPointRaw(width, height, azDeg, altDeg));
+    outerPts.push(_skyPointRaw(width, height, azDeg, altDeg + halfWidthDeg));
+    innerPts.push(_skyPointRaw(width, height, azDeg, Math.max(0, altDeg - halfWidthDeg)));
   }
 
   if (centerPts.length < 2) return;
@@ -2033,14 +2300,13 @@ function _normalizeLunarSizeMode(raw: string): 'useful' | 'true' {
 }
 
 function _moonRadiusPx(angularDiameterDeg: number, mode: 'useful' | 'true'){
-  var zoomScale = PANO_DEFAULT_FOV / state.viewFovDeg;
   if (mode === 'true') {
-    var usableHeight = canvas.height - PANO_TOP_MARGIN - PANO_BOTTOM_MARGIN;
-    var pxPerDegree = (usableHeight / PANO_ALT_MAX) * zoomScale;
+    var skyH = canvas.height * (1 - LAND_FRAC);
+    var pxPerDegree = skyH / SKY_ALT_MAX;
     var trueRadiusPx = (Math.max(0, angularDiameterDeg) * pxPerDegree) / 2;
     return Math.max(0.5, trueRadiusPx);
   }
-  var usefulDiameterPx = Math.max(25, Math.min(50, angularDiameterDeg * 22)) * zoomScale;
+  var usefulDiameterPx = Math.max(25, Math.min(50, angularDiameterDeg * 22));
   return usefulDiameterPx / 2;
 }
 
