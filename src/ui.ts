@@ -1,7 +1,7 @@
 // Sections 13+15+16: Roll20 State Interaction & UI + Themes + GM Buttons
 import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS, CONFIG_WEATHER_LABELS } from './config.js';
 import { COLOR_THEMES, CONTRAST_MIN_HEADER, LABELS, NAMED_COLORS, SEASON_SETS, STYLES, THEME_ORDER, script_name, state_name } from './constants.js';
-import { _seasonNames, _sourceAllowedForCalendar, applySeasonSet, deepClone, defaults, ensureSettings, getCal, refreshAndSend, titleCase } from './state.js';
+import { _seasonNames, _sourceAllowedForCalendar, applySeasonSet, deepClone, defaults, ensureSettings, getCal, refreshAndSend, refreshCalendarState, titleCase } from './state.js';
 import { applyBg, popColorIfPresent, resolveColor, sanitizeHexColor } from './color.js';
 import { _isLeapMonth, _nextActiveMi, _prevActiveMi, fromSerial, regularMonthIndex, toSerial, todaySerial, weekdayIndex } from './date-math.js';
 import { DaySpec, Parse, monthIndexByName } from './parsing.js';
@@ -723,7 +723,8 @@ export function removeEvent(query){
     if (idx < 0){ sendChat(script_name, '/w gm No event found for key: <code>'+esc(key)+'</code>', null, { noarchive: true }); return; }
     var removed = events.splice(idx, 1)[0];
     markSuppressedIfDefault(removed);
-    refreshAndSend();
+    refreshCalendarState(true);
+    refreshAllPersistentViews({ autoBind: true });
     var rName = eventDisplayName(removed) || removed.name || '(unnamed event)';
     sendChat(script_name, '/w gm ' + _eventActionSummary('Hidden Event', [rName]), null, { noarchive: true });
     return;
@@ -745,7 +746,8 @@ export function removeEvent(query){
       sendChat(script_name, '/w gm No event series found for key: <code>'+esc(sk)+'</code>', null, { noarchive: true });
       return;
     }
-    refreshAndSend();
+    refreshCalendarState(true);
+    refreshAllPersistentViews({ autoBind: true });
     sendChat(script_name, '/w gm ' + _eventActionSummary('Hidden Event', removedNames), null, { noarchive: true });
     return;
   }
@@ -1116,9 +1118,9 @@ export function helpRootMenu(m){
   var rowsNew = [helpStatusSummaryHtml()];
   var todaySpec = _serialToDateSpec(todaySerial());
   var promptSet = button('Set Date', 'set ?{Set Date (mm dd yyyy)|' + todaySpec + '}');
-  var promptAdd = button('Prompt !cal add', 'add ?{Date|' + todaySpec + '} ?{Event name|New Event} ?{Color|#50C878}');
-  var promptMonthly = button('Prompt !cal addmonthly', 'addmonthly ?{Day spec|first Sul} ?{Event name|Monthly Event} ?{Color|#50C878}');
-  var promptYearly = button('Prompt !cal addyearly', 'addyearly ?{Month|Zarantyr} ?{Day|1} ?{Event name|Annual Event} ?{Color|#50C878}');
+  var promptAdd = button('Prompt !cal add', 'add ?{Date of Single Event — Format as DD, MM DD, or MM DD YYYY|' + todaySpec + '} ?{Event name|New Event} ?{Color|#50C878}');
+  var promptMonthly = button('Prompt !cal addmonthly', 'addmonthly ?{Date of Monthly Event — Format as DD|first Sul} ?{Event name|Monthly Event} ?{Color|#50C878}');
+  var promptYearly = button('Prompt !cal addyearly', 'addyearly ?{Date of Yearly Event — Format as MM DD|Zarantyr 1} ?{Event name|Annual Event} ?{Color|#50C878}');
   var promptMoonOn = button('Prompt !cal moon on', 'moon on ?{Date|' + todaySpec + '}');
   var promptPlanesOn = button('Prompt !cal planes on', 'planes on ?{Date|' + todaySpec + '}');
 

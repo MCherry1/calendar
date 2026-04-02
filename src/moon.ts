@@ -1098,6 +1098,7 @@ export function _applyAssociatedPlanePhaseShifts(moons, ms, genFrom, genThru){
 
 export function _generateStandardSequence(moon, startSerial, endSerial, seedOverride){
   var period = moon.synodicPeriod;
+  if (!period || !isFinite(period) || period <= 0) return [];
   var events = [];
 
   // Determine epoch: serial of a known full moon to start counting from.

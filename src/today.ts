@@ -1,7 +1,7 @@
 // Today — Combined detail from all subsystems
 import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS } from './config.js';
 import { COLOR_THEMES, SEASON_SETS, STYLES, script_name, state_name } from './constants.js';
-import { _sourceAllowedForCalendar, applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, refreshAndSend, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
+import { _sourceAllowedForCalendar, applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, refreshAndSend, refreshCalendarState, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
 import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
@@ -1073,7 +1073,8 @@ export var commands = {
         var norm = DaySpec.canonicalForKey(e.day, maxD);
         return !sourceKeySet[defaultKeyFor(e.month, norm, e.name)];
       });
-      refreshAndSend();
+      refreshCalendarState(true);
+      refreshAllPersistentViews({ autoBind: true });
       sendChat(script_name, '/w gm Hidden "'+esc(name)+'" source events in the shared hide/show list.', null, { noarchive: true });
     }
 
@@ -1087,7 +1088,8 @@ export var commands = {
         delete sup[defKey];
       });
       mergeInNewDefaultEvents(getCal());
-      refreshAndSend();
+      refreshCalendarState(true);
+      refreshAllPersistentViews({ autoBind: true });
       if (autoSuppressedSources[key]){
         sendChat(script_name, '/w gm Source "'+esc(name)+'" was shown again where allowed, but the current calendar still auto-suppresses that source.', null, { noarchive: true });
       } else {
