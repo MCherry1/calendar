@@ -414,8 +414,8 @@ export function clearTextureCache(){
 // ── star field ──
 
 export type StarData = {
-  x: number;
-  y: number;
+  az: number;   // azimuth in degrees (0–360)
+  alt: number;  // altitude in degrees (0–PANO_ALT_MAX)
   size: number;
   r: number;
   g: number;
@@ -427,12 +427,11 @@ export type StarData = {
 };
 
 export function generateStarField(width: number, height: number, worldId: string, topMargin: number, bottomMargin: number): StarData[] {
-  var skyBottom = height - bottomMargin;
-  var skyHeight = skyBottom - topMargin;
+  var altMax = 75; // matches PANO_ALT_MAX
   var stars: StarData[] = [];
-  var total = 800;
-  var brightCount = 20;
-  var medCount = 80;
+  var total = 1400; // more stars for full 360° sky
+  var brightCount = 35;
+  var medCount = 140;
   var colors: [number, number, number][] = [
     [255, 247, 225], // warm white
     [200, 220, 255], // cool blue
@@ -443,37 +442,41 @@ export function generateStarField(width: number, height: number, worldId: string
   for (var i = 0; i < total; i++){
     var tier = i < brightCount ? 0 : i < brightCount + medCount ? 1 : 2;
     var seed = _h(i + ':star:' + worldId);
-    var x = _h('sx:' + i + ':' + worldId) * width;
-    var y = topMargin + _h('sy:' + i + ':' + worldId) * skyHeight;
+    var az = _h('sx:' + i + ':' + worldId) * 360;
+    var alt = _h('sy:' + i + ':' + worldId) * altMax;
     var ci = Math.floor(_h('sc:' + i + ':' + worldId) * colors.length);
     var col = colors[ci];
     var size = tier === 0 ? 1.5 + seed * 1.5 : tier === 1 ? 0.8 + seed * 0.7 : 0.3 + seed * 0.5;
     var baseAlpha = tier === 0 ? 0.7 + seed * 0.3 : tier === 1 ? 0.3 + seed * 0.35 : 0.08 + seed * 0.18;
     var twinkleFreq = tier === 0 ? 2 + seed * 2 : tier === 1 ? 4 + seed * 5 : 6 + seed * 8;
     var twinklePhase = _h('sp:' + i + ':' + worldId) * Math.PI * 2;
-    stars.push({ x, y, size, r: col[0], g: col[1], b: col[2], baseAlpha, twinkleFreq, twinklePhase, tier });
+    stars.push({ az, alt, size, r: col[0], g: col[1], b: col[2], baseAlpha, twinkleFreq, twinklePhase, tier });
   }
   return stars;
 }
 
 // ── milky-way band ──
 
-export function generateMilkyWay(width: number, height: number, worldId: string, topMargin: number, bottomMargin: number): HTMLCanvasElement {
-  var { cv, cx } = _offscreen(width, height);
-  var skyBottom = height - bottomMargin;
-  var skyHeight = skyBottom - topMargin;
-  var bandCenterY = topMargin + skyHeight * 0.35;
-  var bandHalfHeight = skyHeight * 0.18;
-  for (var i = 0; i < 2000; i++){
-    var x = _h('mw:x:' + i + ':' + worldId) * width;
-    // gaussian-ish distribution around band center
-    var yOff = (_h('mw:y1:' + i) + _h('mw:y2:' + i) + _h('mw:y3:' + i) - 1.5) / 1.5 * bandHalfHeight;
-    var y = bandCenterY + yOff;
-    if (y < topMargin || y > skyBottom) continue;
+export type MilkyWayParticle = {
+  az: number;   // azimuth 0–360
+  alt: number;  // altitude in degrees
+  size: number;
+  alpha: number;
+};
+
+export function generateMilkyWay(width: number, height: number, worldId: string, topMargin: number, bottomMargin: number): MilkyWayParticle[] {
+  var altMax = 75;
+  var bandCenterAlt = altMax * 0.65;
+  var bandHalfAlt = altMax * 0.18;
+  var particles: MilkyWayParticle[] = [];
+  for (var i = 0; i < 3000; i++){
+    var az = _h('mw:x:' + i + ':' + worldId) * 360;
+    var altOff = (_h('mw:y1:' + i) + _h('mw:y2:' + i) + _h('mw:y3:' + i) - 1.5) / 1.5 * bandHalfAlt;
+    var alt = bandCenterAlt + altOff;
+    if (alt < 0 || alt > altMax) continue;
     var sz = 0.3 + _h('mw:s:' + i) * 0.7;
     var alpha = 0.04 + _h('mw:a:' + i) * 0.08;
-    cx.fillStyle = 'rgba(220,215,200,' + alpha + ')';
-    cx.fillRect(x, y, sz, sz);
+    particles.push({ az, alt, size: sz, alpha });
   }
-  return cv;
+  return particles;
 }

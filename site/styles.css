@@ -339,6 +339,38 @@ body {
   width: 100%;
   height: auto;
   aspect-ratio: 7 / 5;
+  cursor: grab;
+  touch-action: none;
+}
+
+#sky-canvas:active {
+  cursor: grabbing;
+}
+
+.sky-tooltip {
+  position: absolute;
+  z-index: 10;
+  background: rgba(10, 16, 30, 0.92);
+  border: 1px solid rgba(127, 196, 216, 0.35);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  color: rgba(247, 242, 232, 0.9);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  pointer-events: none;
+  max-width: 220px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+.sky-tooltip strong {
+  color: rgba(247, 242, 232, 1);
+  font-size: 0.92rem;
+}
+
+.sky-tooltip em {
+  color: rgba(180, 200, 220, 0.8);
+  font-style: italic;
 }
 
 .scene-readout {
