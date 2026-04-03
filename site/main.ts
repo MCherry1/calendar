@@ -575,10 +575,14 @@ function _skyPointRaw(w: number, h: number, azDeg: number, altDeg: number): { x:
 }
 
 // ── Sun position ──
+var AXIAL_TILT_DEG = 23.44; // Earth-analog axial tilt
 function _sunPosition(serial: number, timeFrac: number, worldId: string): { altitude: number; azimuth: number } {
+  var sunLong = sunSkyLong(serial, worldId); // ecliptic longitude 0-360° over year
+  // Declination varies seasonally: -23.44° at mid-winter (month 0), +23.44° at mid-summer
+  var sunDeclination = AXIAL_TILT_DEG * Math.sin((sunLong - 90) * Math.PI / 180);
   var sunHA = (timeFrac - 0.5) * 360;
-  var alt = moonAltitudeDeg(SCENE_OBSERVER_LATITUDE, 0, sunHA);
-  var az = moonAzimuthDeg(SCENE_OBSERVER_LATITUDE, 0, sunHA);
+  var alt = moonAltitudeDeg(SCENE_OBSERVER_LATITUDE, sunDeclination, sunHA);
+  var az = moonAzimuthDeg(SCENE_OBSERVER_LATITUDE, sunDeclination, sunHA);
   return { altitude: alt, azimuth: az };
 }
 
@@ -598,7 +602,7 @@ function _lerpColor(r1: number, g1: number, b1: number, r2: number, g2: number, 
 }
 
 // ── Sky gradient based on sun altitude ──
-function _drawSkyGradient(sunAlt: number){
+function _drawSkyGradient(sunAlt: number, sunAz: number){
   if (!ctx) return;
   var w = canvas.width;
   var h = canvas.height;
@@ -645,11 +649,11 @@ function _drawSkyGradient(sunAlt: number){
 
   // Horizon glow during twilight/golden hour
   if (sunAlt > -12 && sunAlt < 15) {
-    var glowStrength = 1 - _smoothstep(-12, -6, sunAlt) < 0.5 ?
-      _smoothstep(-12, -2, sunAlt) : (1 - _smoothstep(6, 15, sunAlt));
-    if (sunAlt >= -2) glowStrength = 1 - _smoothstep(6, 15, sunAlt);
+    var glowStrength = sunAlt < 0
+      ? _smoothstep(-12, -1, sunAlt)          // ramp up from -12° to -1°
+      : (1 - _smoothstep(2, 15, sunAlt));     // ramp down from 2° to 15°
     if (glowStrength > 0.01) {
-      var sunPt = _skyPointRaw(w, h, 180, 0); // center of glow near south horizon
+      var sunPt = _skyPointRaw(w, h, sunAz, 0); // glow tracks the sun's actual azimuth
       var glowGrad = ctx.createRadialGradient(sunPt.x, skyH, 0, sunPt.x, skyH, skyH * 0.6);
       var warmR = sunAlt < 2 ? 255 : 255;
       var warmG = sunAlt < 2 ? Math.round(140 + sunAlt * 10) : 200;
@@ -698,11 +702,11 @@ function _drawSun(sunAz: number, sunAlt: number){
   var skyH = canvas.height * (1 - LAND_FRAC);
   // Sun size: 0.53° angular diameter — in our 70° view over skyH pixels
   var pxPerDeg = skyH / SKY_ALT_MAX;
-  var sunRadius = Math.max(4, (0.53 / 2) * pxPerDeg);
+  var sunRadius = Math.max(6, (0.53 / 2) * pxPerDeg);
 
   // Corona glow
   ctx.save();
-  var coronaR = sunRadius * 12;
+  var coronaR = sunRadius * 16;
   var corona = ctx.createRadialGradient(pt.x, pt.y, sunRadius * 0.5, pt.x, pt.y, coronaR);
   corona.addColorStop(0, 'rgba(255, 240, 180, 0.35)');
   corona.addColorStop(0.15, 'rgba(255, 220, 140, 0.15)');
@@ -957,7 +961,7 @@ function _drawScene(scene: ReturnType<typeof buildSkyScene>){
   var moonDimming = Math.max(0.4, 1 - _smoothstep(-6, 12, sunAlt) * 0.6); // moons stay ≥40% visible
 
   // 1. Sky gradient
-  _drawSkyGradient(sunAlt);
+  _drawSkyGradient(sunAlt, sunAz);
 
   // 2. Milky Way (night only)
   if (starAlpha > 0.01) {
@@ -1378,13 +1382,26 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
     return pts;
   }
 
-  // multi-band sub-layers
+  // Saturn-analog multi-band structure
   var bandDefs = [
-    { f0: 0.0,  f1: 0.2,  color: 'rgba(180,155,80,0.06)' },
-    { f0: 0.2,  f1: 0.45, color: 'rgba(232,203,118,0.14)' },
-    { f0: 0.38, f1: 0.62, color: 'rgba(248,220,140,0.22)' },
-    { f0: 0.55, f1: 0.8,  color: 'rgba(232,203,118,0.14)' },
-    { f0: 0.8,  f1: 1.0,  color: 'rgba(200,170,90,0.06)' }
+    // D Ring - extremely faint innermost
+    { f0: 0.00, f1: 0.04, color: 'rgba(180,155,80,0.02)' },
+    // C Ring - semi-transparent crepe ring
+    { f0: 0.04, f1: 0.22, color: 'rgba(200,175,100,0.07)' },
+    // B Ring inner - densest, brightest
+    { f0: 0.22, f1: 0.38, color: 'rgba(248,220,140,0.22)' },
+    // B Ring outer
+    { f0: 0.38, f1: 0.56, color: 'rgba(240,212,130,0.18)' },
+    // Cassini Division - prominent dark gap
+    { f0: 0.56, f1: 0.62, color: 'rgba(160,140,70,0.01)' },
+    // A Ring inner
+    { f0: 0.62, f1: 0.82, color: 'rgba(232,203,118,0.13)' },
+    // Encke Gap - thin gap within A ring
+    { f0: 0.82, f1: 0.84, color: 'rgba(160,140,70,0.01)' },
+    // A Ring outer
+    { f0: 0.84, f1: 0.92, color: 'rgba(220,195,110,0.10)' },
+    // F Ring - narrow faint outer
+    { f0: 0.96, f1: 1.00, color: 'rgba(200,175,100,0.04)' }
   ];
   for (var bd of bandDefs){
     var lo = _bandPts(bd.f0);
@@ -1430,49 +1447,66 @@ function _drawSiberysRing(width: number, height: number, observerLatDeg: number)
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // ~120 particles with independent twinkle
-  var sparkleCount = 120;
-  var t2pi = state.timeFrac * Math.PI * 2;
-  for (var s = 0; s < sparkleCount; s++){
-    var t = (s + 0.5) / sparkleCount;
-    var idx = Math.min(centerPts.length - 1, Math.floor((centerPts.length - 1) * t));
-    var outer = outerPts[idx];
-    var inner = innerPts[idx];
-    var bandMix = _hash('sib:' + s + ':' + state.serial);
+  // Orbital drift particles — dragonshard fragments with Keplerian motion
+  // Apparent drift rates (deg/day): inner ~1666, middle ~1202, outer ~895
+  var DRIFT_INNER = 1666;
+  var DRIFT_OUTER = 895;
+  var particleCount = 400;
+  // Band density weights: particles are sparse in gaps, dense in B ring
+  // bandFrac ranges: D(0-.04) C(.04-.22) B(.22-.56) gap(.56-.62) A(.62-.82) gap(.82-.84) A(.84-.92) F(.96-1)
+  function _bandDensity(f: number): number {
+    if (f < 0.04) return 0.1;            // D ring — very sparse
+    if (f < 0.22) return 0.4;            // C ring — moderate
+    if (f < 0.56) return 1.0;            // B ring — full density
+    if (f < 0.62) return 0.03;           // Cassini Division — near empty
+    if (f < 0.82) return 0.7;            // A ring inner
+    if (f < 0.84) return 0.03;           // Encke Gap — near empty
+    if (f < 0.92) return 0.55;           // A ring outer
+    if (f < 0.96) return 0.0;            // empty gap
+    return 0.2;                           // F ring — sparse
+  }
+  // Compute time including serial day for continuous drift across days
+  var driftTime = state.serial + state.timeFrac;
+  for (var s = 0; s < particleCount; s++){
+    var bandFrac = _hash('sib:band:' + s);
+    // Skip particles in low-density bands probabilistically
+    if (_hash('sib:keep:' + s) > _bandDensity(bandFrac)) continue;
+    // Orbital angle with Keplerian drift (inner drifts faster)
+    var baseAngle = _hash('sib:angle:' + s) * 360;
+    var driftRate = DRIFT_INNER - bandFrac * (DRIFT_INNER - DRIFT_OUTER);
+    var angle = ((baseAngle + driftTime * driftRate) % 360 + 360) % 360;
+    // Convert to hour angle for spherical projection (ring is equatorial, dec=0)
+    var H = (angle - 180) * Math.PI / 180;
+    var sinAlt = Math.cos(lat) * Math.cos(H);
+    var altDeg = Math.asin(Math.max(-1, Math.min(1, sinAlt))) * 180 / Math.PI;
+    if (altDeg < 0) continue; // below horizon
+    var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
+    var azDeg = ((azRaw * 180 / Math.PI) + 180 + 360) % 360;
+    // Interpolate between inner and outer ring edges at this azimuth
+    var ptInner = _skyPointRaw(width, height, azDeg, Math.max(0, altDeg - halfWidthDeg));
+    var ptOuter = _skyPointRaw(width, height, azDeg, altDeg + halfWidthDeg);
     var pt = {
-      x: inner.x + (outer.x - inner.x) * bandMix,
-      y: inner.y + (outer.y - inner.y) * bandMix
+      x: ptInner.x + (ptOuter.x - ptInner.x) * bandFrac,
+      y: ptInner.y + (ptOuter.y - ptInner.y) * bandFrac
     };
-    var particleFreq = 3 + _hash('sf:' + s) * 12;
-    var particlePhase = _hash('sph:' + s) * Math.PI * 2;
-    var pulse = 0.5 + 0.5 * Math.sin(t2pi * particleFreq + particlePhase);
-    var alpha = 0.15 + pulse * 0.65;
-    var r = 0.4 + pulse * 1.2;
-
-    if (s < 8){
-      // large "dragonshard" sparkles with additive bloom
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = 'rgba(255,237,178,' + (alpha * 0.7) + ')';
-      ctx.fillRect(pt.x - r * 2, pt.y - 0.3, r * 4, 0.6);
-      ctx.fillRect(pt.x - 0.3, pt.y - r * 2, 0.6, r * 4);
+    // Slow shimmer (freq 0.3–1.5 cycles/day, not fast blinking)
+    var shimmerFreq = 0.3 + _hash('sib:freq:' + s) * 1.2;
+    var shimmerPhase = _hash('sib:phase:' + s) * Math.PI * 2;
+    var shimmer = 0.6 + 0.4 * Math.sin(driftTime * shimmerFreq * Math.PI * 2 + shimmerPhase);
+    // Brightness varies by band: B ring particles brighter, C/D/F dimmer
+    var bandBright = bandFrac < 0.22 ? 0.4 : (bandFrac < 0.56 ? 1.0 : 0.7);
+    var alpha = (0.08 + shimmer * 0.27) * bandBright;
+    var r = 0.8 + _hash('sib:size:' + s) * 1.7 * (bandFrac < 0.56 ? 1.0 : 0.8);
+    // Soft glow dot — no cross-spikes, no hard edges
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,237,178,' + alpha.toFixed(3) + ')';
+    ctx.fill();
+    // Faint halo around brighter particles
+    if (alpha > 0.18) {
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, r * 0.9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    } else if (pulse > 0.65){
-      // bright particles: cross spike + halo
-      ctx.fillStyle = 'rgba(255,237,178,' + alpha + ')';
-      ctx.fillRect(pt.x - r * 1.8, pt.y - 0.3, r * 3.6, 0.6);
-      ctx.fillRect(pt.x - 0.3, pt.y - r * 1.8, 0.6, r * 3.6);
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, r * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      // normal particles: simple dot
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 237, 178, ' + alpha + ')';
+      ctx.arc(pt.x, pt.y, r * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,237,178,' + (alpha * 0.15).toFixed(3) + ')';
       ctx.fill();
     }
   }
