@@ -136,7 +136,25 @@ type PhaseWalkResult = {
   phaseIntoDays: number;
   phaseDurationDays: number;
   previousPhase: string;
+  nextPhase: string;
+  isHalfBounce: boolean;
+  phaseProgress: number;
+  fullTraversalCount: number;
 };
+
+/** Skip zero-duration phases to find the effective next substantive phase. */
+function _effectiveNextPhase(cycle: CycleMetrics, currentIdx: number): string {
+  for (var step = 1; step <= cycle.phases.length; step++) {
+    var idx = (currentIdx + step) % cycle.phases.length;
+    if (cycle.phases[idx].dur > 0) return cycle.phases[idx].name;
+  }
+  return 'neutral';
+}
+
+/** Count full traversals (coterminous-to-remote or remote-to-coterminous) in the first N orbits. */
+function _countFullTraversals(cycle: CycleMetrics): boolean {
+  return cycle.coterminousDays > 0 && cycle.remoteDays > 0;
+}
 
 function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
   var cycle = _cycleMetrics(plane);
@@ -156,6 +174,9 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
   var orbitNum = Math.floor(daysSinceAnchor / cycle.orbitDays);
   if (daysSinceAnchor < 0) orbitNum -= 1;
 
+  var hasFullTraversal = _countFullTraversals(cycle);
+  var fullTraversalCount = hasFullTraversal ? orbitNum : 0;
+
   // Walk through phases from anchor phase
   var accumulated = 0;
   for (var pi = 0; pi < cycle.phases.length; pi++) {
@@ -165,6 +186,9 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
       var into = offset - accumulated;
       var previousIdx = (idx + cycle.phases.length - 1) % cycle.phases.length;
       var previousPhase = cycle.phases[previousIdx].name;
+      var nextPhase = _effectiveNextPhase(cycle, idx);
+      var progress = ph.dur > 0 ? Math.max(0, Math.min(1, into / ph.dur)) : 0;
+      var isHalfBounce = ph.name === 'neutral' && previousPhase === nextPhase;
 
       return {
         phase: ph.name,
@@ -172,7 +196,11 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
         orbitNum: orbitNum,
         phaseIntoDays: into,
         phaseDurationDays: ph.dur,
-        previousPhase: previousPhase
+        previousPhase: previousPhase,
+        nextPhase: nextPhase,
+        isHalfBounce: isHalfBounce,
+        phaseProgress: progress,
+        fullTraversalCount: fullTraversalCount
       };
     }
     accumulated += ph.dur;
@@ -185,7 +213,11 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
     orbitNum: orbitNum,
     phaseIntoDays: 0,
     phaseDurationDays: 1,
-    previousPhase: 'coterminous'
+    previousPhase: 'coterminous',
+    nextPhase: 'coterminous',
+    isHalfBounce: false,
+    phaseProgress: 0,
+    fullTraversalCount: 0
   };
 }
 
@@ -245,6 +277,12 @@ export type PlanarPhaseResult = {
   phaseIntoDays: number;
   /** Total duration of the current phase in days */
   phaseDurationDays: number;
+  /** The next substantive phase after the current one */
+  nextPhase: string;
+  /** True when this neutral segment bounces between two identical phases (e.g., coterminous→neutral→coterminous) */
+  isHalfBounce: boolean;
+  /** Fractional progress through the current phase (0.0 at start, 1.0 at end) */
+  phaseProgress: number;
 };
 
 export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] {
@@ -283,7 +321,10 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         toCoterminousDays: null,
         toRemoteDays: null,
         phaseIntoDays: dalOffset,
-        phaseDurationDays: dalCycleDays
+        phaseDurationDays: dalCycleDays,
+        nextPhase: 'remote',
+        isHalfBounce: false,
+        phaseProgress: dalOffset / dalCycleDays
       });
       continue;
     }
@@ -308,7 +349,10 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         toCoterminousDays: null,
         toRemoteDays: null,
         phaseIntoDays: 0,
-        phaseDurationDays: 1
+        phaseDurationDays: 1,
+        nextPhase: pl.fixedPhase || 'neutral',
+        isHalfBounce: false,
+        phaseProgress: 0
       });
       continue;
     }
@@ -322,7 +366,12 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
     var anchor = _anchorSerial(pl);
     var cycleOffset = ((serial - anchor) % cycle.orbitDays + cycle.orbitDays) % cycle.orbitDays;
     var position = walk.position;
-    var onPrimary = (walk.orbitNum % 2 === 0);
+    var nextPhase = walk.nextPhase;
+    var isHalfBounce = walk.isHalfBounce;
+    var phaseProgress = walk.phaseProgress;
+    // Only flip side when the cycle has full traversals (both coterminous and remote > 0)
+    var onPrimary = (walk.fullTraversalCount % 2 === 0);
+    var isMabarRemoteOverride = false;
 
     // Mabar special case: 5-year remote window around summer solstice
     if (pl.remoteOrbitYears && pl.remoteDaysSpecial) {
@@ -343,6 +392,10 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         if (dayOfYear >= remoteStart && dayOfYear <= remoteEnd) {
           phase = 'remote';
           position = _bandPositionFromPhase('remote', dayOfYear - remoteStart, remoteDur, 'neutral');
+          phaseProgress = (dayOfYear - remoteStart) / Math.max(1, remoteDur);
+          nextPhase = 'neutral';
+          isHalfBounce = false;
+          isMabarRemoteOverride = true;
         }
       }
     }
@@ -361,7 +414,10 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
       toCoterminousDays: _timeToPhase(cycle, cycleOffset, 'coterminous'),
       toRemoteDays: _timeToPhase(cycle, cycleOffset, 'remote'),
       phaseIntoDays: walk.phaseIntoDays,
-      phaseDurationDays: walk.phaseDurationDays
+      phaseDurationDays: walk.phaseDurationDays,
+      nextPhase: nextPhase,
+      isHalfBounce: isHalfBounce,
+      phaseProgress: phaseProgress
     });
   }
 
