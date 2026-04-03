@@ -277,6 +277,8 @@ export type PlanarPhaseResult = {
   phaseIntoDays: number;
   /** Total duration of the current phase in days */
   phaseDurationDays: number;
+  /** The previous substantive phase before the current one */
+  previousPhase: string;
   /** The next substantive phase after the current one */
   nextPhase: string;
   /** True when this neutral segment bounces between two identical phases (e.g., coterminous→neutral→coterminous) */
@@ -322,6 +324,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         toRemoteDays: null,
         phaseIntoDays: dalOffset,
         phaseDurationDays: dalCycleDays,
+        previousPhase: 'remote',
         nextPhase: 'remote',
         isHalfBounce: false,
         phaseProgress: dalOffset / dalCycleDays
@@ -350,6 +353,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         toRemoteDays: null,
         phaseIntoDays: 0,
         phaseDurationDays: 1,
+        previousPhase: pl.fixedPhase || 'neutral',
         nextPhase: pl.fixedPhase || 'neutral',
         isHalfBounce: false,
         phaseProgress: 0
@@ -366,6 +370,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
     var anchor = _anchorSerial(pl);
     var cycleOffset = ((serial - anchor) % cycle.orbitDays + cycle.orbitDays) % cycle.orbitDays;
     var position = walk.position;
+    var previousPhase = walk.previousPhase;
     var nextPhase = walk.nextPhase;
     var isHalfBounce = walk.isHalfBounce;
     var phaseProgress = walk.phaseProgress;
@@ -393,6 +398,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
           phase = 'remote';
           position = _bandPositionFromPhase('remote', dayOfYear - remoteStart, remoteDur, 'neutral');
           phaseProgress = (dayOfYear - remoteStart) / Math.max(1, remoteDur);
+          previousPhase = 'neutral';
           nextPhase = 'neutral';
           isHalfBounce = false;
           isMabarRemoteOverride = true;
@@ -415,6 +421,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
       toRemoteDays: _timeToPhase(cycle, cycleOffset, 'remote'),
       phaseIntoDays: walk.phaseIntoDays,
       phaseDurationDays: walk.phaseDurationDays,
+      previousPhase: previousPhase,
       nextPhase: nextPhase,
       isHalfBounce: isHalfBounce,
       phaseProgress: phaseProgress
