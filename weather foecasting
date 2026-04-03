@@ -1,0 +1,503 @@
+# Forecast Lens Implementation Plan
+
+## Overview
+
+Implement a **forecast lens** system for the weather subsystem. The forecast lens sits between the stored weather truth (`rec.final`) and the player-facing display. It degrades weather information based on the player’s knowledge tier, the day’s current zone distance from today, and planar knowledge — producing forecasts that may differ from reality in predictable, lore-appropriate ways.
+
+The core principle: **players never see raw weather truth at low or medium tier. They see a forecast — a derived view that regresses toward continuity, can be wrong, and sharpens as the day approaches.** High tier (divination, expert instruments) always shows exact truth.
+
+-----
+
+## Part 1: Zone System
+
+### Four Zones (Always Relative to Today)
+
+Zones are defined by distance from today. Today is always day 1. The boundaries follow a Fibonacci-like sequence: 1, 3, 6, 10.
+
+|Zone|Days from today (today = day 1)|
+|----|-------------------------------|
+|A   |Day 1 (today)                  |
+|B   |Days 2–3                       |
+|C   |Days 4–6                       |
+|D   |Days 7–10                      |
+
+These zones never move. Zone D is always days 7–10 from today. Calendar days slide through the zones as time advances.
+
+### What Each Tier Reveals
+
+**Low tier** (common knowledge, no check required): Automatically granted every day advance for zones A and B (today + 2 days = 3 days total). This is “looked outside, smelled the air.”
+
+**Medium tier** (skill check): Each DC threshold unlocks the next zone at medium detail. Additionally, a low-tier tail extends up to 3 days past the medium edge.
+
+|Roll |Medium zones earned|Tail         |Total days shown|
+|-----|-------------------|-------------|----------------|
+|DC 10|A                  |A′, B′       |up to 4         |
+|DC 15|A, B               |A′, B′       |up to 6         |
+|DC 20|A, B, C            |A′, B′       |up to 9         |
+|DC 25|A, B, C, D         |(none needed)|10              |
+
+**High tier** (divination, expert): Same zone structure as medium, but no masking, no jitter. Exact truth. Also gets a low-tier tail past its edge, same rules.
+
+**Display cap**: Never show more than 10 days total, inclusive of today. Even if a tail would theoretically extend past day 10, suppress it in display. The data may still be flagged internally, but the player forecast view never renders past day 10.
+
+-----
+
+## Part 2: The Tail System (A′ and B′)
+
+The tail is a static low-quality buffer planted at reveal time. It prevents a hard visual cutoff at the edge of the medium/high window.
+
+- **A′** = 1st day past the medium/high edge
+- **B′** = 2nd and 3rd days past the medium/high edge
+
+### Critical behavior: Tail flags do NOT auto-sharpen
+
+Unlike medium-tier days (which auto-sharpen as they slide into closer zones), tail days keep their A′ or B′ tag until explicitly overwritten. The tag never changes based on zone position.
+
+### Overwrite rules
+
+The full quality ladder from best to worst:
+
+|Rank|Flag      |Mask die|Jitter         |
+|----|----------|--------|---------------|
+|1   |High (any)|—       |exact          |
+|2   |Medium A  |d20     |exact          |
+|3   |Medium B  |d12     |±1 wind        |
+|4   |Medium C  |d10     |±1 wind, precip|
+|5   |Medium D  |d8      |±1 all traits  |
+|6   |Low A / A′|d6      |±1 wind        |
+|7   |Low B / B′|d4      |±1 all traits  |
+|8   |Nothing   |—       |—              |
+
+**Never overwrite a flag with something lower on this ladder.** This is the upgrade-only rule, but operating at the quality/mask-die level, not just the tier label level.
+
+Key implication: when common knowledge tries to grant low-B to a day that already has A′ (both are low tier, but A′ is rank 6 and low-B is rank 7), the write is blocked. A′ is superior to low-B.
+
+When a tail day reaches today (zone A) and common knowledge grants low-A, it overwrites cleanly because low-A and A′ are the same rank (6). The transition is seamless.
+
+### Storage model
+
+Each revealed day needs:
+
+```typescript
+{
+  tier: 'medium' | 'high' | 'low',
+  source: 'common' | 'skilled' | 'expert',
+  quality: number,  // rank on the ladder (1=best, 7=worst)
+  isTail: boolean   // true for tail days
+}
+```
+
+The `quality` field determines which mask/jitter table to use. The `tier` field determines display formatting (vocabulary, period breakdown, etc.). The upgrade check is: `if (newQuality >= existing.quality) return` — refuse writes that aren’t strictly better.
+
+-----
+
+## Part 3: Auto-Sharpening
+
+For medium and high tier days (NOT tail days), the mask die and jitter level are determined by the day’s **current zone**, not the zone it was in when revealed.
+
+This means a medium-tier day that was in zone D (d8 mask) when first revealed will have a d10 mask when it reaches zone C, d12 at zone B, and d20 at zone A. The tier flag doesn’t change — still medium — but forecast reliability improves as the day approaches.
+
+### Seeding for stability
+
+The mask roll must be deterministic so the forecast doesn’t flicker between views. Seed on `(serial, zone, worldSeed, 'mask')`. When a day crosses a zone boundary, it gets a fresh roll at the new (better) odds. Within a zone, the result is stable.
+
+The jitter seed should work similarly: `(serial, zone, worldSeed, 'jitter')`.
+
+-----
+
+## Part 4: Jitter System
+
+### Trait ordering (FIXED, not random)
+
+The three weather traits have different predictability. The order from hardest to predict to easiest:
+
+1. **Wind** — shifts fast, localized, hardest to read from the sky
+1. **Precipitation** — visible signs exist but timing/intensity is uncertain
+1. **Temperature** — massive thermal inertia, strong seasonal patterns, easiest
+
+When jittering fewer than all traits, always affect them in this fixed order:
+
+|Jitter level  |Traits affected                     |
+|--------------|------------------------------------|
+|±1 on 1 trait |Wind only                           |
+|±1 on 2 traits|Wind and precipitation              |
+|±1 on all     |Wind, precipitation, and temperature|
+
+### Jitter magnitude per zone and tier
+
+**Medium tier (zone-based, auto-sharpens):**
+
+|Zone|Jitter         |
+|----|---------------|
+|A   |exact          |
+|B   |±1 wind        |
+|C   |±1 wind, precip|
+|D   |±1 all traits  |
+
+**Low tier / Tail:**
+
+|Zone / Tag|Jitter       |
+|----------|-------------|
+|A / A′    |±1 wind      |
+|B / B′    |±1 all traits|
+
+### Regression direction: toward previous day
+
+The forecast regresses toward **the previous day’s actual weather**, not the seasonal baseline. The forecaster thinks “probably more of the same.” They get surprised by transitions, not by extremes.
+
+```typescript
+regressionTarget[trait] = prevDay.final[trait]
+delta = rec.final[trait] - prevDay.final[trait]
+```
+
+Direction weighting based on day-over-day change magnitude:
+
+| Day-over-day |delta| | Toward-previous-day chance | Away chance | Die           |
+|–––––––––––|––––––––––––––|———––|—————|
+| ≥ 2 (big shift)     | 9 in 10                    | 1 in 10     | d10 (1 = away)|
+| = 1 (small shift)   | 3 in 4                     | 1 in 4      | d4 (1 = away) |
+| = 0 (no change)     | 50/50                      | 50/50       | d6 (1-3 / 4-6)|
+
+This means the forecast is **most wrong on the day weather changes** and **most right when weather is stable**. A five-day warm streak? Forecast nails it. The morning the cold front arrives? Forecast predicted “more warmth.” The player is surprised — naturally and fairly.
+
+-----
+
+## Part 5: Masking System
+
+Masking is a per-day chance that the forecast is simply *wrong* — the forecaster misread the sky. When it fires, it’s more dramatic than jitter: the dominant shifting trait snaps toward the previous day’s value.
+
+### Mask dice per zone and tier
+
+**Medium tier:**
+
+|Zone|Mask die|
+|----|--------|
+|A   |d20     |
+|B   |d12     |
+|C   |d10     |
+|D   |d8      |
+
+**Low tier:**
+
+|Zone|Mask die|
+|----|--------|
+|A   |d6      |
+|B   |d4      |
+
+**Tail:**
+
+|Tag|Mask die|
+|---|--------|
+|A′ |d6      |
+|B′ |d4      |
+
+The mask fires when the seeded roll equals 1. Bigger die = less likely to fire = more reliable forecast.
+
+### What happens when the mask fires
+
+1. Identify the trait with the largest `|rec.final[trait] - prevDay.final[trait]|` (the biggest day-over-day change). If tied, wind breaks the tie.
+1. Snap that trait’s forecast value toward `prevDay.final[trait] ± 1` (the ±1 adds flavor so it’s not suspiciously exact).
+1. Other traits still receive normal jitter.
+
+This represents the forecaster predicting continuity (“same as yesterday”) when in fact the weather shifted.
+
+-----
+
+## Part 6: Planar Knowledge Integration
+
+### Decomposing the weather delta
+
+Each weather record’s final values include contributions from multiple sources. Before applying the lens, decompose:
+
+```
+totalDelta = naturalDelta + planarDelta + manifestDelta
+```
+
+Where:
+
+- `naturalDelta` = dice, continuity drift, terrain effects
+- `planarDelta` = overlay from coterminous/remote planes (Risia −3 temp, Fernia +3 temp, etc.)
+- `manifestDelta` = local manifest zone effects
+
+### How each component is treated
+
+- **Manifest zone delta**: Always exempt from regression at all tiers. You’re standing in it; you can feel it. Passes through the lens untouched.
+- **Known planar delta**: Exempt from regression if the player has a planar reveal covering this date for the relevant plane. Passes through untouched.
+- **Unknown planar delta**: Treated as part of the regressable portion. The forecaster can’t explain it, so they flatten it.
+- **Natural delta**: Always regressable.
+
+Only `naturalDelta + unknownPlanarDelta` goes through the jitter/mask system.
+
+### Cross-subsystem synergy
+
+This creates an organic incentive: a party with medium weather knowledge AND medium planar knowledge gets noticeably better weather forecasts than weather knowledge alone. The planar-aware forecaster can explain *why* it’s colder and factor it in. No new UI needed — it happens automatically.
+
+### Implementation note
+
+**This requires that planar and manifest zone weather overlays are stored as separate decomposable components on the weather record, not baked into `rec.final`.** If they are currently baked in, generation-time bookkeeping must be added to record `rec.overlay` (per-plane contributions) and `rec.manifest` (manifest zone contributions) separately. Check how `_generateDay` applies overlays and add this tracking if it doesn’t exist.
+
+-----
+
+## Part 7: Seasonal Clamp (Shifted by Known Effects)
+
+After all jitter and masking, clamp each trait to the effective seasonal envelope. The clamp itself shifts based on what the forecaster knows:
+
+```typescript
+effectiveMin[trait] = climate.month.min[trait] + knownPlanarOverlay[trait] + manifestOverlay[trait]
+effectiveMax[trait] = climate.month.max[trait] + knownPlanarOverlay[trait] + manifestOverlay[trait]
+```
+
+Key rules:
+
+- **Known planar effects** (player has planar reveal for this date): Shift the clamp. The forecaster accounts for the plane.
+- **Unknown planar effects** (no planar reveal): Do NOT shift the clamp. The forecaster uses the normal seasonal envelope. If reality is colder than the envelope allows (because of an unknown Risia surge), the forecast can’t show that.
+- **Manifest zones**: Always shift the clamp (same rationale as always exempting from regression — you can feel the zone).
+
+This means a player without planar knowledge literally cannot forecast weather that exceeds the normal seasonal range, even when reality does. They’ll be blindsided by a Risia-driven cold snap in summer. A player WITH planar knowledge has a wider mental model and their forecast can reflect the shifted reality.
+
+-----
+
+## Part 8: Vocabulary and Display (Existing Behavior, Mostly Unchanged)
+
+The forecast lens produces modified trait values. These feed into the existing rendering functions, which don’t need to know about the lens:
+
+- **High tier**: Full per-period narratives via `_conditionsNarrative`. Mechanics shown on today. No lens applied (exact truth).
+- **Medium tier**: Single afternoon narrative via `_conditionsNarrative`, fed with lens-modified values. No mechanics on future days.
+- **Low tier (today)**: Three coarse periods (early morning, afternoon, nighttime) via `_roughWeatherDescriptor`, fed with lens-modified values.
+- **Low tier (future)**: Single dominant-trait headline via `_roughWeatherDescriptor`, fed with lens-modified values. Only the most mechanically consequential trait is mentioned.
+
+The existing `_playerDayHtml` function’s switch on `detailTier` remains the same. The only change is that `rec.final` is replaced with `forecastLens(rec, ...)` before the values reach the narrative functions.
+
+-----
+
+## Part 9: Forecast Lens Function (Pseudocode)
+
+```typescript
+function _forecastLens(
+  rec: WeatherRecord,
+  prevRec: WeatherRecord,
+  tier: 'low' | 'medium' | 'high',
+  quality: number,           // rank on the quality ladder
+  zone: 'A' | 'B' | 'C' | 'D' | 'Ap' | 'Bp',  // current zone or tail tag
+  playerPlanarReveals: PlanarRevealSet,
+  manifestOverlays: ManifestOverlaySet
+): ForecastValues {
+
+  // High tier: exact truth, no lens
+  if (tier === 'high') return rec.final;
+
+  // 1. Decompose deltas per trait
+  for each trait in [temp, wind, precip]:
+    planarDelta[trait] = rec.overlay[trait] || 0
+    manifestDelta[trait] = rec.manifest[trait] || 0
+    knownPlanar[trait] = sum of overlay contributions from planes
+                         the player has reveals for on this serial
+    unknownPlanar[trait] = planarDelta[trait] - knownPlanar[trait]
+
+  // 2. Regression target = previous day
+  target[trait] = prevRec.final[trait]
+
+  // 3. Compute regressable portion per trait
+  // This is the part of the delta (from previous day) that the
+  // forecaster can't explain
+  regressable[trait] = rec.final[trait]
+                       - knownPlanar[trait]
+                       - manifestDelta[trait]
+                       - target[trait]
+  // (regressable includes naturalDelta + unknownPlanar, measured
+  //  relative to previous day)
+
+  // 4. Determine jitter level from zone/tier tables
+  jitterLevel = lookupJitterLevel(tier, zone)
+  // Returns: 0 (exact), 1 (wind only), 2 (wind+precip), 3 (all)
+
+  // 5. Determine which traits to jitter (fixed order)
+  affectedTraits = []
+  if jitterLevel >= 1: affectedTraits.push('wind')
+  if jitterLevel >= 2: affectedTraits.push('precip')
+  if jitterLevel >= 3: affectedTraits.push('temp')
+
+  // 6. Apply jitter to affected traits
+  for each trait in affectedTraits:
+    dayOverDayDelta = |rec.final[trait] - prevRec.final[trait]|
+    // Determine direction die
+    if dayOverDayDelta >= 2: directionDie = 10  // 1 on d10 = away
+    else if dayOverDayDelta == 1: directionDie = 4  // 1 on d4 = away
+    else: directionDie = 6  // 1-3 toward, 4-6 away (coin flip)
+
+    seed = hash(rec.serial, zone, worldSeed, 'jitter', trait)
+    directionRoll = seededDie(directionDie, seed)
+
+    if directionDie == 6:
+      goToward = (directionRoll <= 3)
+    else:
+      goToward = (directionRoll != 1)
+
+    jitterMagnitude = 1  // always ±1 for jitter
+    if goToward:
+      // Push forecast toward previous day (reduce regressable)
+      sign = -sign(regressable[trait])
+    else:
+      // Push forecast away from previous day
+      sign = sign(regressable[trait]) || 1  // if 0, pick +1
+
+    forecastDelta[trait] = regressable[trait] + (jitterMagnitude * sign)
+
+  // Non-jittered traits pass through unchanged
+  for each trait NOT in affectedTraits:
+    forecastDelta[trait] = regressable[trait]
+
+  // 7. Apply mask if it fires
+  maskDie = lookupMaskDie(tier, zone)  // from the mask dice tables
+  maskSeed = hash(rec.serial, zone, worldSeed, 'mask')
+  maskRoll = seededDie(maskDie, maskSeed)
+
+  if maskRoll == 1:
+    // Find the trait with the biggest day-over-day shift
+    // (wind breaks ties)
+    dominantTrait = traitWithLargestDayOverDay(rec, prevRec)
+    // Snap toward previous day's value ±1
+    snapSeed = hash(rec.serial, worldSeed, 'mask-snap')
+    forecastDelta[dominantTrait] = seededDie(2, snapSeed) == 1 ? +1 : -1
+    // (This replaces the regressable portion with just ±1 from prev day,
+    //  effectively predicting "same as yesterday" with slight variation)
+
+  // 8. Reassemble forecast values
+  for each trait:
+    forecast[trait] = target[trait]
+                      + knownPlanar[trait]
+                      + manifestDelta[trait]
+                      + forecastDelta[trait]
+
+  // 9. Seasonal clamp (shifted by known effects)
+  for each trait:
+    effectiveMin = climate.month.min[trait]
+                   + knownPlanar[trait]
+                   + manifestDelta[trait]
+    effectiveMax = climate.month.max[trait]
+                   + knownPlanar[trait]
+                   + manifestDelta[trait]
+    forecast[trait] = clamp(forecast[trait], effectiveMin, effectiveMax)
+
+  return forecast
+}
+```
+
+-----
+
+## Part 10: Integration Points
+
+### Where the lens is called
+
+The primary insertion point is `_playerDayHtml`. Currently it reads `rec.final` directly. Change it to:
+
+```typescript
+var forecastValues = _forecastLens(rec, prevRec, detailTier, quality, currentZone, planarReveals, manifestOverlays);
+```
+
+Then pass `forecastValues` (instead of `rec.final`) to `_conditionsNarrative`, `_roughWeatherDescriptor`, `_deriveConditions`, and any other function that currently reads trait values for player display.
+
+**Do NOT apply the lens to GM views.** The GM always sees truth.
+
+### Where reveals are stored
+
+Modify `_recordReveal` to store the `quality` rank alongside the tier. The existing upgrade-only check (`_bestTier`) should be replaced or supplemented with a quality-rank comparison.
+
+### Where common knowledge is granted
+
+Modify `_grantCommonWeatherReveals` to check quality rank before writing. It currently grants low to today + 2 days unconditionally. It must now check if the existing flag has a better quality rank (e.g., A′ = rank 6 is better than low-B = rank 7).
+
+### Where tail days are planted
+
+When `sendPlayerForecast` processes a medium or high reveal, after recording the earned zones, plant A′ on the next day and B′ on the 2 days after that. Cap so nothing is planted past day 10 from today.
+
+### Where planar overlays are tracked
+
+Check how `_generateDay` (or equivalent generation function) applies planar overlays to weather records. If the overlay contributions are not stored as separate fields (`rec.overlay`, `rec.manifest`), add bookkeeping at generation time to record them. The forecast lens needs to decompose `rec.final` into its component parts.
+
+### Where the previous day’s record is accessed
+
+The lens needs `prevRec` (the previous day’s weather record). This should be `_forecastRecord(serial - 1)` or `_historyRecord(serial - 1)`. If today is the first day of the forecast window and no previous record exists, fall back to `rec.base` (seasonal baseline) as the regression target.
+
+-----
+
+## Part 11: Summary of New Data Structures
+
+### Quality rank enum/constants
+
+```typescript
+const QUALITY_HIGH       = 1;
+const QUALITY_MEDIUM_A   = 2;
+const QUALITY_MEDIUM_B   = 3;
+const QUALITY_MEDIUM_C   = 4;
+const QUALITY_MEDIUM_D   = 5;
+const QUALITY_LOW_A      = 6;  // same rank as TAIL_AP
+const QUALITY_TAIL_AP    = 6;
+const QUALITY_LOW_B      = 7;  // same rank as TAIL_BP
+const QUALITY_TAIL_BP    = 7;
+const QUALITY_NONE       = 99;
+```
+
+### Zone determination function
+
+```typescript
+function _currentZone(serial: number, today: number): 'A' | 'B' | 'C' | 'D' | null {
+  var dayNum = serial - today + 1;  // today = day 1
+  if (dayNum === 1) return 'A';
+  if (dayNum <= 3) return 'B';
+  if (dayNum <= 6) return 'C';
+  if (dayNum <= 10) return 'D';
+  return null;  // beyond display window
+}
+```
+
+### Mask die lookup
+
+```typescript
+var MASK_DICE = {
+  medium: { A: 20, B: 12, C: 10, D: 8 },
+  low:    { A: 6,  B: 4 },
+  tail:   { Ap: 6, Bp: 4 }
+};
+```
+
+### Jitter level lookup
+
+```typescript
+// Returns number of traits affected: 0, 1, 2, or 3
+var JITTER_LEVEL = {
+  medium: { A: 0, B: 1, C: 2, D: 3 },
+  low:    { A: 1, B: 3 },
+  tail:   { Ap: 1, Bp: 3 }
+};
+```
+
+-----
+
+## Part 12: Seeded Deterministic Rolls
+
+All forecast lens rolls must be deterministic per `(serial, zone, purpose)` so the forecast doesn’t flicker between views. Use the existing world seed as the base.
+
+When a day crosses a zone boundary (auto-sharpening), the zone component of the seed changes, producing a fresh roll at the new odds. This is intentional — it’s the forecast “updating” at natural breakpoints.
+
+Suggested seed structure:
+
+```typescript
+function _forecastSeed(serial: number, zone: string, purpose: string): number {
+  // Combine with existing world seed
+  return hash(worldSeed, serial, zone, purpose);
+}
+```
+
+Where `purpose` is one of: `'mask'`, `'jitter-direction-wind'`, `'jitter-direction-precip'`, `'jitter-direction-temp'`, `'mask-snap'`.
+
+-----
+
+## Part 13: Edge Cases
+
+1. **First day of forecast window with no previous record**: Use `rec.base` (seasonal baseline) as regression target instead of `prevRec.final`.
+1. **DC 25 medium check**: All 10 days are medium. No visible tail (tail would be days 11-13, beyond display cap). Tail flags may still be planted internally but never rendered.
+1. **Multiple checks on overlapping windows**: Each check may upgrade some days. The quality rank comparison handles this — a new DC 15 check can’t downgrade days that already have DC 20 medium quality.
+1. **Location change**: Existing reveals are per-location (already implemented). The forecast lens reads the location-specific reveal bucket. Changing location doesn’t invalidate old reveals at the old location; they just stop being displayed when the weather location changes.
+1. **Day 1 with no previous day record**: Fallback to `rec.base` as regression target. This should only happen on the very first day of a campaign or after a full weather reset.
+1. **Planar overlay decomposition unavailable**: If `rec.overlay` is not present (legacy records generated before this feature), treat the entire delta as natural. No planar decomposition, full regression. This is the safe fallback.
