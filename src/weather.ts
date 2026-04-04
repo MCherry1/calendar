@@ -49,6 +49,20 @@ import {
   EXTREME_EVENTS,
   _TIER_RANK,
   WEATHER_SOURCE_LABELS,
+  QUALITY_HIGH,
+  QUALITY_MEDIUM_A,
+  QUALITY_MEDIUM_B,
+  QUALITY_MEDIUM_C,
+  QUALITY_MEDIUM_D,
+  QUALITY_LOW_A,
+  QUALITY_LOW_B,
+  QUALITY_TAIL_AP,
+  QUALITY_TAIL_BP,
+  QUALITY_NONE,
+  _currentZone,
+  FORECAST_MASK_DICE,
+  FORECAST_JITTER_LEVEL,
+  ZONE_QUALITY,
 } from './weather/data-tables';
 
 // Re-export data-table items that consumers import from weather.ts
@@ -254,35 +268,13 @@ export function getWeatherState(){
   };
   var ws = root.weather;
   if (!ws.playerReveal || typeof ws.playerReveal !== 'object') ws.playerReveal = { byLocation: {} };
-  if (!ws.playerReveal.byLocation){
-    var legacyReveal = ws.playerReveal;
-    ws.playerReveal = { byLocation: {} };
-    var legacySig = (ws.location && _locSig(ws.location)) || '_default';
-    ws.playerReveal.byLocation[legacySig] = {};
-    Object.keys(legacyReveal || {}).forEach(function(key: any){
-      if (key === 'byLocation') return;
-      ws.playerReveal.byLocation[legacySig][key] = legacyReveal[key];
-    });
-  }
+  if (!ws.playerReveal.byLocation) ws.playerReveal.byLocation = {};
   if (!Array.isArray(ws.savedLocations)) ws.savedLocations = [];
   if (!Array.isArray(ws.recentLocations)) ws.recentLocations = [];
   if (ws.location) ws.location = _normalizeWeatherLocation(ws.location);
   ws.savedLocations = ws.savedLocations.map(_normalizeWeatherLocation).filter(Boolean);
   ws.recentLocations = ws.recentLocations.map(_normalizeWeatherLocation).filter(Boolean).slice(0, 3);
   if (!ws.manifestZones || typeof ws.manifestZones !== 'object') ws.manifestZones = {};
-  if (ws.location && ws.location.manifestZone){
-    var legacyKey = _manifestZoneKey(ws.location.manifestZone.name || ws.location.manifestZone.key || '');
-    if (legacyKey && !ws.manifestZones[legacyKey]){
-      ws.manifestZones[legacyKey] = {
-        key: legacyKey,
-        setOn: todaySerial(),
-        arythFullActivated: false,
-        arythFullExitWarned: false
-      };
-    }
-    delete ws.location.manifestZone;
-    ws.location.sig = _locSig(ws.location);
-  }
   return ws;
 }
 
@@ -750,18 +742,30 @@ function _generateDayWeather(serial: any, prevRec: any, locationOverride: any){
 
   // Planar coterminous/remote weather influences (± modifiers, not hard overrides).
   // These stack with manifest zone effects for layered environmental storytelling.
+  // Overlay contributions are tracked per-plane for forecast lens decomposition.
+  var _overlay: any = { temp: 0, wind: 0, precip: 0, planes: {} };
   if (ensureSettings().planesEnabled !== false){
     try {
       var _plEff = getActivePlanarEffects(serial);
       for (var _pe = 0; _pe < _plEff.length; _pe++){
         var _ppe = _plEff[_pe];
-        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'coterminous') finalVals.temp += 3;
-        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')      finalVals.temp -= 2;
-        if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous') finalVals.temp -= 3;
-        if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')      finalVals.temp += 2;
-        if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){ finalVals.precip = 0; finalVals.wind = 0; }
-        if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')      finalVals.precip = Math.min(5, finalVals.precip + 1);
+        var _planeKey = _ppe.plane;
+        if (!_overlay.planes[_planeKey]) _overlay.planes[_planeKey] = { temp: 0, wind: 0, precip: 0 };
+        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'coterminous'){ _overlay.planes[_planeKey].temp += 3; _overlay.temp += 3; }
+        if (_ppe.plane === 'Fernia'  && _ppe.phase === 'remote')     { _overlay.planes[_planeKey].temp -= 2; _overlay.temp -= 2; }
+        if (_ppe.plane === 'Risia'   && _ppe.phase === 'coterminous'){ _overlay.planes[_planeKey].temp -= 3; _overlay.temp -= 3; }
+        if (_ppe.plane === 'Risia'   && _ppe.phase === 'remote')     { _overlay.planes[_planeKey].temp += 2; _overlay.temp += 2; }
+        if (_ppe.plane === 'Syrania' && _ppe.phase === 'coterminous'){
+          // Syrania coterminous forces clear calm — track the delta from current values
+          _overlay.planes[_planeKey].precip = -finalVals.precip; _overlay.planes[_planeKey].wind = -finalVals.wind;
+          _overlay.precip += -finalVals.precip; _overlay.wind += -finalVals.wind;
+        }
+        if (_ppe.plane === 'Syrania' && _ppe.phase === 'remote')     { _overlay.planes[_planeKey].precip += 1; _overlay.precip += 1; }
       }
+      // Apply overlay totals to final values (same net effect as before)
+      finalVals.temp += _overlay.temp;
+      finalVals.wind = Math.max(0, Math.min(5, finalVals.wind + _overlay.wind));
+      finalVals.precip = Math.max(0, Math.min(5, finalVals.precip + _overlay.precip));
     } catch(e){ /* planar system not ready */ }
   }
   finalVals.temp = _clampWeatherTempBand(finalVals.temp);
@@ -786,6 +790,7 @@ function _generateDayWeather(serial: any, prevRec: any, locationOverride: any){
     periods:         periods,
     fog:             fog,
     final:           finalVals,
+    overlay:         _overlay,
     snowAccumulated: snowAccumulated,
     wetAccumulated:  wetAccumulated,
     generatedAt:     todaySerial(),
@@ -1545,12 +1550,6 @@ function _weatherDayGmHtml(rec: any, showBreakdown: any){
 
 // Detail tier by day offset from today for medium-tier forecasting.
 // Day 0 = high detail, days 1-2 = medium, days 3+ = low.
-function _mediumDetailTier(dayOffset: any){
-  if (dayOffset <= 0) return 'high';
-  if (dayOffset <= 2) return 'medium';
-  return 'low';
-}
-
 // Upgrade-only: never downgrade a previously revealed tier.
 // _TIER_RANK — imported from ./weather/data-tables
 export function _bestTier(a: any, b: any){
@@ -1562,38 +1561,73 @@ export function _bestTier(a: any, b: any){
 export function _grantCommonWeatherReveals(ws: any, today: any){
   if (!ws) ws = getWeatherState();
   if (!isFinite(today)) today = todaySerial();
-  _recordReveal(ws, today, 'low', 'common');
-  if (_forecastRecord(today + 1)) _recordReveal(ws, today + 1, 'low', 'common');
-  if (_forecastRecord(today + 2)) _recordReveal(ws, today + 2, 'low', 'common');
+  _recordReveal(ws, today, 'low', 'common', undefined, QUALITY_LOW_A);
+  if (_forecastRecord(today + 1)) _recordReveal(ws, today + 1, 'low', 'common', undefined, QUALITY_LOW_B);
+  if (_forecastRecord(today + 2)) _recordReveal(ws, today + 2, 'low', 'common', undefined, QUALITY_LOW_B);
 }
 
 // Record a reveal for a serial. Only upgrades, never downgrades.
 // source: 'common' | 'medium' | 'high'
-export function _recordReveal(ws: any, serial: any, tier: any, source: any, loc?: any){
+// quality: numeric rank on the quality ladder (lower = better). Falls back to tier default if omitted.
+export function _recordReveal(ws: any, serial: any, tier: any, source: any, loc?: any, quality?: any){
   var key = String(serial);
   var bucket = _weatherRevealBucket(ws, loc, true);
   var prev = bucket[key];
-  var prevTier = (prev && typeof prev === 'object') ? prev.tier : (typeof prev === 'string' ? prev : 'low');
-  var prevSource = (prev && typeof prev === 'object') ? prev.source : 'common';
-  var newTier = _bestTier(prevTier, tier);
-  // If tier upgraded, use new source; otherwise keep existing
-  var newSource = (newTier !== prevTier) ? (source || 'common') : prevSource;
+  var prevObj = _readReveal(prev);
+  var prevQuality = prevObj.quality || QUALITY_NONE;
+  var newQuality = (typeof quality === 'number') ? quality : _tierToDefaultQuality(tier);
+
+  // Quality-rank comparison: refuse writes that aren't strictly better (lower rank number).
+  if (newQuality >= prevQuality) return;
+
   var revealLoc = _normalizeWeatherLocation(loc || ws.location);
   bucket[key] = {
-    tier: newTier,
-    source: newSource,
+    tier: tier,
+    source: source || 'common',
+    quality: newQuality,
+    isTail: false,
     locationSig: revealLoc ? revealLoc.sig : '',
     locationLabel: revealLoc ? revealLoc.name : ''
   };
 }
 
-// Read a reveal entry, handling both old string format and new {tier,source} format.
+// Map a tier label to its default quality rank (used when quality is not explicitly provided).
+function _tierToDefaultQuality(tier: any): number {
+  if (tier === 'high') return QUALITY_HIGH;
+  if (tier === 'medium') return QUALITY_MEDIUM_A;
+  if (tier === 'low') return QUALITY_LOW_A;
+  return QUALITY_NONE;
+}
+
+// Record a tail reveal. Tail days keep their A'/B' tag and don't auto-sharpen.
+function _recordTailReveal(ws: any, serial: any, tailTag: string, quality: number, loc?: any){
+  var key = String(serial);
+  var bucket = _weatherRevealBucket(ws, loc, true);
+  var prev = bucket[key];
+  var prevObj = _readReveal(prev);
+  var prevQuality = prevObj.quality || QUALITY_NONE;
+  // Quality-rank comparison: refuse writes that aren't strictly better.
+  if (quality >= prevQuality) return;
+  var revealLoc = _normalizeWeatherLocation(loc || ws.location);
+  bucket[key] = {
+    tier: 'low',
+    source: 'tail',
+    quality: quality,
+    isTail: true,
+    tailTag: tailTag,
+    locationSig: revealLoc ? revealLoc.sig : '',
+    locationLabel: revealLoc ? revealLoc.name : ''
+  };
+}
+
+// Read a reveal entry object.
 function _readReveal(entry: any){
-  if (!entry) return { tier: null, source: 'common' };
-  if (typeof entry === 'string') return { tier: entry, source: 'common' };
+  if (!entry) return { tier: null, source: 'common', quality: QUALITY_NONE, isTail: false };
   return {
     tier: entry.tier || null,
     source: entry.source || 'common',
+    quality: (typeof entry.quality === 'number') ? entry.quality : _tierToDefaultQuality(entry.tier),
+    isTail: !!entry.isTail,
     locationSig: entry.locationSig || '',
     locationLabel: entry.locationLabel || ''
   };
@@ -1607,9 +1641,9 @@ export function _weatherRevealForSerial(ws: any, serial: any, loc?: any){
 
 function _weatherRevealTierLabel(reveal: any){
   var tier = String(reveal && reveal.tier || '').toLowerCase();
-  if (tier === 'high' || tier === 'certain') return 'High';
+  if (tier === 'high') return 'High';
   if (tier === 'medium') return 'Medium';
-  if (tier === 'low' || tier === 'common') return 'Low';
+  if (tier === 'low') return 'Low';
   return 'Unrevealed';
 }
 
@@ -1625,6 +1659,213 @@ function _weatherRevealTierHtml(serial: any, opts?: any){
   return '<div style="margin-top:4px;padding-top:3px;border-top:1px solid rgba(0,0,0,.12);font-size:.68em;line-height:1.1;text-align:center;opacity:' + opacity + ';"><b>' + esc(label) + '</b></div>';
 }
 
+// ---------------------------------------------------------------------------
+// Forecast Lens: degrades weather truth based on tier, zone, and planar knowledge.
+// ---------------------------------------------------------------------------
+
+// Deterministic seed for forecast lens rolls. Stable per (serial, zone, purpose).
+function _forecastSeed(serial: number, zone: string, purpose: string): number {
+  // Combine world seed components into a single integer seed.
+  var h = (serial | 0) * 2654435769 + zone.charCodeAt(0) * 31;
+  for (var i = 0; i < purpose.length; i++) h = ((h << 5) - h + purpose.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// Seeded die roll: returns integer 1..sides (deterministic).
+function _seededDie(sides: number, seed: number): number {
+  var rng = _seededRand(seed);
+  return Math.floor(rng() * sides) + 1;
+}
+
+// Look up jitter level from tier/zone tables (0=exact, 1=wind, 2=wind+precip, 3=all).
+function _lookupJitterLevel(tier: string, zone: string, isTail: boolean, tailTag?: string): number {
+  if (isTail && tailTag){
+    return FORECAST_JITTER_LEVEL.tail[tailTag] || 0;
+  }
+  var table = FORECAST_JITTER_LEVEL[tier];
+  return table ? (table[zone] || 0) : 0;
+}
+
+// Look up mask die from tier/zone tables.
+function _lookupMaskDie(tier: string, zone: string, isTail: boolean, tailTag?: string): number {
+  if (isTail && tailTag){
+    return FORECAST_MASK_DICE.tail[tailTag] || 20;
+  }
+  var table = FORECAST_MASK_DICE[tier];
+  return table ? (table[zone] || 20) : 20;
+}
+
+// Compute manifest zone delta for a given serial (sum of active manifest zone modifiers).
+function _computeManifestDelta(serial: number): any {
+  var delta = { temp: 0, wind: 0, precip: 0 };
+  var entries = _activeManifestZonesForSerial(serial);
+  if (!entries.length) return delta;
+  // Sum non-chaotic modifiers; chaotic ones use seeded rand.
+  for (var i = 0; i < entries.length; i++){
+    var def = entries[i].def || entries[i];
+    if (!def) continue;
+    if (typeof def.tempMod === 'number') delta.temp += def.tempMod;
+    if (typeof def.precipMod === 'number') delta.precip += def.precipMod;
+    if (typeof def.windMod === 'number') delta.wind += def.windMod;
+    if (def.chaotic){
+      var kR = _seededRand((serial | 0) * 77 + 999);
+      delta.temp += Math.floor(kR() * 5) - 2;
+      delta.precip += Math.floor(kR() * 3) - 1;
+      delta.wind += Math.floor(kR() * 3) - 1;
+    }
+  }
+  return delta;
+}
+
+// The core forecast lens. Transforms rec.final based on tier, quality, zone,
+// and planar knowledge. Returns modified trait values for player display.
+export function _forecastLens(
+  rec: any,
+  prevRec: any,
+  reveal: any,
+  today: number
+): any {
+  // High tier: exact truth, no lens
+  if (!reveal || reveal.tier === 'high') return { temp: rec.final.temp, wind: rec.final.wind, precip: rec.final.precip };
+
+  var tier = reveal.tier || 'low';
+  var isTail = !!reveal.isTail;
+  var tailTag = reveal.tailTag || null;
+
+  // Determine the effective zone for this day.
+  // Tail days use their stored tag (Ap/Bp) and do NOT auto-sharpen.
+  // Medium/high non-tail days use current zone (auto-sharpening).
+  var zone: string;
+  if (isTail && tailTag){
+    zone = tailTag;
+  } else {
+    zone = _currentZone(rec.serial, today) || 'D';
+  }
+
+  // 1. Decompose deltas per trait.
+  // overlay = planar contributions stored at generation time.
+  var overlay = rec.overlay || { temp: 0, wind: 0, precip: 0, planes: {} };
+  var manifestDelta = _computeManifestDelta(rec.serial);
+
+  // TODO: cross-reference with player planar reveals when planar reveal API is available.
+  // For now, treat all planar overlay as unknown (full regression).
+  var knownPlanar = { temp: 0, wind: 0, precip: 0 };
+  var unknownPlanar = { temp: overlay.temp || 0, wind: overlay.wind || 0, precip: overlay.precip || 0 };
+
+  // 2. Regression target = previous day's final values (or seasonal baseline).
+  var target = prevRec && prevRec.final
+    ? { temp: prevRec.final.temp, wind: prevRec.final.wind, precip: prevRec.final.precip }
+    : (rec.base ? { temp: rec.base.temp, wind: rec.base.wind, precip: rec.base.precip }
+               : { temp: rec.final.temp, wind: rec.final.wind, precip: rec.final.precip });
+
+  // 3. Compute regressable portion per trait.
+  // regressable = rec.final - knownPlanar - manifestDelta - target
+  // (This includes naturalDelta + unknownPlanar, measured relative to previous day.)
+  var TRAITS = ['temp', 'wind', 'precip'];
+  var regressable: any = {};
+  var forecastDelta: any = {};
+  for (var ti = 0; ti < TRAITS.length; ti++){
+    var t = TRAITS[ti];
+    regressable[t] = (rec.final[t] || 0) - knownPlanar[t] - manifestDelta[t] - target[t];
+    forecastDelta[t] = regressable[t]; // default: pass through unchanged
+  }
+
+  // 4. Determine jitter level.
+  var jitterLevel = _lookupJitterLevel(tier, zone, isTail, tailTag);
+
+  // 5. Determine which traits to jitter (fixed order: wind, precip, temp).
+  var affectedTraits: string[] = [];
+  if (jitterLevel >= 1) affectedTraits.push('wind');
+  if (jitterLevel >= 2) affectedTraits.push('precip');
+  if (jitterLevel >= 3) affectedTraits.push('temp');
+
+  // 6. Apply jitter to affected traits.
+  for (var ji = 0; ji < affectedTraits.length; ji++){
+    var jt = affectedTraits[ji];
+    var dayOverDay = Math.abs((rec.final[jt] || 0) - (target[jt] || 0));
+
+    // Determine direction die based on day-over-day change magnitude.
+    var directionDie: number;
+    if (dayOverDay >= 2) directionDie = 10;       // 1 on d10 = away (9 in 10 toward)
+    else if (dayOverDay === 1) directionDie = 4;   // 1 on d4 = away (3 in 4 toward)
+    else directionDie = 6;                          // coin flip: 1-3 toward, 4-6 away
+
+    var jSeed = _forecastSeed(rec.serial, zone, 'jitter-direction-' + jt);
+    var dirRoll = _seededDie(directionDie, jSeed);
+
+    var goToward: boolean;
+    if (directionDie === 6){
+      goToward = (dirRoll <= 3);
+    } else {
+      goToward = (dirRoll !== 1);
+    }
+
+    var jSign: number;
+    if (goToward){
+      // Push toward previous day (reduce regressable magnitude)
+      jSign = regressable[jt] > 0 ? -1 : (regressable[jt] < 0 ? 1 : -1);
+    } else {
+      // Push away from previous day (increase regressable magnitude)
+      jSign = regressable[jt] > 0 ? 1 : (regressable[jt] < 0 ? -1 : 1);
+    }
+
+    forecastDelta[jt] = regressable[jt] + jSign; // ±1 jitter magnitude
+  }
+
+  // 7. Apply mask if it fires.
+  var maskDie = _lookupMaskDie(tier, zone, isTail, tailTag);
+  var maskSeed = _forecastSeed(rec.serial, zone, 'mask');
+  var maskRoll = _seededDie(maskDie, maskSeed);
+
+  if (maskRoll === 1){
+    // Find the trait with the largest day-over-day shift. Wind breaks ties.
+    var bestTrait = 'wind';
+    var bestDelta = Math.abs((rec.final.wind || 0) - (target.wind || 0));
+    for (var mi = 0; mi < TRAITS.length; mi++){
+      var mt = TRAITS[mi];
+      var md = Math.abs((rec.final[mt] || 0) - (target[mt] || 0));
+      if (md > bestDelta || (md === bestDelta && mt === 'wind')){
+        bestDelta = md;
+        bestTrait = mt;
+      }
+    }
+    // Snap toward previous day's value ±1.
+    var snapSeed = _forecastSeed(rec.serial, zone, 'mask-snap');
+    forecastDelta[bestTrait] = _seededDie(2, snapSeed) === 1 ? 1 : -1;
+  }
+
+  // 8. Reassemble forecast values.
+  var forecast: any = {};
+  for (var ri = 0; ri < TRAITS.length; ri++){
+    var rt = TRAITS[ri];
+    forecast[rt] = target[rt] + knownPlanar[rt] + manifestDelta[rt] + forecastDelta[rt];
+  }
+
+  // 9. Seasonal clamp (shifted by known effects + manifest).
+  var loc = rec.location || {};
+  var formula = _composeFormula(
+    loc.climate || 'temperate',
+    loc.geography || 'inland',
+    loc.terrain || 'open',
+    rec.monthIdx || 0
+  );
+  for (var ci = 0; ci < TRAITS.length; ci++){
+    var ct = TRAITS[ci];
+    var fRange = (formula as any)[ct];
+    if (!fRange) continue;
+    var effectiveMin = (fRange.min || 0) + knownPlanar[ct] + manifestDelta[ct];
+    var effectiveMax = (fRange.max || 0) + knownPlanar[ct] + manifestDelta[ct];
+    forecast[ct] = Math.max(effectiveMin, Math.min(effectiveMax, forecast[ct]));
+  }
+
+  // Final hard clamps to valid trait ranges.
+  forecast.temp = Math.max(-5, Math.min(15, forecast.temp));
+  forecast.wind = Math.max(0, Math.min(5, forecast.wind));
+  forecast.precip = Math.max(0, Math.min(5, forecast.precip));
+
+  return forecast;
+}
+
 // Render one player-facing day block at the given detail tier.
 export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLabel: any){
   rec = _weatherRecordForDisplay(rec);
@@ -1636,10 +1877,20 @@ export function _playerDayHtml(rec: any, detailTier: any, isToday: any, sourceLa
   } else {
     dateLabel = esc(_displayMonthDayParts(d.mi, d.day).label);
   }
-  var f        = rec.final;
   var loc      = rec.location || {};
+
+  // Apply forecast lens: degrade weather truth based on reveal quality.
+  // The lens replaces rec.final with forecast-filtered values for player views.
+  var today_   = todaySerial();
+  var ws_      = getWeatherState();
+  var reveal_  = _weatherRevealForSerial(ws_, rec.serial);
+  var prevRec_ = _forecastRecord(rec.serial - 1) || _historyRecord(rec.serial - 1) || null;
+  var f        = (reveal_ && reveal_.tier)
+    ? _forecastLens(rec, prevRec_, reveal_, today_)
+    : rec.final;
+
   var content  = '';
-  var dayOffset = rec.serial - todaySerial();
+  var dayOffset = rec.serial - today_;
 
   // Source attribution line
   var srcLine = sourceLabel
@@ -1726,20 +1977,50 @@ function sendPlayerForecast(m: any, method: any, days: any){
   var revealSource = methodNorm;
   var knownSerials: any = {};
   var revealed = 0;
+  var lastRevealedSerial = -1;
 
   for (var i=0; i<days; i++){
     var ser    = today + i;
     var rec    = _forecastRecord(ser);
     if (!rec) continue;
 
-    // Determine detail tier
-    var tier = (methodNorm === 'high') ? 'high' : _mediumDetailTier(i);
+    // Determine zone-based quality and tier
+    var zone = _currentZone(ser, today);
+    var tier: string;
+    var quality: number;
+    if (methodNorm === 'high'){
+      tier = 'high';
+      quality = QUALITY_HIGH;
+    } else {
+      // Medium method: assign tier+quality per zone
+      tier = 'medium';
+      quality = (ZONE_QUALITY.medium as any)[zone as string] || QUALITY_MEDIUM_D;
+    }
 
-    // Record the reveal (upgrade-only)
-    _recordReveal(ws, ser, tier, revealSource, ws.location);
+    // Record the reveal (upgrade-only via quality rank)
+    _recordReveal(ws, ser, tier, revealSource, ws.location, quality);
 
     knownSerials[String(ser)] = 1;
     revealed++;
+    lastRevealedSerial = ser;
+  }
+
+  // Plant tail days (A' and B') past the medium/high edge.
+  // A' = 1st day past edge, B' = 2nd and 3rd days past edge. Cap at day 10 from today.
+  if (lastRevealedSerial >= today){
+    var tailStart = lastRevealedSerial + 1;
+    var maxSerial = today + 9;  // day 10 from today (0-indexed: today + 9)
+    for (var t = 0; t < 3 && (tailStart + t) <= maxSerial; t++){
+      var tailSer = tailStart + t;
+      var tailRec = _forecastRecord(tailSer);
+      if (!tailRec) continue;
+      if (t === 0){
+        _recordTailReveal(ws, tailSer, 'Ap', QUALITY_TAIL_AP, ws.location);
+      } else {
+        _recordTailReveal(ws, tailSer, 'Bp', QUALITY_TAIL_BP, ws.location);
+      }
+      knownSerials[String(tailSer)] = 1;
+    }
   }
 
   if (!revealed){
@@ -1884,7 +2165,7 @@ function sendSpecificWeatherReveal(m: any, tokens: any){
   var sourceLabel = WEATHER_SOURCE_LABELS.specific;
   for (var ser = parsed.startSerial; ser <= parsed.endSerial; ser++){
     if (!_forecastRecord(ser)) continue;
-    _recordReveal(ws, ser, 'high', 'specific', ws.location);
+    _recordReveal(ws, ser, 'high', 'specific', ws.location, QUALITY_HIGH);
   }
 
   var title = 'Divination Reveal \u2014 ' + formatDateLabel(parsed.year, parsed.mi, parsed.startDay, true);
@@ -3332,13 +3613,7 @@ export function weatherLocationWizardHtml(step: any, partial?: any, opts?: any){
     );
   }
 
-  // Backward-compat alias: manifest zones are now managed separately.
-  if (step === 'zone'){
-    return _menuBox('Manifest Zones',
-      '<div style="opacity:.8;margin-bottom:6px;">Manifest zones are now independent of the location wizard.</div>'+
-      '<div>'+button('Open Manifest Zones','weather manifest')+'</div>'
-    );
-  }
+
 
   return '';
 }

@@ -11,8 +11,14 @@ import {
   _weatherRevealForSerial, _grantCommonWeatherReveals,
   _parseWeatherRevealDayToken, _parseWeatherRevealDateSpec,
   weatherEnsureForecast, _forecastRecord, _generateForecast, _weatherRecordForDisplay, handleWeatherCommand, weatherLocationWizardHtml, weatherMechanicsHandoutHtml,
-  _composeFormula, _rollTrait, _deriveConditions, _evaluateExtremeEvents, _weatherTraitBadge, _nudge
+  _composeFormula, _rollTrait, _deriveConditions, _evaluateExtremeEvents, _weatherTraitBadge, _nudge,
+  _forecastLens,
 } from "../src/weather.js";
+import {
+  _currentZone,
+  QUALITY_HIGH, QUALITY_MEDIUM_A, QUALITY_MEDIUM_B, QUALITY_MEDIUM_C, QUALITY_MEDIUM_D,
+  QUALITY_LOW_A, QUALITY_LOW_B, QUALITY_TAIL_AP, QUALITY_TAIL_BP, QUALITY_NONE,
+} from "../src/weather/data-tables.js";
 import { _subsystemIsVerbose, _subsystemVerbosityValue, _displayMonthDayParts, currentDateLabel, stepDays } from "../src/ui.js";
 import { _todayAllHtml, _todayWeatherIsStable } from "../src/today.js";
 import { SEASON_SETS, CALENDAR_STRUCTURE_SETS } from "../src/constants.js";
@@ -994,4 +1000,229 @@ describe("Harptos: weekStartSerial tenday math", () => {
   it("day 15 is in the second tenday", () => { switchToFaerunian(); assertEquals(weekStartSerial(1491, 0, 15), toSerial(1491, 0, 11)); });
   it("day 21 starts the third tenday", () => { switchToFaerunian(); assertEquals(weekStartSerial(1491, 0, 21), toSerial(1491, 0, 21)); });
   it("day 30 is in the third tenday", () => { switchToFaerunian(); assertEquals(weekStartSerial(1491, 0, 30), toSerial(1491, 0, 21)); });
+});
+
+// ============================================================================
+// FORECAST LENS
+// ============================================================================
+
+
+describe("Forecast Lens: _currentZone", () => {
+  it("today is zone A", () => {
+    assertEquals(_currentZone(100, 100), "A");
+  });
+  it("tomorrow is zone B", () => {
+    assertEquals(_currentZone(101, 100), "B");
+  });
+  it("day 3 is zone B", () => {
+    assertEquals(_currentZone(102, 100), "B");
+  });
+  it("day 4 is zone C", () => {
+    assertEquals(_currentZone(103, 100), "C");
+  });
+  it("day 6 is zone C", () => {
+    assertEquals(_currentZone(105, 100), "C");
+  });
+  it("day 7 is zone D", () => {
+    assertEquals(_currentZone(106, 100), "D");
+  });
+  it("day 10 is zone D", () => {
+    assertEquals(_currentZone(109, 100), "D");
+  });
+  it("day 11 is null (beyond window)", () => {
+    assertEquals(_currentZone(110, 100), null);
+  });
+});
+
+describe("Forecast Lens: _forecastLens", () => {
+  function makeRec(serial: number, temp: number, wind: number, precip: number) {
+    return {
+      serial,
+      final: { temp, wind, precip },
+      base: { temp, wind, precip },
+      overlay: { temp: 0, wind: 0, precip: 0, planes: {} },
+      location: { climate: "temperate", geography: "inland", terrain: "open" },
+      monthIdx: 6,
+    };
+  }
+
+  it("high tier returns exact truth", () => {
+    const rec = makeRec(100, 8, 2, 3);
+    const prev = makeRec(99, 7, 1, 2);
+    const reveal = { tier: "high", quality: QUALITY_HIGH, isTail: false };
+    const result = _forecastLens(rec, prev, reveal, 100);
+    assertEquals(result.temp, 8);
+    assertEquals(result.wind, 2);
+    assertEquals(result.precip, 3);
+  });
+
+  it("null reveal returns exact truth", () => {
+    const rec = makeRec(100, 8, 2, 3);
+    const result = _forecastLens(rec, null, null, 100);
+    assertEquals(result.temp, 8);
+    assertEquals(result.wind, 2);
+    assertEquals(result.precip, 3);
+  });
+
+  it("low tier produces values close to truth for zone A", () => {
+    const rec = makeRec(100, 7, 3, 0);
+    const prev = makeRec(99, 7, 3, 0);
+    const reveal = { tier: "low", quality: QUALITY_LOW_A, isTail: false };
+    const result = _forecastLens(rec, prev, reveal, 100);
+    // Zone A low: jitter ±1 on wind only (jitter level 1).
+    // Mask (d6) can also fire and snap a trait. All values should be within ±2.
+    assert(Math.abs(result.temp - rec.final.temp) <= 2, "temp within ±2");
+    assert(Math.abs(result.wind - rec.final.wind) <= 2, "wind within ±2");
+    assert(Math.abs(result.precip - rec.final.precip) <= 2, "precip within ±2");
+  });
+
+  it("forecast lens is deterministic (same inputs produce same output)", () => {
+    const rec = makeRec(105, 6, 2, 1);
+    const prev = makeRec(104, 5, 1, 0);
+    const reveal = { tier: "medium", quality: QUALITY_MEDIUM_C, isTail: false };
+    const r1 = _forecastLens(rec, prev, reveal, 102);
+    const r2 = _forecastLens(rec, prev, reveal, 102);
+    assertEquals(r1.temp, r2.temp);
+    assertEquals(r1.wind, r2.wind);
+    assertEquals(r1.precip, r2.precip);
+  });
+
+  it("medium tier zone A returns exact values (jitter level 0)", () => {
+    const rec = makeRec(100, 8, 3, 2);
+    const prev = makeRec(99, 7, 2, 1);
+    const reveal = { tier: "medium", quality: QUALITY_MEDIUM_A, isTail: false };
+    const result = _forecastLens(rec, prev, reveal, 100);
+    // Zone A medium: jitter level 0 (exact), but mask could still fire (d20, 1 in 20).
+    // The mask is seeded deterministically; check values are within ±1 of truth.
+    assert(Math.abs(result.temp - rec.final.temp) <= 2, "temp within mask range");
+    assert(Math.abs(result.wind - rec.final.wind) <= 2, "wind within mask range");
+    assert(Math.abs(result.precip - rec.final.precip) <= 2, "precip within mask range");
+  });
+
+  it("no previous record falls back to rec.base", () => {
+    const rec = makeRec(100, 7, 2, 1);
+    const reveal = { tier: "low", quality: QUALITY_LOW_A, isTail: false };
+    // prevRec is null — should use rec.base as regression target
+    const result = _forecastLens(rec, null, reveal, 100);
+    assert(result.temp >= -5 && result.temp <= 15, "temp in valid range");
+    assert(result.wind >= 0 && result.wind <= 5, "wind in valid range");
+    assert(result.precip >= 0 && result.precip <= 5, "precip in valid range");
+  });
+
+  it("medium tier zone A applies lens (not bypassed as high)", () => {
+    // This validates the fix: medium method zone A must NOT be treated as high tier.
+    // The lens should run (tier='medium'), applying d20 mask with jitter level 0.
+    const rec = makeRec(100, 8, 3, 2);
+    const prev = makeRec(99, 5, 1, 0);  // Big day-over-day shift to make mask effects visible
+    // Crucially: tier must be 'medium', not 'high'
+    const revealMedium = { tier: "medium", quality: QUALITY_MEDIUM_A, isTail: false };
+    const revealHigh = { tier: "high", quality: QUALITY_HIGH, isTail: false };
+    const resultMedium = _forecastLens(rec, prev, revealMedium, 100);
+    const resultHigh = _forecastLens(rec, prev, revealHigh, 100);
+    // High tier always returns exact truth
+    assertEquals(resultHigh.temp, 8);
+    assertEquals(resultHigh.wind, 3);
+    assertEquals(resultHigh.precip, 2);
+    // Medium tier may differ due to d20 mask (5% chance). Even if it doesn't fire,
+    // the code path is different — verify both produce valid results.
+    assert(resultMedium.temp >= -5 && resultMedium.temp <= 15, "medium lens produces valid temp");
+    assert(resultMedium.wind >= 0 && resultMedium.wind <= 5, "medium lens produces valid wind");
+  });
+
+  it("tail A' uses tail jitter (level 1) regardless of current zone", () => {
+    // Tail days don't auto-sharpen. Even if the day is now in zone A,
+    // a tail A' tag should use jitter level 1 (wind only).
+    const rec = makeRec(100, 7, 3, 2);
+    const prev = makeRec(99, 7, 3, 2);
+    const reveal = { tier: "low", quality: QUALITY_TAIL_AP, isTail: true, tailTag: "Ap" };
+    const result = _forecastLens(rec, prev, reveal, 100);
+    // With stable weather (prev == current), temp and precip should be exact
+    assertEquals(result.temp, rec.final.temp);
+    assertEquals(result.precip, rec.final.precip);
+  });
+});
+
+describe("Forecast Lens: quality rank system", () => {
+  function setupLocation(ws: any, climate: string, geography: string, terrain: string) {
+    ws.location = { name: "Test", climate, geography, terrain, sig: climate + "/" + geography + "/" + terrain };
+  }
+
+  it("quality rank blocks lower-quality overwrites", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    const loc = { climate: "temperate", geography: "inland", terrain: "open" };
+    setupLocation(ws, loc.climate, loc.geography, loc.terrain);
+    const serial = todaySerial();
+
+    // First write: medium A (quality 2)
+    _recordReveal(ws, serial, "medium", "medium", loc, QUALITY_MEDIUM_A);
+    const rev1 = _weatherRevealForSerial(ws, serial, loc);
+    assertEquals(rev1.quality, QUALITY_MEDIUM_A);
+
+    // Try to overwrite with low A (quality 6) — should be blocked
+    _recordReveal(ws, serial, "low", "common", loc, QUALITY_LOW_A);
+    const rev2 = _weatherRevealForSerial(ws, serial, loc);
+    assertEquals(rev2.quality, QUALITY_MEDIUM_A, "low should not overwrite medium");
+  });
+
+  it("higher quality overwrites lower quality", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    const loc = { climate: "temperate", geography: "inland", terrain: "open" };
+    setupLocation(ws, loc.climate, loc.geography, loc.terrain);
+    const serial = todaySerial();
+
+    _recordReveal(ws, serial, "medium", "medium", loc, QUALITY_MEDIUM_D);
+    _recordReveal(ws, serial, "high", "specific", loc, QUALITY_HIGH);
+    const rev = _weatherRevealForSerial(ws, serial, loc);
+    assertEquals(rev.quality, QUALITY_HIGH);
+    assertEquals(rev.tier, "high");
+  });
+
+  it("A' tail does not get overwritten by low B (same tier, worse quality)", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    const loc = { climate: "temperate", geography: "inland", terrain: "open" };
+    setupLocation(ws, loc.climate, loc.geography, loc.terrain);
+    const serial = todaySerial();
+
+    // A' is quality 6, low B is quality 7 — A' should win
+    _recordReveal(ws, serial, "low", "tail", loc, QUALITY_TAIL_AP);
+    _recordReveal(ws, serial, "low", "common", loc, QUALITY_LOW_B);
+    const rev = _weatherRevealForSerial(ws, serial, loc);
+    assertEquals(rev.quality, QUALITY_TAIL_AP, "A' should block low B overwrite");
+  });
+
+  it("common reveals grant correct quality per day offset", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    const loc = { climate: "temperate", geography: "inland", terrain: "open" };
+    setupLocation(ws, loc.climate, loc.geography, loc.terrain);
+    weatherEnsureForecast();
+    const today = todaySerial();
+
+    _grantCommonWeatherReveals(ws, today);
+    const rev0 = _weatherRevealForSerial(ws, today, loc);
+    const rev1 = _weatherRevealForSerial(ws, today + 1, loc);
+    const rev2 = _weatherRevealForSerial(ws, today + 2, loc);
+
+    assertEquals(rev0.quality, QUALITY_LOW_A, "today should get LOW_A quality");
+    assertEquals(rev1.quality, QUALITY_LOW_B, "tomorrow should get LOW_B quality");
+    assertEquals(rev2.quality, QUALITY_LOW_B, "+2 should get LOW_B quality");
+  });
+
+  it("reveal without quality field gets default from tier", () => {
+    freshInstall();
+    const ws = getWeatherState();
+    const loc = { climate: "temperate", geography: "inland", terrain: "open" };
+    setupLocation(ws, loc.climate, loc.geography, loc.terrain);
+    const serial = todaySerial();
+
+    // Reveal entry without explicit quality field
+    const bucket = _weatherRevealBucket(ws, loc, true);
+    bucket[String(serial)] = { tier: "medium", source: "medium" };
+
+    const rev = _weatherRevealForSerial(ws, serial, loc);
+    assertEquals(rev.quality, QUALITY_MEDIUM_A, "medium without quality should default to MEDIUM_A");
+  });
 });

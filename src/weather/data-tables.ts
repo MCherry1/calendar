@@ -763,3 +763,52 @@ export var WEATHER_SOURCE_LABELS: any = {
   high:     'Expert Forecast',
   specific: 'Divination Reveal'
 };
+
+// ---------------------------------------------------------------------------
+// Forecast Lens: Quality ranks, zone system, mask dice, jitter levels
+// ---------------------------------------------------------------------------
+
+// Quality rank ladder (lower = better). Used for upgrade-only reveal writes.
+export var QUALITY_HIGH       = 1;
+export var QUALITY_MEDIUM_A   = 2;
+export var QUALITY_MEDIUM_B   = 3;
+export var QUALITY_MEDIUM_C   = 4;
+export var QUALITY_MEDIUM_D   = 5;
+export var QUALITY_LOW_A      = 6;   // same rank as QUALITY_TAIL_AP
+export var QUALITY_TAIL_AP    = 6;
+export var QUALITY_LOW_B      = 7;   // same rank as QUALITY_TAIL_BP
+export var QUALITY_TAIL_BP    = 7;
+export var QUALITY_NONE       = 99;
+
+// Zone determination: distance from today using Fibonacci-like boundaries.
+// Today = day 1.  A=1, B=2-3, C=4-6, D=7-10.
+export function _currentZone(serial: number, today: number): string | null {
+  var dayNum = serial - today + 1;
+  if (dayNum === 1) return 'A';
+  if (dayNum <= 3) return 'B';
+  if (dayNum <= 6) return 'C';
+  if (dayNum <= 10) return 'D';
+  return null;
+}
+
+// Mask dice: roll this die per day; mask fires on a 1.
+// Bigger die = less likely to fire = more reliable forecast.
+export var FORECAST_MASK_DICE: any = {
+  medium: { A: 20, B: 12, C: 10, D: 8 },
+  low:    { A: 6,  B: 4 },
+  tail:   { Ap: 6, Bp: 4 }
+};
+
+// Jitter level: number of traits affected (0=exact, 1=wind, 2=wind+precip, 3=all).
+export var FORECAST_JITTER_LEVEL: any = {
+  medium: { A: 0, B: 1, C: 2, D: 3 },
+  low:    { A: 1, B: 3 },
+  tail:   { Ap: 1, Bp: 3 }
+};
+
+// Map zone + tier to quality rank.
+export var ZONE_QUALITY: any = {
+  high:   { A: QUALITY_HIGH, B: QUALITY_HIGH, C: QUALITY_HIGH, D: QUALITY_HIGH },
+  medium: { A: QUALITY_MEDIUM_A, B: QUALITY_MEDIUM_B, C: QUALITY_MEDIUM_C, D: QUALITY_MEDIUM_D },
+  low:    { A: QUALITY_LOW_A, B: QUALITY_LOW_B }
+};
