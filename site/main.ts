@@ -7,6 +7,7 @@ import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
 import { getMoonTexture, clearTextureCache, generateStarField, generateMilkyWay, StarData, MilkyWayParticle } from './sky-textures.js';
 import { getMoonOrbitalData } from '../src/showcase/solar-system-data.js';
+import { initSkyRenderer, renderSkyFrame, getMoonScreenPositions, disposeSkyRenderer } from './sky-renderer.js';
 
 
 type ShowcaseState = {
@@ -77,7 +78,15 @@ var copyLinkButton = _must<HTMLButtonElement>('copy-link');
 var canvas = _must<HTMLCanvasElement>('sky-canvas');
 var ctx = canvas.getContext('2d');
 
-if (!ctx) throw new Error('Canvas context not available.');
+// Initialize Three.js renderer (uses the same canvas)
+var _useThreeJS = true;
+try {
+  initSkyRenderer(canvas);
+} catch (e) {
+  console.warn('Three.js init failed, falling back to Canvas 2D:', e);
+  _useThreeJS = false;
+  if (!ctx) throw new Error('Canvas context not available.');
+}
 
 
 var planarCard = document.getElementById('planar-card');
@@ -454,7 +463,13 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
   sceneViewNote.textContent = 'Looking South from ' + _formatLatitude(scene.observerLatitude) + '. ' + lunarSizeLabel + '.';
-  _drawScene(scene);
+  if (_useThreeJS) {
+    var sun = _sunPosition(state.serial, state.timeFrac, state.worldId);
+    renderSkyFrame(scene, sun.altitude, sun.azimuth, state.lunarSizeMode, state.timeFrac, state.serial, state.worldId);
+    _drawnMoons = getMoonScreenPositions();
+  } else {
+    _drawScene(scene);
+  }
   var pCtxReady = state.worldId === 'eberron' ? _ensurePlanarCtx() : null;
   if (pCtxReady) {
     var planarPhases = getAllShowcasePlanarPhases(state.planarSerial);

@@ -219,6 +219,7 @@ export type WorldDefinition = {
   calendar: CalendarDefinition;
   seasons: SeasonDefinition[];
   defaultSeasonKey: string;
+  sunName?: string;
   moons?: MoonSystemDefinition;
   eventPacks?: EventPackDefinition[];
   capabilities: WorldCapabilities;
