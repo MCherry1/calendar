@@ -1572,12 +1572,6 @@ function _weatherDayGmHtml(rec: any, showBreakdown: any){
 
 // Detail tier by day offset from today for medium-tier forecasting.
 // Day 0 = high detail, days 1-2 = medium, days 3+ = low.
-function _mediumDetailTier(dayOffset: any){
-  if (dayOffset <= 0) return 'high';
-  if (dayOffset <= 2) return 'medium';
-  return 'low';
-}
-
 // Upgrade-only: never downgrade a previously revealed tier.
 // _TIER_RANK — imported from ./weather/data-tables
 export function _bestTier(a: any, b: any){
@@ -2022,7 +2016,7 @@ function sendPlayerForecast(m: any, method: any, days: any){
       quality = QUALITY_HIGH;
     } else {
       // Medium method: assign tier+quality per zone
-      tier = (zone === 'A') ? 'high' : 'medium';
+      tier = 'medium';
       quality = (ZONE_QUALITY.medium as any)[zone as string] || QUALITY_MEDIUM_D;
     }
 
@@ -2194,7 +2188,7 @@ function sendSpecificWeatherReveal(m: any, tokens: any){
   var sourceLabel = WEATHER_SOURCE_LABELS.specific;
   for (var ser = parsed.startSerial; ser <= parsed.endSerial; ser++){
     if (!_forecastRecord(ser)) continue;
-    _recordReveal(ws, ser, 'high', 'specific', ws.location);
+    _recordReveal(ws, ser, 'high', 'specific', ws.location, QUALITY_HIGH);
   }
 
   var title = 'Divination Reveal \u2014 ' + formatDateLabel(parsed.year, parsed.mi, parsed.startDay, true);
