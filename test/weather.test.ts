@@ -1211,18 +1211,18 @@ describe("Forecast Lens: quality rank system", () => {
     assertEquals(rev2.quality, QUALITY_LOW_B, "+2 should get LOW_B quality");
   });
 
-  it("legacy reveal without quality gets default from tier", () => {
+  it("reveal without quality field gets default from tier", () => {
     freshInstall();
     const ws = getWeatherState();
     const loc = { climate: "temperate", geography: "inland", terrain: "open" };
     setupLocation(ws, loc.climate, loc.geography, loc.terrain);
     const serial = todaySerial();
 
-    // Simulate a legacy reveal (no quality field)
+    // Reveal entry without explicit quality field
     const bucket = _weatherRevealBucket(ws, loc, true);
     bucket[String(serial)] = { tier: "medium", source: "medium" };
 
     const rev = _weatherRevealForSerial(ws, serial, loc);
-    assertEquals(rev.quality, QUALITY_MEDIUM_A, "legacy medium should default to MEDIUM_A");
+    assertEquals(rev.quality, QUALITY_MEDIUM_A, "medium without quality should default to MEDIUM_A");
   });
 });

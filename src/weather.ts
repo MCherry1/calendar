@@ -268,35 +268,13 @@ export function getWeatherState(){
   };
   var ws = root.weather;
   if (!ws.playerReveal || typeof ws.playerReveal !== 'object') ws.playerReveal = { byLocation: {} };
-  if (!ws.playerReveal.byLocation){
-    var legacyReveal = ws.playerReveal;
-    ws.playerReveal = { byLocation: {} };
-    var legacySig = (ws.location && _locSig(ws.location)) || '_default';
-    ws.playerReveal.byLocation[legacySig] = {};
-    Object.keys(legacyReveal || {}).forEach(function(key: any){
-      if (key === 'byLocation') return;
-      ws.playerReveal.byLocation[legacySig][key] = legacyReveal[key];
-    });
-  }
+  if (!ws.playerReveal.byLocation) ws.playerReveal.byLocation = {};
   if (!Array.isArray(ws.savedLocations)) ws.savedLocations = [];
   if (!Array.isArray(ws.recentLocations)) ws.recentLocations = [];
   if (ws.location) ws.location = _normalizeWeatherLocation(ws.location);
   ws.savedLocations = ws.savedLocations.map(_normalizeWeatherLocation).filter(Boolean);
   ws.recentLocations = ws.recentLocations.map(_normalizeWeatherLocation).filter(Boolean).slice(0, 3);
   if (!ws.manifestZones || typeof ws.manifestZones !== 'object') ws.manifestZones = {};
-  if (ws.location && ws.location.manifestZone){
-    var legacyKey = _manifestZoneKey(ws.location.manifestZone.name || ws.location.manifestZone.key || '');
-    if (legacyKey && !ws.manifestZones[legacyKey]){
-      ws.manifestZones[legacyKey] = {
-        key: legacyKey,
-        setOn: todaySerial(),
-        arythFullActivated: false,
-        arythFullExitWarned: false
-      };
-    }
-    delete ws.location.manifestZone;
-    ws.location.sig = _locSig(ws.location);
-  }
   return ws;
 }
 
@@ -1590,7 +1568,7 @@ export function _grantCommonWeatherReveals(ws: any, today: any){
 
 // Record a reveal for a serial. Only upgrades, never downgrades.
 // source: 'common' | 'medium' | 'high'
-// quality: numeric rank on the quality ladder (lower = better). Optional for backward compat.
+// quality: numeric rank on the quality ladder (lower = better). Falls back to tier default if omitted.
 export function _recordReveal(ws: any, serial: any, tier: any, source: any, loc?: any, quality?: any){
   var key = String(serial);
   var bucket = _weatherRevealBucket(ws, loc, true);
@@ -1613,7 +1591,7 @@ export function _recordReveal(ws: any, serial: any, tier: any, source: any, loc?
   };
 }
 
-// Map a tier label to its best default quality (for backward compat when quality not specified).
+// Map a tier label to its default quality rank (used when quality is not explicitly provided).
 function _tierToDefaultQuality(tier: any): number {
   if (tier === 'high') return QUALITY_HIGH;
   if (tier === 'medium') return QUALITY_MEDIUM_A;
@@ -1642,10 +1620,9 @@ function _recordTailReveal(ws: any, serial: any, tailTag: string, quality: numbe
   };
 }
 
-// Read a reveal entry, handling both old string format and new {tier,source} format.
+// Read a reveal entry object.
 function _readReveal(entry: any){
   if (!entry) return { tier: null, source: 'common', quality: QUALITY_NONE, isTail: false };
-  if (typeof entry === 'string') return { tier: entry, source: 'common', quality: _tierToDefaultQuality(entry), isTail: false };
   return {
     tier: entry.tier || null,
     source: entry.source || 'common',
@@ -1664,9 +1641,9 @@ export function _weatherRevealForSerial(ws: any, serial: any, loc?: any){
 
 function _weatherRevealTierLabel(reveal: any){
   var tier = String(reveal && reveal.tier || '').toLowerCase();
-  if (tier === 'high' || tier === 'certain') return 'High';
+  if (tier === 'high') return 'High';
   if (tier === 'medium') return 'Medium';
-  if (tier === 'low' || tier === 'common') return 'Low';
+  if (tier === 'low') return 'Low';
   return 'Unrevealed';
 }
 
@@ -3636,13 +3613,7 @@ export function weatherLocationWizardHtml(step: any, partial?: any, opts?: any){
     );
   }
 
-  // Backward-compat alias: manifest zones are now managed separately.
-  if (step === 'zone'){
-    return _menuBox('Manifest Zones',
-      '<div style="opacity:.8;margin-bottom:6px;">Manifest zones are now independent of the location wizard.</div>'+
-      '<div>'+button('Open Manifest Zones','weather manifest')+'</div>'
-    );
-  }
+
 
   return '';
 }
