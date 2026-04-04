@@ -5,6 +5,7 @@ export const eberron: WorldDefinition = {
   label: 'Eberron',
   description: '12 months of 28 days. 7-day week. Default Eberron Campaign Setting calendar.',
   eraLabel: 'YK',
+  sunName: 'Arrah',
   defaultDate: { month: 0, day: 1, year: 998 },
 
   calendar: {

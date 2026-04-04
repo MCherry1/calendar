@@ -33,6 +33,7 @@ export type SkySceneMoon = {
 export type SkyScene = {
   worldId: string;
   worldLabel: string;
+  sunName?: string;
   serial: number;
   timeFrac: number;
   observerLatitude: number;
@@ -189,6 +190,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
   return {
     worldId: String(input.worldId || '').toLowerCase(),
     worldLabel: world ? world.label : String(input.worldId || ''),
+    sunName: world ? world.sunName : undefined,
     serial: input.serial | 0,
     timeFrac: timeFrac,
     observerLatitude: observerLatitude,
