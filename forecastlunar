@@ -1,0 +1,579 @@
+# Moon & Planes Forecast Lens Implementation Plan
+
+## Overview
+
+Implement a unified zone-based knowledge system for moons and planes that mirrors the weather forecast lens structure. The core mechanic is **timing uncertainty** — at range, players know an event is coming but not exactly when. As the event approaches (slides through zones), the window tightens until it resolves to exact dates.
+
+This plan also flags dead code found during investigation.
+
+-----
+
+## Part 1: Unified Zone System (Shared Across All Subsystems)
+
+Same four zones everywhere. Weather uses days, moons and planes use months (~28 days each in Eberron’s 336-day year):
+
+|Zone|Weather      |Moons & Planes         |
+|----|-------------|-----------------------|
+|A   |Day 1 (today)|Month 1 (~28 days)     |
+|B   |Days 2–3     |Months 2–3 (~84 days)  |
+|C   |Days 4–6     |Months 4–6 (~168 days) |
+|D   |Days 7–10    |Months 7–10 (~280 days)|
+
+Same DC ladder: A = DC 10, B = DC 15, C = DC 20, D = DC 25.
+Same tail mechanics (A′ + B′ extending up to 2 more zones past edge).
+Same quality ladder and upgrade-only rules.
+
+### Zone determination for moons/planes
+
+```typescript
+function _monthZone(serial: number, today: number, yearDays: number): 'A' | 'B' | 'C' | 'D' | null {
+  var monthLength = Math.max(1, Math.round(yearDays / 12));
+  var dist = serial - today;
+  if (dist < 0) return null; // past
+  if (dist < monthLength)     return 'A';  // this month
+  if (dist < monthLength * 3) return 'B';  // months 2-3
+  if (dist < monthLength * 6) return 'C';  // months 4-6
+  if (dist < monthLength * 10) return 'D'; // months 7-10
+  return null; // beyond display window
+}
+```
+
+-----
+
+## Part 2: Moon Forecast Lens — Timing Uncertainty
+
+### The Principle
+
+All moon data is deterministic (fixed synodic periods + GM anchors + smoothing). The forecast lens doesn’t change *what* events exist — it changes *how precisely the player knows when they are*. Each full/new moon event is shown as a date range that narrows as the event approaches.
+
+### Uncertainty Window Size
+
+The window scales as a **fraction of the moon’s synodic period**, using dice-sized fractions:
+
+|Zone|Fraction of period|Dice analog|
+|----|------------------|-----------|
+|A   |1/20              |d20        |
+|B   |1/12              |d12        |
+|C   |1/6               |d6         |
+|D   |1/4               |d4         |
+
+Concrete examples from Eberron:
+
+|Moon    |Period  |Zone D (1/4)|Zone C (1/6)|Zone B (1/12)|Zone A (1/20)|
+|--------|--------|------------|------------|-------------|-------------|
+|Zarantyr|27 days |±3 days     |±2 days     |±1 day       |±1 day       |
+|Nymm    |50 days |±6 days     |±4 days     |±2 days      |±1 day       |
+|Aryth   |91 days |±11 days    |±8 days     |±4 days      |±2 days      |
+|Vult    |102 days|±13 days    |±9 days     |±4 days      |±3 days      |
+
+Calculation: `halfWindow = Math.max(1, Math.round(period / (fraction * 2)))`. The total window is `halfWindow * 2 + 1` days (centered on something — see next section).
+
+### Off-Center Placement
+
+The actual event date is NOT centered in the uncertainty window. Each event gets a seeded random offset:
+
+**Step 1 — Compute the zone D window width** (the widest window this event will ever have).
+
+```typescript
+var maxHalfWindow = Math.max(1, Math.round(period / 8));  // 1/4 of period, halved
+```
+
+**Step 2 — Generate an offset ratio**, seeded per-event:
+
+```typescript
+var offsetSeed = hash(eventSerial, moonName, worldSeed, 'moon-offset');
+var offsetRatio = seededFloat(offsetSeed);  // 0.0 to 1.0
+```
+
+`offsetRatio` determines where the actual event sits within the window:
+
+- 0.0 = actual event is at the left (early) edge
+- 0.5 = actual event is perfectly centered
+- 1.0 = actual event is at the right (late) edge
+
+**Step 3 — Place the window around the actual event date:**
+
+```typescript
+var leftPadding = Math.round(halfWindow * 2 * offsetRatio);
+var rightPadding = (halfWindow * 2) - leftPadding;
+var windowStart = actualEventSerial - leftPadding;
+var windowEnd = actualEventSerial + rightPadding;
+```
+
+**Step 4 — Shrink proportionally through zones.** As the window narrows from D → C → B → A, the offset ratio is preserved. Both sides shrink, but the side with more padding shrinks proportionally more:
+
+```typescript
+function shrinkWindow(actualSerial, offsetRatio, halfWindowForZone) {
+  var totalWidth = halfWindowForZone * 2;
+  var leftPad = Math.round(totalWidth * offsetRatio);
+  var rightPad = totalWidth - leftPad;
+  return {
+    start: actualSerial - leftPad,
+    end: actualSerial + rightPad
+  };
+}
+```
+
+Since `offsetRatio` is constant across all zones for a given event, the window tightens symmetrically around the event’s proportional position. The player sees the window shrink smoothly — never jumping or re-centering.
+
+**Step 5 — Per-event seeding.** Each full moon and each new moon gets its own offset ratio. Seeded on `(eventSerial, moonName, worldSeed, 'moon-offset')`. This means a player cannot learn that “Aryth full moons are always early in the window” — each event is independent.
+
+### What Each Tier Shows
+
+**Low tier** (common knowledge): Zone A only — this month. Full/new events shown with zone A uncertainty (period/20 — very tight, but not exact). This is “I looked at the sky and counted.” Phase labels, approximate wording (“Full in about N days”). One month is generous enough to be useful without being scholarly.
+
+Additionally, low tier always gets the **common knowledge auto-grant** on day advance: zone A is populated for free every day, same as weather’s common knowledge for zones A+B.
+
+**Medium tier** (skill check): Zones earned by DC roll. Full/new events shown with zone-appropriate timing uncertainty windows. All visible moons included. The window narrows as the event slides through zones (auto-sharpening). Tail extends A′ + B′ past the earned edge.
+
+|Roll |Medium zones|Tail    |Total months shown|
+|-----|------------|--------|------------------|
+|DC 10|A           |A′, B′  |~3 months         |
+|DC 15|A, B        |A′, B′  |~5 months         |
+|DC 20|A, B, C     |A′, B′  |~8 months         |
+|DC 25|A, B, C, D  |(capped)|10 months         |
+
+**High tier** (expert/divination): Same zone structure, same DC ladder for range. But NO timing uncertainty — all events shown at exact dates within the horizon. Additionally:
+
+- Eclipses and occultations shown on the mini-cal
+- Illumination percentages shown
+- Both next full AND next new shown per moon (medium only shows the nearer one)
+
+The qualitative jump: medium tells you *when approximately*, high tells you *exactly when and what the sky looks like*.
+
+### Tail Behavior (A′ and B′)
+
+Identical to weather:
+
+- A′ = 1 month past the medium/high edge, zone A uncertainty (period/20)
+- B′ = 2 months past the edge, zone B uncertainty (period/12)
+- Tail flags are static — they don’t auto-sharpen based on zone position
+- Common knowledge (low-A) can overwrite A′ (same quality rank), low-B cannot overwrite A′ (downgrade blocked)
+- Never show beyond 10 months total from today
+
+### Quality Ladder (Moon-Specific)
+
+|Rank|Flag      |Timing uncertainty|
+|----|----------|------------------|
+|1   |High (any)|Exact             |
+|2   |Medium A  |period / 20       |
+|3   |Medium B  |period / 12       |
+|4   |Medium C  |period / 6        |
+|5   |Medium D  |period / 4        |
+|6   |Low A / A′|period / 20       |
+|7   |Low B / B′|period / 12       |
+|8   |Nothing   |—                 |
+
+Same upgrade-only rule: never write a lower rank over a higher one.
+
+### Auto-Sharpening
+
+For medium and high tier days (not tail), the uncertainty window is determined by the event’s **current zone**, not the zone at reveal time. As an event slides from zone D to zone C (because time passed), it gets a tighter window automatically. The offset ratio stays the same; only the fraction changes.
+
+### Display Format
+
+At exact precision (high tier, or zone A medium): show the specific date(s) of the event.
+
+At uncertain precision: show as a date range. Example:
+
+- “Aryth Full: Rhaan 10–21” (zone D, wide window)
+- “Aryth Full: Rhaan 12–18” (zone C, narrower)
+- “Aryth Full: Rhaan 14–16” (zone B, tight)
+- “Aryth Full: Rhaan 14” (zone A or high, exact)
+
+On the mini-calendar, uncertain events should render as a shaded range (lighter opacity) rather than a single cell dot, so the player visually sees the uncertainty window narrowing over time.
+
+-----
+
+## Part 3: Planes Forecast Lens — Category-Based Tiers + Generated Event Uncertainty
+
+### Three Categories of Planar Events
+
+1. **Annual canonical** (`orbitYears <= 1`): Lamannia (1yr coterminous + remote), Mabar (annual coterminous). These are holidays. Everyone knows when they happen.
+1. **Non-annual canonical** (`orbitYears > 1`): Fernia (5yr), Irian (3yr), Risia (5yr), Syrania (10yr), Shavarath (36yr), Dolurrh (100yr), Thelanis (225yr), Daanvi (400yr). Published cycles — scholars know these, commoners don’t track them.
+1. **Generated events**: Non-canonical planar activity from the dice profiles. Unpredictable by nature.
+
+Additionally: **Fixed-phase planes** (Dal Quor permanently remote, Kythri permanently neutral, Xoriat permanently remote) are common knowledge at all tiers.
+
+### What Each Tier Shows
+
+**Low tier** (common knowledge):
+
+- Fixed-phase planes: always known
+- Annual canonical events: always on the calendar, predictive — players know when these are coming (zone A, this month)
+- Non-annual canonical events: ONLY visible when **currently active** (e.g., “Fernia is coterminous right now” but not predicted ahead)
+- Generated events: never visible
+
+This is “I live in this world. I know Lamannia goes coterminous every year. I don’t track Fernia’s 5-year cycle but I notice when it happens.”
+
+**Medium tier** (skill check):
+
+- Fixed-phase and annual canon: same as low
+- Non-annual canonical: **full predictive knowledge** within the earned horizon — exact dates, no uncertainty. These are published in planar almanacs; once a scholar knows to look, the dates are just math.
+- Generated events: visible within the earned horizon, **with zone-based timing uncertainty** (see below)
+- DC ladder determines range: DC 10 = 1 month, DC 15 = 3 months, DC 20 = 6 months, DC 25 = 10 months
+
+**High tier** (expert/divination):
+
+- Everything medium shows
+- Generated events shown with **exact timing** (no uncertainty window)
+- Same DC ladder for range
+
+### Generated Event Timing Uncertainty
+
+Generated events at medium tier use the same proportional uncertainty system as moons, but the window size scales with the event’s **rarity** instead of a synodic period. Rarer events are harder to predict.
+
+The base window (zone D width) is derived from `expectedPerYear`:
+
+```typescript
+var avgGapDays = Math.round(yearDays / expectedPerYear);
+var zoneD_halfWindow = Math.round(avgGapDays / 4);
+```
+
+This gives:
+
+|Plane       |Events/yr|Avg gap  |Zone D (1/4 gap)|Zone C (1/6)|Zone B (1/12)|Zone A (1/20)|
+|------------|---------|---------|----------------|------------|-------------|-------------|
+|Daanvi      |16.8     |20 days  |±5 days         |±3 days     |±2 days      |±1 day       |
+|Shavarath   |9.8      |34 days  |±9 days         |±6 days     |±3 days      |±2 days      |
+|Kythri      |6.7      |50 days  |±13 days        |±8 days     |±4 days      |±3 days      |
+|Mabar       |4.2      |80 days  |±20 days        |±13 days    |±7 days      |±4 days      |
+|Lamannia    |4.2      |80 days  |±20 days        |±13 days    |±7 days      |±4 days      |
+|Fernia/Risia|3.4      |99 days  |±25 days        |±17 days    |±8 days      |±5 days      |
+|Thelanis    |2.8      |120 days |±30 days        |±20 days    |±10 days     |±6 days      |
+|Irian       |2.1      |160 days |±40 days        |±27 days    |±13 days     |±8 days      |
+|Xoriat      |0.84     |400 days |±100 days       |±67 days    |±33 days     |±20 days     |
+|Syrania     |0.21     |1600 days|±400 days       |±267 days   |±133 days    |±80 days     |
+
+Syrania’s numbers look absurd — but that’s correct. Syrania generated events happen about once every 5 years. Predicting one 10 months out with any precision is genuinely impossible without divination. At zone A (this month), the window is still ±80 days, meaning medium-tier players basically just see “Syrania might do something… sometime.” Only high tier gives exact timing.
+
+Optional: clamp the maximum half-window to something reasonable like the horizon length itself, so Syrania zone D doesn’t show a 2+ year window when the player only has 10 months of visibility. Anything outside the visible horizon is just “beyond prediction.”
+
+### Off-Center Placement (Same as Moons)
+
+Generated events use the same offset ratio mechanic as moons. Per-event seeding: `hash(eventSerial, planeName, worldSeed, 'plane-offset')`. Proportional shaving through zones. Identical implementation.
+
+### Tail Behavior for Planes
+
+Same A′/B′ structure as moons and weather:
+
+- A′ and B′ extend past the medium/high edge
+- For annual canonical events in the tail: shown (these are always known)
+- For non-annual canonical events in the tail: shown if medium tier (scholar knowledge doesn’t degrade)
+- For generated events in the tail: shown with A′/B′ uncertainty (wider windows)
+- Display cap: 10 months total
+
+### Low Tier Implementation Change
+
+The current code uses `ignoreGenerated: true` for low tier. The change: low tier must ALSO filter non-annual canonical events for **predictive** display. Non-annual events should only appear when `getPlanarState` returns an active coterminous/remote phase for the current serial.
+
+Implementation: add a filter based on `plane.orbitYears`:
+
+```typescript
+// Low tier: suppress non-annual canonical events in future
+if (tier === 'low' && serial > today && plane.orbitYears > 1) {
+  // Don't show this canonical event predictively
+  continue;
+}
+```
+
+Annual events (`orbitYears <= 1`) and fixed-phase planes (`type === 'fixed'`) pass through at all tiers.
+
+-----
+
+## Part 4: Smoothing Timing for GM Moon Anchors
+
+### Current Behavior
+
+`_smoothToTarget` uses a fixed `smoothingCycles = 7` (hardcoded parameter) to redistribute the offset across preceding events when a GM anchor forces a full/new moon to land on a specific date.
+
+### Proposed Change
+
+Compute `smoothingCycles` from the distance to the anchor, distributing over as many cycles as possible:
+
+```typescript
+var cyclesToAnchor = Math.ceil((anchorSerial - todaySerial()) / moon.synodicPeriod);
+var smoothingCycles = Math.max(3, Math.min(cyclesToAnchor, availablePriorEvents));
+```
+
+- If the anchor is 2 years out and the period is 28 days, that’s ~24 cycles — imperceptible drift per cycle.
+- If the anchor is 1 cycle out, it’s 1-3 cycles — dramatic shift, but that’s correct. A GM forcing a full moon next week should look dramatic.
+- Minimum 3 cycles to avoid jarring single-cycle teleportation.
+- Maximum bounded by the generation window (2 years) and available prior events of the same type.
+
+This should be called at the point in `moonEnsureSequences` where GM anchors are applied (around line 1244). Replace the hardcoded `7` in the `_smoothToTarget(seq, nearest, anchor.serial, 7)` call with the computed value.
+
+Smoothing starts immediately when the anchor is set — no waiting until the event is N months away. The further out the anchor, the gentler the drift. The closer, the more dramatic.
+
+-----
+
+## Part 5: Cross-Subsystem Synergy (Planes → Weather Lens)
+
+As established in the weather forecast lens plan: if a player has planar knowledge covering a given serial (even with timing uncertainty from a generated event), the weather forecast lens treats the planar weather delta as “known” — exempt from regression.
+
+Keep it simple: any planar reveal that covers the serial (even if the generated event’s uncertainty window merely includes that serial) counts. Don’t try to pro-rate the knowledge based on how confident the planar timing is.
+
+This means:
+
+- Annual canonical planar knowledge (always known at low tier) always informs weather forecasts. Lamannia coterminous in Olarune? Weather lens knows about the precipitation bump.
+- Non-annual canonical knowledge (medium+ tier) informs weather when revealed. Fernia coterminous in Lharvion every 5 years? If they have medium planar knowledge, weather lens accounts for the heat.
+- Generated events (medium with uncertainty, or high exact) inform weather when the uncertainty window covers the date in question.
+
+-----
+
+## Part 6: Storage Model
+
+### Moon Reveals — Restructure from Global to Per-Event
+
+The current system stores a single global `revealTier` + `revealHorizonDays`. This must change to per-serial reveal flags (like weather) to support zone-based auto-sharpening and tail mechanics.
+
+New storage structure on moon state:
+
+```typescript
+moonReveals: {
+  // serial (string) -> reveal entry
+  [serial: string]: {
+    tier: 'low' | 'medium' | 'high',
+    source: 'common' | 'skilled' | 'expert',
+    quality: number,  // rank on the quality ladder (1-8)
+    isTail: boolean
+  }
+}
+```
+
+On day advance, grant common knowledge (low, zone A quality) for all events within zone A (~28 days). Upgrade-only.
+
+When GM runs `!cal moon send medium 3m`, iterate over all full/new events within 3 months. Tag each with the appropriate quality based on which zone it falls in. Plant A′/B′ tail flags on events in the next 2 months past the edge.
+
+### Planes Reveals — Similar Restructure
+
+Current global `revealTier` + `revealHorizonDays` + `generatedHorizonDays` should be restructured similarly. However, since canonical events are either “always known” (annual) or “known once you have the tier” (non-annual), the per-serial flags mainly matter for:
+
+1. Tracking which generated events have been revealed
+1. Tracking quality rank for generated events (zone-based uncertainty)
+1. Supporting tail mechanics
+1. Supporting auto-sharpening
+
+Canonical events can use a simpler flag: `{ tier: 'medium', source: 'skilled' }` for all dates within the horizon when non-annual canon is revealed. No zone-based quality needed since canonical timing is exact at medium+.
+
+New storage on planes state:
+
+```typescript
+planarReveals: {
+  canonTier: 'low' | 'medium' | 'high',        // overall canon knowledge level
+  canonHorizonDays: number,                      // how far canon knowledge extends
+  generatedReveals: {
+    // serial (string) -> reveal entry (only for generated events)
+    [serial: string]: {
+      tier: 'medium' | 'high',
+      source: 'skilled' | 'expert',
+      quality: number,
+      isTail: boolean
+    }
+  }
+}
+```
+
+-----
+
+## Part 7: Auto-Sharpening
+
+Same principle as weather: medium/high tier events (not tail) use the **current zone** to determine uncertainty width, not the zone at reveal time. As an event slides from zone D to zone C, its window automatically tightens.
+
+The uncertainty window is recomputed at display time. **All internal math uses the raw fractional event serial from the sequence — rounding to integer day boundaries happens only at the final rendering step** (see Part 14: Precision for full details).
+
+```typescript
+function _moonEventUncertaintyWindow(eventSerial, moonName, moonPeriod, quality, zone, worldSeed) {
+  // eventSerial is the RAW fractional serial from the sequence (e.g., 12345.73)
+  if (quality <= 1) return { startDay: Math.floor(eventSerial), endDay: Math.ceil(eventSerial) }; // high tier: exact
+
+  var fraction;
+  if (zone === 'A' || zone === 'Ap') fraction = 20;
+  else if (zone === 'B' || zone === 'Bp') fraction = 12;
+  else if (zone === 'C') fraction = 6;
+  else fraction = 4; // zone D
+
+  // Fractional window width — no rounding yet
+  var totalWidth = moonPeriod / fraction;
+
+  // Per-event offset ratio (seeded, deterministic)
+  var offsetSeed = hash(eventSerial, moonName, worldSeed, 'moon-offset');
+  var offsetRatio = seededFloat(offsetSeed); // 0.0 to 1.0
+
+  // Fractional padding — preserves full precision
+  var leftPad = totalWidth * offsetRatio;
+  var rightPad = totalWidth - leftPad;
+
+  var startExact = eventSerial - leftPad;
+  var endExact = eventSerial + rightPad;
+
+  // Round to integer day boundaries ONLY for display.
+  // Floor the start, ceil the end — guarantees the actual event
+  // is always inside the displayed range.
+  return {
+    startDay: Math.floor(startExact),
+    endDay: Math.ceil(endExact),
+    // Preserve fractional values for any downstream computation
+    startExact: startExact,
+    endExact: endExact
+  };
+}
+```
+
+Tail events (A′/B′) use their fixed fraction — A′ always uses 1/20, B′ always uses 1/12 — regardless of which actual zone they’re currently in.
+
+-----
+
+## Part 8: Rendering Changes
+
+**Important: all rendering functions are the integer-rounding boundary.** The forecast lens computes fractional window boundaries; rendering functions receive `startDay` / `endDay` (already floored/ceiled to integers in the window function). No additional rounding should occur between the window function and the renderer.
+
+### Moon Mini-Calendar
+
+Currently, full/new peaks are shown as dots (multi-moon) or cell fills (single-moon) at exact serials. For uncertain events, render the uncertainty window as a **range** instead:
+
+- Exact events: single dot/fill on the peak day (current behavior)
+- Uncertain events: lighter-opacity shading across the `startDay` to `endDay` integer range, with the color indicating full (gold) or new (dark)
+
+The tooltip for an uncertain range should show e.g. “Aryth Full: ~Rhaan 10–21” rather than the exact date.
+
+### Moon Row HTML
+
+`_moonRowHtml` currently shows “Full in N days” or “Full in about N days”. For uncertain events, change to:
+
+- Low/medium with uncertainty: “Full in ~N–M days” (showing the window edges as day counts from today)
+- High: “Full in N days” (exact, current behavior)
+
+### Moon Next Event String
+
+`_moonNextEventStr` must be updated. Currently it finds the exact next event and formats it. For uncertain display, it should find the next event, compute the uncertainty window, and format the range.
+
+### Planes Panel
+
+`planesPanelHtml` already handles generated events differently from canonical. The changes:
+
+- Low tier: filter out non-annual canonical events from predictive display (only show when active)
+- Medium tier generated events: show with date range uncertainty instead of the current `_planePredictionWindowDays` ± system
+- High tier: show everything exact
+
+The existing generated event forecast display code (around lines 1875-1900 in planes.ts) already renders a range like “Generated Coterminous ~14–22d”. This should be replaced with the zone-based window system.
+
+-----
+
+## Part 9: Dead Code to Remove
+
+### Moon Dead Code
+
+1. **Line 1096 comment**: `"20e) Standard sequence generation (all moons except Lharvion)"` — stale. All moons use `_generateStandardSequence`. No separate Lharvion path exists. Update comment to `"(all moons)"`.
+1. **`retro` field on sequence entries** (lines 617, 1138, 1140, 1206, 1257): Always set to `false`, never read anywhere in the codebase. Vestigial from old chaotic Lharvion implementation. Remove the field from all sequence generation and the type definition.
+1. **Lharvion lore blurb** (line 496): Describes chaotic behavior (“appears to move backward”, “phases do not follow any predictable pattern”) that no longer exists mechanically. Either update the blurb to match current behavior or flag it for the GM to decide — this is a lore/flavor decision, not a code one.
+1. **`MOON_PREDICTION_LIMITS.lowDays = 2`** (line 788): Being replaced by zone A (28 days). Remove or repurpose.
+1. **`MOON_PREDICTION_LIMITS.highMaxDays = 672`** (line 792): If high uses the same 1/3/6/10 month presets, this cap is redundant. The generation window (2 years) is the natural cap. Remove or repurpose.
+1. **`MOON_PREDICTION_LIMITS.mediumMaxDays = 280`** (line 790): Replaced by zone D = 280 days. Remove or repurpose.
+1. **`MOON_REVEAL_RANGE_OPTIONS`** (line 807): The range parsing system may need updating if presets change to match the new zone structure. Review for consistency.
+
+### Planes Dead Code
+
+1. **`PLANE_HIGH_PRESETS`** (line 1386): Identical values to `PLANE_MEDIUM_PRESETS` (line 1379). Consolidate into a single `PLANE_REVEAL_PRESETS` used by both tiers, or differentiate if they should have different values.
+1. **`_planePredictionWindowDays`** (line 1449): The per-plane uncertainty window calculation. Being replaced by the zone-based uncertainty system. Remove once the new system is in place.
+1. **`PLANE_PREDICTION_LIMITS.highExactDays = 336`** (line 1371): Replaced by zone structure where high tier is always exact. Remove.
+1. **`PLANE_PREDICTION_LIMITS.lowDays = 0`** (line 1364): Low tier now covers zone A (1 month) for annual canonical events. This value is misleading. Remove or update.
+
+### General
+
+The global `revealTier` and `revealHorizonDays` fields on both moon state and planes state are fully redundant once per-serial/per-event reveal tracking is implemented. **Remove them entirely.** There are no existing campaigns using this system — no migration path is needed. Also remove any initialization code, state migration code, or CLI parsing that reads/writes these global fields. Audit `getMoonState()` and `getPlanesState()` for any references to these fields and remove them.
+
+-----
+
+## Part 10: No Legacy Migration Needed
+
+There are no existing campaigns using this system. All global `revealTier`, `revealHorizonDays`, and `generatedHorizonDays` fields on moon and planes state should be removed entirely rather than migrated. Remove all initialization, CLI parsing, and rendering code that reads these global fields. The per-event reveal system (Part 6) replaces them completely.
+
+-----
+
+## Part 11: Smoothing Change Summary
+
+In `moonEnsureSequences` (around line 1244 in moon.ts), the call to `_smoothToTarget(seq, nearest, anchor.serial, 7)` should change:
+
+```typescript
+// Old: fixed 7 cycles
+_smoothToTarget(seq, nearest, anchor.serial, 7);
+
+// New: scale with distance
+var cyclesToAnchor = Math.max(1, Math.ceil(
+  Math.abs(anchor.serial - todaySerial()) / (moon.synodicPeriod || 28)
+));
+var smoothingCycles = Math.max(3, Math.min(cyclesToAnchor, 30));
+_smoothToTarget(seq, nearest, anchor.serial, smoothingCycles);
+```
+
+Minimum 3 cycles (avoid jarring teleportation), maximum 30 (diminishing returns beyond that). Start smoothing immediately — no deferred smoothing.
+
+-----
+
+## Part 12: Edge Cases
+
+1. **Events straddling zone boundaries**: If a multi-day phase (e.g., Aryth full moon spanning 10 days) starts in one zone and ends in another, use the zone of the phase’s **peak day** (the serial stored in the sequence) for uncertainty calculation. The entire phase window shifts together.
+1. **Overlapping uncertainty windows**: At zone D, slow moons like Vult might have full and new moon windows that visually overlap. This is acceptable — the player sees “something happening with Vult in this range” and can’t distinguish full from new at that distance. As zones sharpen, they separate.
+1. **Uncertainty window extending past the display horizon**: Clamp the rendered window to the 10-month display cap. If an event is near the edge and its uncertainty window extends beyond, show what fits and add “…” or a similar indicator.
+1. **First-day fallback**: If no prior event data exists for offset calculation, use a default offset ratio of 0.5 (centered). This only matters on the very first day of a campaign.
+1. **Multiple GM anchors close together**: The smoothing algorithm already handles this — each anchor smoothes independently, and the sequence is re-sorted after all anchors are applied. The variable smoothing cycles won’t change this behavior.
+1. **Non-Eberron settings**: Settings with 1-3 moons and regular periods (Selûne, Luna/Celene, Solinari/Lunitari/Nuitari, etc.) get the same zone system. The uncertainty windows will be small (since the periods are short/regular) and the system works cleanly. No special-casing needed. Non-Eberron settings have no planes subsystem, so the planes portion is Eberron-only (as it already is).
+1. **Annual canonical events at low tier — predictive display**: Low tier should show annual canonical events on the calendar for the full year (not just zone A). These are “holidays” — everyone knows when Lamannia goes coterminous in Olarune. The zone system governs the reveal horizon for medium/high tier non-annual and generated events, but annual canonical events bypass it entirely at all tiers.
+
+-----
+
+## Part 13: Summary of Cross-Subsystem Consistency
+
+|Aspect               |Weather                     |Moons                           |Planes                                     |
+|---------------------|----------------------------|--------------------------------|-------------------------------------------|
+|Zone boundaries      |1/3/6/10 days               |1/3/6/10 months                 |1/3/6/10 months                            |
+|DC ladder            |10/15/20/25                 |10/15/20/25                     |10/15/20/25                                |
+|Tail                 |A′ + B′                     |A′ + B′                         |A′ + B′                                    |
+|Quality ladder       |8 ranks                     |8 ranks                         |8 ranks                                    |
+|Auto-sharpening      |Zone-based mask/jitter      |Zone-based window width         |Zone-based window width                    |
+|Upgrade-only         |Yes                         |Yes                             |Yes                                        |
+|Low auto-grant       |Today + 2 days              |Zone A events (~1 month)        |Annual canon (always)                      |
+|Medium differentiator|Jitter/mask degrade accuracy|Timing uncertainty windows      |Canon revealed + generated with uncertainty|
+|High differentiator  |Exact truth                 |Exact + eclipses + illumination%|Exact generated timing                     |
+|Display cap          |10 days                     |10 months                       |10 months                                  |
+
+-----
+
+## Part 14: Precision — Fractional Serials and the “Don’t Round Early” Rule
+
+### How Moon Precision Currently Works
+
+The moon system operates at three layers of precision. The forecast lens must respect all three and never introduce premature rounding.
+
+**Layer 1 — Sequence storage (fractional serials).** Moon events store raw floating-point serials. The generation pipeline produces these naturally: `epochSerial = refSerial - _moonHashStr(seedWord) * period` yields a fractional value (e.g., `12345.73`), and forward stepping with `cur += period` (where period is e.g. `56.1487`) preserves full floating-point precision. GM anchor smoothing (`_smoothToTarget`) applies `Math.round()` to per-cycle shifts, but the final target event is set exactly to the anchor serial.
+
+**Layer 2 — Illumination interpolation (continuous).** `_moonPhaseAtRaw` computes illumination at any serial (fractional or integer) by finding the bracketing full-moon events in the sequence and applying cosine interpolation: `illum = 0.5 + 0.5 * Math.cos(pos * 2 * Math.PI)` where `pos = (serial - prev.serial) / span`. Since `prev.serial`, `span`, and the query serial are all potentially fractional, this gives smooth continuous illumination values.
+
+**Layer 3 — Day bucketing (integer, display only).** `_moonPeakPhaseDay` checks illumination at **integer** day serials against thresholds (`MOON_FULL_THRESHOLD` ≈ 0.98004, `MOON_NEW_THRESHOLD` ≈ 0.01996). `_moonPhaseSpan` scans adjacent integer days to find multi-day full/new runs. This integer bucketing is the **only** rounding in the entire pipeline, and it happens exclusively for display purposes.
+
+### The Rule for the Forecast Lens
+
+**All uncertainty window math must use raw fractional event serials. Round to integer day boundaries only at the final rendering step.**
+
+Specifically:
+
+1. `_moonNextEvent` returns a fractional serial (e.g., `12373.80`). Use this value directly — do not `Math.round()` or `|0` it before feeding it into window calculations.
+1. Window width computation uses fractional arithmetic: `totalWidth = moonPeriod / fraction` where both `moonPeriod` (e.g., `56.1487`) and `fraction` (e.g., `4`) are clean, giving `14.037`. Do not round this.
+1. Offset placement uses the fractional width: `leftPad = totalWidth * offsetRatio` (e.g., `14.037 * 0.3 = 4.211`). Do not round.
+1. Window boundaries are fractional: `startExact = eventSerial - leftPad` (e.g., `12373.80 - 4.211 = 12369.589`). Do not round.
+1. **Only at the display step**: convert to integer day boundaries with `Math.floor(startExact)` and `Math.ceil(endExact)`. Floor the start, ceil the end. This guarantees the actual event (at its fractional serial) is always inside the rendered day range.
+
+### Why This Matters
+
+A moon with a 56-day period has events landing at serials like `12345.73`. If you rounded this to `12346` before computing the window, and the window is only ±1 day wide (zone A), the displayed range would be `12345–12347` instead of the correct `12344–12347`. That’s a 1-day error in a 3-day window — significant. At wider windows it matters less, but the principle is: **never round until you have to render**.
+
+### Planes vs Moons
+
+Planar events operate on integer day serials (calendar-day granularity). The generated event system uses `getPlanarState(planeName, serial)` which takes integer day serials. There are no fractional serials in the planes system. The precision concern applies **only to moons**.
+
+For planes, the uncertainty window math can safely use integer arithmetic throughout, since the source data is already integer-day precision.
+
+### Smoothing Precision Note
+
+`_smoothToTarget` applies `Math.round()` to per-cycle shifts (line 1200 in moon.ts). For long smoothing windows (24+ cycles as proposed in Part 4), each individual shift is small and the per-shift rounding error is ±0.5 days. These errors do not compound meaningfully because each cycle’s shift is computed independently from the total offset. The final target event is set exactly via `seq[targetIdx].serial = targetSerial`, so the important event always lands precisely. Intermediate events along the smoothing path drift by at most ±0.5 days from their ideal positions, which is well within the illumination threshold tolerance that converts fractional positions to multi-day full/new phase labels.
