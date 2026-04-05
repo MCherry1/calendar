@@ -499,32 +499,6 @@ function _genSelune(s: number){
 
 // ── Greyhawk ──
 
-function _genLunaGH(s: number){
-  var { cv, cx } = _offscreen(s, s);
-  var r = s / 2;
-  _baseGradient(cx, s, s, '#f5f0dc', '#c0b898');
-  // Earth-moon-like maria (dark plains)
-  var maria = [
-    { x: 0.35, y: 0.35, rx: 0.14, ry: 0.10 },
-    { x: 0.55, y: 0.30, rx: 0.10, ry: 0.12 },
-    { x: 0.45, y: 0.55, rx: 0.12, ry: 0.08 },
-    { x: 0.60, y: 0.50, rx: 0.08, ry: 0.10 }
-  ];
-  for (var m of maria){
-    cx.beginPath();
-    cx.ellipse(s * m.x, s * m.y, s * m.rx, s * m.ry, 0.3, 0, Math.PI * 2);
-    cx.fillStyle = 'rgba(150,140,110,0.15)';
-    cx.fill();
-  }
-  // craters
-  for (var i = 0; i < 22; i++){
-    _crater(cx, r + (_h('lunagh:cx:' + i) - 0.5) * s * 0.8, r + (_h('lunagh:cy:' + i) - 0.5) * s * 0.8, 1 + _h('lunagh:cr:' + i) * 4);
-  }
-  _noisePass(cx, s, s, 'lunagh', 6);
-  _limbDarkening(cx, s, s);
-  return cv;
-}
-
 function _genCelene(s: number){
   var { cv, cx } = _offscreen(s, s);
   var r = s / 2;
