@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+
 import { getMoonTexture, generateStarField, generateMilkyWay, StarData, MilkyWayParticle } from './sky-textures.js';
 import type { SkyScene, SkySceneMoon } from '../src/showcase/sky-scene.js';
 
@@ -37,19 +37,23 @@ var _starData: StarData[] | null = null;
 // Sun
 var _sunSprite: THREE.Sprite | null = null;
 var _sunLabelSprite: THREE.Sprite | null = null;
+var _sunLabelText = '';
 var _sunLight: THREE.DirectionalLight | null = null;
 var _ambientLight: THREE.AmbientLight | null = null;
 
 // Moons
 var _moonGroup: THREE.Group | null = null;
-var _moonMeshes: { mesh: THREE.Mesh; label: THREE.Sprite; moon: any; name: string }[] = [];
+var _moonMeshes: { mesh: THREE.Mesh; label: THREE.Sprite; moon: any; name: string; showLabel: boolean }[] = [];
 var _moonScreenPositions: { name: string; x: number; y: number; radius: number; moon: any }[] = [];
+var _moonCacheKey = '';
 
 // Ring of Siberys
 var _ringGroup: THREE.Group | null = null;
 var _ringMesh: THREE.Mesh | null = null;
 var _ringParticles: THREE.Points | null = null;
 var _ringLabel: THREE.Sprite | null = null;
+var _ringCacheKey = '';
+var _ringParticleSeeds: { bandFrac: number; baseAngle: number; driftRate: number; shimmerFreq: number; shimmerPhase: number; bandBright: number; pRadius: number; size: number }[] = [];
 
 // Landscape
 var _landscapeGroup: THREE.Group | null = null;
@@ -57,6 +61,7 @@ var _landscapeGroup: THREE.Group | null = null;
 // Clouds
 var _cloudSprites: THREE.Sprite[] = [];
 var _cloudSeeds: { az: number; alt: number; rx: number; ry: number; alpha: number; speed: number }[] = [];
+var _cloudColorKey = '';
 
 // Texture cache
 var _texCache = new Map<string, THREE.CanvasTexture>();
@@ -288,8 +293,6 @@ export function initSkyRenderer(canvas: HTMLCanvasElement): void {
   // Post-processing
   _composer = new EffectComposer(_renderer);
   _composer.addPass(new RenderPass(_scene, _camera));
-  var bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.6, 0.85);
-  _composer.addPass(bloom);
 
   // Lighting
   _sunLight = new THREE.DirectionalLight(0xfff8e0, 1.0);
@@ -499,20 +502,31 @@ function _getCanvasTexture(moonName: string, color: string, radius: number): THR
   return tex;
 }
 
-function _updateMoons(scene: SkyScene, sunDir: THREE.Vector3, lunarSizeMode: string) {
-  if (!_moonGroup || !_scene || !_camera || !_canvas) return;
-
-  // Clear old moons
+function _disposeMoonMeshes() {
+  if (!_moonGroup) return;
   while (_moonGroup.children.length > 0) {
     var child = _moonGroup.children[0];
     _moonGroup.remove(child);
     if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
+    if ((child as THREE.Mesh).material) {
+      var m = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      if (m.map) m.map.dispose();
+      m.dispose();
+    }
+    if ((child as THREE.Sprite).material) {
+      var sm = (child as THREE.Sprite).material as THREE.SpriteMaterial;
+      if (sm.map) sm.map.dispose();
+      sm.dispose();
+    }
   }
   _moonMeshes = [];
-  _moonScreenPositions = [];
+}
+
+function _buildMoonMeshes(scene: SkyScene, lunarSizeMode: string) {
+  if (!_moonGroup || !_camera || !_canvas) return;
+  _disposeMoonMeshes();
 
   var canvasH = _canvas.height;
-  var labeled = 0;
 
   for (var i = 0; i < scene.moons.length; i++) {
     var moon = scene.moons[i];
@@ -520,13 +534,8 @@ function _updateMoons(scene: SkyScene, sunDir: THREE.Vector3, lunarSizeMode: str
     if (moon.altitudeExact < -3) continue;
 
     var radiusPx = _moonRadiusPx(moon.angularDiameterDeg, lunarSizeMode, canvasH);
-    // Convert pixel radius to world-space scale (~0.1 units per pixel)
     var worldScale = radiusPx * 0.12;
 
-    // Position moon in 3D
-    var moonPos = _azAltToWorld(moon.azimuth, moon.altitudeExact, MOON_RADIUS);
-
-    // Create sphere
     var geo = new THREE.SphereGeometry(worldScale, 24, 16);
     var color = moon.color || '#d8dee7';
     var tex = _getCanvasTexture(moon.name, color, radiusPx);
@@ -537,29 +546,60 @@ function _updateMoons(scene: SkyScene, sunDir: THREE.Vector3, lunarSizeMode: str
       emissive: new THREE.Color(color).multiplyScalar(0.05)
     });
     var mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(moonPos);
-
-    // Orient moon to face camera roughly
-    mesh.lookAt(_camera.position);
-
     _moonGroup.add(mesh);
 
-    // Label
     var labelColor = 'rgba(247, 242, 232, 0.9)';
     var label = _makeTextSprite(moon.name, labelColor, 18);
-    label.position.copy(moonPos);
-    label.position.y -= worldScale + 3;
-    if (labeled < 8 && moon.altitudeExact >= 2) {
+    var showLabel = moon.altitudeExact >= 2;
+    if (showLabel) {
       _moonGroup.add(label);
-      labeled++;
     }
 
-    _moonMeshes.push({ mesh: mesh, label: label, moon: moon, name: moon.name });
+    _moonMeshes.push({ mesh, label, moon, name: moon.name, showLabel });
+  }
+}
 
-    // Project to screen coords for click detection
+function _updateMoons(scene: SkyScene, sunDir: THREE.Vector3, lunarSizeMode: string) {
+  if (!_moonGroup || !_scene || !_camera || !_canvas) return;
+
+  // Compute cache key from visible moons and their sizes
+  var canvasH = _canvas.height;
+  var key = lunarSizeMode;
+  for (var i = 0; i < scene.moons.length; i++) {
+    var m = scene.moons[i];
+    if (m.category === 'below' || m.altitudeExact < -3) continue;
+    key += ':' + m.name + ',' + Math.round(_moonRadiusPx(m.angularDiameterDeg, lunarSizeMode, canvasH));
+  }
+
+  if (key !== _moonCacheKey) {
+    _moonCacheKey = key;
+    _buildMoonMeshes(scene, lunarSizeMode);
+  }
+
+  // Update positions and screen projections every frame
+  _moonScreenPositions = [];
+  var moonIdx = 0;
+  for (var i = 0; i < scene.moons.length; i++) {
+    var moon = scene.moons[i];
+    if (moon.category === 'below' || moon.altitudeExact < -3) continue;
+    if (moonIdx >= _moonMeshes.length) break;
+
+    var entry = _moonMeshes[moonIdx];
+    var radiusPx = _moonRadiusPx(moon.angularDiameterDeg, lunarSizeMode, canvasH);
+    var worldScale = radiusPx * 0.12;
+    var moonPos = _azAltToWorld(moon.azimuth, moon.altitudeExact, MOON_RADIUS);
+
+    entry.mesh.position.copy(moonPos);
+    entry.mesh.lookAt(_camera.position);
+    entry.moon = moon;
+
+    entry.label.position.copy(moonPos);
+    entry.label.position.y -= worldScale + 3;
+
+    // Screen projection for click detection
     var screenPos = moonPos.clone().project(_camera);
-    var halfW = _canvas.width / 2;
-    var halfH = _canvas.height / 2;
+    var halfW = _canvas!.width / 2;
+    var halfH = _canvas!.height / 2;
     _moonScreenPositions.push({
       name: moon.name,
       x: (screenPos.x * halfW) + halfW,
@@ -567,18 +607,22 @@ function _updateMoons(scene: SkyScene, sunDir: THREE.Vector3, lunarSizeMode: str
       radius: radiusPx,
       moon: moon
     });
+    moonIdx++;
   }
 }
 
 // ── Ring of Siberys ──
-function _updateRing(worldId: string, observerLat: number, serial: number, timeFrac: number) {
+function _buildRing(worldId: string, observerLat: number) {
   if (!_ringGroup || !_scene) return;
 
-  // Clear old ring
+  // Dispose old ring
   while (_ringGroup.children.length > 0) {
     var child = _ringGroup.children[0];
     _ringGroup.remove(child);
+    if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
+    if ((child as THREE.Mesh).material) ((child as THREE.Mesh).material as THREE.Material).dispose();
   }
+  _ringParticleSeeds = [];
 
   if (worldId !== 'eberron') return;
 
@@ -589,7 +633,6 @@ function _updateRing(worldId: string, observerLat: number, serial: number, timeF
 
   // Ring geometry - a flat annulus tilted to equatorial plane
   var geo = new THREE.RingGeometry(innerRadius, outerRadius, segments, 1);
-  // Map UV.x to ring fraction (inner=0, outer=1)
   var uvAttr = geo.getAttribute('uv');
   var posAttr = geo.getAttribute('position');
   for (var vi = 0; vi < uvAttr.count; vi++) {
@@ -611,44 +654,35 @@ function _updateRing(worldId: string, observerLat: number, serial: number, timeF
   });
 
   _ringMesh = new THREE.Mesh(geo, mat);
-  // Tilt ring to equatorial plane relative to observer
   _ringMesh.rotation.x = -Math.PI / 2 + latRad;
   _ringGroup.add(_ringMesh);
 
-  // Drift particles
-  var driftTime = serial + timeFrac;
+  // Pre-compute particle seeds (static per world/lat)
   var DRIFT_INNER = 1666;
   var DRIFT_OUTER = 895;
   var particleCount = 400;
-  var pPositions: number[] = [];
-  var pSizes: number[] = [];
-  var pAlphas: number[] = [];
-
   for (var s = 0; s < particleCount; s++) {
     var bandFrac = _hash('sib:band:' + s);
     var density = bandFrac < 0.04 ? 0.1 : bandFrac < 0.22 ? 0.4 : bandFrac < 0.56 ? 1.0 : bandFrac < 0.62 ? 0.03 : bandFrac < 0.82 ? 0.7 : bandFrac < 0.84 ? 0.03 : bandFrac < 0.92 ? 0.55 : bandFrac < 0.96 ? 0.0 : 0.2;
     if (_hash('sib:keep:' + s) > density) continue;
 
-    var baseAngle = _hash('sib:angle:' + s) * 360;
-    var driftRate = DRIFT_INNER - bandFrac * (DRIFT_INNER - DRIFT_OUTER);
-    var angle = ((baseAngle + driftTime * driftRate) % 360 + 360) % 360;
-    var angleRad = angle * DEG2RAD;
-    var pRadius = innerRadius + bandFrac * (outerRadius - innerRadius);
-
-    var shimmerFreq = 0.3 + _hash('sib:freq:' + s) * 1.2;
-    var shimmerPhase = _hash('sib:phase:' + s) * Math.PI * 2;
-    var shimmer = 0.6 + 0.4 * Math.sin(driftTime * shimmerFreq * Math.PI * 2 + shimmerPhase);
-    var bandBright = bandFrac < 0.22 ? 0.4 : (bandFrac < 0.56 ? 1.0 : 0.7);
-    var alpha = (0.08 + shimmer * 0.27) * bandBright;
-
-    pPositions.push(Math.cos(angleRad) * pRadius, 0, Math.sin(angleRad) * pRadius);
-    pSizes.push(1.5 + _hash('sib:size:' + s) * 2.5);
-    pAlphas.push(alpha);
+    _ringParticleSeeds.push({
+      bandFrac,
+      baseAngle: _hash('sib:angle:' + s) * 360,
+      driftRate: DRIFT_INNER - bandFrac * (DRIFT_INNER - DRIFT_OUTER),
+      shimmerFreq: 0.3 + _hash('sib:freq:' + s) * 1.2,
+      shimmerPhase: _hash('sib:phase:' + s) * Math.PI * 2,
+      bandBright: bandFrac < 0.22 ? 0.4 : (bandFrac < 0.56 ? 1.0 : 0.7),
+      pRadius: innerRadius + bandFrac * (outerRadius - innerRadius),
+      size: 1.5 + _hash('sib:size:' + s) * 2.5
+    });
   }
 
-  if (pPositions.length > 0) {
+  // Create particle geometry with pre-allocated buffer
+  if (_ringParticleSeeds.length > 0) {
     var pGeo = new THREE.BufferGeometry();
-    pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPositions, 3));
+    var posArr = new Float32Array(_ringParticleSeeds.length * 3);
+    pGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
     var pMat = new THREE.PointsMaterial({
       size: 2,
       color: 0xffedB2,
@@ -666,6 +700,30 @@ function _updateRing(worldId: string, observerLat: number, serial: number, timeF
   _ringLabel = _makeTextSprite('Ring of Siberys', 'rgba(255, 235, 191, 0.8)', 16);
   _ringLabel.position.copy(_azAltToWorld(200, 45, MOON_RADIUS));
   _ringGroup.add(_ringLabel);
+}
+
+function _updateRing(worldId: string, observerLat: number, serial: number, timeFrac: number) {
+  if (!_ringGroup || !_scene) return;
+
+  // Rebuild ring geometry only when world/latitude changes
+  var cacheKey = worldId + ':' + observerLat;
+  if (cacheKey !== _ringCacheKey) {
+    _ringCacheKey = cacheKey;
+    _buildRing(worldId, observerLat);
+  }
+
+  if (worldId !== 'eberron' || !_ringParticles) return;
+
+  // Update particle positions every frame (write into existing buffer)
+  var driftTime = serial + timeFrac;
+  var posAttr = _ringParticles.geometry.getAttribute('position') as THREE.BufferAttribute;
+  for (var i = 0; i < _ringParticleSeeds.length; i++) {
+    var seed = _ringParticleSeeds[i];
+    var angle = ((seed.baseAngle + driftTime * seed.driftRate) % 360 + 360) % 360;
+    var angleRad = angle * DEG2RAD;
+    posAttr.setXYZ(i, Math.cos(angleRad) * seed.pRadius, 0, Math.sin(angleRad) * seed.pRadius);
+  }
+  posAttr.needsUpdate = true;
 }
 
 // ── Landscape ──
@@ -745,14 +803,20 @@ function _initCloudSeeds() {
   }
 }
 
-function _updateClouds(timeFrac: number, sunAlt: number) {
+function _disposeCloudSprites() {
   if (!_scene) return;
-
-  // Remove old cloud sprites
   for (var ci = 0; ci < _cloudSprites.length; ci++) {
-    _scene.remove(_cloudSprites[ci]);
+    var s = _cloudSprites[ci];
+    _scene.remove(s);
+    if (s.material.map) s.material.map.dispose();
+    s.material.dispose();
   }
   _cloudSprites = [];
+}
+
+function _buildCloudSprites(sunAlt: number) {
+  if (!_scene) return;
+  _disposeCloudSprites();
 
   var isNight = sunAlt < -6;
   var isTwilight = sunAlt >= -6 && sunAlt < 6;
@@ -763,9 +827,6 @@ function _updateClouds(timeFrac: number, sunAlt: number) {
 
   for (var i = 0; i < _cloudSeeds.length; i++) {
     var c = _cloudSeeds[i];
-    var driftAz = (c.az + timeFrac * c.speed * 3600) % 360;
-
-    // Cloud texture
     var cv = document.createElement('canvas');
     cv.width = 64; cv.height = 32;
     var cx = cv.getContext('2d')!;
@@ -786,11 +847,28 @@ function _updateClouds(timeFrac: number, sunAlt: number) {
       blending: THREE.NormalBlending
     });
     var sprite = new THREE.Sprite(mat);
-    var pos = _azAltToWorld(driftAz, c.alt, SKY_RADIUS * 0.7);
-    sprite.position.copy(pos);
     sprite.scale.set(c.rx * 0.8, c.ry * 0.8, 1);
     _cloudSprites.push(sprite);
     _scene.add(sprite);
+  }
+}
+
+function _updateClouds(timeFrac: number, sunAlt: number) {
+  if (!_scene) return;
+
+  // Determine color regime and rebuild sprites only when it changes
+  var colorKey = sunAlt < -6 ? 'night' : sunAlt < 6 ? 'twilight' : 'day';
+  if (colorKey !== _cloudColorKey) {
+    _cloudColorKey = colorKey;
+    _buildCloudSprites(sunAlt);
+  }
+
+  // Update positions every frame (cheap)
+  for (var i = 0; i < _cloudSeeds.length && i < _cloudSprites.length; i++) {
+    var c = _cloudSeeds[i];
+    var driftAz = (c.az + timeFrac * c.speed * 3600) % 360;
+    var pos = _azAltToWorld(driftAz, c.alt, SKY_RADIUS * 0.7);
+    _cloudSprites[i].position.copy(pos);
   }
 }
 
@@ -853,14 +931,24 @@ export function renderSkyFrame(
     }
   }
 
-  // Sun label
-  if (_sunLabelSprite) _scene.remove(_sunLabelSprite);
-  _sunLabelSprite = null;
-  if (scene.sunName && sunAlt >= 2 && _sunSprite && _sunSprite.visible) {
+  // Sun label - only recreate when name changes
+  var wantSunLabel = !!(scene.sunName && sunAlt >= 2 && _sunSprite && _sunSprite.visible);
+  if (wantSunLabel && scene.sunName !== _sunLabelText) {
+    if (_sunLabelSprite) {
+      _scene.remove(_sunLabelSprite);
+      if (_sunLabelSprite.material.map) _sunLabelSprite.material.map.dispose();
+      _sunLabelSprite.material.dispose();
+    }
     _sunLabelSprite = _makeTextSprite(scene.sunName, 'rgba(255, 240, 200, 0.85)', 16);
-    _sunLabelSprite.position.copy(sunPos);
-    _sunLabelSprite.position.y -= 8;
+    _sunLabelText = scene.sunName;
     _scene.add(_sunLabelSprite);
+  }
+  if (_sunLabelSprite) {
+    _sunLabelSprite.visible = wantSunLabel;
+    if (wantSunLabel) {
+      _sunLabelSprite.position.copy(sunPos);
+      _sunLabelSprite.position.y -= 8;
+    }
   }
 
   // Sun directional light
