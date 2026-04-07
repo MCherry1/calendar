@@ -575,7 +575,10 @@ function _festivalRail(items: string[]){
 }
 
 function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
-  var nextHtml = scene.moons.map(function(row){
+  var sorted = scene.moons.slice().sort(function(a, b){
+    return (a.orbitalDistance || 0) - (b.orbitalDistance || 0);
+  });
+  var nextHtml = sorted.map(function(row){
     return (
       '<div class="moon-row">' +
         '<span class="moon-chip" style="background:' + _esc(row.color || '#d9dee8') + ';"></span>' +
