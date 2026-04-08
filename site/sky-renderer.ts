@@ -12,7 +12,7 @@ var STAR_RADIUS = 490;
 var SUN_RADIUS = 480;
 var MOON_RADIUS = 460;
 var LAND_FRAC = 0.12;
-var SKY_ALT_MAX = 70;
+var SKY_ALT_MAX = 100;
 var SUN_ANGULAR_DIAM = 0.53;
 var DEG2RAD = Math.PI / 180;
 
@@ -284,10 +284,10 @@ export function initSkyRenderer(canvas: HTMLCanvasElement): void {
   // Scene
   _scene = new THREE.Scene();
 
-  // Camera - looking south, FOV covers ~70deg altitude
-  _camera = new THREE.PerspectiveCamera(70, w / h, 0.1, 2000);
+  // Camera - looking south, FOV covers ~100deg altitude
+  _camera = new THREE.PerspectiveCamera(100, w / h, 0.1, 2000);
   _camera.position.set(0, 0, 0);
-  var lookTarget = _azAltToWorld(180, 20, 100);
+  var lookTarget = _azAltToWorld(180, 40, 100);
   _camera.lookAt(lookTarget);
 
   // Post-processing
@@ -534,7 +534,7 @@ function _buildMoonMeshes(scene: SkyScene, lunarSizeMode: string) {
     if (moon.altitudeExact < -3) continue;
 
     var radiusPx = _moonRadiusPx(moon.angularDiameterDeg, lunarSizeMode, canvasH);
-    var worldScale = radiusPx * 0.12;
+    var worldScale = radiusPx * 1.74;
 
     var geo = new THREE.SphereGeometry(worldScale, 24, 16);
     var color = moon.color || '#d8dee7';
@@ -586,7 +586,7 @@ function _updateMoons(scene: SkyScene, sunDir: THREE.Vector3, lunarSizeMode: str
 
     var entry = _moonMeshes[moonIdx];
     var radiusPx = _moonRadiusPx(moon.angularDiameterDeg, lunarSizeMode, canvasH);
-    var worldScale = radiusPx * 0.12;
+    var worldScale = radiusPx * 1.74;
     var moonPos = _azAltToWorld(moon.azimuth, moon.altitudeExact, MOON_RADIUS);
 
     entry.mesh.position.copy(moonPos);
@@ -687,8 +687,8 @@ function _buildRing(worldId: string, observerLat: number) {
       size: 2,
       color: 0xffedB2,
       transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.6,
+      blending: THREE.NormalBlending,
       depthWrite: false
     });
     _ringParticles = new THREE.Points(pGeo, pMat);
@@ -719,7 +719,7 @@ function _updateRing(worldId: string, observerLat: number, serial: number, timeF
   var posAttr = _ringParticles.geometry.getAttribute('position') as THREE.BufferAttribute;
   for (var i = 0; i < _ringParticleSeeds.length; i++) {
     var seed = _ringParticleSeeds[i];
-    var angle = ((seed.baseAngle + driftTime * seed.driftRate) % 360 + 360) % 360;
+    var angle = ((seed.baseAngle + (driftTime / seed.driftRate) * 360) % 360 + 360) % 360;
     var angleRad = angle * DEG2RAD;
     posAttr.setXYZ(i, Math.cos(angleRad) * seed.pRadius, 0, Math.sin(angleRad) * seed.pRadius);
   }
