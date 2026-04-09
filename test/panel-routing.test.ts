@@ -68,7 +68,7 @@ describe("Redesigned panel routing", () => {
 
     handleInput(gmMessage("!cal events manage list"));
     msg = String(lastChat().msg);
-    assert(msg.includes("Current Status"));
+    assert(msg.includes(">Status<"));
     assert(msg.includes("Source"));
     assert(!msg.includes(">Index<"));
     assert(msg.includes("[\u2796 Hide](!cal remove "));
@@ -109,7 +109,7 @@ describe("Redesigned panel routing", () => {
 
     handleInput(gmMessage("!cal list"));
     let msg = String(lastChat().msg);
-    assert(msg.includes("Current Status"));
+    assert(msg.includes(">Status<"));
     assert(msg.includes("Source"));
     assert(!msg.includes(">Index<"));
     assert(msg.includes("[\u2796 Hide](!cal remove "));
@@ -160,11 +160,11 @@ describe("Redesigned panel routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&amp;#124;Therendor 998 YK&amp;#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&amp;#44;month Olarune 998"));
-    assert(msg.indexOf("Therendor 998 YK&amp;#44;month Therendor 998") < msg.indexOf("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&amp;#124;Therendor 998\\}"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
+    assert(msg.indexOf("Therendor 998 YK&#44;month Therendor 998") < msg.indexOf("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
 
     handleInput(gmMessage("!cal events ranges year 998"));
     msg = String(lastChat().msg);
@@ -332,10 +332,10 @@ describe("Moon management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&amp;#124;Therendor 998 YK&amp;#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&amp;#44;month Olarune 998"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&amp;#124;Therendor 998\\}"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
 
     handleMoonCommand(gmUser(), ["moon", "ranges", "year", "998"]);
     msg = String(lastChat().msg);
@@ -428,10 +428,10 @@ describe("Planes management routing", () => {
     let msg = String(lastChat().msg);
     assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
     assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&amp;#124;Therendor 998 YK&amp;#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&amp;#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&amp;#44;month Olarune 998"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&amp;#124;Therendor 998\\}"));
+    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
+    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
+    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
+    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
 
     handlePlanesCommand(gmUser(), ["planes", "ranges", "year", "998"]);
     msg = String(lastChat().msg);

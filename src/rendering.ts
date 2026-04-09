@@ -184,6 +184,10 @@ export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEv
     if (grouped['Eclipse'].length) parts.push('Eclipse: ' + grouped['Eclipse'].join(', '));
     if (grouped.other.length) parts.push(grouped.other.join(', '));
     label = parts.length > 1 ? parts.join(' · ') : (parts[0] || names.join(', '));
+    // Cap tooltip length — with 12 moons plus eclipse descriptions per cell,
+    // the full calendar grid's HTML can blow past Roll20's message size limit
+    // and take down the Full View entirely.
+    if (label.length > 200) label = label.slice(0, 197) + '...';
   }
   return {
     y:y, mi:mi, d:d, serial:ser,
@@ -974,6 +978,10 @@ export function listAllEventsTableHtml(){
       action: _tableActionButton('➕ Show', row.actionCmd)
     };
   });
+  // Group by source within each split (shown on top, hidden at bottom).
+  var _bySource = function(a, b){ return String(a.source||'').localeCompare(String(b.source||'')); };
+  activeRows.sort(_bySource);
+  hiddenRows.sort(_bySource);
   var listRows = activeRows.concat(hiddenRows);
   if(!listRows.length) return '<div style="opacity:.7;">No events.</div>';
 
@@ -985,8 +993,7 @@ export function listAllEventsTableHtml(){
       '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.mmLabel +'</td>'+
       '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.dd +'</td>'+
       (showYear ? '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ (row.year == null ? 'ALL' : row.year) +'</td>' : '')+
-      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.status +'</td>'+
-      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.action +'</td>'+
+      '<td style="'+_managementTdStyle('center','white-space:nowrap;')+'">'+ row.status +'<br>'+ row.action +'</td>'+
     '</tr>';
   });
 
@@ -996,13 +1003,12 @@ export function listAllEventsTableHtml(){
     '<th style="'+_managementThStyle('center')+'">MM</th>'+
     '<th style="'+_managementThStyle('center')+'">DD</th>'+
     (showYear ? '<th style="'+_managementThStyle('center')+'">YYYY</th>' : '')+
-    '<th style="'+_managementThStyle('center')+'">Current Status</th>'+
-    '<th style="'+_managementThStyle('center')+'">Action</th>'+
+    '<th style="'+_managementThStyle('center')+'">Status</th>'+
   '</tr>';
 
   return '<div style="margin:4px 0;"><b>Events</b></div>'+
          _managementTableWrap('<table style="'+_managementTableStyle()+'">'+ head + rows.join('') +'</table>')+
-         '<div style="opacity:.7;margin-top:4px;">Shown events stay in chronological order, while hidden default events move to the bottom of the shared hide/show list. Hiding a custom event still removes it because custom events are not kept in a hidden list.</div>';
+         '<div style="opacity:.7;margin-top:4px;">Shown events are grouped by source at the top; hidden default events are grouped by source at the bottom. Hiding a custom event still removes it because custom events are not kept in a hidden list.</div>';
 }
 
 export function removeListHtml(){

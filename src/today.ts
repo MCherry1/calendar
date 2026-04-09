@@ -480,8 +480,8 @@ function _eventsPanelHtml(serialArg){
 
   var btns = [];
   btns.push('<div style="margin:6px 0 3px 0;">');
-  btns.push(button('Previous','events panel ' + prevSer) + ' ');
-  btns.push(button('Next','events panel ' + nextSer));
+  btns.push(button('Show Previous','events panel ' + prevSer) + ' ');
+  btns.push(button('Show Next','events panel ' + nextSer));
   btns.push('</div>');
   btns.push('<div style="margin:3px 0;">' + button('Send to Players','send ' + mobj.name + ' ' + dd.year) + '</div>');
 

@@ -169,7 +169,9 @@ describe("Task-focused UI", () => {
     assert(msg.includes("Early autumn"));
     assert(/font-style:italic[^"]*">Early autumn<\/div>/.test(msg));
     assert(!msg.includes("— Early autumn"));
-    assert(msg.includes("📅 No calendar events today."));
+    // When there are no events, don't print an empty "no events" placeholder —
+    // the absence is obvious from the rest of the display.
+    assert(!msg.includes("📅 No calendar events today."));
     assert(!msg.includes("Day 72 of 161"));
   });
 });
