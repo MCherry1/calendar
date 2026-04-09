@@ -346,7 +346,7 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         phase: pl.fixedPhase || 'neutral',
         position: fixedPosition,
         axisAngle: axis.angle,
-        onPrimarySide: !partnerOnPrimary,
+        onPrimarySide: true,  // Fixed planes stay on their axis side (no mirroring)
         isFixed: true,
         isDalQuor: false,
         toCoterminousDays: null,

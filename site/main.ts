@@ -664,60 +664,24 @@ function _drawSolarSystem(worldId: string){
   ssCtx.fillStyle = bg;
   ssCtx.fillRect(0, 0, w, h);
 
-  var padLeft = 60;
-  var padRight = 30;
-  var usableW = w - padLeft - padRight;
-  var cy = h * 0.45;
+  // Body-size comparison: all moons at relative actual body sizes
+  var maxDiam = 0;
+  for (var di = 0; di < moonData.length; di++) {
+    if (moonData[di].diameter > maxDiam) maxDiam = moonData[di].diameter;
+  }
+  var MAX_RADIUS = 22;
+  var padX = 30;
+  var cy = h * 0.42;
+  var spacing = (w - padX * 2) / (moonData.length);
 
-  // Sun
-  var sunR = 14;
-  var sunGrad = ssCtx.createRadialGradient(padLeft - 20, cy, 0, padLeft - 20, cy, sunR * 2);
-  sunGrad.addColorStop(0, 'rgba(255, 230, 120, 0.4)');
-  sunGrad.addColorStop(1, 'rgba(255, 230, 120, 0)');
-  ssCtx.fillStyle = sunGrad;
-  ssCtx.beginPath(); ssCtx.arc(padLeft - 20, cy, sunR * 2, 0, Math.PI * 2); ssCtx.fill();
-  var sunBody = ssCtx.createRadialGradient(padLeft - 20, cy, 0, padLeft - 20, cy, sunR);
-  sunBody.addColorStop(0, '#fff5c0');
-  sunBody.addColorStop(1, '#e6b85c');
-  ssCtx.fillStyle = sunBody;
-  ssCtx.beginPath(); ssCtx.arc(padLeft - 20, cy, sunR, 0, Math.PI * 2); ssCtx.fill();
-  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ssCtx.font = '9px "Trebuchet MS", sans-serif';
-  ssCtx.textAlign = 'center';
-  ssCtx.fillText('Sun', padLeft - 20, cy + sunR + 12);
-
-  // Eberron
-  var eberronX = padLeft + 10;
-  var eberronR = 6;
-  var eGrad = ssCtx.createRadialGradient(eberronX, cy, 0, eberronX, cy, eberronR);
-  eGrad.addColorStop(0, '#4a9fd4');
-  eGrad.addColorStop(1, '#2060a0');
-  ssCtx.fillStyle = eGrad;
-  ssCtx.beginPath(); ssCtx.arc(eberronX, cy, eberronR, 0, Math.PI * 2); ssCtx.fill();
-  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-  ssCtx.font = '9px "Trebuchet MS", sans-serif';
-  ssCtx.textAlign = 'center';
-  ssCtx.fillText('Eberron', eberronX, cy + eberronR + 12);
-
-  // Scale: map orbital distances linearly to remaining space
-  var maxDist = moonData[moonData.length - 1].avgOrbitalDistance;
-  var moonStartX = eberronX + 30;
-  var moonEndX = w - padRight;
-  var moonUsableW = moonEndX - moonStartX;
-
-  for (var i = 0; i < moonData.length; i++){
+  for (var i = 0; i < moonData.length; i++) {
     var m = moonData[i];
-    var t = m.avgOrbitalDistance / maxDist;
-    var mx = moonStartX + t * moonUsableW;
-    // Size proportional to diameter, clamped
-    var mr = Math.max(2.5, Math.min(6, (m.diameter / 2000) * 5));
+    var mx = padX + spacing * (i + 0.5);
+    var mr = Math.max(3, (m.diameter / maxDiam) * MAX_RADIUS);
     // Glow
-    var mGlow = ssCtx.createRadialGradient(mx, cy, 0, mx, cy, mr * 2);
-    mGlow.addColorStop(0, m.color.replace(')', ',0.15)').replace('rgb(', 'rgba(').replace('#', ''));
-    // Simple approach: use color directly with alpha
-    ssCtx.globalAlpha = 0.2;
+    ssCtx.globalAlpha = 0.15;
     ssCtx.fillStyle = m.color;
-    ssCtx.beginPath(); ssCtx.arc(mx, cy, mr * 2.5, 0, Math.PI * 2); ssCtx.fill();
+    ssCtx.beginPath(); ssCtx.arc(mx, cy, mr * 1.8, 0, Math.PI * 2); ssCtx.fill();
     ssCtx.globalAlpha = 1;
     // Body
     var isDark = m.color === '#696969' || m.color === '#111111';
@@ -727,36 +691,22 @@ function _drawSolarSystem(worldId: string){
     ssCtx.strokeStyle = 'rgba(255,255,255,0.3)';
     ssCtx.lineWidth = 0.5;
     ssCtx.stroke();
-    // Label (alternate above/below to avoid overlap)
-    ssCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    // Name label
+    ssCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ssCtx.font = '8px "Trebuchet MS", sans-serif';
     ssCtx.textAlign = 'center';
-    var labelY = (i % 2 === 0) ? cy - mr - 6 : cy + mr + 11;
-    ssCtx.fillText(m.name, mx, labelY);
-    // Distance label (tiny)
-    ssCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ssCtx.fillText(m.name, mx, cy + mr + 12);
+    // Diameter label
+    ssCtx.fillStyle = 'rgba(255, 255, 255, 0.35)';
     ssCtx.font = '7px "Trebuchet MS", sans-serif';
-    var distLabel = m.avgOrbitalDistance >= 1000 ? Math.round(m.avgOrbitalDistance / 1000) + 'k mi' : m.avgOrbitalDistance + ' mi';
-    var distY = (i % 2 === 0) ? cy - mr - 15 : cy + mr + 19;
-    ssCtx.fillText(distLabel, mx, distY);
+    ssCtx.fillText(m.diameter + ' mi', mx, cy + mr + 21);
   }
 
-  // Scale bar along the bottom
-  ssCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-  ssCtx.lineWidth = 1;
-  ssCtx.beginPath();
-  ssCtx.moveTo(moonStartX, h - 12);
-  ssCtx.lineTo(moonEndX, h - 12);
-  ssCtx.stroke();
-  // Tick marks at 50k intervals
-  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-  ssCtx.font = '7px "Trebuchet MS", sans-serif';
-  ssCtx.textAlign = 'center';
-  for (var dist = 50000; dist <= maxDist; dist += 50000){
-    var tx = moonStartX + (dist / maxDist) * moonUsableW;
-    ssCtx.beginPath(); ssCtx.moveTo(tx, h - 15); ssCtx.lineTo(tx, h - 9); ssCtx.stroke();
-    ssCtx.fillText(Math.round(dist / 1000) + 'k', tx, h - 2);
-  }
+  // Title
+  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ssCtx.font = '9px "Trebuchet MS", sans-serif';
+  ssCtx.textAlign = 'left';
+  ssCtx.fillText('Relative Moon Sizes', padX, h - 6);
 }
 
 function _bindSkyJoystick(){
@@ -855,7 +805,7 @@ function _bindPlanarJoystick(){
 var PLANAR_CX = 250;
 var PLANAR_CY = 250;
 var PLANAR_R_COT = 0;       // coterminous: at center (merged glow with Eberron)
-var PLANAR_R_MID = 95;      // midpoint for half-bounce
+var PLANAR_R_MID = 70;      // midpoint for half-bounce (one-third to rim)
 var PLANAR_R_NEU = 180;     // neutral outer radius
 var PLANAR_R_REM = 210;     // remote ring radius
 var PLANAR_R_DAL = 246;     // Dal Quor orbit radius
@@ -884,8 +834,9 @@ function _planarRadiusForPhase(ph: PlanarPhaseResult): number {
   // Neutral phase: radial movement
   var t = Math.max(0, Math.min(1, ph.phaseProgress));
   if (ph.isHalfBounce) {
-    // Triangle wave: go to midpoint and back
+    // Smooth bounce: ease out to midpoint, pause, ease back
     var halfT = t < 0.5 ? t * 2 : (1 - t) * 2;
+    halfT = halfT * halfT * (3 - 2 * halfT); // smoothstep ease-in/ease-out
     if (ph.previousPhase === 'coterminous' || ph.nextPhase === 'coterminous') {
       return PLANAR_R_COT + halfT * PLANAR_R_MID;
     }
@@ -1297,7 +1248,10 @@ function _drawPlaneDisc(pCtx: CanvasRenderingContext2D, item: { phase: PlanarPha
   pCtx.fillStyle = 'rgba(255, 255, 255, ' + (item.alpha * 0.88) + ')';
   pCtx.font = (item.discR > 9 ? '11' : '9') + 'px "Trebuchet MS", sans-serif';
   pCtx.textAlign = 'center';
-  pCtx.fillText(ph.name, x, y + r + 14);
+  // Clamp label position to stay within canvas
+  var labelX = Math.max(30, Math.min(470, x));
+  var labelY = Math.max(12, Math.min(488, y + r + 14));
+  pCtx.fillText(ph.name, labelX, labelY);
   pCtx.restore();
 }
 
