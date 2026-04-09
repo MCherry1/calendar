@@ -377,17 +377,20 @@ function _additionalRangeMonthNameYear(mi, year){
   return getCal().months[mi].name + ' ' + year;
 }
 
+// Escape a label/value so it can appear inside a nested Roll20 query without
+// being split by the outer query's '|' or ',' delimiters.  The outer query
+// treats '\{...\}' blocks as atomic text, so we use HTML entities here and
+// Roll20 decodes them back to '|' / ',' when it re-evaluates the inner query.
 function _escapeNestedQueryPart(text){
   return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/\|/g, '&amp;#124;')
-    .replace(/,/g, '&amp;#44;');
+    .replace(/\|/g, '&#124;')
+    .replace(/,/g, '&#44;');
 }
 
 function _buildNestedQueryMenu(promptLabel, options){
   var out = ['?\\{' + _escapeNestedQueryPart(promptLabel)];
   for (var i = 0; i < options.length; i++){
-    out.push('&amp;#124;' + _escapeNestedQueryPart(options[i].label) + '&amp;#44;' + _escapeNestedQueryPart(options[i].value));
+    out.push('&#124;' + _escapeNestedQueryPart(options[i].label) + '&#44;' + _escapeNestedQueryPart(options[i].value));
   }
   out.push('\\}');
   return out.join('');
@@ -396,7 +399,7 @@ function _buildNestedQueryMenu(promptLabel, options){
 function _buildNestedPromptQuery(promptLabel, defaultValue){
   var out = '?\\{' + _escapeNestedQueryPart(promptLabel);
   if (defaultValue != null && String(defaultValue) !== ''){
-    out += '&amp;#124;' + _escapeNestedQueryPart(defaultValue);
+    out += '&#124;' + _escapeNestedQueryPart(defaultValue);
   }
   return out + '\\}';
 }

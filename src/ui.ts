@@ -290,9 +290,6 @@ export function sendCurrentDate(to, gmOnly, opts?){
   var dashboardEventsLineStyle = dashboard
     ? 'font-size:.94em;color:#000;margin-top:3px;'
     : 'font-size:.82em;opacity:.75;margin-top:2px;';
-  var dashboardEmptyEventsLineStyle = dashboard
-    ? 'font-size:.94em;color:#000;margin-top:3px;'
-    : 'font-size:.82em;opacity:.6;margin-top:2px;';
   var locationLine = '';
 
   // Events this month (labeled only when events exist)
@@ -437,8 +434,6 @@ export function sendCurrentDate(to, gmOnly, opts?){
       var shown = names.slice(0, 3).map(esc).join(', ');
       var more = names.length > 3 ? (' <span style="' + (dashboard ? 'color:#000;' : 'opacity:.65;') + '">+' + (names.length - 3) + ' more</span>') : '';
       todayEventsLine = '<div style="' + dashboardEventsLineStyle + '">🎉 ' + shown + more + '</div>';
-    } else if (dashboard) {
-      todayEventsLine = '<div style="' + dashboardEmptyEventsLineStyle + '">📅 No calendar events today.</div>';
     }
   } catch(e4){}
 

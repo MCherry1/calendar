@@ -1815,8 +1815,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
   var navRow;
   if (isGM){
     navRow = '<div style="margin:3px 0 6px 0;">'+
-      button('Previous','planes on '+_serialToDateSpec(prevSer))+' '+
-      button('Next','planes on '+_serialToDateSpec(nextSer))+
+      button('Show Previous','planes on '+_serialToDateSpec(prevSer))+' '+
+      button('Show Next','planes on '+_serialToDateSpec(nextSer))+
       '</div>';
   } else {
     var knownStart = todaySerial();
@@ -1826,8 +1826,8 @@ export function planesPanelHtml(isGM, revealTier?, serialOverride?, revealHorizo
       return button(label, 'planes on '+_serialToDateSpec(serial));
     }
     navRow = '<div style="margin:3px 0 6px 0;">'+
-      _pNavBtn(prevSer, 'Previous')+' '+
-      _pNavBtn(nextSer, 'Next')+
+      _pNavBtn(prevSer, 'Show Previous')+' '+
+      _pNavBtn(nextSer, 'Show Next')+
       '</div>';
   }
 

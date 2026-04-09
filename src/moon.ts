@@ -2161,8 +2161,8 @@ export function moonSummaryHtml(isGM, serialOverride?){
     : (parseInt(ms.revealHorizonDays, 10) || MOON_PREDICTION_LIMITS.lowDays);
   moonEnsureSequences(today, Math.max(horizon + 30, MOON_PREDICTION_LIMITS.lowDays + 30));
 
-  var body = '<div style="font-weight:bold;margin:0 0 4px 0;">' + esc(formalDateLabelFromSerial(today)) + '</div>';
-  body += _moonTodaySummaryHtml(today, tier, horizon);
+  // Date already appears in the _menuBox title below; skip repeating it in the body.
+  var body = '';
 
   var notableLines = _moonCompactStatusLines(today);
   if (notableLines.length){
@@ -2215,8 +2215,8 @@ export function moonPanelParts(serialOverride?){
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    button('Previous','moon on '+_serialToDateSpec(prevSer))+' '+
-    button('Next','moon on '+_serialToDateSpec(nextSer))+
+    button('Show Previous','moon on '+_serialToDateSpec(prevSer))+' '+
+    button('Show Next','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
 
   var parts = [];
@@ -2425,8 +2425,8 @@ export function moonPlayerPanelHtml(serialOverride?){
     return button(label, 'moon on '+_serialToDateSpec(serial));
   }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    _navBtn(prevSer, 'Previous')+' '+
-    _navBtn(nextSer, 'Next')+
+    _navBtn(prevSer, 'Show Previous')+' '+
+    _navBtn(nextSer, 'Show Next')+
     '</div>';
 
   // Today summary + notable moons only (not all 12)
@@ -2693,8 +2693,8 @@ export function moonHandoutHtml(serialOverride?){
     return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
   }
 
-  // Today summary + notable moons
-  var body = _moonTodaySummaryHtml(today, tier, horizon);
+  // Notable moons (individual list; no separate "Full Moons:" summary line).
+  var body = '';
 
   var notableLines = [];
   sys.moons.forEach(function(moon){
@@ -3346,7 +3346,7 @@ export function _moonVisibilityHtml(serial, timeFrac, bucket?){
   var approxHour = Math.round((((timeFrac % 1) + 1) % 1) * 24) % 24;
   var hour12 = approxHour % 12 || 12;
   var ampm = approxHour >= 12 ? 'pm' : 'am';
-  var head = '<div data-moon-sky-view="1" style="text-align:center;margin-bottom:6px;">' +
+  var head = '<div data-moon-sky-view="1" style="margin-bottom:6px;">' +
     '<div style="font-weight:bold;">✨ 🌙 Sky View 🌙 ✨</div>' +
     '<div style="margin-top:2px;">' + esc(dateLabel) + '</div>' +
     '<div style="margin-top:2px;">' + esc((timeLabel || 'Nighttime') + ' (~' + hour12 + ampm + ')') + '</div>' +
@@ -4822,8 +4822,8 @@ export function handleMoonCommand(m, args){
         return button(label, 'moon view ' + pViewMoon + ' ' + _serialToDateSpec(serial));
       }
       var pViewNav = '<div style="margin:4px 0;">'+
-        _pViewNav(pPrevS, 'Previous')+' '+
-        _pViewNav(pNextS, 'Next')+
+        _pViewNav(pPrevS, 'Show Previous')+' '+
+        _pViewNav(pNextS, 'Show Next')+
         '</div>';
       return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
         pViewNav + pCalBody
@@ -5083,8 +5083,8 @@ export function handleMoonCommand(m, args){
     var prevS = _shiftSerialByMonth(viewSerial, -1);
     var nextS = _shiftSerialByMonth(viewSerial, 1);
     var viewNav = '<div style="margin:4px 0;">'+
-      button('Previous','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
-      button('Next','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
+      button('Show Previous','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
+      button('Show Next','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
       '</div>';
     return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
       viewNav + calBody +
