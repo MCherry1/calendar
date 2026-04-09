@@ -937,28 +937,49 @@ export type StarData = {
 };
 
 export function generateStarField(width: number, height: number, worldId: string, topMargin: number, bottomMargin: number): StarData[] {
-  var altMax = 75; // matches PANO_ALT_MAX
+  var altMax = 75;
   var stars: StarData[] = [];
-  var total = 1400; // more stars for full 360° sky
+  // Tier distribution: 35 bright field, 315 dim field = 350 total
+  // (Constellation stars are handled separately)
   var brightCount = 35;
-  var medCount = 140;
-  var colors: [number, number, number][] = [
-    [255, 247, 225], // warm white
-    [200, 220, 255], // cool blue
-    [255, 230, 200], // warm orange
-    [180, 200, 255], // blue
-    [255, 255, 240], // neutral
+  var total = 350;
+
+  // Bright field colors: standard stellar distribution
+  var brightColors: [number, number, number][] = [
+    [200, 220, 255],  // blue-white (40%)
+    [255, 250, 240],  // white (30%)
+    [255, 235, 200],  // yellow (20%)
+    [255, 210, 170],  // orange (10%)
   ];
-  for (var i = 0; i < total; i++){
-    var tier = i < brightCount ? 0 : i < brightCount + medCount ? 1 : 2;
+  var brightWeights = [0.4, 0.7, 0.9, 1.0]; // cumulative
+
+  // Dim field colors: narrow cool range
+  var dimColors: [number, number, number][] = [
+    [200, 210, 230],
+    [190, 200, 225],
+    [180, 195, 220],
+  ];
+
+  for (var i = 0; i < total; i++) {
+    var isBright = i < brightCount;
+    var tier = isBright ? 1 : 2; // tier 0 is reserved for constellation stars
     var seed = _h(i + ':star:' + worldId);
     var az = _h('sx:' + i + ':' + worldId) * 360;
-    var alt = _h('sy:' + i + ':' + worldId) * altMax;
-    var ci = Math.floor(_h('sc:' + i + ':' + worldId) * colors.length);
-    var col = colors[ci];
-    var size = tier === 0 ? 1.5 + seed * 1.5 : tier === 1 ? 0.8 + seed * 0.7 : 0.3 + seed * 0.5;
-    var baseAlpha = tier === 0 ? 0.7 + seed * 0.3 : tier === 1 ? 0.3 + seed * 0.35 : 0.08 + seed * 0.18;
-    var twinkleFreq = tier === 0 ? 2 + seed * 2 : tier === 1 ? 4 + seed * 5 : 6 + seed * 8;
+    // Cosine-weighted declination for uniform sphere distribution
+    var alt = Math.asin(_h('sy:' + i + ':' + worldId)) * (180 / Math.PI);
+    alt = Math.abs(alt) * (altMax / 90); // remap to 0..altMax
+    var col: [number, number, number];
+    if (isBright) {
+      var cw = _h('sc:' + i + ':' + worldId);
+      var ci = 0;
+      while (ci < brightWeights.length - 1 && cw > brightWeights[ci]) ci++;
+      col = brightColors[ci];
+    } else {
+      col = dimColors[Math.floor(_h('sc:' + i + ':' + worldId) * dimColors.length)];
+    }
+    var size = isBright ? (1.0 + seed * 1.0) : (0.3 + seed * 0.5);
+    var baseAlpha = isBright ? (0.3 + seed * 0.35) : (0.08 + seed * 0.18);
+    var twinkleFreq = isBright ? (4 + seed * 5) : (6 + seed * 8);
     var twinklePhase = _h('sp:' + i + ':' + worldId) * Math.PI * 2;
     stars.push({ az, alt, size, r: col[0], g: col[1], b: col[2], baseAlpha, twinkleFreq, twinklePhase, tier });
   }

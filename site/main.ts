@@ -7,7 +7,7 @@ import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
 import { clearTextureCache, getMoonTexture } from './sky-textures.js';
 import { getMoonOrbitalData } from '../src/showcase/solar-system-data.js';
-import { initSkyRenderer, renderSkyFrame, getMoonScreenPositions, disposeSkyRenderer } from './sky-renderer.js';
+import { initSkyRenderer, renderSkyFrame, getMoonScreenPositions, disposeSkyRenderer, getConstellationScreenData, setHoveredConstellation, setLandscapeMode } from './sky-renderer.js';
 
 
 type ShowcaseState = {
@@ -50,6 +50,7 @@ var timeLabel = _must<HTMLOutputElement>('hero-time-label');
 var playToggle = _must<HTMLButtonElement>('play-toggle');
 var speedSelect = _must<HTMLSelectElement>('hero-speed');
 var lunarSizeSelect = _must<HTMLSelectElement>('hero-lunar-size');
+var landscapeSelect = _must<HTMLSelectElement>('hero-landscape');
 var planarPlayToggle = document.getElementById('planar-play-toggle') as HTMLButtonElement | null;
 var planarSpeedSelect = document.getElementById('planar-speed') as HTMLSelectElement | null;
 var planarTimeJoystick = document.getElementById('planar-time-joystick') as HTMLButtonElement | null;
@@ -94,6 +95,11 @@ try {
   _renderCalendarGallery();
   _syncControlsFromState();
   _drawSolarSystem(state.worldId);
+  // Landscape mode from URL
+  var _initUrl = new URL(window.location.href);
+  var _initLandscape = _initUrl.searchParams.get('landscape') || 'farmstead';
+  setLandscapeMode(_initLandscape);
+  landscapeSelect.value = _initLandscape;
 } catch (err) {
   console.error('Showcase init error:', err);
 }
@@ -181,6 +187,10 @@ function _bindEvents(){
   lunarSizeSelect.addEventListener('change', function(){
     state.lunarSizeMode = _normalizeLunarSizeMode(lunarSizeSelect.value);
     _syncControlsFromState();
+    _attemptRender(true, true, performance.now());
+  });
+  landscapeSelect.addEventListener('change', function(){
+    setLandscapeMode(landscapeSelect.value);
     _attemptRender(true, true, performance.now());
   });
   if (planarSpeedSelect) {
@@ -318,9 +328,31 @@ function _updateMoonHoverCursor(e: MouseEvent){
   if (!coords) return;
   var rect = canvas.getBoundingClientRect();
   // Only if mouse is over the canvas
-  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+  if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+    setHoveredConstellation(-1);
+    return;
+  }
   var hit = _hitTestMoon(coords.cx, coords.cy);
-  canvas.style.cursor = hit ? 'pointer' : 'default';
+
+  // Constellation hover
+  var localX = coords.cx;
+  var localY = coords.cy;
+  var constellationData = getConstellationScreenData();
+  var hoveredConstellation = -1;
+  for (var cdi = 0; cdi < constellationData.length; cdi++) {
+    var cd = constellationData[cdi];
+    if (!cd.visible) continue;
+    for (var csi = 0; csi < cd.stars.length; csi++) {
+      var cs = cd.stars[csi];
+      if (!cs.visible) continue;
+      var cdist = Math.hypot(localX - cs.x, localY - cs.y);
+      if (cdist < 12) { hoveredConstellation = cdi; break; }
+    }
+    if (hoveredConstellation >= 0) break;
+  }
+  setHoveredConstellation(hoveredConstellation);
+
+  canvas.style.cursor = hit ? 'pointer' : (hoveredConstellation >= 0 ? 'help' : 'default');
 }
 
 var skyTooltip: HTMLElement | null = null;
@@ -1671,6 +1703,7 @@ function _updateUrl(){
   next.searchParams.set('date', dateParam);
   next.searchParams.set('time', String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0'));
   next.searchParams.set('lunarSize', state.lunarSizeMode);
+  next.searchParams.set('landscape', landscapeSelect.value);
   if (Math.abs(state.viewCenterAz - 180) > 0.5) next.searchParams.set('viewAz', state.viewCenterAz.toFixed(1));
   else next.searchParams.delete('viewAz');
   if (Math.abs(state.viewFovDeg - 200) > 0.5) next.searchParams.set('viewFov', state.viewFovDeg.toFixed(1));

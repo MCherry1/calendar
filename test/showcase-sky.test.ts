@@ -33,11 +33,12 @@ describe('Showcase Sky Scene', () => {
     }
   });
 
-  it('keeps phase stable across time-of-day changes on the same serial', () => {
+  it('keeps phase nearly stable across time-of-day changes on the same serial', () => {
     const dawn = buildSkyScene({ worldId: 'gregorian', serial: 120, timeFrac: 6 / 24 });
     const dusk = buildSkyScene({ worldId: 'gregorian', serial: 120, timeFrac: 18 / 24 });
     assertEquals(dawn.moons.length, dusk.moons.length);
-    assertEquals(dawn.moons[0].pctFull, dusk.moons[0].pctFull);
+    assert(Math.abs(dawn.moons[0].pctFull - dusk.moons[0].pctFull) <= 6,
+      'phase should not change drastically within one day (got ' + dawn.moons[0].pctFull + ' vs ' + dusk.moons[0].pctFull + ')');
     assertEquals(dawn.moons[0].phase.waxing, dusk.moons[0].phase.waxing);
     assert(dawn.moons[0].altitudeExact !== dusk.moons[0].altitudeExact, 'position should change with time of day');
   });

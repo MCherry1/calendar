@@ -2,9 +2,12 @@
 // Renders a south-facing panoramic sky view (East to West) onto a plain <canvas>.
 import { getMoonTexture, generateStarField, generateMilkyWay, StarData, MilkyWayParticle } from './sky-textures.js';
 import type { SkyScene, SkySceneMoon } from '../src/showcase/sky-scene.js';
+import { EBERRON_CONSTELLATIONS, constellationCentroid } from './constellations.js';
+import type { Constellation, ConstellationStar } from './constellations.js';
 
 // ── Constants ──
-var LAND_FRAC = 0.12;
+var _landscapeMode = 'farmstead';
+function _landFrac(): number { return _landscapeMode === 'mountains' ? 0.18 : 0.12; }
 var SKY_AZ_MIN = 81;          // East edge (90° - 5% padding)
 var SKY_AZ_MAX = 279;         // West edge (270° + 5% padding)
 var SKY_AZ_RANGE = SKY_AZ_MAX - SKY_AZ_MIN; // 198°
@@ -26,6 +29,24 @@ var _milkyWayData: MilkyWayParticle[] | null = null;
 // Clouds
 var _cloudSeeds: { az: number; alt: number; rx: number; ry: number; alpha: number; speed: number }[] = [];
 
+// Constellation projected positions (rebuilt each frame)
+var _constellationScreenData: {
+  name: string;
+  domain: string;
+  stars: { x: number; y: number; bright: boolean; visible: boolean }[];
+  lines: [number, number][];
+  labelX: number;
+  labelY: number;
+  visible: boolean;
+}[] = [];
+
+// Shooting star state
+var _shootingStar: { x: number; y: number; dx: number; dy: number; life: number; maxLife: number } | null = null;
+var _lastShootingStarTime = 0;
+
+// Which constellation is currently hovered (index in EBERRON_CONSTELLATIONS); -1 = none
+var _hoveredConstellationIndex = -1;
+
 // Moon screen positions (for click/hover detection)
 var _moonScreenPositions: { name: string; x: number; y: number; radius: number; moon: any }[] = [];
 
@@ -33,19 +54,16 @@ var _moonScreenPositions: { name: string; x: number; y: number; radius: number; 
 // Convert (azimuth°, altitude°) → canvas (x, y).
 // Azimuth 90 = E (left edge), 180 = S (centre), 270 = W (right edge).
 function _azAltToXY(azDeg: number, altDeg: number, w: number, h: number): { x: number; y: number } {
-  var skyH = h * (1 - LAND_FRAC);
+  var skyH = h * (1 - _landFrac());
   var az = ((azDeg - SKY_AZ_MIN) % 360 + 360) % 360;
-  // Cosine-corrected azimuth: compress horizontal extent at high altitudes
-  // This gives uniform angular width across the arc (no funhouse stretching)
-  var azCenter = az - SKY_AZ_RANGE / 2;
-  var alt = Math.max(-5, Math.min(PANO_ALT_MAX, altDeg));
-  var cosAlt = Math.cos(Math.max(0, alt) * DEG2RAD);
-  var x = w / 2 + (azCenter / (SKY_AZ_RANGE / 2)) * (w / 2) * cosAlt;
-  // Power-curve altitude compression
-  var altNorm = Math.max(0, alt / PANO_ALT_MAX);
-  var y = skyH * (1 - Math.pow(altNorm, 0.85));
+  var x = (az / SKY_AZ_RANGE) * w;
+  var alt = Math.max(0, Math.min(PANO_ALT_MAX, altDeg));
+  var y = skyH * (1 - alt / PANO_ALT_MAX);
   return { x, y };
 }
+
+function _snapHalf(v: number): number { return Math.round(v * 2) / 2; }
+function _snapInt(v: number): number { return Math.round(v); }
 
 function _smoothstep(edge0: number, edge1: number, x: number): number {
   var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -54,7 +72,7 @@ function _smoothstep(edge0: number, edge1: number, x: number): number {
 
 function _moonRadiusPx(angularDiameterDeg: number, mode: string, canvasH: number): number {
   if (mode === 'true') {
-    var skyH = canvasH * (1 - LAND_FRAC);
+    var skyH = canvasH * (1 - _landFrac());
     var pxPerDegree = skyH / PANO_ALT_MAX;
     return Math.max(0.5, (Math.max(0, angularDiameterDeg) * pxPerDegree) / 2);
   }
@@ -95,38 +113,43 @@ var _sunsetDeep = [204, 64, 31];
 // ── Initialization ──
 export function initSkyRenderer(canvas: HTMLCanvasElement): void {
   _canvas = canvas;
-  // DPI scaling for crisp text on Retina displays
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var dpr = Math.min(window.devicePixelRatio || 1, 3);
   _logicalW = canvas.clientWidth || canvas.width;
   _logicalH = canvas.clientHeight || canvas.height;
-  canvas.width = _logicalW * dpr;
-  canvas.height = _logicalH * dpr;
+  // Minimum backing resolution: 1680×945 prevents upscale fuzz on small viewports
+  var backingW = Math.max(1680, _logicalW * dpr);
+  var backingH = Math.max(945, _logicalH * dpr);
+  var effectiveScale = backingW / _logicalW;
+  canvas.width = backingW;
+  canvas.height = backingH;
   canvas.style.width = _logicalW + 'px';
   canvas.style.height = _logicalH + 'px';
   _ctx = canvas.getContext('2d')!;
-  _ctx.scale(dpr, dpr);
+  _ctx.scale(effectiveScale, effectiveScale);
   _initCloudSeeds();
-  // Re-scale canvas on window resize (mobile orientation changes, etc.)
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(function() {
       if (!_canvas) return;
-      var d = Math.min(window.devicePixelRatio || 1, 2);
+      var d = Math.min(window.devicePixelRatio || 1, 3);
       var newW = _canvas.clientWidth || 1120;
       var newH = _canvas.clientHeight || 630;
       if (newW === _logicalW && newH === _logicalH) return;
       _logicalW = newW;
       _logicalH = newH;
-      _canvas.width = _logicalW * d;
-      _canvas.height = _logicalH * d;
+      var bW = Math.max(1680, _logicalW * d);
+      var bH = Math.max(945, _logicalH * d);
+      var s = bW / _logicalW;
+      _canvas.width = bW;
+      _canvas.height = bH;
       _ctx = _canvas.getContext('2d')!;
-      _ctx.scale(d, d);
+      _ctx.scale(s, s);
     }).observe(canvas);
   }
 }
 
 // ── Sky background ──
 function _drawSkyGradient(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number, sunAz: number) {
-  var skyH = h * (1 - LAND_FRAC);
+  var skyH = h * (1 - _landFrac());
   var nightFade = _smoothstep(-18, -6, sunAlt);   // 0 deep night → 1 twilight edge
   var dayFade = _smoothstep(0, 12, sunAlt);        // 0 twilight → 1 full day
   var twilightFade = _smoothstep(-6, 0, sunAlt);   // 0 → 1 through sunrise/set band
@@ -194,74 +217,276 @@ function _drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt:
   var starAlpha = 1 - _smoothstep(-12, 6, sunAlt);
   if (starAlpha < 0.01) return;
   _ensureStars(worldId);
-  var skyH = h * (1 - LAND_FRAC);
+  var skyH = h * (1 - _landFrac());
   var latRad = observerLat * DEG2RAD;
-  var haOffset = timeFrac * 360; // hour-angle rotation from time of day
+  var haOffset = timeFrac * 360;
 
-  // Milky Way (draw first, behind stars)
+  // ── Atmospheric extinction: objects near horizon are dimmer and redder ──
+  function _extinction(altDeg: number): { dimming: number; redShift: number } {
+    var t = _smoothstep(0, 25, altDeg); // 0 at horizon, 1 above 25°
+    return { dimming: 0.3 + 0.7 * t, redShift: 1 - t }; // dimming: 30%-100%, redShift: 1 at horizon, 0 overhead
+  }
+
+  function _applyRedShift(r: number, g: number, b: number, shift: number): [number, number, number] {
+    return [
+      Math.min(255, r + shift * 40),
+      Math.max(0, g - shift * 20),
+      Math.max(0, b - shift * 40)
+    ];
+  }
+
+  // ── Constellation stars (tier 0) — Eberron only ──
+  var constellations = worldId === 'eberron' ? EBERRON_CONSTELLATIONS : [];
+  _constellationScreenData = [];
+
+  for (var ci = 0; ci < constellations.length; ci++) {
+    var constellation = constellations[ci];
+    var screenStars: { x: number; y: number; bright: boolean; visible: boolean }[] = [];
+    var anyVisible = false;
+
+    for (var si = 0; si < constellation.stars.length; si++) {
+      var star = constellation.stars[si];
+      var hz = _celestialToHorizon(star.ra, star.dec, latRad, haOffset);
+      if (!hz) {
+        screenStars.push({ x: 0, y: 0, bright: star.bright, visible: false });
+        continue;
+      }
+      var azNorm = ((hz.az - SKY_AZ_MIN) % 360 + 360) % 360;
+      if (azNorm > SKY_AZ_RANGE + 5) {
+        screenStars.push({ x: 0, y: 0, bright: star.bright, visible: false });
+        continue;
+      }
+      var pos = _azAltToXY(hz.az, hz.alt, w, h);
+      if (pos.y > skyH) {
+        screenStars.push({ x: 0, y: 0, bright: star.bright, visible: false });
+        continue;
+      }
+      var ext = _extinction(hz.alt);
+      var tint = constellation.tint;
+      var shifted = _applyRedShift(tint[0], tint[1], tint[2], ext.redShift);
+      var sx = _snapHalf(pos.x);
+      var sy = _snapHalf(pos.y);
+      screenStars.push({ x: sx, y: sy, bright: star.bright, visible: true });
+      anyVisible = true;
+
+      var baseSize = star.bright ? 2.2 : 1.4;
+      var baseA = (star.bright ? 0.85 : 0.6) * starAlpha * ext.dimming;
+      // Very slow, low-amplitude twinkle — constellation stars are steady
+      var twinkle = Math.sin(timeFrac * 2 * Math.PI * 1.5 + _hash('ctwinkle:' + ci + ':' + si) * Math.PI * 2);
+      baseA *= (1 + twinkle * 0.05);
+
+      if (baseA < 0.01) continue;
+
+      // Star dot
+      ctx.globalAlpha = baseA;
+      ctx.fillStyle = 'rgb(' + Math.round(shifted[0]) + ',' + Math.round(shifted[1]) + ',' + Math.round(shifted[2]) + ')';
+      ctx.beginPath();
+      ctx.arc(sx, sy, baseSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Halo
+      var haloR = baseSize * 4;
+      var haloGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, haloR);
+      haloGrad.addColorStop(0, 'rgba(' + Math.round(shifted[0]) + ',' + Math.round(shifted[1]) + ',' + Math.round(shifted[2]) + ',' + (baseA * 0.3) + ')');
+      haloGrad.addColorStop(0.3, 'rgba(' + Math.round(shifted[0]) + ',' + Math.round(shifted[1]) + ',' + Math.round(shifted[2]) + ',' + (baseA * 0.12) + ')');
+      haloGrad.addColorStop(0.6, 'rgba(' + Math.round(shifted[0]) + ',' + Math.round(shifted[1]) + ',' + Math.round(shifted[2]) + ',' + (baseA * 0.03) + ')');
+      haloGrad.addColorStop(1, 'rgba(' + Math.round(shifted[0]) + ',' + Math.round(shifted[1]) + ',' + Math.round(shifted[2]) + ',0)');
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(sx, sy, haloR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Diffraction cross on bright/alpha stars
+      if (star.bright) {
+        var crossLen = baseSize * 3;
+        var crossA = baseA * 0.25;
+        ctx.strokeStyle = 'rgba(' + Math.round(shifted[0]) + ',' + Math.round(shifted[1]) + ',' + Math.round(shifted[2]) + ',' + crossA + ')';
+        ctx.lineWidth = 0.8;
+        var ix = _snapInt(sx);
+        var iy = _snapInt(sy);
+        ctx.beginPath();
+        ctx.moveTo(ix - crossLen, iy); ctx.lineTo(ix + crossLen, iy);
+        ctx.moveTo(ix, iy - crossLen); ctx.lineTo(ix, iy + crossLen);
+        ctx.stroke();
+      }
+    }
+
+    // Constellation label position
+    var centroid = constellationCentroid(constellation);
+    var chz = _celestialToHorizon(centroid.ra, centroid.dec, latRad, haOffset);
+    var labelX = 0, labelY = 0, labelVisible = false;
+    if (chz) {
+      var cazNorm = ((chz.az - SKY_AZ_MIN) % 360 + 360) % 360;
+      if (cazNorm <= SKY_AZ_RANGE + 5) {
+        var lPos = _azAltToXY(chz.az, chz.alt, w, h);
+        if (lPos.y <= skyH) {
+          labelX = lPos.x;
+          labelY = lPos.y;
+          labelVisible = true;
+        }
+      }
+    }
+
+    // Draw label (always visible when constellation is above horizon)
+    if (labelVisible && anyVisible) {
+      ctx.globalAlpha = starAlpha * 0.55;
+      ctx.fillStyle = 'rgba(' + constellation.tint[0] + ',' + constellation.tint[1] + ',' + constellation.tint[2] + ',0.8)';
+      ctx.font = '11px "Trebuchet MS", "Gill Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(constellation.name, labelX, labelY + 4);
+    }
+
+    _constellationScreenData.push({
+      name: constellation.name,
+      domain: constellation.domain,
+      stars: screenStars,
+      lines: constellation.lines,
+      labelX: labelX,
+      labelY: labelY,
+      visible: anyVisible && labelVisible
+    });
+  }
+
+  // ── Milky Way (non-Eberron only) ──
   if (_milkyWayData && worldId !== 'eberron') {
     for (var mi = 0; mi < _milkyWayData.length; mi++) {
       var mp = _milkyWayData[mi];
       var mhz = _celestialToHorizon(mp.az, mp.alt, latRad, haOffset);
       if (!mhz) continue;
-      // Skip stars outside our view range
       var mAzNorm = ((mhz.az - SKY_AZ_MIN) % 360 + 360) % 360;
       if (mAzNorm > SKY_AZ_RANGE + 5) continue;
-      var pos = _azAltToXY(mhz.az, mhz.alt, w, h);
-      if (pos.y > skyH) continue;
+      var mpos = _azAltToXY(mhz.az, mhz.alt, w, h);
+      if (mpos.y > skyH) continue;
       var mwA = mp.alpha * 0.3 * starAlpha;
       if (mwA < 0.005) continue;
       ctx.globalAlpha = mwA;
       ctx.fillStyle = 'rgb(219,214,199)';
       var sz = mp.size * 1.5;
-      ctx.fillRect(pos.x - sz / 2, pos.y - sz / 2, sz, sz);
+      ctx.fillRect(mpos.x - sz / 2, mpos.y - sz / 2, sz, sz);
     }
   }
 
-  // Stars — treat star.az as RA (celestial longitude) and star.alt as declination
+  // ── Field stars (tiers 1 and 2) ──
   if (_starData) {
     for (var i = 0; i < _starData.length; i++) {
       var s = _starData[i];
-      var hz = _celestialToHorizon(s.az, s.alt, latRad, haOffset);
-      if (!hz) continue;
-      // Skip stars outside our view range
-      var azNorm = ((hz.az - SKY_AZ_MIN) % 360 + 360) % 360;
-      if (azNorm > SKY_AZ_RANGE + 5) continue;
-      var pos = _azAltToXY(hz.az, hz.alt, w, h);
-      if (pos.y > skyH) continue;
-      // Twinkle
-      var twinkle = Math.sin(timeFrac * 6.28318 * s.twinkleFreq + s.twinklePhase);
-      var amp = s.tier === 0 ? 0.25 : s.tier === 1 ? 0.15 : 0.08;
-      var alpha = Math.max(0, s.baseAlpha + twinkle * amp) * starAlpha;
+      var shz = _celestialToHorizon(s.az, s.alt, latRad, haOffset);
+      if (!shz) continue;
+      var sAzNorm = ((shz.az - SKY_AZ_MIN) % 360 + 360) % 360;
+      if (sAzNorm > SKY_AZ_RANGE + 5) continue;
+      var spos = _azAltToXY(shz.az, shz.alt, w, h);
+      if (spos.y > skyH) continue;
+      var sExt = _extinction(shz.alt);
+      // Altitude-dependent twinkle: more aggressive near horizon
+      var horizonBoost = 1 + (1 - _smoothstep(0, 15, shz.alt)) * 1.5;
+      var twinkleVal = Math.sin(timeFrac * 6.28318 * s.twinkleFreq + s.twinklePhase);
+      var amp = s.tier === 1 ? 0.15 : 0.1;
+      var alpha = Math.max(0, s.baseAlpha + twinkleVal * amp * horizonBoost) * starAlpha * sExt.dimming;
       if (alpha < 0.01) continue;
+      var sShifted = _applyRedShift(s.r, s.g, s.b, sExt.redShift);
+      var fsx = _snapHalf(spos.x);
+      var fsy = _snapHalf(spos.y);
       ctx.globalAlpha = alpha;
-      if (s.tier === 0) {
-        // Bright stars: circle + soft glow
-        ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
+      if (s.tier === 1) {
+        // Bright field: circle + soft halo
+        ctx.fillStyle = 'rgba(' + Math.round(sShifted[0]) + ',' + Math.round(sShifted[1]) + ',' + Math.round(sShifted[2]) + ',' + alpha + ')';
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, s.size, 0, Math.PI * 2);
+        ctx.arc(fsx, fsy, s.size, 0, Math.PI * 2);
         ctx.fill();
-        var halo = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, s.size * 3);
-        halo.addColorStop(0, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + (alpha * 0.15) + ')');
-        halo.addColorStop(1, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',0)');
-        ctx.fillStyle = halo;
+        var fhalo = ctx.createRadialGradient(fsx, fsy, 0, fsx, fsy, s.size * 3);
+        fhalo.addColorStop(0, 'rgba(' + Math.round(sShifted[0]) + ',' + Math.round(sShifted[1]) + ',' + Math.round(sShifted[2]) + ',' + (alpha * 0.12) + ')');
+        fhalo.addColorStop(1, 'rgba(' + Math.round(sShifted[0]) + ',' + Math.round(sShifted[1]) + ',' + Math.round(sShifted[2]) + ',0)');
+        ctx.fillStyle = fhalo;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, s.size * 3, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (s.tier === 1) {
-        // Medium: circle
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, s.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
+        ctx.arc(fsx, fsy, s.size * 3, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        // Dim: pixel
-        ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
-        ctx.fillRect(pos.x, pos.y, s.size * 2, s.size * 2);
+        // Dim field: small circle (not rectangle — rectangles alias badly)
+        ctx.beginPath();
+        ctx.arc(fsx, fsy, Math.max(0.4, s.size), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + Math.round(sShifted[0]) + ',' + Math.round(sShifted[1]) + ',' + Math.round(sShifted[2]) + ',' + alpha + ')';
+        ctx.fill();
       }
     }
   }
+
+  // ── Shooting stars (dragonshard fragments from the Ring) ──
+  if (worldId === 'eberron' && sunAlt < -6) {
+    _updateShootingStar(ctx, w, skyH, starAlpha, timeFrac);
+  }
+
   ctx.globalAlpha = 1;
+}
+
+function _updateShootingStar(ctx: CanvasRenderingContext2D, w: number, skyH: number, starAlpha: number, timeFrac: number) {
+  // Spawn check: roughly every 40-80 seconds of real time (not game time)
+  // Use performance.now() for wall-clock timing
+  var wallNow = typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+  if (!_shootingStar && wallNow - _lastShootingStarTime > 40 + Math.random() * 40) {
+    _lastShootingStarTime = wallNow;
+    var startX = Math.random() * w;
+    var startY = Math.random() * skyH * 0.7;
+    var angle = (Math.random() * 60 + 60) * DEG2RAD; // 60-120° from horizontal
+    var speed = 4 + Math.random() * 6;
+    _shootingStar = {
+      x: startX, y: startY,
+      dx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
+      dy: Math.sin(angle) * speed,
+      life: 0, maxLife: 8 + Math.random() * 6  // 8-14 frames
+    };
+  }
+  if (_shootingStar) {
+    var ss = _shootingStar;
+    var progress = ss.life / ss.maxLife;
+    var fadeIn = Math.min(1, ss.life / 2);
+    var fadeOut = Math.max(0, 1 - (ss.life - ss.maxLife + 3) / 3);
+    var alpha = fadeIn * fadeOut * starAlpha * 0.9;
+    if (alpha > 0.01) {
+      var tailLen = 15 + progress * 20;
+      var grad = ctx.createLinearGradient(
+        ss.x, ss.y,
+        ss.x - ss.dx * tailLen / Math.hypot(ss.dx, ss.dy),
+        ss.y - ss.dy * tailLen / Math.hypot(ss.dx, ss.dy)
+      );
+      grad.addColorStop(0, 'rgba(255, 245, 200, ' + alpha + ')');
+      grad.addColorStop(1, 'rgba(255, 237, 178, 0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ss.x, ss.y);
+      ctx.lineTo(
+        ss.x - ss.dx * tailLen / Math.hypot(ss.dx, ss.dy),
+        ss.y - ss.dy * tailLen / Math.hypot(ss.dx, ss.dy)
+      );
+      ctx.stroke();
+    }
+    ss.x += ss.dx;
+    ss.y += ss.dy;
+    ss.life++;
+    if (ss.life >= ss.maxLife || ss.x < -20 || ss.x > w + 20 || ss.y > skyH || ss.y < -20) {
+      _shootingStar = null;
+    }
+  }
+}
+
+function _drawConstellationLines(ctx: CanvasRenderingContext2D, hoveredIndex: number, starAlpha: number): void {
+  if (hoveredIndex < 0 || hoveredIndex >= _constellationScreenData.length) return;
+  var cd = _constellationScreenData[hoveredIndex];
+  if (!cd.visible) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(232, 203, 118, 0.20)'; // warm gold matching Ring of Siberys
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = starAlpha;
+  for (var li = 0; li < cd.lines.length; li++) {
+    var a = cd.stars[cd.lines[li][0]];
+    var b = cd.stars[cd.lines[li][1]];
+    if (!a.visible || !b.visible) continue;
+    ctx.beginPath();
+    ctx.moveTo(_snapInt(a.x), _snapInt(a.y));
+    ctx.lineTo(_snapInt(b.x), _snapInt(b.y));
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // ── Sun ──
@@ -402,10 +627,13 @@ function _drawMoons(ctx: CanvasRenderingContext2D, w: number, h: number, scene: 
     var moon = visible[vi];
     var radiusPx = _moonRadiusPx(moon.angularDiameterDeg, lunarSizeMode, h);
     var pos = _azAltToXY(moon.azimuth, moon.altitudeExact, w, h);
+    // Atmospheric extinction
+    var moonExt = _smoothstep(0, 25, moon.altitudeExact);
+    var moonExtDimming = 0.3 + 0.7 * moonExt;
     var color = moon.color || '#d8dee7';
 
     ctx.save();
-    ctx.globalAlpha = moonDimming;
+    ctx.globalAlpha = moonDimming * moonExtDimming;
     _drawMoonDisk(ctx, pos.x, pos.y, radiusPx, color, moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12), moon.name, timeFrac);
     ctx.restore();
 
@@ -415,7 +643,9 @@ function _drawMoons(ctx: CanvasRenderingContext2D, w: number, h: number, scene: 
       ctx.fillStyle = 'rgba(247,242,232,0.9)';
       ctx.font = '13px "Trebuchet MS", "Gill Sans", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(moon.name, pos.x, pos.y + radiusPx + 14);
+      // Flip label above moon when near horizon to avoid landscape overlap
+      var labelOffset = moon.altitudeExact < 12 ? -(radiusPx + 14) : (radiusPx + 14);
+      ctx.fillText(moon.name, pos.x, pos.y + labelOffset);
       ctx.globalAlpha = 1;
     }
 
@@ -438,7 +668,8 @@ function _drawSiberysRing(ctx: CanvasRenderingContext2D, w: number, h: number, o
     var sinAlt = Math.cos(lat) * Math.cos(H);
     var altRad = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
     var altDeg = altRad / DEG2RAD;
-    if (altDeg < 0) continue; // only skip below horizon
+    if (altDeg < -halfWidthDeg) continue; // skip only if entirely below horizon
+    altDeg = Math.max(0, altDeg); // clamp center to horizon; outer edge still visible
 
     var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
     var azDeg = ((azRaw / DEG2RAD) + 180 + 360) % 360;
@@ -532,7 +763,7 @@ function _drawSiberysRing(ctx: CanvasRenderingContext2D, w: number, h: number, o
     var pH = (angle - 180) * DEG2RAD;
     var pSinAlt = Math.cos(lat) * Math.cos(pH);
     var pAltDeg = Math.asin(Math.max(-1, Math.min(1, pSinAlt))) / DEG2RAD;
-    if (pAltDeg < 0) continue;
+    if (pAltDeg < -halfWidthDeg) continue;
     var pAzRaw = Math.atan2(Math.sin(pH), Math.cos(pH) * Math.sin(lat));
     var pAzDeg = ((pAzRaw / DEG2RAD) + 180 + 360) % 360;
     // Interpolate between inner and outer ring edges
@@ -573,9 +804,20 @@ function _drawSiberysRing(ctx: CanvasRenderingContext2D, w: number, h: number, o
   ctx.restore();
 }
 
-// ── Landscape with farmstead ──
+// ── Landscape dispatcher ──
 function _drawLandscape(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number) {
-  var skyH = h * (1 - LAND_FRAC);
+  switch (_landscapeMode) {
+    case 'forest': _drawForest(ctx, w, h, sunAlt); break;
+    case 'village': _drawVillage(ctx, w, h, sunAlt); break;
+    case 'lakeside': _drawLakeside(ctx, w, h, sunAlt); break;
+    case 'mountains': _drawMountains(ctx, w, h, sunAlt); break;
+    default: _drawFarmstead(ctx, w, h, sunAlt); break;
+  }
+}
+
+// ── Landscape: farmstead ──
+function _drawFarmstead(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number) {
+  var skyH = h * (1 - _landFrac());
   var landH = h - skyH;
 
   var isDark = sunAlt < 0;
@@ -705,24 +947,417 @@ function _drawLandscape(ctx: CanvasRenderingContext2D, w: number, h: number, sun
   ctx.fillRect(0, h - 8, w, 8);
 }
 
+// ── Landscape: forest ──
+function _drawForest(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number) {
+  var skyH = h * (1 - _landFrac());
+  var landH = h - skyH;
+  var isDark = sunAlt < 0;
+  var backColor = isDark ? '#070b14' : '#0c1620';
+  var midColor = isDark ? '#050912' : '#081420';
+  var frontColor = isDark ? '#030710' : '#060e18';
+
+  // Fill the forest floor area
+  ctx.fillStyle = backColor;
+  ctx.fillRect(0, skyH + landH * 0.15, w, landH);
+
+  // Helper: draw a single conifer
+  function _tree(cx: number, baseY: number, th: number, color: string) {
+    ctx.fillStyle = color;
+    // Two-tier triangle silhouette for conifer shape
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY - th);
+    ctx.lineTo(cx - th * 0.28, baseY - th * 0.55);
+    ctx.lineTo(cx - th * 0.18, baseY - th * 0.55);
+    ctx.lineTo(cx - th * 0.4, baseY);
+    ctx.lineTo(cx + th * 0.4, baseY);
+    ctx.lineTo(cx + th * 0.18, baseY - th * 0.55);
+    ctx.lineTo(cx + th * 0.28, baseY - th * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    // Trunk
+    ctx.fillRect(cx - 1.5, baseY, 3, 4);
+  }
+
+  // ── Back row: tall trees ──
+  var gapX = w * 0.40;
+  var gapW = 30;
+  for (var bi = 0; bi < 26; bi++) {
+    var bx = (bi / 26) * w + _hash('ftb:' + bi) * 18 - 9;
+    // Leave a path gap
+    if (Math.abs(bx - gapX) < gapW) continue;
+    var bth = 38 + _hash('ftbh:' + bi) * 18;
+    var bby = skyH + landH * 0.22 + _hash('ftbby:' + bi) * 6;
+    _tree(bx, bby, bth, backColor);
+  }
+
+  // ── Mid row: medium trees ──
+  for (var mi2 = 0; mi2 < 22; mi2++) {
+    var mx = (mi2 / 22) * w + _hash('ftm:' + mi2) * 22 - 11;
+    if (Math.abs(mx - gapX) < gapW * 0.7) continue;
+    var mth = 26 + _hash('ftmh:' + mi2) * 14;
+    var mby = skyH + landH * 0.45 + _hash('ftmby:' + mi2) * 5;
+    _tree(mx, mby, mth, midColor);
+  }
+
+  // ── Front row: short trees / shrubs ──
+  for (var fi = 0; fi < 18; fi++) {
+    var fx = (fi / 18) * w + _hash('ftf:' + fi) * 30 - 15;
+    var fth = 14 + _hash('ftfh:' + fi) * 10;
+    var fby = skyH + landH * 0.72 + _hash('ftfby:' + fi) * 4;
+    _tree(fx, fby, fth, frontColor);
+  }
+
+  // Fill the very bottom solid
+  ctx.fillStyle = frontColor;
+  ctx.fillRect(0, h - 8, w, 8);
+}
+
+// ── Landscape: village ──
+function _drawVillage(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number) {
+  var skyH = h * (1 - _landFrac());
+  var landH = h - skyH;
+  var isDark = sunAlt < 0;
+  var backColor = isDark ? '#080c16' : '#0e1820';
+  var midColor = isDark ? '#060a12' : '#0a1418';
+  var frontColor = isDark ? '#040810' : '#080e14';
+
+  // ── Back ridge: low rolling hills ──
+  ctx.fillStyle = backColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH);
+  for (var x = 0; x <= w; x += 2) {
+    var t = x / w;
+    var ridge = Math.sin(t * Math.PI * 2.5 + 0.7) * 0.25 + Math.sin(t * Math.PI * 5.3 + 1.6) * 0.12;
+    var y = skyH + landH * (0.20 - ridge * 0.12);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Village buildings (clustered 35-65%) ──
+  ctx.fillStyle = midColor;
+  var buildings = [
+    { cx: 0.36, w: 22, h: 18, roof: 8 },
+    { cx: 0.44, w: 18, h: 14, roof: 7 },
+    { cx: 0.50, w: 24, h: 22, roof: 10 },
+    { cx: 0.58, w: 20, h: 16, roof: 7 },
+    { cx: 0.64, w: 16, h: 12, roof: 6 }
+  ];
+  var baseY = skyH + landH * 0.35;
+  for (var bi = 0; bi < buildings.length; bi++) {
+    var b = buildings[bi];
+    var cxp = w * b.cx;
+    ctx.fillRect(cxp - b.w / 2, baseY - b.h, b.w, b.h);
+    ctx.beginPath();
+    ctx.moveTo(cxp - b.w / 2 - 2, baseY - b.h);
+    ctx.lineTo(cxp, baseY - b.h - b.roof);
+    ctx.lineTo(cxp + b.w / 2 + 2, baseY - b.h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── Tall spire/tower at ~55% ──
+  var spireX = w * 0.55;
+  ctx.fillRect(spireX - 4, baseY - 38, 8, 38);
+  ctx.beginPath();
+  ctx.moveTo(spireX - 6, baseY - 38);
+  ctx.lineTo(spireX, baseY - 58);
+  ctx.lineTo(spireX + 6, baseY - 38);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Edge trees (2-3 per side) ──
+  ctx.fillStyle = frontColor;
+  var edgeTrees = [
+    { x: w * 0.08, h: 20 }, { x: w * 0.15, h: 16 }, { x: w * 0.22, h: 22 },
+    { x: w * 0.78, h: 18 }, { x: w * 0.86, h: 24 }, { x: w * 0.93, h: 16 }
+  ];
+  for (var ti = 0; ti < edgeTrees.length; ti++) {
+    var tr = edgeTrees[ti];
+    var tby = baseY + 2;
+    ctx.beginPath();
+    ctx.moveTo(tr.x, tby - tr.h);
+    ctx.lineTo(tr.x - tr.h * 0.3, tby);
+    ctx.lineTo(tr.x + tr.h * 0.3, tby);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(tr.x - 1.5, tby, 3, 4);
+  }
+
+  // ── Front ridge: low ──
+  ctx.fillStyle = frontColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH + landH * 0.55);
+  for (var x3 = 0; x3 <= w; x3 += 2) {
+    var t3 = x3 / w;
+    var r3 = Math.sin(t3 * Math.PI * 4.2 + 0.4) * 0.12 + Math.sin(t3 * Math.PI * 8.1 + 1.7) * 0.06;
+    ctx.lineTo(x3, skyH + landH * (0.55 + r3 * 0.1));
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Fence posts along bottom ──
+  ctx.strokeStyle = isDark ? '#0a0e18' : '#101820';
+  ctx.lineWidth = 1.5;
+  var fenceY = h - landH * 0.15;
+  ctx.beginPath(); ctx.moveTo(0, fenceY); ctx.lineTo(w, fenceY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, fenceY - 6); ctx.lineTo(w, fenceY - 6); ctx.stroke();
+  for (var fp = 0; fp < w; fp += 40) {
+    ctx.beginPath(); ctx.moveTo(fp, fenceY + 4); ctx.lineTo(fp, fenceY - 10); ctx.stroke();
+  }
+
+  ctx.fillStyle = frontColor;
+  ctx.fillRect(0, h - 8, w, 8);
+}
+
+// ── Landscape: lakeside ──
+function _drawLakeside(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number) {
+  var skyH = h * (1 - _landFrac());
+  var landH = h - skyH;
+  var isDark = sunAlt < 0;
+  var backColor = isDark ? '#080c16' : '#0e1820';
+  var midColor = isDark ? '#060a12' : '#0a1418';
+  var frontColor = isDark ? '#040810' : '#080e14';
+  var waterColor = isDark ? '#060912' : '#0a141c';
+
+  // Water center section 30%-70%
+  var waterLeft = w * 0.30;
+  var waterRight = w * 0.70;
+  var waterTopY = skyH + landH * 0.28;
+
+  // ── Back ridge (lower than farmstead), dips toward water ──
+  ctx.fillStyle = backColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH);
+  for (var x = 0; x <= w; x += 2) {
+    var t = x / w;
+    var ridge = Math.sin(t * Math.PI * 3.1 + 0.8) * 0.25 + Math.sin(t * Math.PI * 6.2 + 2.2) * 0.1;
+    var y = skyH + landH * (0.18 - ridge * 0.10);
+    // Flatten over water region
+    if (x >= waterLeft && x <= waterRight) {
+      var dip = _smoothstep(waterLeft, waterLeft + 40, x) * _smoothstep(waterRight, waterRight - 40, x);
+      y = y * (1 - dip) + waterTopY * dip;
+    }
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Water surface (flat rectangle, then front bank) ──
+  ctx.fillStyle = waterColor;
+  ctx.fillRect(waterLeft, waterTopY, waterRight - waterLeft, landH * 0.45);
+
+  // ── Reeds / cattails on each side of water ──
+  ctx.strokeStyle = frontColor;
+  ctx.lineWidth = 1.2;
+  ctx.fillStyle = frontColor;
+  function _reed(rx: number, baseY: number) {
+    ctx.beginPath();
+    ctx.moveTo(rx, baseY);
+    ctx.lineTo(rx, baseY - 12);
+    ctx.stroke();
+    // Oval cattail top
+    ctx.beginPath();
+    ctx.ellipse(rx, baseY - 14, 1.5, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (var lri = 0; lri < 10; lri++) {
+    _reed(waterLeft - 4 - lri * 6 - _hash('rlL:' + lri) * 3, waterTopY + 4 + _hash('rlLy:' + lri) * 3);
+  }
+  for (var rri = 0; rri < 10; rri++) {
+    _reed(waterRight + 4 + rri * 6 + _hash('rlR:' + rri) * 3, waterTopY + 4 + _hash('rlRy:' + rri) * 3);
+  }
+
+  // ── Dock silhouette at ~70% (on right bank, extending into water) ──
+  ctx.fillStyle = frontColor;
+  var dockBaseY = waterTopY + 2;
+  ctx.fillRect(w * 0.68, dockBaseY, 34, 3);
+  // Posts
+  ctx.fillRect(w * 0.68 + 2, dockBaseY, 2, 9);
+  ctx.fillRect(w * 0.68 + 28, dockBaseY, 2, 9);
+
+  // ── Front ridge (low rolling, skipped over water) ──
+  ctx.fillStyle = frontColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH + landH * 0.55);
+  for (var x3 = 0; x3 <= w; x3 += 2) {
+    var t3 = x3 / w;
+    var r3 = Math.sin(t3 * Math.PI * 5.7 + 0.3) * 0.2 + Math.sin(t3 * Math.PI * 9.2 + 2.1) * 0.1;
+    var y3 = skyH + landH * (0.55 + r3 * 0.12);
+    if (x3 >= waterLeft && x3 <= waterRight) y3 = waterTopY + landH * 0.38;
+    ctx.lineTo(x3, y3);
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = frontColor;
+  ctx.fillRect(0, h - 8, w, 8);
+}
+
+// ── Landscape: mountains ──
+function _drawMountains(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: number) {
+  var skyH = h * (1 - _landFrac());
+  var landH = h - skyH;
+  var isDark = sunAlt < 0;
+  var backColor = isDark ? '#080c16' : '#0e1820';
+  var midColor = isDark ? '#050911' : '#091218';
+  var frontColor = isDark ? '#030610' : '#060c12';
+
+  // ── Back ridge: jagged peaks, very tall ──
+  ctx.fillStyle = backColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH + landH);
+  // Construct peaks with deterministic jagged segments
+  var pts: [number, number][] = [];
+  pts.push([0, skyH + landH * 0.45]);
+  pts.push([w * 0.08, skyH + landH * 0.30]);
+  pts.push([w * 0.14, skyH + landH * 0.40]);
+  pts.push([w * 0.22, skyH + landH * 0.22]);
+  pts.push([w * 0.28, skyH + landH * 0.35]);
+  pts.push([w * 0.35, skyH + landH * 0.05]);   // dominant peak
+  pts.push([w * 0.42, skyH + landH * 0.32]);
+  pts.push([w * 0.48, skyH + landH * 0.22]);
+  pts.push([w * 0.55, skyH + landH * 0.40]);
+  pts.push([w * 0.60, skyH + landH * 0.28]);   // saddle/pass begin
+  pts.push([w * 0.66, skyH + landH * 0.44]);   // saddle bottom
+  pts.push([w * 0.72, skyH + landH * 0.20]);
+  pts.push([w * 0.80, skyH + landH * 0.30]);
+  pts.push([w * 0.86, skyH + landH * 0.18]);
+  pts.push([w * 0.93, skyH + landH * 0.36]);
+  pts.push([w, skyH + landH * 0.28]);
+  for (var pi = 0; pi < pts.length; pi++) ctx.lineTo(pts[pi][0], pts[pi][1]);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Mid ridge: smaller jagged peaks ──
+  ctx.fillStyle = midColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH + landH * 0.62);
+  var mpts: [number, number][] = [];
+  mpts.push([w * 0.05, skyH + landH * 0.55]);
+  mpts.push([w * 0.12, skyH + landH * 0.66]);
+  mpts.push([w * 0.20, skyH + landH * 0.48]);
+  mpts.push([w * 0.28, skyH + landH * 0.60]);
+  mpts.push([w * 0.36, skyH + landH * 0.52]);
+  mpts.push([w * 0.44, skyH + landH * 0.65]);
+  mpts.push([w * 0.52, skyH + landH * 0.50]);
+  mpts.push([w * 0.60, skyH + landH * 0.62]);
+  mpts.push([w * 0.68, skyH + landH * 0.48]);
+  mpts.push([w * 0.76, skyH + landH * 0.60]);
+  mpts.push([w * 0.84, skyH + landH * 0.52]);
+  mpts.push([w * 0.92, skyH + landH * 0.64]);
+  mpts.push([w, skyH + landH * 0.58]);
+  for (var mpi = 0; mpi < mpts.length; mpi++) ctx.lineTo(mpts[mpi][0], mpts[mpi][1]);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Front ridge: jagged but lower ──
+  ctx.fillStyle = frontColor;
+  ctx.beginPath();
+  ctx.moveTo(0, skyH + landH * 0.80);
+  var fpts: [number, number][] = [];
+  fpts.push([w * 0.08, skyH + landH * 0.74]);
+  fpts.push([w * 0.16, skyH + landH * 0.82]);
+  fpts.push([w * 0.24, skyH + landH * 0.72]);
+  fpts.push([w * 0.34, skyH + landH * 0.80]);
+  fpts.push([w * 0.42, skyH + landH * 0.70]);
+  fpts.push([w * 0.50, skyH + landH * 0.80]);
+  fpts.push([w * 0.58, skyH + landH * 0.72]);
+  fpts.push([w * 0.66, skyH + landH * 0.82]);
+  fpts.push([w * 0.74, skyH + landH * 0.74]);
+  fpts.push([w * 0.82, skyH + landH * 0.82]);
+  fpts.push([w * 0.90, skyH + landH * 0.74]);
+  fpts.push([w, skyH + landH * 0.80]);
+  for (var fpi = 0; fpi < fpts.length; fpi++) ctx.lineTo(fpts[fpi][0], fpts[fpi][1]);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Angular boulders near the base ──
+  ctx.fillStyle = frontColor;
+  var boulders = [
+    { x: 0.12, w: 14, h: 6 },
+    { x: 0.26, w: 10, h: 4 },
+    { x: 0.48, w: 18, h: 7 },
+    { x: 0.62, w: 11, h: 5 },
+    { x: 0.82, w: 15, h: 6 }
+  ];
+  for (var bri = 0; bri < boulders.length; bri++) {
+    var br = boulders[bri];
+    var bxp = w * br.x;
+    var byp = h - 10;
+    ctx.beginPath();
+    ctx.moveTo(bxp - br.w / 2, byp);
+    ctx.lineTo(bxp - br.w / 2 + 2, byp - br.h);
+    ctx.lineTo(bxp + br.w / 4, byp - br.h + 1);
+    ctx.lineTo(bxp + br.w / 2, byp - br.h / 2);
+    ctx.lineTo(bxp + br.w / 2, byp);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.fillStyle = frontColor;
+  ctx.fillRect(0, h - 8, w, 8);
+}
+
+// ── Landscape mode setter ──
+export function setLandscapeMode(mode: string): void {
+  _landscapeMode = mode || 'farmstead';
+}
+
 // ── Clouds ──
 function _initCloudSeeds() {
   _cloudSeeds = [];
-  for (var layer = 0; layer < 3; layer++) {
-    var numBlobs = 5 + layer * 3;
-    var baseAlt = 10 + layer * 15;
-    var speed = 0.02 + layer * 0.01;
+  for (var layer = 0; layer < 2; layer++) {
+    var numBlobs = 6 + layer * 2;
+    var baseAlt = 15 + layer * 20;
+    var speed = 0.015 + layer * 0.008;
     for (var b = 0; b < numBlobs; b++) {
       _cloudSeeds.push({
         az: SKY_AZ_MIN + _hash('cloud:' + layer + ':' + b + ':x') * SKY_AZ_RANGE,
-        alt: baseAlt + (_hash('cloud:' + layer + ':' + b + ':y') - 0.5) * 10,
-        rx: 30 + _hash('cloud:' + layer + ':' + b + ':rx') * 40,
-        ry: 16 + _hash('cloud:' + layer + ':' + b + ':rx') * 24,
-        alpha: 0.015 + _hash('cloud:' + layer + ':' + b + ':a') * 0.035,
+        alt: baseAlt + (_hash('cloud:' + layer + ':' + b + ':y') - 0.5) * 12,
+        rx: 50 + _hash('cloud:' + layer + ':' + b + ':rx') * 60,
+        ry: 25 + _hash('cloud:' + layer + ':' + b + ':rx') * 35,
+        alpha: 0.008 + _hash('cloud:' + layer + ':' + b + ':a') * 0.022,
         speed: speed * (0.7 + _hash('cloud:' + layer + ':' + b + ':x') * 0.6)
       });
     }
   }
+}
+
+function _drawRingWash(ctx: CanvasRenderingContext2D, w: number, h: number, observerLatDeg: number, alpha: number) {
+  var lat = observerLatDeg * DEG2RAD;
+  var skyH = h * (1 - _landFrac());
+  var steps = 60;
+  ctx.save();
+  for (var i = 0; i <= steps; i++) {
+    var H = (-180 + 360 * i / steps) * DEG2RAD;
+    var sinAlt = Math.cos(lat) * Math.cos(H);
+    var altDeg = Math.asin(Math.max(-1, Math.min(1, sinAlt))) / DEG2RAD;
+    if (altDeg < 0) continue;
+    var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
+    var azDeg = ((azRaw / DEG2RAD) + 180 + 360) % 360;
+    var pos = _azAltToXY(azDeg, altDeg, w, h);
+    var grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 35);
+    grad.addColorStop(0, 'rgba(232,203,118,' + alpha + ')');
+    grad.addColorStop(1, 'rgba(232,203,118,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(pos.x - 35, pos.y - 35, 70, 70);
+  }
+  ctx.restore();
 }
 
 function _drawClouds(ctx: CanvasRenderingContext2D, w: number, h: number, timeFrac: number, sunAlt: number) {
@@ -777,12 +1412,26 @@ export function renderSkyFrame(
   // 1. Sky gradient background
   _drawSkyGradient(ctx, w, h, sunAlt, sunAz);
 
+  // 1.5. Ring of Siberys sky wash (Eberron only, night)
+  if (worldId === 'eberron') {
+    var washAlpha = (1 - _smoothstep(-6, 6, sunAlt)) * 0.035;
+    if (washAlpha > 0.002) {
+      _drawRingWash(ctx, w, h, scene.observerLatitude, washAlpha);
+    }
+  }
+
   // 2. Stars and Milky Way (behind everything else)
   _drawStars(ctx, w, h, sunAlt, timeFrac, worldId, scene.observerLatitude);
 
+  // 2.5. Constellation connecting lines (if hovered)
+  var starAlphaForLines = 1 - _smoothstep(-12, 6, sunAlt);
+  if (starAlphaForLines > 0.01) {
+    _drawConstellationLines(ctx, _hoveredConstellationIndex, starAlphaForLines);
+  }
+
   // 3. Ring of Siberys (Eberron only)
   if (worldId === 'eberron') {
-    var ringAlpha = Math.max(0.15, 1 - _smoothstep(-12, 6, sunAlt));
+    var ringAlpha = 1 - _smoothstep(-12, 6, sunAlt);
     ctx.save();
     ctx.globalAlpha = ringAlpha;
     _drawSiberysRing(ctx, w, h, scene.observerLatitude, serial, timeFrac);
@@ -815,4 +1464,13 @@ export function disposeSkyRenderer(): void {
 // ── Moon screen positions for click/hover ──
 export function getMoonScreenPositions(): { name: string; x: number; y: number; radius: number; moon: any }[] {
   return _moonScreenPositions;
+}
+
+// ── Constellation screen data for hover detection ──
+export function getConstellationScreenData() {
+  return _constellationScreenData;
+}
+
+export function setHoveredConstellation(index: number): void {
+  _hoveredConstellationIndex = index;
 }
