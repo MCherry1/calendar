@@ -5,7 +5,7 @@ import { buildSkyScene, sunSkyLong, moonAltitudeDeg, moonAzimuthDeg } from '../s
 import { clampDayForSlot, formatWorldDate, fromWorldSerial, getWorldCalendarSlots, regularMonthIndexToSlotIndex, toWorldSerial } from '../src/showcase/world-calendar.js';
 import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table.js';
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
-import { clearTextureCache } from './sky-textures.js';
+import { clearTextureCache, getMoonTexture } from './sky-textures.js';
 import { getMoonOrbitalData } from '../src/showcase/solar-system-data.js';
 import { initSkyRenderer, renderSkyFrame, getMoonScreenPositions, disposeSkyRenderer } from './sky-renderer.js';
 
@@ -122,7 +122,7 @@ function _initialState(): ShowcaseState {
     timeFrac: _parseTimeParam(url.searchParams.get('time')),
     lunarSizeMode: _parseLunarSizeParam(url.searchParams.get('lunarSize')),
     skyPlaying: false,
-    speedHoursPerSecond: 12,
+    speedHoursPerSecond: 0.5,
     skyScrubHoursPerSecond: 0,
     skyScrubActive: false,
     planarSerial: serial,
@@ -678,17 +678,18 @@ function _drawSolarSystem(worldId: string){
     var m = moonData[i];
     var mx = padX + spacing * (i + 0.5);
     var mr = Math.max(3, (m.diameter / maxDiam) * MAX_RADIUS);
-    // Glow
-    ssCtx.globalAlpha = 0.15;
-    ssCtx.fillStyle = m.color;
-    ssCtx.beginPath(); ssCtx.arc(mx, cy, mr * 1.8, 0, Math.PI * 2); ssCtx.fill();
-    ssCtx.globalAlpha = 1;
-    // Body
-    var isDark = m.color === '#696969' || m.color === '#111111';
-    ssCtx.fillStyle = isDark ? '#999' : m.color;
-    ssCtx.beginPath(); ssCtx.arc(mx, cy, mr, 0, Math.PI * 2); ssCtx.fill();
-    // Edge
-    ssCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+    // Textured moon body clipped to circle
+    var tex = getMoonTexture(m.name, m.color, Math.round(mr));
+    ssCtx.save();
+    ssCtx.beginPath();
+    ssCtx.arc(mx, cy, mr, 0, Math.PI * 2);
+    ssCtx.clip();
+    ssCtx.drawImage(tex, mx - mr, cy - mr, mr * 2, mr * 2);
+    ssCtx.restore();
+    // Subtle edge
+    ssCtx.beginPath();
+    ssCtx.arc(mx, cy, mr, 0, Math.PI * 2);
+    ssCtx.strokeStyle = 'rgba(255,255,255,0.2)';
     ssCtx.lineWidth = 0.5;
     ssCtx.stroke();
     // Name label
