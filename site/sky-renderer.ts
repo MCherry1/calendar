@@ -15,6 +15,8 @@ var DEG2RAD = Math.PI / 180;
 // ── Module state ──
 var _canvas: HTMLCanvasElement | null = null;
 var _ctx: CanvasRenderingContext2D | null = null;
+var _logicalW = 1120;
+var _logicalH = 630;
 
 // Stars
 var _starWorldId = '';
@@ -35,7 +37,9 @@ function _azAltToXY(azDeg: number, altDeg: number, w: number, h: number): { x: n
   var az = ((azDeg - SKY_AZ_MIN) % 360 + 360) % 360;
   var x = (az / SKY_AZ_RANGE) * w;
   var alt = Math.max(-5, Math.min(PANO_ALT_MAX, altDeg));
-  var y = skyH * (1 - alt / PANO_ALT_MAX);
+  // Power curve gently compresses zenith — removes funhouse-mirror stretching
+  var altNorm = Math.max(0, alt / PANO_ALT_MAX);
+  var y = skyH * (1 - Math.pow(altNorm, 0.85));
   return { x, y };
 }
 
@@ -87,7 +91,16 @@ var _sunsetDeep = [204, 64, 31];
 // ── Initialization ──
 export function initSkyRenderer(canvas: HTMLCanvasElement): void {
   _canvas = canvas;
+  // DPI scaling for crisp text on Retina displays
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  _logicalW = canvas.clientWidth || canvas.width;
+  _logicalH = canvas.clientHeight || canvas.height;
+  canvas.width = _logicalW * dpr;
+  canvas.height = _logicalH * dpr;
+  canvas.style.width = _logicalW + 'px';
+  canvas.style.height = _logicalH + 'px';
   _ctx = canvas.getContext('2d')!;
+  _ctx.scale(dpr, dpr);
   _initCloudSeeds();
 }
 
@@ -253,7 +266,7 @@ function _drawSun(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: n
     ctx.fillStyle = 'rgba(255,240,200,0.85)';
     ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(sunName, pos.x, pos.y + r * 8 + 14);
+    ctx.fillText(sunName, pos.x, pos.y + r + 14);
     ctx.globalAlpha = 1;
   }
 }
@@ -261,29 +274,116 @@ function _drawSun(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt: n
 // ── Moons ──
 var _moonTexCache = new Map<string, HTMLCanvasElement>();
 
-function _drawMoons(ctx: CanvasRenderingContext2D, w: number, h: number, scene: SkyScene, lunarSizeMode: string, sunAlt: number) {
+function _drawMoonDisk(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string, phase: { illum: number; waxing: boolean }, retrograde: boolean, albedo: number, moonName: string, timeFrac: number) {
+  var albedoScale = Math.max(0.25, Math.min(2.2, albedo / 0.12));
+  var isBarrakas = moonName === 'Barrakas';
+  var glowRadius = radius * (1.5 + albedoScale * 0.5) * (isBarrakas ? 1.8 : 1);
+
+  // Atmospheric glow halo
+  var glowAlpha = Math.max(0.04, Math.min(0.18, 0.05 + albedoScale * 0.04)) * (isBarrakas ? 2.2 : 1);
+  var glowGrad = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+  glowGrad.addColorStop(0, color);
+  glowGrad.addColorStop(0.3, color);
+  glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save();
+  ctx.globalAlpha = glowAlpha;
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+  ctx.fill();
+  // Second wider pass for faint outer haze
+  var outerGlow = ctx.createRadialGradient(x, y, glowRadius * 0.3, x, y, glowRadius * 1.6);
+  outerGlow.addColorStop(0, color);
+  outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = glowAlpha * 0.3;
+  ctx.fillStyle = outerGlow;
+  ctx.beginPath();
+  ctx.arc(x, y, glowRadius * 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Draw cached procedural texture, clipped to circle
+  var texKey = moonName + ':' + Math.round(radius);
+  var tex = _moonTexCache.get(texKey);
+  if (!tex) {
+    tex = getMoonTexture(moonName, color, radius);
+    _moonTexCache.set(texKey, tex);
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(tex, x - radius, y - radius, radius * 2, radius * 2);
+
+  // Zarantyr storm rotation effect
+  if (moonName === 'Zarantyr') {
+    ctx.globalAlpha = 0.15;
+    ctx.translate(x, y);
+    ctx.rotate(timeFrac * Math.PI * 0.3);
+    ctx.drawImage(tex, -radius, -radius, radius * 2, radius * 2);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Re-apply clip after transform reset
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.globalAlpha = 1;
+  }
+
+  // Phase shadow — elliptical terminator
+  var illum = Math.max(0, Math.min(1, phase.illum));
+  var waxing = retrograde ? !phase.waxing : phase.waxing;
+  ctx.fillStyle = 'rgba(3, 6, 12, 0.92)';
+  if (illum < 0.995) {
+    ctx.beginPath();
+    var terminatorX = Math.cos(illum * Math.PI) * radius;
+    if (waxing) {
+      // Shadow on the left (waxing: lit from right)
+      ctx.arc(x, y, radius, Math.PI * 0.5, Math.PI * 1.5);
+      ctx.ellipse(x, y, Math.abs(terminatorX), radius, 0, Math.PI * 1.5, Math.PI * 0.5, terminatorX > 0);
+    } else {
+      // Shadow on the right (waning: lit from left)
+      ctx.arc(x, y, radius, -Math.PI * 0.5, Math.PI * 0.5);
+      ctx.ellipse(x, y, Math.abs(terminatorX), radius, 0, Math.PI * 0.5, -Math.PI * 0.5, terminatorX > 0);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Edge highlight
+  var edgeAlpha = Math.max(0.2, Math.min(0.7, 0.3 + albedoScale * 0.15));
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = 'rgba(255, 255, 255, ' + edgeAlpha + ')';
+  ctx.stroke();
+}
+
+function _drawMoons(ctx: CanvasRenderingContext2D, w: number, h: number, scene: SkyScene, lunarSizeMode: string, sunAlt: number, timeFrac: number) {
   _moonScreenPositions = [];
   var moonDimming = Math.max(0.4, 1 - _smoothstep(-6, 12, sunAlt) * 0.6);
 
+  // Collect visible moons
+  var visible: SkySceneMoon[] = [];
   for (var i = 0; i < scene.moons.length; i++) {
     var moon = scene.moons[i];
     if (moon.category === 'below') continue;
     if (moon.altitudeExact < -3) continue;
+    visible.push(moon);
+  }
+  // Sort by orbital distance descending — farthest drawn first (behind), closest on top
+  visible.sort(function(a, b) { return (b.orbitalDistance || 0) - (a.orbitalDistance || 0); });
 
+  for (var vi = 0; vi < visible.length; vi++) {
+    var moon = visible[vi];
     var radiusPx = _moonRadiusPx(moon.angularDiameterDeg, lunarSizeMode, h);
     var pos = _azAltToXY(moon.azimuth, moon.altitudeExact, w, h);
-
-    // Get or generate texture
     var color = moon.color || '#d8dee7';
-    var texKey = moon.name + ':' + Math.round(radiusPx);
-    var texCv = _moonTexCache.get(texKey);
-    if (!texCv) {
-      texCv = getMoonTexture(moon.name, color, radiusPx);
-      _moonTexCache.set(texKey, texCv);
-    }
 
+    ctx.save();
     ctx.globalAlpha = moonDimming;
-    ctx.drawImage(texCv, pos.x - radiusPx, pos.y - radiusPx, radiusPx * 2, radiusPx * 2);
+    _drawMoonDisk(ctx, pos.x, pos.y, radiusPx, color, moon.phase, !!moon.retrograde, Number(moon.albedo || 0.12), moon.name, timeFrac);
+    ctx.restore();
 
     // Label
     if (moon.altitudeExact >= 2) {
@@ -292,17 +392,10 @@ function _drawMoons(ctx: CanvasRenderingContext2D, w: number, h: number, scene: 
       ctx.font = '13px "Trebuchet MS", "Gill Sans", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(moon.name, pos.x, pos.y + radiusPx + 14);
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
 
-    // Track screen position for click detection
-    _moonScreenPositions.push({
-      name: moon.name,
-      x: pos.x,
-      y: pos.y,
-      radius: radiusPx,
-      moon: moon
-    });
+    _moonScreenPositions.push({ name: moon.name, x: pos.x, y: pos.y, radius: radiusPx, moon: moon });
   }
 }
 
@@ -321,14 +414,14 @@ function _drawSiberysRing(ctx: CanvasRenderingContext2D, w: number, h: number, o
     var sinAlt = Math.cos(lat) * Math.cos(H);
     var altRad = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
     var altDeg = altRad / DEG2RAD;
-    if (altDeg < 0) continue;
+    if (altDeg < halfWidthDeg) continue; // skip near-horizon to prevent edge flaring
 
     var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
     var azDeg = ((azRaw / DEG2RAD) + 180 + 360) % 360;
 
     centerPts.push(_azAltToXY(azDeg, altDeg, w, h));
     outerPts.push(_azAltToXY(azDeg, altDeg + halfWidthDeg, w, h));
-    innerPts.push(_azAltToXY(azDeg, Math.max(0, altDeg - halfWidthDeg), w, h));
+    innerPts.push(_azAltToXY(azDeg, altDeg - halfWidthDeg, w, h));
   }
 
   if (centerPts.length < 2) return;
@@ -371,20 +464,6 @@ function _drawSiberysRing(ctx: CanvasRenderingContext2D, w: number, h: number, o
     ctx.fillStyle = def.color;
     ctx.fill();
   }
-
-  // Double-pass glow center line
-  ctx.beginPath();
-  ctx.moveTo(centerPts[0].x, centerPts[0].y);
-  for (var m = 1; m < centerPts.length; m++) ctx.lineTo(centerPts[m].x, centerPts[m].y);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(248, 216, 129, 0.45)';
-  ctx.shadowColor = 'rgba(244, 207, 104, 0.7)';
-  ctx.shadowBlur = 24;
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(248, 216, 129, 0.2)';
-  ctx.shadowBlur = 48;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
 
   // Edge softening
   var edgeInner = _bandPts(0.02);
@@ -614,7 +693,7 @@ function _initCloudSeeds() {
         az: SKY_AZ_MIN + _hash('cloud:' + layer + ':' + b + ':x') * SKY_AZ_RANGE,
         alt: baseAlt + (_hash('cloud:' + layer + ':' + b + ':y') - 0.5) * 10,
         rx: 30 + _hash('cloud:' + layer + ':' + b + ':rx') * 40,
-        ry: 8 + _hash('cloud:' + layer + ':' + b + ':rx') * 12,
+        ry: 16 + _hash('cloud:' + layer + ':' + b + ':rx') * 24,
         alpha: 0.015 + _hash('cloud:' + layer + ':' + b + ':a') * 0.035,
         speed: speed * (0.7 + _hash('cloud:' + layer + ':' + b + ':x') * 0.6)
       });
@@ -637,12 +716,16 @@ function _drawClouds(ctx: CanvasRenderingContext2D, w: number, h: number, timeFr
     var alpha = c.alpha * baseFade;
     if (alpha < 0.005) continue;
 
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(pos.x, pos.y, c.rx, c.ry, 0, 0, Math.PI * 2);
     var grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, c.rx);
     grad.addColorStop(0, 'rgba(' + cloudR + ',' + cloudG + ',' + cloudB + ',' + alpha + ')');
     grad.addColorStop(0.5, 'rgba(' + cloudR + ',' + cloudG + ',' + cloudB + ',' + (alpha * 0.4) + ')');
     grad.addColorStop(1, 'rgba(' + cloudR + ',' + cloudG + ',' + cloudB + ',0)');
     ctx.fillStyle = grad;
-    ctx.fillRect(pos.x - c.rx, pos.y - c.ry, c.rx * 2, c.ry * 2);
+    ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -657,12 +740,15 @@ export function renderSkyFrame(
   worldId: string
 ): void {
   if (!_ctx || !_canvas) return;
-  var w = _canvas.width;
-  var h = _canvas.height;
+  var w = _logicalW;
+  var h = _logicalH;
   var ctx = _ctx;
 
-  // Clear
-  ctx.clearRect(0, 0, w, h);
+  // Clear (use full backing-store size)
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, _canvas.width, _canvas.height);
+  ctx.restore();
 
   // 1. Sky gradient background
   _drawSkyGradient(ctx, w, h, sunAlt, sunAz);
@@ -686,7 +772,7 @@ export function renderSkyFrame(
   _drawSun(ctx, w, h, sunAlt, sunAz, lunarSizeMode, scene.sunName);
 
   // 6. Moons
-  _drawMoons(ctx, w, h, scene, lunarSizeMode, sunAlt);
+  _drawMoons(ctx, w, h, scene, lunarSizeMode, sunAlt, timeFrac);
 
   // 7. Landscape (foreground)
   _drawLandscape(ctx, w, h, sunAlt);
