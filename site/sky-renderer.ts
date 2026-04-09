@@ -35,9 +35,13 @@ var _moonScreenPositions: { name: string; x: number; y: number; radius: number; 
 function _azAltToXY(azDeg: number, altDeg: number, w: number, h: number): { x: number; y: number } {
   var skyH = h * (1 - LAND_FRAC);
   var az = ((azDeg - SKY_AZ_MIN) % 360 + 360) % 360;
-  var x = (az / SKY_AZ_RANGE) * w;
+  // Cosine-corrected azimuth: compress horizontal extent at high altitudes
+  // This gives uniform angular width across the arc (no funhouse stretching)
+  var azCenter = az - SKY_AZ_RANGE / 2;
   var alt = Math.max(-5, Math.min(PANO_ALT_MAX, altDeg));
-  // Power curve gently compresses zenith — removes funhouse-mirror stretching
+  var cosAlt = Math.cos(Math.max(0, alt) * DEG2RAD);
+  var x = w / 2 + (azCenter / (SKY_AZ_RANGE / 2)) * (w / 2) * cosAlt;
+  // Power-curve altitude compression
   var altNorm = Math.max(0, alt / PANO_ALT_MAX);
   var y = skyH * (1 - Math.pow(altNorm, 0.85));
   return { x, y };
@@ -102,6 +106,22 @@ export function initSkyRenderer(canvas: HTMLCanvasElement): void {
   _ctx = canvas.getContext('2d')!;
   _ctx.scale(dpr, dpr);
   _initCloudSeeds();
+  // Re-scale canvas on window resize (mobile orientation changes, etc.)
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(function() {
+      if (!_canvas) return;
+      var d = Math.min(window.devicePixelRatio || 1, 2);
+      var newW = _canvas.clientWidth || 1120;
+      var newH = _canvas.clientHeight || 630;
+      if (newW === _logicalW && newH === _logicalH) return;
+      _logicalW = newW;
+      _logicalH = newH;
+      _canvas.width = _logicalW * d;
+      _canvas.height = _logicalH * d;
+      _ctx = _canvas.getContext('2d')!;
+      _ctx.scale(d, d);
+    }).observe(canvas);
+  }
 }
 
 // ── Sky background ──
@@ -216,18 +236,18 @@ function _drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, sunAlt:
       if (alpha < 0.01) continue;
       ctx.globalAlpha = alpha;
       if (s.tier === 0) {
-        // Bright stars: diffraction cross + halo glow
+        // Bright stars: circle + soft glow
         ctx.fillStyle = 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + alpha + ')';
-        ctx.fillRect(pos.x - s.size * 2.5, pos.y - 0.4, s.size * 5, 0.8);
-        ctx.fillRect(pos.x - 0.4, pos.y - s.size * 2.5, 0.8, s.size * 5);
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, s.size * 0.8, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, s.size, 0, Math.PI * 2);
         ctx.fill();
-        var halo = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, s.size * 4);
-        halo.addColorStop(0, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + (alpha * 0.12) + ')');
+        var halo = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, s.size * 3);
+        halo.addColorStop(0, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',' + (alpha * 0.15) + ')');
         halo.addColorStop(1, 'rgba(' + s.r + ',' + s.g + ',' + s.b + ',0)');
         ctx.fillStyle = halo;
-        ctx.fillRect(pos.x - s.size * 4, pos.y - s.size * 4, s.size * 8, s.size * 8);
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, s.size * 3, 0, Math.PI * 2);
+        ctx.fill();
       } else if (s.tier === 1) {
         // Medium: circle
         ctx.beginPath();
@@ -279,12 +299,16 @@ function _drawMoonDisk(ctx: CanvasRenderingContext2D, x: number, y: number, radi
   var isBarrakas = moonName === 'Barrakas';
   var glowRadius = radius * (1.5 + albedoScale * 0.5) * (isBarrakas ? 1.8 : 1);
 
-  // Atmospheric glow halo
+  // Parse color to RGB for proper transparent feathering
+  var cv = parseInt(color.replace('#', ''), 16);
+  var cR = (cv >> 16) & 255, cG = (cv >> 8) & 255, cB = cv & 255;
+
+  // Atmospheric glow halo — feather to transparent moon-color (NOT transparent black)
   var glowAlpha = Math.max(0.04, Math.min(0.18, 0.05 + albedoScale * 0.04)) * (isBarrakas ? 2.2 : 1);
   var glowGrad = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
-  glowGrad.addColorStop(0, color);
-  glowGrad.addColorStop(0.3, color);
-  glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  glowGrad.addColorStop(0, 'rgba(' + cR + ',' + cG + ',' + cB + ',1)');
+  glowGrad.addColorStop(0.3, 'rgba(' + cR + ',' + cG + ',' + cB + ',0.6)');
+  glowGrad.addColorStop(1, 'rgba(' + cR + ',' + cG + ',' + cB + ',0)');
   ctx.save();
   ctx.globalAlpha = glowAlpha;
   ctx.fillStyle = glowGrad;
@@ -293,8 +317,8 @@ function _drawMoonDisk(ctx: CanvasRenderingContext2D, x: number, y: number, radi
   ctx.fill();
   // Second wider pass for faint outer haze
   var outerGlow = ctx.createRadialGradient(x, y, glowRadius * 0.3, x, y, glowRadius * 1.6);
-  outerGlow.addColorStop(0, color);
-  outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  outerGlow.addColorStop(0, 'rgba(' + cR + ',' + cG + ',' + cB + ',0.4)');
+  outerGlow.addColorStop(1, 'rgba(' + cR + ',' + cG + ',' + cB + ',0)');
   ctx.globalAlpha = glowAlpha * 0.3;
   ctx.fillStyle = outerGlow;
   ctx.beginPath();
@@ -414,14 +438,14 @@ function _drawSiberysRing(ctx: CanvasRenderingContext2D, w: number, h: number, o
     var sinAlt = Math.cos(lat) * Math.cos(H);
     var altRad = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
     var altDeg = altRad / DEG2RAD;
-    if (altDeg < halfWidthDeg) continue; // skip near-horizon to prevent edge flaring
+    if (altDeg < 0) continue; // only skip below horizon
 
     var azRaw = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(lat));
     var azDeg = ((azRaw / DEG2RAD) + 180 + 360) % 360;
 
     centerPts.push(_azAltToXY(azDeg, altDeg, w, h));
     outerPts.push(_azAltToXY(azDeg, altDeg + halfWidthDeg, w, h));
-    innerPts.push(_azAltToXY(azDeg, altDeg - halfWidthDeg, w, h));
+    innerPts.push(_azAltToXY(azDeg, Math.max(0, altDeg - halfWidthDeg), w, h));
   }
 
   if (centerPts.length < 2) return;

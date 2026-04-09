@@ -140,6 +140,7 @@ type PhaseWalkResult = {
   isHalfBounce: boolean;
   phaseProgress: number;
   fullTraversalCount: number;
+  neutralSegmentCount: number;
 };
 
 /** Skip zero-duration phases to find the effective next substantive phase. */
@@ -190,6 +191,11 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
       var progress = ph.dur > 0 ? Math.max(0, Math.min(1, into / ph.dur)) : 0;
       var isHalfBounce = ph.name === 'neutral' && previousPhase === nextPhase;
 
+      // Count neutral segments for side-alternation (Mabar-type planes)
+      // pi=1 is the first neutral segment in the orbit, pi=3 is the second
+      var neutralInOrbit = (pi >= 2) ? 1 : 0;
+      var totalNeutralSegments = orbitNum * 2 + neutralInOrbit;
+
       return {
         phase: ph.name,
         position: _bandPositionFromPhase(ph.name, into, ph.dur, previousPhase),
@@ -200,7 +206,8 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
         nextPhase: nextPhase,
         isHalfBounce: isHalfBounce,
         phaseProgress: progress,
-        fullTraversalCount: fullTraversalCount
+        fullTraversalCount: fullTraversalCount,
+        neutralSegmentCount: totalNeutralSegments
       };
     }
     accumulated += ph.dur;
@@ -217,7 +224,8 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
     nextPhase: 'coterminous',
     isHalfBounce: false,
     phaseProgress: 0,
-    fullTraversalCount: 0
+    fullTraversalCount: 0,
+    neutralSegmentCount: 0
   };
 }
 
@@ -374,8 +382,11 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
     var nextPhase = walk.nextPhase;
     var isHalfBounce = walk.isHalfBounce;
     var phaseProgress = walk.phaseProgress;
-    // Only flip side when the cycle has full traversals (both coterminous and remote > 0)
-    var onPrimary = (walk.fullTraversalCount % 2 === 0);
+    // Flip side: full-traversal planes use fullTraversalCount, half-bounce planes use neutral segment count
+    var hasFullTraversal = _countFullTraversals(cycle);
+    var onPrimary = hasFullTraversal
+      ? (walk.fullTraversalCount % 2 === 0)
+      : (walk.neutralSegmentCount % 2 === 0);
     var isMabarRemoteOverride = false;
 
     // Mabar special case: 5-year remote window around summer solstice
