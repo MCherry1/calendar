@@ -159,7 +159,7 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
     var category = moonSkyPositionCategory(alt, angularDiameterDeg);
     var motion = moonMotionLabel(observerLatitude, moon, positionSerial, timeFrac, input.skyLongAt, input.eclipticLatAt, input.phaseAt, input.worldId);
     var direction = moonCompass16(az);
-    var pctFull = Math.round((_clamp01(phase.illum || 0)) * 100);
+    var pctFull = Math.round((_clamp01(positionPhase.illum || 0)) * 100);
     var retrograde = !!(input.retrogradeAt && input.retrogradeAt(moon, positionSerial));
     var skyLabel = skyCategoryLabel(category) + ', ' + direction + ', ' + motion;
     moons.push({
@@ -178,10 +178,10 @@ export function buildSkySceneFromResolved(input: BuildSkySceneResolvedInput): Sk
       motion: motion,
       angularDiameterDeg: angularDiameterDeg,
       category: category,
-      phase: phase,
+      phase: positionPhase,
       retrograde: retrograde,
       pctFull: pctFull,
-      label: moonPhaseEmoji(phase.illum, phase.waxing) + ' ' + moon.name + ' (' + pctFull + '% Full)',
+      label: moonPhaseEmoji(positionPhase.illum, positionPhase.waxing) + ' ' + moon.name + ' (' + pctFull + '% Full)',
       skyLabel: skyLabel
     });
   }
