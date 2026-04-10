@@ -338,7 +338,7 @@ body {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 2 / 1;
+  aspect-ratio: var(--sky-aspect, 16 / 9);
   cursor: default;
   border-radius: 6px;
 }
@@ -500,6 +500,34 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.intercalary-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.8rem;
+  margin: 0.25rem 0;
+  font-size: 0.78rem;
+  color: rgba(120, 95, 45, 0.85);
+  white-space: nowrap;
+}
+
+.intercalary-marker {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(150, 115, 55, 0.35), transparent);
+}
+
+.intercalary-name {
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
+.calendar-gallery .intercalary-strip {
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .calendar-card h3,

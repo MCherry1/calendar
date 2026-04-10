@@ -109,13 +109,34 @@ function _genOlarune(s: number){
   cx.arc(r, r, r * 0.85, 0, Math.PI * 2);
   cx.fillStyle = 'rgba(255,190,120,0.12)';
   cx.fill();
-  // shield rim fringe
+  // Shield boss — bright raised dome at center (the defining feature)
+  var bossGrad = cx.createRadialGradient(r * 0.95, r * 0.9, 0, r, r, r * 0.35);
+  bossGrad.addColorStop(0, 'rgba(255, 240, 210, 0.45)');
+  bossGrad.addColorStop(0.5, 'rgba(255, 225, 180, 0.25)');
+  bossGrad.addColorStop(1, 'rgba(200, 160, 100, 0.05)');
+  cx.fillStyle = bossGrad;
   cx.beginPath();
-  cx.arc(r, r, r * 0.96, 0, Math.PI * 2);
-  cx.lineWidth = 3;
-  cx.strokeStyle = 'rgba(255,220,160,0.5)';
-  cx.shadowColor = 'rgba(255,200,130,0.6)';
-  cx.shadowBlur = 4;
+  cx.arc(r, r, r * 0.35, 0, Math.PI * 2);
+  cx.fill();
+  // Boss edge ring — crisp circle around the central dome
+  cx.beginPath();
+  cx.arc(r, r, r * 0.35, 0, Math.PI * 2);
+  cx.lineWidth = 1.5;
+  cx.strokeStyle = 'rgba(180, 140, 80, 0.35)';
+  cx.stroke();
+  // Shield rim band — darker ring between ~78% and ~88% radius
+  cx.beginPath();
+  cx.arc(r, r, r * 0.88, 0, Math.PI * 2);
+  cx.lineWidth = r * 0.10;
+  cx.strokeStyle = 'rgba(160, 110, 50, 0.18)';
+  cx.stroke();
+  // Outer rim highlight — bright edge
+  cx.beginPath();
+  cx.arc(r, r, r * 0.95, 0, Math.PI * 2);
+  cx.lineWidth = 2;
+  cx.strokeStyle = 'rgba(255, 220, 160, 0.45)';
+  cx.shadowColor = 'rgba(255, 200, 130, 0.5)';
+  cx.shadowBlur = 5;
   cx.stroke();
   cx.shadowBlur = 0;
   _noisePass(cx, s, s, 'olarune', 6);
@@ -151,44 +172,42 @@ function _genEyre(s: number){
   _baseGradient(cx, s, s, '#dcdcdc', '#a0a0a0');
   // scattered craters across surface
   for (var i = 0; i < 20; i++){
-    var cx2 = r + ((_h('eyre:c:' + i) - 0.5) * s * 0.8);
-    var cy2 = r + ((_h('eyre:cy:' + i) - 0.5) * s * 0.8);
+    var cx2 = r + ((_h('eyre:c:' + i) - 0.5) * s * 0.75);
+    var cy2 = r + ((_h('eyre:cy:' + i) - 0.5) * s * 0.75);
     var cr = 1.5 + _h('eyre:cr:' + i) * 4.5;
     _crater(cx, cx2, cy2, cr);
   }
-  // anvil marking: organic dark region using overlapping ellipses instead of hard geometry
+  // Anvil marking — geometric dark shape, readable at small sizes.
+  // Classic blacksmith anvil silhouette: wide flat base, narrow waist,
+  // flat top with a horn (beak) extending to one side.
   cx.save();
   cx.beginPath();
   cx.arc(r, r, r, 0, Math.PI * 2);
   cx.clip();
-  // broad base region
-  cx.fillStyle = 'rgba(40,40,55,0.14)';
+  cx.fillStyle = 'rgba(35, 35, 50, 0.28)';
+  // Base (wide flat bottom)
+  var bw = s * 0.22;
+  var bh = s * 0.04;
+  var by = r + s * 0.08;
+  cx.fillRect(r - bw, by - bh, bw * 2, bh * 2);
+  // Waist (narrow connecting column)
+  var ww = s * 0.07;
+  var wy = r - s * 0.02;
+  cx.fillRect(r - ww, wy, ww * 2, by - bh - wy);
+  // Face (flat top, wider than waist)
+  var fw = s * 0.14;
+  var fh = s * 0.05;
+  var fy = wy - fh;
+  cx.fillRect(r - fw, fy, fw * 2, fh);
+  // Horn (beak extending to the right from the face)
   cx.beginPath();
-  cx.ellipse(r, r + s * 0.03, s * 0.11, s * 0.07, 0, 0, Math.PI * 2);
+  cx.moveTo(r + fw, fy + fh * 0.2);
+  cx.lineTo(r + fw + s * 0.10, fy + fh * 0.5);
+  cx.lineTo(r + fw, fy + fh * 0.8);
+  cx.closePath();
   cx.fill();
-  // narrower top region
-  cx.fillStyle = 'rgba(40,40,55,0.12)';
-  cx.beginPath();
-  cx.ellipse(r, r - s * 0.06, s * 0.06, s * 0.08, 0, 0, Math.PI * 2);
-  cx.fill();
-  // connecting blended middle
-  cx.fillStyle = 'rgba(40,40,55,0.10)';
-  cx.beginPath();
-  cx.ellipse(r - s * 0.01, r - s * 0.01, s * 0.08, s * 0.10, 0.15, 0, Math.PI * 2);
-  cx.fill();
-  // subtle dark deposits in the central anvil region
-  for (var j = 0; j < 5; j++){
-    cx.fillStyle = 'rgba(30,30,45,' + (0.04 + _h('eyre:dep:' + j) * 0.06) + ')';
-    cx.beginPath();
-    cx.ellipse(
-      r + (_h('eyre:dx:' + j) - 0.5) * s * 0.12,
-      r + (_h('eyre:dy:' + j) - 0.5) * s * 0.12,
-      s * 0.03 + _h('eyre:ds:' + j) * s * 0.04,
-      s * 0.02 + _h('eyre:ds2:' + j) * s * 0.03,
-      _h('eyre:da:' + j) * Math.PI, 0, Math.PI * 2
-    );
-    cx.fill();
-  }
+  // Heel (small step on the left side of the base)
+  cx.fillRect(r - bw - s * 0.03, by - bh - s * 0.02, s * 0.05, s * 0.02 + bh);
   cx.restore();
   _noisePass(cx, s, s, 'eyre', 7);
   _limbDarkening(cx, s, s);

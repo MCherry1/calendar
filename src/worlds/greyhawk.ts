@@ -49,6 +49,16 @@ export const greyhawk: WorldDefinition = {
         ],
         colorTheme: 'greyhawk',
       },
+      {
+        key: 'flan',
+        label: 'Flan Zodiac',
+        monthNames: [
+          'Tiger', 'Bear', 'Lion', 'Frog',
+          'Turtle', 'Fox', 'Snake', 'Boar',
+          'Squirrel', 'Hare', 'Falcon', 'Wolf',
+        ],
+        colorTheme: 'seasons',
+      },
     ],
     defaultOverlayKey: 'standard',
     weekdayProgressionMode: 'continuous_serial',

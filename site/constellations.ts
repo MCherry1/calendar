@@ -239,6 +239,227 @@ export var EBERRON_CONSTELLATIONS: Constellation[] = [
   }
 ];
 
+// Greyhawk's 12 Lairs of the Zodiac — one zodiac animal per month of the
+// Common calendar. Distributed at 30° RA intervals along a near-ecliptic band
+// with declinations between -10° and +50°. All constellations share a warm
+// neutral white tint (no per-deity color coding).
+export var GREYHAWK_CONSTELLATIONS: Constellation[] = [
+  {
+    name: 'Tiger',
+    domain: 'Fireseek — Winter',
+    tint: [240, 235, 225],
+    // Crouching cat, long tail curving up
+    stars: [
+      { ra:   5, dec: 15, bright: true  }, // 0: nose
+      { ra:   7, dec: 22, bright: false }, // 1: ear
+      { ra:  12, dec: 22, bright: false }, // 2: shoulder
+      { ra:  18, dec: 25, bright: false }, // 3: back
+      { ra:  23, dec: 22, bright: false }, // 4: hip
+      { ra:  25, dec: 10, bright: false }, // 5: rear paw
+      { ra:  24, dec: 30, bright: false }, // 6: tail base
+      { ra:  28, dec: 42, bright: false }, // 7: tail tip
+      { ra:   9, dec:  8, bright: false }, // 8: front paw
+      { ra:  15, dec: 13, bright: false }, // 9: belly
+    ],
+    lines: [[0,1],[0,2],[2,3],[3,4],[4,5],[4,6],[6,7],[2,8],[2,9],[9,4]]
+  },
+  {
+    name: 'Bear',
+    domain: 'Readying — Winter',
+    tint: [240, 235, 225],
+    // Standing bear in profile, broad body
+    stars: [
+      { ra: 38, dec: 45, bright: true  }, // 0: head
+      { ra: 35, dec: 40, bright: false }, // 1: snout
+      { ra: 40, dec: 52, bright: false }, // 2: ear
+      { ra: 43, dec: 36, bright: false }, // 3: shoulder
+      { ra: 42, dec: 18, bright: false }, // 4: front paw
+      { ra: 52, dec: 16, bright: false }, // 5: rear paw
+      { ra: 50, dec: 42, bright: false }, // 6: back
+      { ra: 53, dec: 32, bright: false }, // 7: hip
+      { ra: 47, dec: 26, bright: false }, // 8: belly
+    ],
+    lines: [[0,1],[0,2],[0,3],[3,4],[3,6],[6,7],[7,5],[3,8],[8,7]]
+  },
+  {
+    name: 'Lion',
+    domain: 'Coldeven — Spring',
+    tint: [240, 235, 225],
+    // Seated lion with mane radiating around head
+    stars: [
+      { ra: 75, dec: 35, bright: true  }, // 0: face
+      { ra: 75, dec: 46, bright: false }, // 1: mane top
+      { ra: 67, dec: 40, bright: false }, // 2: mane left
+      { ra: 83, dec: 40, bright: false }, // 3: mane right
+      { ra: 69, dec: 28, bright: false }, // 4: mane lower-left
+      { ra: 81, dec: 28, bright: false }, // 5: mane lower-right
+      { ra: 78, dec: 18, bright: false }, // 6: body
+      { ra: 74, dec:  8, bright: false }, // 7: front paw
+      { ra: 84, dec: 14, bright: false }, // 8: rear
+      { ra: 89, dec: 20, bright: false }, // 9: tail
+    ],
+    lines: [[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[6,7],[6,8],[8,9]]
+  },
+  {
+    name: 'Frog',
+    domain: 'Planting — Spring',
+    tint: [240, 235, 225],
+    // Wide squat body, splayed legs
+    stars: [
+      { ra: 105, dec: 18, bright: true  }, // 0: head
+      { ra: 101, dec: 22, bright: false }, // 1: left eye
+      { ra: 109, dec: 22, bright: false }, // 2: right eye
+      { ra: 105, dec:  8, bright: false }, // 3: body
+      { ra:  97, dec:  6, bright: false }, // 4: front-left leg
+      { ra: 113, dec:  6, bright: false }, // 5: front-right leg
+      { ra:  95, dec: -2, bright: false }, // 6: back-left leg
+      { ra: 115, dec: -2, bright: false }, // 7: back-right leg
+    ],
+    lines: [[0,1],[0,2],[0,3],[3,4],[3,5],[3,6],[3,7]]
+  },
+  {
+    name: 'Turtle',
+    domain: 'Flocktime — Spring',
+    tint: [240, 235, 225],
+    // Domed shell with head and four legs poking out
+    stars: [
+      { ra: 128, dec: 18, bright: true  }, // 0: head
+      { ra: 135, dec: 27, bright: false }, // 1: shell top
+      { ra: 143, dec: 18, bright: false }, // 2: shell back
+      { ra: 135, dec:  8, bright: false }, // 3: shell bottom
+      { ra: 131, dec:  2, bright: false }, // 4: front-left leg
+      { ra: 138, dec:  2, bright: false }, // 5: front-right leg
+      { ra: 142, dec: 10, bright: false }, // 6: rear-right leg
+      { ra: 146, dec: 16, bright: false }, // 7: tail
+    ],
+    lines: [[0,1],[1,2],[2,7],[2,6],[2,3],[3,5],[3,4],[3,0]]
+  },
+  {
+    name: 'Fox',
+    domain: 'Wealsun — Summer',
+    tint: [240, 235, 225],
+    // Running fox profile with bushy tail
+    stars: [
+      { ra: 158, dec: 28, bright: true  }, // 0: snout
+      { ra: 162, dec: 34, bright: false }, // 1: ear
+      { ra: 163, dec: 28, bright: false }, // 2: head
+      { ra: 167, dec: 24, bright: false }, // 3: shoulder
+      { ra: 172, dec: 26, bright: false }, // 4: back
+      { ra: 177, dec: 24, bright: false }, // 5: hip
+      { ra: 180, dec: 29, bright: false }, // 6: tail base
+      { ra: 184, dec: 38, bright: false }, // 7: tail tip
+      { ra: 166, dec: 14, bright: false }, // 8: front paw
+      { ra: 176, dec: 13, bright: false }, // 9: rear paw
+    ],
+    lines: [[0,2],[2,1],[2,3],[3,4],[4,5],[5,6],[6,7],[3,8],[5,9]]
+  },
+  {
+    name: 'Snake',
+    domain: 'Reaping — Summer',
+    tint: [240, 235, 225],
+    // Distinctive S-curve
+    stars: [
+      { ra: 188, dec: 26, bright: true  }, // 0: head
+      { ra: 192, dec: 20, bright: false }, // 1: neck
+      { ra: 196, dec: 12, bright: false }, // 2: upper curve
+      { ra: 200, dec:  6, bright: false }, // 3: mid
+      { ra: 205, dec:  2, bright: false }, // 4: lower curve
+      { ra: 210, dec: -4, bright: false }, // 5: body
+      { ra: 214, dec:-10, bright: false }, // 6: tail
+    ],
+    lines: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]]
+  },
+  {
+    name: 'Boar',
+    domain: 'Goodmonth — Summer',
+    tint: [240, 235, 225],
+    // Stocky body with tusks
+    stars: [
+      { ra: 218, dec: 20, bright: true  }, // 0: snout
+      { ra: 215, dec: 17, bright: false }, // 1: tusk
+      { ra: 222, dec: 25, bright: false }, // 2: head
+      { ra: 224, dec: 32, bright: false }, // 3: ear
+      { ra: 227, dec: 22, bright: false }, // 4: shoulder
+      { ra: 232, dec: 25, bright: false }, // 5: back
+      { ra: 236, dec: 20, bright: false }, // 6: hip
+      { ra: 230, dec: 12, bright: false }, // 7: belly
+      { ra: 239, dec: 24, bright: false }, // 8: tail
+    ],
+    lines: [[0,1],[0,2],[2,3],[2,4],[4,5],[5,6],[6,8],[4,7],[7,6]]
+  },
+  {
+    name: 'Squirrel',
+    domain: 'Harvester — Autumn',
+    tint: [240, 235, 225],
+    // Sitting upright with tail curved over back
+    stars: [
+      { ra: 252, dec: 38, bright: true  }, // 0: head
+      { ra: 250, dec: 44, bright: false }, // 1: ear
+      { ra: 253, dec: 30, bright: false }, // 2: body
+      { ra: 256, dec: 23, bright: false }, // 3: front paws
+      { ra: 251, dec: 20, bright: false }, // 4: rear
+      { ra: 250, dec: 28, bright: false }, // 5: tail base
+      { ra: 246, dec: 36, bright: false }, // 6: tail mid
+      { ra: 248, dec: 46, bright: false }, // 7: tail tip
+    ],
+    lines: [[0,1],[0,2],[2,3],[2,4],[4,5],[5,6],[6,7]]
+  },
+  {
+    name: 'Hare',
+    domain: 'Patchwall — Autumn',
+    tint: [240, 235, 225],
+    // Leaping hare with long ears
+    stars: [
+      { ra: 280, dec: 28, bright: true  }, // 0: head
+      { ra: 278, dec: 40, bright: false }, // 1: ear 1
+      { ra: 282, dec: 40, bright: false }, // 2: ear 2
+      { ra: 284, dec: 22, bright: false }, // 3: shoulder
+      { ra: 288, dec: 26, bright: false }, // 4: back
+      { ra: 293, dec: 22, bright: false }, // 5: hip
+      { ra: 283, dec: 10, bright: false }, // 6: front leg
+      { ra: 295, dec:  8, bright: false }, // 7: rear leg
+      { ra: 297, dec: 24, bright: false }, // 8: tail
+    ],
+    lines: [[0,1],[0,2],[0,3],[3,4],[4,5],[5,8],[3,6],[5,7]]
+  },
+  {
+    name: 'Falcon',
+    domain: 'Ready\u2019reat — Autumn',
+    tint: [240, 235, 225],
+    // Wings spread in a dive — V shape with body
+    stars: [
+      { ra: 315, dec: 22, bright: true  }, // 0: body
+      { ra: 315, dec: 32, bright: false }, // 1: head
+      { ra: 307, dec: 30, bright: false }, // 2: left wing mid
+      { ra: 300, dec: 40, bright: false }, // 3: left wing tip
+      { ra: 323, dec: 30, bright: false }, // 4: right wing mid
+      { ra: 330, dec: 40, bright: false }, // 5: right wing tip
+      { ra: 315, dec: 10, bright: false }, // 6: tail
+      { ra: 312, dec:  6, bright: false }, // 7: left talon
+      { ra: 318, dec:  6, bright: false }, // 8: right talon
+    ],
+    lines: [[0,1],[0,2],[2,3],[0,4],[4,5],[0,6],[6,7],[6,8]]
+  },
+  {
+    name: 'Wolf',
+    domain: 'Sunsebb — Winter',
+    tint: [240, 235, 225],
+    // Howling wolf profile, head tilted up
+    stars: [
+      { ra: 338, dec: 32, bright: true  }, // 0: snout
+      { ra: 342, dec: 26, bright: false }, // 1: head
+      { ra: 340, dec: 36, bright: false }, // 2: ear
+      { ra: 346, dec: 22, bright: false }, // 3: shoulder
+      { ra: 351, dec: 24, bright: false }, // 4: back
+      { ra: 356, dec: 22, bright: false }, // 5: hip
+      { ra: 346, dec: 10, bright: false }, // 6: front leg
+      { ra: 355, dec: 10, bright: false }, // 7: rear leg
+      { ra: 359, dec: 26, bright: false }, // 8: tail
+    ],
+    lines: [[0,1],[1,2],[1,3],[3,4],[4,5],[5,8],[3,6],[5,7]]
+  },
+];
+
 // Centroid of a constellation in celestial coordinates — used for label placement.
 export function constellationCentroid(c: Constellation): { ra: number; dec: number } {
   var raSum = 0, decSum = 0;

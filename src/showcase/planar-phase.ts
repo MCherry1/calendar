@@ -418,12 +418,31 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
         var remoteStart = solstice - Math.floor(remoteDur / 2);
         var remoteEnd = remoteStart + remoteDur - 1;
 
-        if (dayOfYear >= remoteStart && dayOfYear <= remoteEnd) {
-          phase = 'remote';
-          position = _bandPositionFromPhase('remote', dayOfYear - remoteStart, remoteDur, 'neutral');
-          phaseProgress = (dayOfYear - remoteStart) / Math.max(1, remoteDur);
-          previousPhase = 'neutral';
-          nextPhase = 'neutral';
+        var transitionDays = 2;
+        var fadeInStart = remoteStart - transitionDays;
+        var fadeOutEnd = remoteEnd + transitionDays;
+        if (dayOfYear >= fadeInStart && dayOfYear <= fadeOutEnd) {
+          var neutralPos = position; // from normal orbit calculation above
+          var remotePos = _bandPositionFromPhase('remote', Math.max(0, dayOfYear - remoteStart), remoteDur, 'neutral');
+          var t = 0;
+          if (dayOfYear < remoteStart) {
+            // Fading in
+            t = (dayOfYear - fadeInStart) / transitionDays;
+          } else if (dayOfYear > remoteEnd) {
+            // Fading out
+            t = 1 - (dayOfYear - remoteEnd) / transitionDays;
+          } else {
+            t = 1; // fully remote
+          }
+          t = Math.max(0, Math.min(1, t));
+          t = t * t * (3 - 2 * t); // smoothstep
+          position = neutralPos + (remotePos - neutralPos) * t;
+          if (t > 0.5) {
+            phase = 'remote';
+            phaseProgress = Math.max(0, dayOfYear - remoteStart) / Math.max(1, remoteDur);
+            previousPhase = 'neutral';
+            nextPhase = 'neutral';
+          }
           isHalfBounce = false;
           isMabarRemoteOverride = true;
         }

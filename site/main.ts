@@ -7,7 +7,7 @@ import { renderPureMonthTable, PureCell } from '../src/shared/render-month-table
 import { getAllShowcasePlanarPhases, PlanarPhaseResult } from '../src/showcase/planar-phase.js';
 import { clearTextureCache, getMoonTexture } from './sky-textures.js';
 import { getMoonOrbitalData } from '../src/showcase/solar-system-data.js';
-import { initSkyRenderer, renderSkyFrame, getMoonScreenPositions, disposeSkyRenderer, getConstellationScreenData, setHoveredConstellation, setLandscapeMode } from './sky-renderer.js';
+import { initSkyRenderer, renderSkyFrame, getMoonScreenPositions, disposeSkyRenderer, getConstellationScreenData, setHoveredConstellation, setViewMode, getViewMode } from './sky-renderer.js';
 
 
 type ShowcaseState = {
@@ -50,7 +50,7 @@ var timeLabel = _must<HTMLOutputElement>('hero-time-label');
 var playToggle = _must<HTMLButtonElement>('play-toggle');
 var speedSelect = _must<HTMLSelectElement>('hero-speed');
 var lunarSizeSelect = _must<HTMLSelectElement>('hero-lunar-size');
-var landscapeSelect = _must<HTMLSelectElement>('hero-landscape');
+var viewModeSelect = _must<HTMLSelectElement>('hero-view-mode');
 var planarPlayToggle = document.getElementById('planar-play-toggle') as HTMLButtonElement | null;
 var planarSpeedSelect = document.getElementById('planar-speed') as HTMLSelectElement | null;
 var planarTimeJoystick = document.getElementById('planar-time-joystick') as HTMLButtonElement | null;
@@ -95,11 +95,13 @@ try {
   _renderCalendarGallery();
   _syncControlsFromState();
   _drawSolarSystem(state.worldId);
-  // Landscape mode from URL
+  // View mode from URL (south / panorama)
   var _initUrl = new URL(window.location.href);
-  var _initLandscape = _initUrl.searchParams.get('landscape') || 'farmstead';
-  setLandscapeMode(_initLandscape);
-  landscapeSelect.value = _initLandscape;
+  var _initViewMode = _initUrl.searchParams.get('viewMode') || 'south';
+  if (_initViewMode !== 'panorama') _initViewMode = 'south';
+  setViewMode(_initViewMode);
+  viewModeSelect.value = _initViewMode;
+  canvas.style.setProperty('--sky-aspect', _initViewMode === 'panorama' ? '2 / 1' : '16 / 9');
 } catch (err) {
   console.error('Showcase init error:', err);
 }
@@ -189,8 +191,10 @@ function _bindEvents(){
     _syncControlsFromState();
     _attemptRender(true, true, performance.now());
   });
-  landscapeSelect.addEventListener('change', function(){
-    setLandscapeMode(landscapeSelect.value);
+  viewModeSelect.addEventListener('change', function(){
+    var mode = viewModeSelect.value === 'panorama' ? 'panorama' : 'south';
+    setViewMode(mode);
+    canvas.style.setProperty('--sky-aspect', mode === 'panorama' ? '2 / 1' : '16 / 9');
     _attemptRender(true, true, performance.now());
   });
   if (planarSpeedSelect) {
@@ -330,13 +334,18 @@ function _hitTestMoon(cx: number, cy: number): typeof _drawnMoons[0] | null {
   return null;
 }
 
+var _lastHoveredConstellation = -1;
 function _updateMoonHoverCursor(e: MouseEvent){
   var coords = _canvasMouseCoords(e);
   if (!coords) return;
   var rect = canvas.getBoundingClientRect();
   // Only if mouse is over the canvas
   if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
-    setHoveredConstellation(-1);
+    if (_lastHoveredConstellation !== -1) {
+      setHoveredConstellation(-1);
+      _lastHoveredConstellation = -1;
+      _attemptRender(false, false, performance.now());
+    }
     return;
   }
   var hit = _hitTestMoon(coords.cx, coords.cy);
@@ -358,6 +367,28 @@ function _updateMoonHoverCursor(e: MouseEvent){
     if (hoveredConstellation >= 0) break;
   }
   setHoveredConstellation(hoveredConstellation);
+
+  // Re-render so constellation lines appear immediately (even when paused).
+  if (hoveredConstellation !== _lastHoveredConstellation) {
+    _lastHoveredConstellation = hoveredConstellation;
+    _attemptRender(false, false, performance.now());
+  }
+
+  // Show constellation tooltip (moon tooltip takes priority — handled in
+  // _handleMoonClick-equivalent below). Constellation tooltip only shows
+  // when no moon is hit.
+  if (!skyTooltip) skyTooltip = document.getElementById('sky-tooltip');
+  if (skyTooltip) {
+    if (hoveredConstellation >= 0 && !hit) {
+      var cData = constellationData[hoveredConstellation];
+      skyTooltip.innerHTML = '<strong>' + _esc(cData.name) + '</strong><br>' + _esc(cData.domain);
+      skyTooltip.hidden = false;
+      skyTooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      skyTooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    } else if (!hit) {
+      skyTooltip.hidden = true;
+    }
+  }
 
   canvas.style.cursor = hit ? 'pointer' : (hoveredConstellation >= 0 ? 'help' : 'default');
 }
@@ -414,7 +445,7 @@ function _attemptRender(forceDetails: boolean, forceUrl: boolean, now: number){
   try {
     _render(forceDetails, forceUrl, now);
     if (lastRenderError) {
-      sceneSubtitle.textContent = WORLDS[state.worldId].description;
+      sceneSubtitle.textContent = '';
       lastRenderError = '';
     }
   } catch (err) {
@@ -443,7 +474,6 @@ function _renderSlotOptions(worldId: string, activeSlotIndex: number){
 }
 
 function _syncControlsFromState(){
-  var world = WORLDS[state.worldId];
   var date = fromWorldSerial(state.worldId, state.serial);
   worldSelect.value = state.worldId;
   yearInput.value = String(date.year);
@@ -468,7 +498,7 @@ function _syncControlsFromState(){
   playToggle.textContent = state.skyPlaying ? 'Pause' : 'Play';
   if (planarPlayToggle) planarPlayToggle.textContent = state.planarPlaying ? 'Pause' : 'Play';
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
-  sceneSubtitle.textContent = world.description;
+  sceneSubtitle.textContent = '';
   if (worldSummary.dataset.worldId !== state.worldId) {
     worldSummary.innerHTML = _buildWorldSummary(state.worldId);
     worldSummary.dataset.worldId = state.worldId;
@@ -487,7 +517,10 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
-  sceneViewNote.textContent = 'Full sky from ' + _formatLatitude(scene.observerLatitude) + '. South at center. ' + lunarSizeLabel + '.';
+  var viewLabel = getViewMode() === 'panorama'
+    ? 'Full panorama from ' + _formatLatitude(scene.observerLatitude) + '. South at center.'
+    : 'South-facing view from ' + _formatLatitude(scene.observerLatitude) + '.';
+  sceneViewNote.textContent = viewLabel + ' ' + lunarSizeLabel + '.';
   var sun = _sunPosition(state.serial, state.timeFrac, state.worldId);
   renderSkyFrame(scene, sun.altitude, sun.azimuth, state.lunarSizeMode, state.timeFrac, state.serial, state.worldId);
   _drawnMoons = getMoonScreenPositions();
@@ -592,25 +625,33 @@ function _renderCalendarGalleryInner(){
       cells: pureCells
     });
 
+    // Intercalary festivals BEFORE this month rendered as standalone strips
+    var preFestivals = preview.intercalaryBefore.map(function(name){
+      return '<div class="intercalary-strip">' +
+        '<span class="intercalary-marker"></span>' +
+        '<span class="intercalary-name">' + _esc(name) + '</span>' +
+        '<span class="intercalary-marker"></span>' +
+      '</div>';
+    }).join('');
+
+    // Intercalary festivals AFTER this month rendered as standalone strips
+    var postFestivals = preview.intercalaryAfter.map(function(name){
+      return '<div class="intercalary-strip">' +
+        '<span class="intercalary-marker"></span>' +
+        '<span class="intercalary-name">' + _esc(name) + '</span>' +
+        '<span class="intercalary-marker"></span>' +
+      '</div>';
+    }).join('');
+
     return (
+      preFestivals +
       '<article class="calendar-card">' +
         '<div class="mini-calendar">' + tableHtml + '</div>' +
-        _festivalRail(preview.intercalaryBefore.concat(preview.intercalaryAfter)) +
         _monthEventsList(monthEvents, worldId) +
-      '</article>'
+      '</article>' +
+      postFestivals
     );
   }).join('');
-}
-
-function _festivalRail(items: string[]){
-  if (!items.length) return '';
-  return (
-    '<div class="festival-rail">' +
-      items.map(function(item){
-        return '<span class="festival-chip">' + _esc(item) + '</span>';
-      }).join('') +
-    '</div>'
-  );
 }
 
 function _renderMoonList(scene: ReturnType<typeof buildSkyScene>){
@@ -692,8 +733,17 @@ function _drawSolarSystem(worldId: string){
   solarSystemCard.hidden = false;
   var ssCtx = solarSystemCanvas.getContext('2d');
   if (!ssCtx) return;
-  var w = solarSystemCanvas.width;
-  var h = solarSystemCanvas.height;
+
+  // DPR-aware sizing — draw in logical pixels, backing store at DPR scale.
+  var dpr = Math.min(window.devicePixelRatio || 1, 3);
+  var logW = 900, logH = 140;
+  solarSystemCanvas.width = logW * dpr;
+  solarSystemCanvas.height = logH * dpr;
+  solarSystemCanvas.style.width = logW + 'px';
+  solarSystemCanvas.style.height = logH + 'px';
+  ssCtx.setTransform(1, 0, 0, 1, 0, 0);
+  ssCtx.scale(dpr, dpr);
+  var w = logW, h = logH;
   ssCtx.clearRect(0, 0, w, h);
 
   // Background
@@ -708,9 +758,9 @@ function _drawSolarSystem(worldId: string){
   for (var di = 0; di < moonData.length; di++) {
     if (moonData[di].diameter > maxDiam) maxDiam = moonData[di].diameter;
   }
-  var MAX_RADIUS = 22;
-  var padX = 30;
-  var cy = h * 0.42;
+  var MAX_RADIUS = 35;
+  var padX = 60;
+  var cy = h * 0.5;
   var spacing = (w - padX * 2) / (moonData.length);
 
   for (var i = 0; i < moonData.length; i++) {
@@ -718,7 +768,7 @@ function _drawSolarSystem(worldId: string){
     var mx = padX + spacing * (i + 0.5);
     var mr = Math.max(3, (m.diameter / maxDiam) * MAX_RADIUS);
     // Textured moon body clipped to circle
-    var tex = getMoonTexture(m.name, m.color, Math.round(mr));
+    var tex = getMoonTexture(m.name, m.color, Math.max(20, Math.round(mr * 2)));
     ssCtx.save();
     ssCtx.beginPath();
     ssCtx.arc(mx, cy, mr, 0, Math.PI * 2);
@@ -733,20 +783,44 @@ function _drawSolarSystem(worldId: string){
     ssCtx.stroke();
     // Name label
     ssCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ssCtx.font = '8px "Trebuchet MS", sans-serif';
+    ssCtx.font = '9px "Trebuchet MS", sans-serif';
     ssCtx.textAlign = 'center';
-    ssCtx.fillText(m.name, mx, cy + mr + 12);
+    ssCtx.fillText(m.name, mx, cy + mr + 13);
     // Diameter label
     ssCtx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ssCtx.font = '7px "Trebuchet MS", sans-serif';
-    ssCtx.fillText(m.diameter + ' mi', mx, cy + mr + 21);
+    ssCtx.font = '8px "Trebuchet MS", sans-serif';
+    ssCtx.fillText(m.diameter + ' mi', mx, cy + mr + 23);
   }
 
-  // Title
-  ssCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  // Sun partial arc (left edge) — sun dwarfs everything so only show a sliver
+  var sunRadius = MAX_RADIUS * 8;
+  ssCtx.beginPath();
+  ssCtx.arc(-sunRadius + 12, cy, sunRadius, -Math.PI * 0.12, Math.PI * 0.12);
+  ssCtx.closePath();
+  var sunGrad = ssCtx.createRadialGradient(-sunRadius + 12, cy, sunRadius * 0.8, -sunRadius + 12, cy, sunRadius);
+  sunGrad.addColorStop(0, 'rgba(255, 250, 220, 0.9)');
+  sunGrad.addColorStop(1, 'rgba(255, 200, 100, 0.3)');
+  ssCtx.fillStyle = sunGrad;
+  ssCtx.fill();
+  ssCtx.fillStyle = 'rgba(255, 250, 220, 0.65)';
   ssCtx.font = '9px "Trebuchet MS", sans-serif';
   ssCtx.textAlign = 'left';
-  ssCtx.fillText('Relative Moon Sizes', padX, h - 6);
+  ssCtx.fillText('Sun', 4, cy + sunRadius * 0.15 + 3);
+
+  // Eberron partial arc (right edge) — the planet, larger than any moon
+  var eberronRadius = MAX_RADIUS * 4;
+  ssCtx.beginPath();
+  ssCtx.arc(w + eberronRadius - 12, cy, eberronRadius, Math.PI - Math.PI * 0.15, Math.PI + Math.PI * 0.15);
+  ssCtx.closePath();
+  var eGrad = ssCtx.createRadialGradient(w + eberronRadius - 12, cy, eberronRadius * 0.7, w + eberronRadius - 12, cy, eberronRadius);
+  eGrad.addColorStop(0, 'rgba(100, 160, 100, 0.7)');
+  eGrad.addColorStop(1, 'rgba(40, 80, 60, 0.3)');
+  ssCtx.fillStyle = eGrad;
+  ssCtx.fill();
+  ssCtx.fillStyle = 'rgba(140, 200, 140, 0.65)';
+  ssCtx.font = '9px "Trebuchet MS", sans-serif';
+  ssCtx.textAlign = 'right';
+  ssCtx.fillText('Eberron', w - 4, cy + eberronRadius * 0.15 + 3);
 }
 
 function _bindSkyJoystick(){
@@ -1355,6 +1429,8 @@ function _renderGalleryVariantOptions(worldId: string){
   var overlays = world.calendar.namingOverlays || [];
   if (overlays.length <= 1) {
     galleryVariantLabel.hidden = true;
+    galleryVariantSelect.innerHTML = '';
+    galleryVariantSelect.value = '';
     return;
   }
   galleryVariantLabel.hidden = false;
@@ -1710,7 +1786,7 @@ function _updateUrl(){
   next.searchParams.set('date', dateParam);
   next.searchParams.set('time', String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0'));
   next.searchParams.set('lunarSize', state.lunarSizeMode);
-  next.searchParams.set('landscape', landscapeSelect.value);
+  next.searchParams.set('viewMode', getViewMode());
   if (Math.abs(state.viewCenterAz - 180) > 0.5) next.searchParams.set('viewAz', state.viewCenterAz.toFixed(1));
   else next.searchParams.delete('viewAz');
   if (Math.abs(state.viewFovDeg - 200) > 0.5) next.searchParams.set('viewFov', state.viewFovDeg.toFixed(1));
