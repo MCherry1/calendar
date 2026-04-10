@@ -107,6 +107,24 @@ function _cycleMetrics(plane: ShowcasePlane): CycleMetrics {
   var coterminousDays = plane.coterminousDays || ((plane.coterminousYears || 0) * YEAR_DAYS);
   var remoteDays = plane.remoteDays || ((plane.remoteYears || 0) * YEAR_DAYS);
   var orbitDays = (plane.orbitYears || 1) * YEAR_DAYS;
+
+  // Half-bounce cycle (no remote phase): model as [cot, neu] so the whole
+  // non-coterminous stretch is one continuous neutral swing, not two halves
+  // separated by a phantom zero-duration remote.
+  if (remoteDays === 0 && coterminousDays > 0) {
+    var bounceDays = orbitDays - coterminousDays;
+    return {
+      orbitDays: orbitDays,
+      coterminousDays: coterminousDays,
+      remoteDays: 0,
+      transitionDays: bounceDays,
+      phases: [
+        { name: 'coterminous', dur: coterminousDays },
+        { name: 'neutral',     dur: bounceDays }
+      ]
+    };
+  }
+
   var transitionDays = (orbitDays - coterminousDays - remoteDays) / 2;
   if (transitionDays < 1) transitionDays = 1;
   return {
@@ -140,7 +158,6 @@ type PhaseWalkResult = {
   isHalfBounce: boolean;
   phaseProgress: number;
   fullTraversalCount: number;
-  neutralSegmentCount: number;
 };
 
 /** Skip zero-duration phases to find the effective next substantive phase. */
@@ -191,11 +208,6 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
       var progress = ph.dur > 0 ? Math.max(0, Math.min(1, into / ph.dur)) : 0;
       var isHalfBounce = ph.name === 'neutral' && previousPhase === nextPhase;
 
-      // Count neutral segments for side-alternation (Mabar-type planes)
-      // pi=1 is the first neutral segment in the orbit, pi=3 is the second
-      var neutralInOrbit = (pi >= 2) ? 1 : 0;
-      var totalNeutralSegments = orbitNum * 2 + neutralInOrbit;
-
       return {
         phase: ph.name,
         position: _bandPositionFromPhase(ph.name, into, ph.dur, previousPhase),
@@ -206,8 +218,7 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
         nextPhase: nextPhase,
         isHalfBounce: isHalfBounce,
         phaseProgress: progress,
-        fullTraversalCount: fullTraversalCount,
-        neutralSegmentCount: totalNeutralSegments
+        fullTraversalCount: fullTraversalCount
       };
     }
     accumulated += ph.dur;
@@ -224,8 +235,7 @@ function _walkPhase(plane: ShowcasePlane, serial: number): PhaseWalkResult {
     nextPhase: 'coterminous',
     isHalfBounce: false,
     phaseProgress: 0,
-    fullTraversalCount: 0,
-    neutralSegmentCount: 0
+    fullTraversalCount: 0
   };
 }
 
@@ -382,11 +392,14 @@ export function getAllShowcasePlanarPhases(serial: number): PlanarPhaseResult[] 
     var nextPhase = walk.nextPhase;
     var isHalfBounce = walk.isHalfBounce;
     var phaseProgress = walk.phaseProgress;
-    // Flip side: full-traversal planes use fullTraversalCount, half-bounce planes use neutral segment count
+    // Flip side per orbit. Full-traversal cycles track it via fullTraversalCount;
+    // half-bounce cycles (collapsed to [cot, neu]) alternate directly off orbitNum
+    // so the side swap happens during the brief coterminous window near R_COT,
+    // not mid-swing at R_REM.
     var hasFullTraversal = _countFullTraversals(cycle);
     var onPrimary = hasFullTraversal
       ? (walk.fullTraversalCount % 2 === 0)
-      : (walk.neutralSegmentCount % 2 === 0);
+      : (walk.orbitNum % 2 === 0);
     var isMabarRemoteOverride = false;
 
     // Mabar special case: 5-year remote window around summer solstice
