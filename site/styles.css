@@ -338,7 +338,7 @@ body {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 2 / 1;
   cursor: default;
   border-radius: 6px;
 }
