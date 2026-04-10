@@ -309,9 +309,16 @@ function _bindEvents(){
 
 function _canvasMouseCoords(e: MouseEvent): { cx: number; cy: number } | null {
   var rect = canvas.getBoundingClientRect();
-  var scaleX = canvas.width / rect.width;
-  var scaleY = canvas.height / rect.height;
-  return { cx: (e.clientX - rect.left) * scaleX, cy: (e.clientY - rect.top) * scaleY };
+  // Convert to logical coordinates (matching the drawing coordinate space).
+  // The canvas ctx has scale(effectiveScale) applied, so all drawing
+  // coordinates are in logical space. canvas.style.width is set to
+  // logicalW + 'px', so logicalW / rect.width ≈ 1.0.
+  var logicalW = parseFloat(canvas.style.width) || canvas.clientWidth || 1400;
+  var logicalH = parseFloat(canvas.style.height) || canvas.clientHeight || 700;
+  return {
+    cx: (e.clientX - rect.left) * (logicalW / rect.width),
+    cy: (e.clientY - rect.top) * (logicalH / rect.height)
+  };
 }
 
 function _hitTestMoon(cx: number, cy: number): typeof _drawnMoons[0] | null {
@@ -480,7 +487,7 @@ function _render(forceDetails: boolean, forceUrl: boolean, now: number){
   sceneDateLabel.textContent = formatWorldDate(state.worldId, state.serial);
   timeLabel.textContent = _formatClock(Math.round(state.timeFrac * 1440));
   var lunarSizeLabel = state.lunarSizeMode === 'true' ? 'True Size lunar scale' : 'Visually Useful lunar scale';
-  sceneViewNote.textContent = 'Looking South from ' + _formatLatitude(scene.observerLatitude) + '. ' + lunarSizeLabel + '.';
+  sceneViewNote.textContent = 'Full sky from ' + _formatLatitude(scene.observerLatitude) + '. South at center. ' + lunarSizeLabel + '.';
   var sun = _sunPosition(state.serial, state.timeFrac, state.worldId);
   renderSkyFrame(scene, sun.altitude, sun.azimuth, state.lunarSizeMode, state.timeFrac, state.serial, state.worldId);
   _drawnMoons = getMoonScreenPositions();

@@ -8,9 +8,9 @@ import type { Constellation, ConstellationStar } from './constellations.js';
 // ── Constants ──
 var _landscapeMode = 'farmstead';
 function _landFrac(): number { return _landscapeMode === 'mountains' ? 0.18 : 0.12; }
-var SKY_AZ_MIN = 81;          // East edge (90° - 5% padding)
-var SKY_AZ_MAX = 279;         // West edge (270° + 5% padding)
-var SKY_AZ_RANGE = SKY_AZ_MAX - SKY_AZ_MIN; // 198°
+var SKY_AZ_MIN = 0;           // North (left edge)
+var SKY_AZ_MAX = 360;         // North (right edge, wraps)
+var SKY_AZ_RANGE = 360;       // Full panorama
 var PANO_ALT_MAX = 70;        // degrees of sky altitude visible
 var SUN_ANGULAR_DIAM = 0.53;  // degrees
 var DEG2RAD = Math.PI / 180;
@@ -57,8 +57,9 @@ function _azAltToXY(azDeg: number, altDeg: number, w: number, h: number): { x: n
   var skyH = h * (1 - _landFrac());
   var az = ((azDeg - SKY_AZ_MIN) % 360 + 360) % 360;
   var x = (az / SKY_AZ_RANGE) * w;
-  var alt = Math.max(0, Math.min(PANO_ALT_MAX, altDeg));
-  var y = skyH * (1 - alt / PANO_ALT_MAX);
+  // No clamping — let objects exit the viewport naturally.
+  // Negative y = above canvas (clipped by canvas), y > skyH = below horizon (behind landscape).
+  var y = skyH * (1 - altDeg / PANO_ALT_MAX);
   return { x, y };
 }
 
@@ -116,9 +117,9 @@ export function initSkyRenderer(canvas: HTMLCanvasElement): void {
   var dpr = Math.min(window.devicePixelRatio || 1, 3);
   _logicalW = canvas.clientWidth || canvas.width;
   _logicalH = canvas.clientHeight || canvas.height;
-  // Minimum backing resolution: 1680×945 prevents upscale fuzz on small viewports
-  var backingW = Math.max(1680, _logicalW * dpr);
-  var backingH = Math.max(945, _logicalH * dpr);
+  // Minimum backing resolution: 2100×1050 prevents upscale fuzz on small viewports
+  var backingW = Math.max(2100, _logicalW * dpr);
+  var backingH = Math.max(1050, _logicalH * dpr);
   var effectiveScale = backingW / _logicalW;
   canvas.width = backingW;
   canvas.height = backingH;
@@ -136,8 +137,8 @@ export function initSkyRenderer(canvas: HTMLCanvasElement): void {
       if (newW === _logicalW && newH === _logicalH) return;
       _logicalW = newW;
       _logicalH = newH;
-      var bW = Math.max(1680, _logicalW * d);
-      var bH = Math.max(945, _logicalH * d);
+      var bW = Math.max(2100, _logicalW * d);
+      var bH = Math.max(1050, _logicalH * d);
       var s = bW / _logicalW;
       _canvas.width = bW;
       _canvas.height = bH;
@@ -1449,6 +1450,20 @@ export function renderSkyFrame(
 
   // 7. Landscape (foreground)
   _drawLandscape(ctx, w, h, sunAlt);
+
+  // 8. Compass labels
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = 'rgba(200, 210, 230, 0.7)';
+  ctx.font = '12px "Trebuchet MS", "Gill Sans", sans-serif';
+  ctx.textAlign = 'center';
+  var compassY = h * (1 - _landFrac()) - 8;
+  ctx.fillText('N', 0, compassY);              // North at left edge
+  ctx.fillText('E', w * 0.25, compassY);        // East at 25%
+  ctx.fillText('S', w * 0.5, compassY);         // South at center
+  ctx.fillText('W', w * 0.75, compassY);        // West at 75%
+  ctx.fillText('N', w, compassY);               // North at right edge
+  ctx.restore();
 }
 
 // ── Cleanup ──
