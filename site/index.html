@@ -65,13 +65,10 @@
               </select>
             </label>
             <label>
-              <span>Horizon</span>
-              <select id="hero-landscape">
-                <option value="farmstead" selected>Farmstead</option>
-                <option value="forest">Forest</option>
-                <option value="village">Village</option>
-                <option value="lakeside">Lakeside</option>
-                <option value="mountains">Mountains</option>
+              <span>View</span>
+              <select id="hero-view-mode">
+                <option value="south" selected>South-Facing</option>
+                <option value="panorama">Full Panorama</option>
               </select>
             </label>
             <label class="wide">
@@ -118,8 +115,8 @@
               <div id="moon-list"></div>
             </div>
             <div class="scene-card scene-card-wide" id="solar-system-card" hidden>
-              <p class="scene-card-label">Solar System</p>
-              <canvas id="solar-system-canvas" width="900" height="160" aria-label="Static solar system diagram"></canvas>
+              <p class="scene-card-label">Relative Sizes</p>
+              <canvas id="solar-system-canvas" width="1800" height="280" aria-label="Relative moon size comparison"></canvas>
             </div>
             <div class="scene-card scene-card-planar" id="planar-card" hidden>
               <p class="scene-card-label">Planar Orbits</p>
@@ -175,7 +172,7 @@
             </div>
           </label>
           <label id="gallery-variant-label" hidden>
-            <span>Calendar variant</span>
+            <span>Month names</span>
             <select id="gallery-variant"></select>
           </label>
         </div>
