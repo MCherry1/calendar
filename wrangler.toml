@@ -1,0 +1,8 @@
+name = "calendar"
+main = "src/worker.ts"
+compatibility_date = "2025-05-01"
+
+[assets]
+directory = "./dist-site"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
