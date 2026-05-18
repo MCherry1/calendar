@@ -8,14 +8,15 @@
     "build:site": "node build-site.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test --test-force-exit test/**/*.test.ts",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "esbuild": "^0.25.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
-  },
-  "dependencies": {
+    "typescript": "^5.7.0",
+    "wrangler": "^4.92.0"
   }
 }
