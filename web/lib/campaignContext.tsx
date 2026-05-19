@@ -1,7 +1,16 @@
 /**
  * React context wrapping the CalendarStore. Components read/write the
  * current campaign + layer prefs through this hook; nothing in UI code
- * touches localStorage directly.
+ * touches localStorage or the API directly.
+ *
+ * Store selection:
+ *   - If ?campaign=<id> is in the URL AND the server confirms access,
+ *     use PartyBuffStore (server-backed via party-buff D1).
+ *   - Otherwise use LocalStore (localStorage, anonymous mode).
+ *
+ * The selection runs once on mount; switching campaigns requires a
+ * page load with a different ?campaign param. That's intentional —
+ * keeps the store stable for the lifetime of the calendar session.
  */
 
 import {
@@ -9,7 +18,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -19,11 +27,21 @@ import {
   type LayerPrefs,
 } from './store/CalendarStore';
 import { LocalStore } from './store/LocalStore';
+import {
+  PartyBuffStore,
+  detectPartyBuffCampaignId,
+} from './store/PartyBuffStore';
+
+export type StoreMode = 'local' | 'partybuff' | 'unresolved';
 
 interface CampaignContextValue {
   campaign: CampaignSnapshot | null;
   layers: LayerPrefs | null;
   loading: boolean;
+  mode: StoreMode;
+  /** Set when mode === 'partybuff'. Useful for UI affordances ("Saving to
+   *  campaign…", "Signed in as DM of <name>", etc.) once we wire them. */
+  partyBuffCampaignId: string | null;
   setCampaign(patch: Partial<CampaignSnapshot>): Promise<void>;
   setLayers(patch: Partial<LayerPrefs>): Promise<void>;
 }
@@ -31,29 +49,72 @@ interface CampaignContextValue {
 const CampaignContext = createContext<CampaignContextValue | null>(null);
 
 interface CampaignProviderProps {
+  /** Override the auto-selected store. Useful for tests + Storybook. */
   store?: CalendarStore;
   children: ReactNode;
 }
 
 export function CampaignProvider({ store, children }: CampaignProviderProps) {
-  // Lazy-construct so the default store doesn't run during SSR if it ever does.
-  const resolvedStore = useMemo(() => store ?? new LocalStore(), [store]);
+  const [resolvedStore, setResolvedStore] = useState<CalendarStore | null>(
+    store ?? null,
+  );
+  const [mode, setMode] = useState<StoreMode>(store ? 'local' : 'unresolved');
+  const [partyBuffCampaignId, setPartyBuffCampaignId] = useState<string | null>(
+    null,
+  );
 
   const [campaign, setCampaignState] = useState<CampaignSnapshot | null>(null);
   const [layers, setLayersState] = useState<LayerPrefs | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Store selection: probe the URL + API once on mount.
   useEffect(() => {
+    if (store) return; // explicit override; skip probe
     let cancelled = false;
     (async () => {
-      const [c, l] = await Promise.all([
-        resolvedStore.getCampaign(),
-        resolvedStore.getLayerPrefs(),
-      ]);
+      const id = await detectPartyBuffCampaignId();
       if (cancelled) return;
-      setCampaignState(c);
-      setLayersState(l);
-      setLoading(false);
+      if (id) {
+        setPartyBuffCampaignId(id);
+        setMode('partybuff');
+        setResolvedStore(new PartyBuffStore(id));
+      } else {
+        setMode('local');
+        setResolvedStore(new LocalStore());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [store]);
+
+  // Once the store is selected, load the campaign + layer prefs.
+  useEffect(() => {
+    if (!resolvedStore) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const [c, l] = await Promise.all([
+          resolvedStore.getCampaign(),
+          resolvedStore.getLayerPrefs(),
+        ]);
+        if (cancelled) return;
+        setCampaignState(c);
+        setLayersState(l);
+      } catch (err) {
+        // If PartyBuffStore fails (e.g. session expired mid-session),
+        // fall back to LocalStore so the UI doesn't get stuck.
+        if (!cancelled && resolvedStore instanceof PartyBuffStore) {
+          console.warn('PartyBuffStore failed, falling back to LocalStore:', err);
+          setMode('local');
+          setResolvedStore(new LocalStore());
+          return;
+        }
+        if (!cancelled) console.error('Calendar store failed:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -62,6 +123,7 @@ export function CampaignProvider({ store, children }: CampaignProviderProps) {
 
   const setCampaign = useCallback(
     async (patch: Partial<CampaignSnapshot>) => {
+      if (!resolvedStore) return;
       const next = await resolvedStore.patchCampaign(patch);
       setCampaignState(next);
     },
@@ -70,9 +132,8 @@ export function CampaignProvider({ store, children }: CampaignProviderProps) {
 
   const setLayers = useCallback(
     async (patch: Partial<LayerPrefs>) => {
-      const current = layers;
-      if (!current) return;
-      const next = { ...current, ...patch };
+      if (!resolvedStore || !layers) return;
+      const next = { ...layers, ...patch };
       await resolvedStore.setLayerPrefs(next);
       setLayersState(next);
     },
@@ -83,11 +144,15 @@ export function CampaignProvider({ store, children }: CampaignProviderProps) {
     campaign,
     layers,
     loading,
+    mode,
+    partyBuffCampaignId,
     setCampaign,
     setLayers,
   };
 
-  return <CampaignContext.Provider value={value}>{children}</CampaignContext.Provider>;
+  return (
+    <CampaignContext.Provider value={value}>{children}</CampaignContext.Provider>
+  );
 }
 
 export function useCampaign(): CampaignContextValue {
