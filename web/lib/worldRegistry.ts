@@ -30,4 +30,25 @@ export function getWorld(key: string): WorldDefinition | null {
   return WORLDS[key] ?? null;
 }
 
+/**
+ * The world's canonical "current" date (e.g., Eberron → 998 YK,
+ * Faerûn → 1492 DR). Used to seed a fresh campaign so each world
+ * starts on its own in-canon present rather than an arbitrary
+ * serial mapped over from another world's calendar.
+ *
+ * `monthIndex` is a regular (0-based) month index — what serialForDate
+ * in the bridge expects.
+ */
+export function getWorldDefaultDate(
+  key: string,
+): { year: number; monthIndex: number; day: number } | null {
+  const w = WORLDS[key];
+  if (!w || !w.defaultDate) return null;
+  return {
+    year: w.defaultDate.year,
+    monthIndex: w.defaultDate.month,
+    day: w.defaultDate.day,
+  };
+}
+
 export const DEFAULT_WORLD_KEY = 'eberron';

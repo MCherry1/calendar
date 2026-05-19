@@ -31,6 +31,19 @@ import {
   PartyBuffStore,
   detectPartyBuffCampaignId,
 } from './store/PartyBuffStore';
+import { getWorldDefaultDate } from './worldRegistry';
+import { serialForDate } from './core/bridge';
+
+/**
+ * Resolve the canonical starting serial for a world — its in-canon
+ * "current" date. Falls back to serial 0 only if the world has no
+ * default date (shouldn't happen for any shipped world).
+ */
+function canonicalSerial(worldId: string): number {
+  const def = getWorldDefaultDate(worldId);
+  if (!def) return 0;
+  return serialForDate(worldId, def.year, def.monthIndex, def.day);
+}
 
 export type StoreMode = 'local' | 'partybuff' | 'unresolved';
 
@@ -100,7 +113,20 @@ export function CampaignProvider({ store, children }: CampaignProviderProps) {
           resolvedStore.getLayerPrefs(),
         ]);
         if (cancelled) return;
-        setCampaignState(c);
+        // currentSerial 0 = uninitialized sentinel (fresh campaign, or a
+        // pre-fix stored campaign). Compute the world's canonical "now"
+        // and persist it so every world starts in its own present.
+        if (!c.currentSerial || c.currentSerial <= 0) {
+          const initialized: CampaignSnapshot = {
+            ...c,
+            currentSerial: canonicalSerial(c.worldId),
+          };
+          await resolvedStore.setCampaign(initialized);
+          if (cancelled) return;
+          setCampaignState(initialized);
+        } else {
+          setCampaignState(c);
+        }
         setLayersState(l);
       } catch (err) {
         // If PartyBuffStore fails (e.g. session expired mid-session),
@@ -124,10 +150,24 @@ export function CampaignProvider({ store, children }: CampaignProviderProps) {
   const setCampaign = useCallback(
     async (patch: Partial<CampaignSnapshot>) => {
       if (!resolvedStore) return;
-      const next = await resolvedStore.patchCampaign(patch);
+      // Changing world without an explicit serial: reset to the new
+      // world's canonical "now" rather than carrying the old world's
+      // serial (which would map to an arbitrary date in the new calendar).
+      let effectivePatch = patch;
+      if (
+        patch.worldId &&
+        patch.worldId !== campaign?.worldId &&
+        patch.currentSerial === undefined
+      ) {
+        effectivePatch = {
+          ...patch,
+          currentSerial: canonicalSerial(patch.worldId),
+        };
+      }
+      const next = await resolvedStore.patchCampaign(effectivePatch);
       setCampaignState(next);
     },
-    [resolvedStore],
+    [resolvedStore, campaign?.worldId],
   );
 
   const setLayers = useCallback(

@@ -20,12 +20,12 @@ const KEY_LAYERS = 'pb-cal:layers:v1';
 
 const DEFAULT_CAMPAIGN: CampaignSnapshot = {
   worldId: DEFAULT_WORLD_KEY,
-  // 335,328 = Eberron's canonical "year 998 YK, 1 Zarantyr" (998 × 336
-  // days/year). Starting here keeps the default close to every moon's
-  // epoch reference date so phase math gives real values without
-  // tripping _generateStandardSequence's iteration caps — see the
-  // bridge for the long-range moon-sequence bug note.
-  currentSerial: 335_328,
+  // 0 is the "uninitialized" sentinel. CampaignProvider detects it on
+  // load and computes the world's canonical default serial (Eberron
+  // 998 YK, Faerûn 1492 DR, etc.) via the bridge, then persists it.
+  // Keeping a single init path here means every world — not just
+  // Eberron — starts on its own in-canon present.
+  currentSerial: 0,
   currentHour: 9,
   viewMode: 'gm',
 };
