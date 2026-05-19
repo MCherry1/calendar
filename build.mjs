@@ -10,8 +10,13 @@ await build({
   globalName: 'Calendar',
   outfile: 'calendar.js',
   target: 'es2020',
-  // Roll20 uses var-style globals
-  define: {},
+  // Roll20 uses var-style globals.
+  // __ROLL20__ is a compile-time constant: only the Roll20 bundle gets it.
+  // Code that needs to gate expensive paths in the Roll20 sandbox checks
+  // `typeof __ROLL20__ !== 'undefined' && __ROLL20__`.
+  define: {
+    __ROLL20__: 'true',
+  },
   // Keep readable output (Roll20 users may inspect/edit)
   minify: false,
   // Add the header comment

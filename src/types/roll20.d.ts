@@ -16,6 +16,12 @@ declare function getObj(type: string, id: string): any;
 // Test-mode flag set by roll20-shim
 declare var __CALENDAR_TEST_MODE__: boolean | undefined;
 
+// Build-time flag injected by build.mjs (the Roll20 bundle). Undefined
+// in tests and in the web build; truthy only inside the calendar.js
+// IIFE that runs in the Roll20 sandbox. Used to gate computations that
+// are too expensive for the Roll20 API timeout budget.
+declare var __ROLL20__: boolean | undefined;
+
 // Test helpers set by roll20-shim
 declare var _chatLog: Array<{ who: string; msg: string; opts?: any }>;
 declare var _eventHandlers: Record<string, Array<(...args: any[]) => void>>;

@@ -3922,6 +3922,15 @@ export function getEclipses(serial){
   var st = ensureSettings();
   if (st.moonsEnabled === false) return [];
 
+  // Roll20-only short-circuit: the per-day eclipse scan was the dominant
+  // cost in the Roll20 API sandbox (noticeable lag on `!cal` and date
+  // advance). __ROLL20__ is a compile-time constant injected by the
+  // Roll20 build (see build.mjs); undefined in tests, the web build,
+  // and any other consumer, so the engine runs unchanged everywhere else.
+  if (typeof __ROLL20__ !== 'undefined' && __ROLL20__) {
+    return [];
+  }
+
   var sys = _getMoonSys();
   if (!sys || !sys.moons) return [];
 
