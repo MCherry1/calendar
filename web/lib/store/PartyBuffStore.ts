@@ -97,31 +97,54 @@ export class PartyBuffStore implements CalendarStore {
 }
 
 /**
- * Best-effort probe: returns the campaignId from the URL if PartyBuffStore
- * is viable for this page load (campaign param present AND server confirms
- * access). Returns null otherwise so the caller can fall back to LocalStore.
+ * Best-effort probe: returns the campaignId PartyBuffStore should use
+ * for this page load, or null so the caller falls back to LocalStore.
  *
- * Why fetch-to-probe instead of relying on a session cookie check?
- * 1. The calendar runs in two contexts: standalone (no party-buff cookies)
- *    and proxied through partybuff.com (cookies present). The probe is the
- *    same code path in both.
- * 2. A 401 / 403 cleanly tells us "not authed for this campaign" — same
- *    fallback behavior whether the user is signed out or signed in to
- *    someone else's account.
+ * Resolution order:
+ *   1. ?campaign=<id> in the URL — explicit override (e.g. a deep link
+ *      from the campaigns page). Wins if present and accessible.
+ *   2. The signed-in user's active campaign (GET /api/me) — the normal
+ *      path once the header campaign-switcher is in use.
+ *
+ * Either way the candidate is confirmed by fetching its calendar_state;
+ * a 401/403/404 means "not accessible" → fall through to anonymous.
+ *
+ * Works identically whether the calendar is hit standalone (no
+ * party-buff cookies → everything fails → LocalStore) or proxied
+ * through partybuff.com (cookies present).
  */
 export async function detectPartyBuffCampaignId(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
+
+  // 1. Explicit URL override.
   const params = new URLSearchParams(window.location.search);
-  const id = params.get('campaign');
-  if (!id) return null;
+  const urlId = params.get('campaign');
+  if (urlId && (await canAccessCampaign(urlId))) return urlId;
+
+  // 2. The user's active campaign.
+  try {
+    const meRes = await fetch('/api/me', { credentials: 'include' });
+    if (meRes.ok) {
+      const { user } = (await meRes.json()) as {
+        user?: { activeCampaignId?: string | null };
+      };
+      const activeId = user?.activeCampaignId;
+      if (activeId && (await canAccessCampaign(activeId))) return activeId;
+    }
+  } catch {
+    /* not signed in / standalone → anonymous */
+  }
+  return null;
+}
+
+async function canAccessCampaign(id: string): Promise<boolean> {
   try {
     const res = await fetch(
       `/api/campaigns/${encodeURIComponent(id)}/state/calendar_state`,
       { credentials: 'include' },
     );
-    if (res.ok) return id;
+    return res.ok;
   } catch {
-    /* network error → fall through to anonymous */
+    return false;
   }
-  return null;
 }
