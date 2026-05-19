@@ -19,10 +19,18 @@ import { fromSerial } from '@core/date-math.js';
 import { formalDateLabelFromSerial } from '@core/ui.js';
 import {
   MOON_SYSTEMS,
+  _moonPeakPhaseDay,
   moonEnsureSequences,
   moonPhaseAt,
 } from '@core/moon.js';
 import { getEventsFor } from '@core/events.js';
+import { buildCalendarPreview } from '@core/showcase/calendar-preview.js';
+import {
+  daysBeforeWorldSlot,
+  daysBeforeWorldYear,
+  getWorldRegularMonthSlots,
+  regularMonthIndexToSlotIndex,
+} from '@core/showcase/world-calendar.js';
 import { TIME_OF_DAY_BUCKETS } from '@core/time-of-day.js';
 import {
   PLANE_DATA,
@@ -87,6 +95,17 @@ function activate(worldId: string, serial: number): void {
 export function formatDate(worldId: string, serial: number): string {
   activate(worldId, serial);
   return formalDateLabelFromSerial(serial);
+}
+
+/** Activates the world (so leap-year selection etc. is correct) and then
+ *  returns the calendar-aware { year, monthIndex, day } for a serial. */
+export function decomposeSerial(
+  worldId: string,
+  serial: number,
+): { year: number; monthIndex: number; day: number } {
+  activate(worldId, serial);
+  const d = fromSerial(serial);
+  return { year: d.year, monthIndex: d.mi, day: d.day };
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -333,4 +352,135 @@ export function getWeatherToday(worldId: string, serial: number): WeatherInfo {
 export function getActiveSettings() {
   ensureBoot();
   return ensureSettings();
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Year-at-a-glance — month grids enriched with optional layer data
+// ───────────────────────────────────────────────────────────────────
+
+/** Layer flags that control which optional data each cell carries.
+ *  When a flag is off the corresponding field is empty (saves the per-day
+ *  bridge calls — for a 12-month year that's a meaningful win). */
+export interface MonthGridLayers {
+  events: boolean;
+  lunarPhases: boolean;
+}
+
+export interface MonthGridDayCell {
+  kind: 'day';
+  day: number;
+  serial: number;
+  weekdayIndex: number;
+  /** Events on this date — empty when the events layer is off. */
+  events: EventInfo[];
+  /** Names of moons that peak full on this date. */
+  fullMoons: string[];
+  /** Names of moons that peak new on this date. */
+  newMoons: string[];
+}
+
+export interface MonthGridEmptyCell {
+  kind: 'empty';
+}
+
+export type MonthGridCell = MonthGridDayCell | MonthGridEmptyCell;
+
+export interface MonthGridInfo {
+  monthName: string;
+  monthIndex: number;
+  year: number;
+  daysInMonth: number;
+  weekdayLabels: string[];
+  cells: MonthGridCell[];
+  /** Serial of day 1 in this month (useful for click handlers). */
+  startSerial: number;
+}
+
+/** Pure (no global-state side effect) world-to-serial helper. */
+export function serialForDate(
+  worldId: string,
+  year: number,
+  monthIndex: number,
+  day: number,
+): number {
+  const slotIndex = regularMonthIndexToSlotIndex(worldId, monthIndex);
+  return (
+    daysBeforeWorldYear(worldId, year) +
+    daysBeforeWorldSlot(worldId, year, slotIndex) +
+    (day - 1)
+  );
+}
+
+/** Number of regular months in a world. Used by year-grid pagination. */
+export function regularMonthCount(worldId: string): number {
+  return getWorldRegularMonthSlots(worldId).length;
+}
+
+export function getMonthGrid(
+  worldId: string,
+  year: number,
+  monthIndex: number,
+  layers: MonthGridLayers,
+): MonthGridInfo {
+  const startSerial = serialForDate(worldId, year, monthIndex, 1);
+  // Activate the world AND seed the year context so the core's getCal /
+  // moon sequences operate on the right year. moonEnsureSequences gets a
+  // serial that already lives in the year we're rendering.
+  activate(worldId, startSerial);
+  if (layers.lunarPhases) {
+    moonEnsureSequences(startSerial);
+  }
+
+  const preview = buildCalendarPreview({ worldId, year, monthIndex });
+  const sys = (MOON_SYSTEMS as any)[worldId];
+  const moonNames: string[] =
+    layers.lunarPhases && sys && Array.isArray(sys.moons)
+      ? sys.moons.map((m: any) => m.name)
+      : [];
+
+  const cells: MonthGridCell[] = preview.cells.map((c) => {
+    if (c.kind === 'empty') return { kind: 'empty' };
+    const serial = startSerial + (c.day - 1);
+    const events = layers.events ? getEventsToday(worldId, serial) : [];
+    const fullMoons: string[] = [];
+    const newMoons: string[] = [];
+    for (const name of moonNames) {
+      const peak = _moonPeakPhaseDay(name, serial);
+      if (peak === 'full') fullMoons.push(name);
+      else if (peak === 'new') newMoons.push(name);
+    }
+    return {
+      kind: 'day',
+      day: c.day,
+      serial,
+      weekdayIndex: c.weekdayIndex,
+      events,
+      fullMoons,
+      newMoons,
+    };
+  });
+
+  return {
+    monthName: preview.monthName,
+    monthIndex,
+    year,
+    daysInMonth: preview.daysInMonth,
+    weekdayLabels: preview.weekdayLabels,
+    cells,
+    startSerial,
+  };
+}
+
+/** Convenience: builds all regular-month grids for a year in one call. */
+export function getYearGrid(
+  worldId: string,
+  year: number,
+  layers: MonthGridLayers,
+): MonthGridInfo[] {
+  const count = regularMonthCount(worldId);
+  const out: MonthGridInfo[] = [];
+  for (let mi = 0; mi < count; mi++) {
+    out.push(getMonthGrid(worldId, year, mi, layers));
+  }
+  return out;
 }
