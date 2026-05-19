@@ -9,9 +9,10 @@
  * they're the heaviest subsystems to wrap and want their own commit.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCampaign } from '../lib/campaignContext';
 import { getWorld } from '../lib/worldRegistry';
+import { fetchWeatherAmbience } from '../lib/ai/weatherAmbience';
 import {
   formatDate,
   getEventsToday,
@@ -22,6 +23,7 @@ import {
   type EventInfo,
   type MoonInfo,
   type PlaneInfo,
+  type TimeOfDayInfo,
   type WeatherInfo,
 } from '../lib/core/bridge';
 
@@ -88,7 +90,11 @@ export function TodayCard() {
       </header>
 
       <div className="grid grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-2">
-        <WeatherPanel weather={today.weather} />
+        <WeatherPanel
+          weather={today.weather}
+          time={today.time}
+          cacheTag={`${campaign.worldId}:${campaign.currentSerial}`}
+        />
         <MoonsPanel moons={today.moons} />
         <PlanesPanel planes={today.planes} />
         <EventsPanel events={today.events} />
@@ -263,7 +269,13 @@ function EventsPanel({ events }: { events: EventInfo[] }) {
 // Weather
 // ───────────────────────────────────────────────────────────────────
 
-function WeatherPanel({ weather }: { weather: WeatherInfo }) {
+interface WeatherPanelProps {
+  weather: WeatherInfo;
+  time: TimeOfDayInfo;
+  cacheTag: string;
+}
+
+function WeatherPanel({ weather, time, cacheTag }: WeatherPanelProps) {
   if (!weather.available) {
     return (
       <Panel label="Weather">
@@ -282,6 +294,7 @@ function WeatherPanel({ weather }: { weather: WeatherInfo }) {
         >
           {weather.narrative}
         </div>
+        <WeatherAmbience weather={weather} time={time} cacheTag={cacheTag} />
         <div className="flex flex-wrap gap-1.5 text-xs">
           <Chip label={weather.tempLabel} variant="temp" />
           {weather.precipBand > 0 && (
@@ -302,6 +315,77 @@ function WeatherPanel({ weather }: { weather: WeatherInfo }) {
         </div>
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Fetches the AI-generated ambience text via Workers AI and renders it
+ * as italic prose beneath the deterministic weather narrative. Fails
+ * silently: if the AI is unavailable or the request errors, the panel
+ * just doesn't show the extra paragraph. Deterministic content above
+ * stays as the canonical info.
+ */
+function WeatherAmbience({
+  weather,
+  time,
+  cacheTag,
+}: {
+  weather: WeatherInfo;
+  time: TimeOfDayInfo;
+  cacheTag: string;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fingerprint the inputs that matter. When any of these change, refetch.
+  const fingerprint = [
+    weather.location,
+    weather.tempLabel,
+    weather.precipBand,
+    weather.windBand,
+    weather.fogLevel,
+    time.bucketKey,
+    cacheTag,
+  ].join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setText(null);
+    fetchWeatherAmbience({ weather, time, cacheTag })
+      .then((result) => {
+        if (cancelled) return;
+        setText(result);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fingerprint]);
+
+  if (loading) {
+    return (
+      <div
+        className="text-xs italic"
+        style={{ color: 'var(--pb-text-tertiary)' }}
+      >
+        Weaving ambience…
+      </div>
+    );
+  }
+
+  if (!text) return null;
+
+  return (
+    <p
+      className="text-sm italic leading-relaxed"
+      style={{ color: 'var(--pb-text-secondary)' }}
+    >
+      {text}
+    </p>
   );
 }
 

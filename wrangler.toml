@@ -11,3 +11,10 @@ not_found_handling = "single-page-application"
 # SPA fallback intercepts /calendar/assets/* and serves index.html
 # for JS/CSS requests, which the browser refuses to execute as HTML.
 run_worker_first = true
+
+# Workers AI binding for ambient weather narration. Free tier covers
+# 10k neurons/day; a Llama 3.1 8B call for ~100 output tokens runs
+# under 1 neuron, so the practical ceiling is thousands of unique
+# ambience generations per day at $0. Cache API smooths repeat hits.
+[ai]
+binding = "AI"
