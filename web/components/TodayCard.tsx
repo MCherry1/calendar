@@ -16,9 +16,13 @@ import {
   formatDate,
   getEventsToday,
   getMoonsToday,
+  getPlanesToday,
   getTimeOfDay,
-  type MoonInfo,
+  getWeatherToday,
   type EventInfo,
+  type MoonInfo,
+  type PlaneInfo,
+  type WeatherInfo,
 } from '../lib/core/bridge';
 
 export function TodayCard() {
@@ -32,7 +36,9 @@ export function TodayCard() {
       const time = getTimeOfDay(campaign.currentHour);
       const moons = getMoonsToday(campaign.worldId, campaign.currentSerial);
       const events = getEventsToday(campaign.worldId, campaign.currentSerial);
-      return { dateLabel, time, moons, events };
+      const weather = getWeatherToday(campaign.worldId, campaign.currentSerial);
+      const planes = getPlanesToday(campaign.worldId, campaign.currentSerial);
+      return { dateLabel, time, moons, events, weather, planes };
     },
     [campaign.worldId, campaign.currentSerial, campaign.currentHour],
   );
@@ -79,16 +85,10 @@ export function TodayCard() {
       </header>
 
       <div className="grid grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-2">
+        <WeatherPanel weather={today.weather} />
         <MoonsPanel moons={today.moons} />
+        <PlanesPanel planes={today.planes} />
         <EventsPanel events={today.events} />
-        <StubPanel
-          label="Weather"
-          note="Wraps the location-based weather generator next pass."
-        />
-        <StubPanel
-          label="Planes"
-          note="Coterminous / remote planar phases land with the planar wheel."
-        />
       </div>
 
       <footer
@@ -103,8 +103,8 @@ export function TodayCard() {
           {campaign.viewMode === 'gm' ? 'GM' : 'Player'}
         </span>
         {' · '}
-        Layer toggles, weather/planar detail, and the year-at-a-glance grid
-        land in the next passes.
+        Year-at-a-glance grid, layer toggles, and smooth navigation land in
+        the next passes.
       </footer>
     </article>
   );
@@ -257,6 +257,159 @@ function EventsPanel({ events }: { events: EventInfo[] }) {
 }
 
 // ───────────────────────────────────────────────────────────────────
+// Weather
+// ───────────────────────────────────────────────────────────────────
+
+function WeatherPanel({ weather }: { weather: WeatherInfo }) {
+  if (!weather.available) {
+    return (
+      <Panel label="Weather">
+        <div className="text-sm" style={{ color: 'var(--pb-text-tertiary)' }}>
+          {weather.narrative}
+        </div>
+      </Panel>
+    );
+  }
+  return (
+    <Panel label="Weather">
+      <div className="flex flex-col gap-2">
+        <div
+          className="text-sm"
+          style={{ color: 'var(--pb-text-primary)' }}
+        >
+          {weather.narrative}
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          <Chip label={weather.tempLabel} variant="temp" />
+          {weather.precipBand > 0 && (
+            <Chip label={`Precip ${weather.precipBand}/5`} variant="precip" />
+          )}
+          {weather.windBand > 0 && (
+            <Chip label={`Wind ${weather.windBand}/5`} variant="wind" />
+          )}
+          {weather.fogLevel !== 'none' && (
+            <Chip label={`Fog: ${weather.fogLevel}`} variant="fog" />
+          )}
+        </div>
+        <div
+          className="text-xs"
+          style={{ color: 'var(--pb-text-tertiary)' }}
+        >
+          {weather.location}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Planes
+// ───────────────────────────────────────────────────────────────────
+
+function PlanesPanel({ planes }: { planes: PlaneInfo[] }) {
+  if (!planes.length) {
+    return (
+      <Panel label="Planes">
+        <div className="text-sm" style={{ color: 'var(--pb-text-tertiary)' }}>
+          This world doesn't track planar cycles.
+        </div>
+      </Panel>
+    );
+  }
+  // Surface the notable ones first: coterminous / remote get top billing;
+  // neutral gets sorted toward the end. Within group, soonest-changing first.
+  const sorted = [...planes].sort((a, b) => phaseRank(a.phase) - phaseRank(b.phase));
+  const notable = sorted.filter((p) => p.phase !== 'neutral');
+  const neutral = sorted.filter((p) => p.phase === 'neutral');
+
+  return (
+    <Panel label={`Planes (${planes.length})`}>
+      <ul className="flex flex-col gap-1.5">
+        {notable.map((p) => (
+          <PlaneRow key={p.name} plane={p} />
+        ))}
+        {notable.length > 0 && neutral.length > 0 && (
+          <li
+            className="my-1 border-t"
+            style={{ borderColor: 'var(--pb-border-subtle)' }}
+            aria-hidden="true"
+          />
+        )}
+        {neutral.map((p) => (
+          <PlaneRow key={p.name} plane={p} muted />
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+function PlaneRow({ plane, muted = false }: { plane: PlaneInfo; muted?: boolean }) {
+  return (
+    <li className="flex items-baseline gap-2 text-sm">
+      <span
+        aria-hidden="true"
+        className="inline-block h-2 w-2 shrink-0 rounded-full"
+        style={{ background: plane.color ?? 'var(--pb-text-tertiary)' }}
+      />
+      <span
+        className="font-medium"
+        style={{ color: muted ? 'var(--pb-text-secondary)' : 'var(--pb-text-primary)' }}
+      >
+        {plane.name}
+      </span>
+      <span
+        className="text-xs"
+        style={{ color: 'var(--pb-text-tertiary)' }}
+      >
+        {plane.phaseLabel}
+        {plane.daysUntilNextPhase != null && plane.daysUntilNextPhase > 0 && (
+          <span> · {formatDaysUntil(plane.daysUntilNextPhase)}</span>
+        )}
+        {plane.overridden && <span> · GM override</span>}
+      </span>
+    </li>
+  );
+}
+
+function phaseRank(phase: string): number {
+  // Coterminous = most interesting; remote = next; neutral last.
+  if (phase === 'coterminous') return 0;
+  if (phase === 'remote') return 1;
+  if (phase === 'neutral') return 2;
+  return 3;
+}
+
+function formatDaysUntil(days: number): string {
+  if (days < 365) return `${days}d to shift`;
+  const years = Math.round(days / 365);
+  return `~${years}y to shift`;
+}
+
+function Chip({
+  label,
+  variant,
+}: {
+  label: string;
+  variant: 'temp' | 'precip' | 'wind' | 'fog';
+}) {
+  const tints: Record<typeof variant, { bg: string; fg: string }> = {
+    temp:   { bg: 'var(--pb-ember-faint)',  fg: 'var(--pb-ember)' },
+    precip: { bg: 'var(--pb-accent-faint)', fg: 'var(--pb-info)' },
+    wind:   { bg: 'rgba(160,168,180,0.10)', fg: 'var(--pb-text-secondary)' },
+    fog:    { bg: 'rgba(160,168,180,0.10)', fg: 'var(--pb-text-secondary)' },
+  };
+  const c = tints[variant];
+  return (
+    <span
+      className="rounded px-2 py-0.5 font-medium"
+      style={{ background: c.bg, color: c.fg }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────
 // Layout primitives
 // ───────────────────────────────────────────────────────────────────
 
@@ -271,21 +424,5 @@ function Panel({ label, children }: { label: string; children: React.ReactNode }
       </div>
       {children}
     </section>
-  );
-}
-
-function StubPanel({ label, note }: { label: string; note: string }) {
-  return (
-    <Panel label={label}>
-      <div
-        className="rounded-md border border-dashed px-3 py-3 text-xs italic"
-        style={{
-          borderColor: 'var(--pb-border)',
-          color: 'var(--pb-text-tertiary)',
-        }}
-      >
-        {note}
-      </div>
-    </Panel>
   );
 }
