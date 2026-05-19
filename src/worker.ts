@@ -77,15 +77,15 @@ interface WeatherAmbienceInput {
 
 const AMBIENCE_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
-const AMBIENCE_SYSTEM = `You are a tabletop RPG ambient narrator. Given the current weather, location, and time of day, write 2-3 sentences of evocative scene description the GM can read aloud at the table.
+const AMBIENCE_SYSTEM = `You are a tabletop RPG atmosphere writer. Given a weather snapshot, time of day, and broad location type, write 2-3 sentences of sensory atmosphere that COMPLEMENT (do not repeat) the mechanical weather summary.
 
-Rules:
-- Focus on sensory detail: what the players see, hear, feel, smell.
-- No mechanical jargon. No metagame language.
-- Do not address the players directly ("you", "your"). Describe the scene in third person or impersonally.
-- Lean into the location's character — a coastal town reads different from a desert oasis.
-- Match the time of day: morning light differs from midnight.
-- Output only the description. No preamble, no meta-commentary, no quotation marks.`;
+Hard constraints:
+- Focus on universally-observable sensations: sky, air quality, light, temperature on skin, distant sounds, smell, mood.
+- DO NOT describe specific terrain features. You do not know the party's exact location. No roads, no trails, no buildings, no settlements, no trees, no rivers, no specific structures or landmarks. The party could be camped in a forest, on a road, indoors, or beside a lake — the description must work for any of those.
+- DO NOT repeat the mechanical summary verbatim. Add a sensory layer the summary doesn't already have.
+- No metagame language. Describe the scene impersonally — no "you", no "your", no addressing players.
+- Match the time of day naturally (dawn light differs from midnight).
+- Output ONLY the description itself. No preamble, no meta-commentary, no quotation marks, no labels.`;
 
 async function handleWeatherAi(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') {
