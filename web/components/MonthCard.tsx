@@ -112,6 +112,10 @@ function DayCell({
         outline: isToday ? '1px solid var(--pb-accent)' : 'none',
         outlineOffset: '-1px',
         cursor: onClick ? 'pointer' : 'default',
+        // Naming exactly one cell at a time lets the View Transitions API
+        // morph the highlight (outline + fill) from old today → new today
+        // instead of cross-fading. Smooth when the user clicks a date.
+        viewTransitionName: isToday ? 'today-cell' : undefined,
       }}
     >
       <span

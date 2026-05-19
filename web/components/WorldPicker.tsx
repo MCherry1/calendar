@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useCampaign } from '../lib/campaignContext';
 import { listWorlds } from '../lib/worldRegistry';
+import { withViewTransition } from '../lib/viewTransition';
 
 export function WorldPicker() {
   const { campaign, setCampaign } = useCampaign();
@@ -26,7 +27,9 @@ export function WorldPicker() {
       <select
         id="world-picker"
         value={campaign.worldId}
-        onChange={(e) => setCampaign({ worldId: e.target.value })}
+        onChange={(e) =>
+          withViewTransition(() => setCampaign({ worldId: e.target.value }))
+        }
         className="w-full max-w-md rounded-md border bg-transparent px-3 py-2 text-base"
         style={{
           background: 'var(--pb-bg-elevated)',

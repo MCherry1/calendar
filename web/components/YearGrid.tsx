@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react';
 import { useCampaign } from '../lib/campaignContext';
 import { decomposeSerial, getYearGrid } from '../lib/core/bridge';
+import { withViewTransition } from '../lib/viewTransition';
 import { LayerToggleBar } from './LayerToggleBar';
 import { MonthCard } from './MonthCard';
 import { getWorld } from '../lib/worldRegistry';
@@ -76,13 +77,18 @@ export function YearGrid() {
 
       <LayerToggleBar />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        style={{ viewTransitionName: 'year-grid' }}
+      >
         {months.map((m) => (
           <MonthCard
             key={m.monthIndex}
             month={m}
             todaySerial={campaign.currentSerial}
-            onDayClick={(serial) => setCampaign({ currentSerial: serial })}
+            onDayClick={(serial) =>
+              withViewTransition(() => setCampaign({ currentSerial: serial }))
+            }
           />
         ))}
       </div>
@@ -99,9 +105,10 @@ function YearNav({
   todayYear: number;
   onChange: (y: number) => void;
 }) {
+  const jump = (y: number) => withViewTransition(() => onChange(y));
   return (
     <div className="flex items-center gap-1">
-      <NavButton onClick={() => onChange(year - 1)} ariaLabel="Previous year">
+      <NavButton onClick={() => jump(year - 1)} ariaLabel="Previous year">
         ‹
       </NavButton>
       <input
@@ -109,7 +116,7 @@ function YearNav({
         value={year}
         onChange={(e) => {
           const n = parseInt(e.target.value, 10);
-          if (Number.isFinite(n)) onChange(n);
+          if (Number.isFinite(n)) jump(n);
         }}
         className="w-20 rounded-md border bg-transparent px-2 py-1 text-center font-mono text-sm"
         style={{
@@ -118,13 +125,13 @@ function YearNav({
           color: 'var(--pb-text-primary)',
         }}
       />
-      <NavButton onClick={() => onChange(year + 1)} ariaLabel="Next year">
+      <NavButton onClick={() => jump(year + 1)} ariaLabel="Next year">
         ›
       </NavButton>
       {year !== todayYear && (
         <button
           type="button"
-          onClick={() => onChange(todayYear)}
+          onClick={() => jump(todayYear)}
           className="ml-2 rounded-md px-2 py-1 text-xs font-medium"
           style={{
             background: 'var(--pb-accent-faint)',

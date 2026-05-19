@@ -65,7 +65,10 @@ export function TodayCard() {
           </div>
           <h2
             className="font-display text-2xl font-semibold leading-tight sm:text-3xl"
-            style={{ color: 'var(--pb-text-primary)' }}
+            style={{
+              color: 'var(--pb-text-primary)',
+              viewTransitionName: 'today-date-label',
+            }}
           >
             {today.dateLabel}
           </h2>
