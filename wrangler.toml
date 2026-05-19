@@ -6,3 +6,8 @@ compatibility_date = "2025-05-01"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+# Required: the worker strips the /calendar prefix from requests
+# before delegating to env.ASSETS. Without run_worker_first, Cloudflare's
+# SPA fallback intercepts /calendar/assets/* and serves index.html
+# for JS/CSS requests, which the browser refuses to execute as HTML.
+run_worker_first = true
