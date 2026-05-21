@@ -180,42 +180,48 @@ function MoonsPanel({ moons }: { moons: MoonInfo[] }) {
 }
 
 function MoonGlyph({ moon }: { moon: MoonInfo }) {
-  // Approximate a moon-phase glyph: a disc with a "shadow" arc rendered
-  // as a clip-path. illumination = 1 → full disc; 0 → invisible.
-  // Uses CSS conic-gradient so it scales with font size.
-  const color = moon.color ?? 'var(--pb-text-secondary)';
+  // A true moon-phase glyph: the dark disc with the lit region drawn as an
+  // SVG path whose terminator is a real half-ellipse — its width shrinks to
+  // a straight edge at the quarters and opens back to the full radius at
+  // new/full. Scales crisply at any size; correct for every illumination.
+  const glow = moon.color ?? 'var(--pb-text-secondary)';
   const illum = Math.max(0, Math.min(1, moon.illumination));
-  // Render as: lit portion in moon color, unlit in deep bg.
-  // For simplicity, use a two-stop conic gradient at the equator.
-  // Waxing: lit on right. Waning: lit on left.
-  const stops = phaseGradient(illum, moon.waxing);
   return (
-    <div
+    <svg
       aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 rounded-full border"
-      style={{
-        background: stops,
-        borderColor: 'var(--pb-border-subtle)',
-        boxShadow: `0 0 8px ${color}33`,
-      }}
-      title={`${moon.name}: ${moon.phaseLabel}`}
-    />
+      viewBox="0 0 2 2"
+      className="h-8 w-8 shrink-0"
+      style={{ borderRadius: '9999px', boxShadow: `0 0 8px ${glow}33` }}
+    >
+      <title>{`${moon.name}: ${moon.phaseLabel}`}</title>
+      <circle cx="1" cy="1" r="1" fill="var(--pb-bg-deep)" />
+      {illum > 0.005 && (
+        <path d={moonPhasePath(illum, moon.waxing)} fill="var(--pb-text-primary)" />
+      )}
+      <circle
+        cx="1"
+        cy="1"
+        r="0.94"
+        fill="none"
+        stroke="var(--pb-border-subtle)"
+        strokeWidth="0.06"
+      />
+    </svg>
   );
 }
 
-function phaseGradient(illum: number, waxing: boolean): string {
-  // Very simple visual: light arc on one side. Not astronomically perfect
-  // (real moon phase is a terminator curve, not a flat split), but enough
-  // to read at a glance. Real arc will come with SVG/canvas in a later pass.
-  const lit = 'var(--pb-text-primary)';
-  const dark = 'var(--pb-bg-deep)';
-  if (illum >= 0.97) return lit;
-  if (illum <= 0.03) return dark;
-  const litPct = Math.round(illum * 100);
-  if (waxing) {
-    return `linear-gradient(90deg, ${dark} ${100 - litPct}%, ${lit} ${100 - litPct}%)`;
-  }
-  return `linear-gradient(90deg, ${lit} ${litPct}%, ${dark} ${litPct}%)`;
+/**
+ * SVG path for the lit region of a moon at illumination fraction `illum`
+ * (0–1). The lit lune is bounded by the disc's limb (a semicircle) and the
+ * terminator (a half-ellipse whose horizontal radius is |1 − 2·illum| —
+ * zero at the quarters, the full radius at new/full). Waxing lights the
+ * right limb, waning the left. The disc is the unit circle at (1,1).
+ */
+function moonPhasePath(illum: number, waxing: boolean): string {
+  const rx = Math.abs(1 - 2 * illum);
+  const limb = waxing ? 1 : 0;
+  const term = illum > 0.5 ? limb : 1 - limb;
+  return `M 1 0 A 1 1 0 0 ${limb} 1 2 A ${rx} 1 0 0 ${term} 1 0 Z`;
 }
 
 // ───────────────────────────────────────────────────────────────────
