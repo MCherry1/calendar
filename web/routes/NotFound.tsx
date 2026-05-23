@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom';
 export function NotFound() {
   return (
     <div className="flex flex-col items-center gap-4 py-16 text-center">
+      <img
+        src="/calendar/mascot-hero.png"
+        alt="A small green dragon napping"
+        className="w-40 sm:w-56"
+        width="1024"
+        height="1024"
+      />
       <h1
         className="font-display text-3xl font-semibold"
         style={{ color: 'var(--pb-text-primary)' }}
