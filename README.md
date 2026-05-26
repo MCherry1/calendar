@@ -1,5 +1,3 @@
-# The Script is currently bugged due to the eclipse calculations causing API time out errors / infinite loops. It's likely this functionality will have to be removed from the Roll20 interface. Have not had time to debug. - April 2026
-
 # Calendar — Roll20 API Script
 
 A Roll20 API script for managing a fantasy campaign calendar with:
