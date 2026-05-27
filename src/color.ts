@@ -2,6 +2,7 @@
 import { CONTRAST_MIN_HEADER, NAMED_COLORS } from './constants.js';
 import { getEventColor } from './events.js';
 import { _parseSharpColorToken } from './ui.js';
+import { colors as _engineColors } from '@partybuff/calendar-engine';
 
 
 /* ============================================================================
@@ -23,18 +24,20 @@ export function _resetColorCaches(){
   _headerStyleCache = Object.create(null);
 }
 
+// Hex normalization delegates to engine, then upper-cases to preserve the
+// wrapper's historical '#RRGGBB' (uppercase) output.
 export function sanitizeHexColor(s){
-  if(!s) return null;
-  var hex = String(s).trim().replace(/^#/, '');
-  if(/^[0-9a-f]{3}$/i.test(hex)) hex = hex.replace(/(.)/g,'$1$1');
-  if(/^[0-9a-f]{6}$/i.test(hex)) return '#'+hex.toUpperCase();
-  return null;
+  var hex = _engineColors.sanitizeHex(s);
+  return hex ? hex.toUpperCase() : null;
 }
 
+// Resolves hex OR named-color tokens. Engine handles the standard CSS
+// color names; the wrapper keeps its NAMED_COLORS table as a fallback for
+// any Roll20-specific names the engine doesn't recognize.
 export function resolveColor(s){
   if (!s) return null;
-  var hex = sanitizeHexColor(s);
-  if (hex) return hex;
+  var hex = _engineColors.resolve(s);
+  if (hex) return hex.toUpperCase();
   var key = String(s).trim().toLowerCase();
   return NAMED_COLORS[key] || null;
 }
@@ -93,7 +96,9 @@ export function _contrast(bgHex, textHex){ var L1=_relLum(bgHex), L2=_relLum(tex
 export function textColor(bgHex){
   var k = 't:'+bgHex;
   if (_contrastCache[k]) return _contrastCache[k];
-  var v = (_contrast(bgHex, '#000') >= _contrast(bgHex, '#fff')) ? '#000' : '#fff';
+  // Engine returns '#000000' / '#ffffff'; wrapper has historically used the
+  // 3-char forms in chat HTML, so map them. Both render identically.
+  var v = _engineColors.textOn(bgHex) === '#000000' ? '#000' : '#fff';
   _contrastCache[k] = v;
   _cullCacheIfLarge(_contrastCache);
   return v;
