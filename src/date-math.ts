@@ -1,4 +1,17 @@
 // Section 5: Date / Serial Math
+//
+// The wrapper persists dates as `(year, mi, day)` where `mi` is a structural
+// index into `cal.months` — that array interleaves engine intercalaries
+// (Shieldmeet, Greengrass, etc.) into the canonical month list so the Roll20
+// grid can be rendered as a single flat sequence. Serial math walks that
+// flat structure directly; the heavy lifting still happens locally but the
+// shape of `cal.months` is now produced by composing engine canon data with
+// Roll20 overlays in `src/worlds/`.
+//
+// Where the engine and the wrapper agree exactly on a calculation (the
+// Gregorian leap-year rule, for instance) the wrapper delegates so we have
+// a single source of truth.
+import { date as engineDate } from '@partybuff/calendar-engine';
 import { ensureSettings, getCal, weekLength } from './state.js';
 import { clamp } from './rendering.js';
 import { weekdayProgressionFor, intercalaryRenderFor } from './worlds/index.js';
@@ -27,9 +40,11 @@ export function _isLeapMonth(m, y){
   return !!(m.leapEvery && (y % m.leapEvery === 0));
 }
 
+/** Gregorian leap-year rule. Delegates to the engine so the wrapper and the
+ *  Party Buff web app share a single implementation of the 4/100/400 rule. */
 export function _isGregorianLeapYear(y){
-  y = parseInt(y, 10) || 0;
-  return (y % 4 === 0) && ((y % 100 !== 0) || (y % 400 === 0));
+  var n = parseInt(y, 10) || 0;
+  return engineDate.isLeapYear('gregorian', n);
 }
 
 export function _isGregorianLeapSlotMonthObj(m){
