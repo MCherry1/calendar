@@ -6,7 +6,6 @@ import { setDate, stepDays } from "../src/ui.js";
 import { sendToAll, sendUiToGM } from "../src/messaging.js";
 import { helpRootMenu } from "../src/ui.js";
 import { fromSerial, toSerial } from "../src/date-math.js";
-import { getWeatherState } from "../src/weather.js";
 import { MOON_SYSTEMS, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseSpan, moonEnsureSequences } from "../src/moon.js";
 import { _getAllPlaneData, getPlanarState } from "../src/planes.js";
 
@@ -61,10 +60,8 @@ describe("Task-focused UI", () => {
     assert(!msg.msg.includes("Stepped Forward"), "should send the refreshed Today view instead of the old step notice");
   });
 
-  it("shows transparent location labels and span-aware moon highlights in the dashboard", () => {
+  it("shows span-aware moon highlights in the dashboard", () => {
     freshInstall();
-    const ws = getWeatherState();
-    ws.location = { name: "Sharn", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate/inland/open" } as any;
 
     const start = toSerial(998, 0, 1);
     const end = start + 336;
@@ -85,14 +82,7 @@ describe("Task-focused UI", () => {
     setSerial(found.serial);
     _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);
     const msg = String((globalThis as any)._chatLog.slice(-1)[0].msg);
-    assert(msg.includes("Sharn (Temperate / Inland / Open)"));
     assert(msg.includes(`${found.moon}</b> is ${found.type === "full" ? "Full" : "New"} (Day `));
-
-    ws.location = { name: "Temperate / Inland / Open", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate/inland/open" } as any;
-    _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);
-    const genericMsg = String((globalThis as any)._chatLog.slice(-1)[0].msg);
-    assert(genericMsg.includes("📍 Temperate / Inland / Open"));
-    assert(!genericMsg.includes("Temperate / Inland / Open (Temperate / Inland / Open)"));
   });
 
   it("surfaces long-span moon previews and plane day spans in the GM dashboard", () => {
@@ -158,8 +148,6 @@ describe("Task-focused UI", () => {
 
   it("uses the formal dashboard header and avoids bogus neutral-span day counts", () => {
     freshInstall();
-    const ws = getWeatherState();
-    ws.location = { name: "Temperate / River Valley / Swamp", climate: "temperate", geography: "river_valley", terrain: "swamp", sig: "temperate/river_valley/swamp" } as any;
 
     setDate(9, 18, 998);
     _showDefaultCalView({ who: "GM (GM)", playerid: "GM" } as any);

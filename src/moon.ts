@@ -9,7 +9,7 @@ import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effective
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
-import { _forecastRecord, _weatherPeriodLabel } from './weather.js';
+import { bucketLabel as _eclipseBucketLabel } from './time-of-day.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 import { buildSkySceneFromResolved, moonAltitudeDeg, moonAzimuthDeg, moonCompass16, moonHourAngleDeg, moonSkyPositionCategory } from './showcase/sky-scene.js';
 import { getWorld } from './worlds/index.js';
@@ -3024,20 +3024,8 @@ export function currentLightSnapshot(serial, precipStage?){
   };
 }
 // Build the current lighting HTML block for the Today panel.
-// Auto-pulls weather precip stage if available.
 export function nighttimeLightHtml(serial){
-  // Get precipitation stage from weather if available
-  var precipStage = 0;
-  var weatherNote = '';
-  var rec = _forecastRecord(serial);
-  if (rec && rec.final){
-    precipStage = rec.final.precip || 0;
-    if (precipStage >= 3) weatherNote = 'Heavy cloud/precipitation — moonlight severely reduced.';
-    else if (precipStage === 2) weatherNote = 'Overcast sky — moonlight dimmed.';
-    else if (precipStage === 1) weatherNote = 'Partly cloudy — moonlight slightly dimmed.';
-  }
-
-  var snap = currentLightSnapshot(serial, precipStage);
+  var snap = currentLightSnapshot(serial);
   if (snap.mode === 'day'){
     return '<div style="margin-bottom:4px;">' +
       '<b>' + (snap.emoji ? esc(snap.emoji) + ' ' : '') + esc(snap.label) + '</b>' +
@@ -3059,10 +3047,6 @@ export function nighttimeLightHtml(serial){
 
   html += '<div style="font-size:.88em;margin:2px 0;">' + esc(cond.note) + '</div>';
   html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">🌲 ' + esc(cond.shadowNote) + '</div>';
-
-  if (weatherNote){
-    html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">☁ ' + esc(weatherNote) + '</div>';
-  }
 
   // Top contributing moons
   if (result.moons.length > 0){
@@ -3744,7 +3728,7 @@ export function _finalizeEclipseEvent(sys, startT, endT, peak){
 }
 
 export function _eclipseTimingClause(kind, event, serial){
-  var bucketLabel = _weatherPeriodLabel(event[kind + 'Bucket']);
+  var bucketLabel = _eclipseBucketLabel(event[kind + 'Bucket']) || 'unknown';
   var day = event[kind + 'Day'];
   if (kind === 'start'){
     if (day < serial) return 'Began yesterday in the ' + bucketLabel;

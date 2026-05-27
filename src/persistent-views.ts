@@ -6,7 +6,6 @@ import { _getAllPlaneData, getPlanesState, planeIndividualHandoutHtml, planesHan
 import { button, esc } from './rendering.js';
 import { ensureSettings, getCal } from './state.js';
 import { eventsHandoutHtml, eventsMechanicsHandoutHtml } from './today.js';
-import { _forecastRecord, _locSig, getWeatherState, weatherHandoutHtml, weatherMechanicsHandoutHtml } from './weather.js';
 
 var MOON_PAGE_DEFAULT_NAME = 'Moon Phase';
 var MOON_PAGE_MARKER = '[Calendar Moon Page]';
@@ -18,14 +17,12 @@ var HANDOUT_SUBSYSTEM_ALIASES = {
   plane: 'planar',
   planes: 'planar',
   planar: 'planar',
-  weather: 'weather',
   events: 'events',
   handouts: 'all',
   all: 'all'
 };
 var PRIMARY_HANDOUT_KEYS = {
   events: 'events:unified',
-  weather: 'weather:unified',
   lunar: 'lunar:unified',
   planar: 'planar:unified'
 };
@@ -159,29 +156,6 @@ function _currentPlaneStateSignature(){
   });
 }
 
-function _currentWeatherWindowSignature(){
-  var ws = getWeatherState();
-  var today = todaySerial();
-  var rows = [];
-  for (var serial = today - 10; serial <= today + 10; serial++){
-    var rec = _forecastRecord(serial);
-    rows.push(rec ? [
-      serial,
-      rec.final && rec.final.temp,
-      rec.final && rec.final.wind,
-      rec.final && rec.final.precip,
-      rec.location ? _locSig(rec.location) : '',
-      rec.snowAccumulated || 0,
-      rec.stale ? 1 : 0
-    ].join(':') : String(serial));
-  }
-  return _hashJson({
-    calendarSystem: ensureSettings().calendarSystem || '',
-    location: ws.location ? _locSig(ws.location) : '',
-    rows: rows
-  });
-}
-
 function _isEntityHandoutKey(key){
   key = String(key || '');
   return key.indexOf('lunar:moon:') === 0 || key.indexOf('planar:plane:') === 0;
@@ -216,7 +190,6 @@ function _buildHandoutSpecs(){
   var eventSig = _currentEventListSignature();
   var moonSig = _currentMoonStateSignature();
   var planeSig = _currentPlaneStateSignature();
-  var weatherSig = _currentWeatherWindowSignature();
   var moonSys = _getMoonSys();
   var planes = _getAllPlaneData();
   var specs = [
@@ -266,21 +239,6 @@ function _buildHandoutSpecs(){
       name: 'Calendar - Planar - Mechanics',
       renderStamp: 'planar-mechanics:' + (st.calendarSystem || '') + ':' + planeSig,
       render: function(){ return planesMechanicsHandoutHtml(); }
-    },
-    {
-      key: 'weather:unified',
-      subsystem: 'weather',
-      name: 'Calendar - Weather',
-      legacyIdKeys: ['weatherId'],
-      renderStamp: 'weather-unified:' + today + ':' + weatherSig,
-      render: function(){ return weatherHandoutHtml(); }
-    },
-    {
-      key: 'weather:mechanics',
-      subsystem: 'weather',
-      name: 'Calendar - Weather - Mechanics',
-      renderStamp: 'weather-mechanics:' + (st.calendarSystem || '') + ':' + _hashJson({ location: getWeatherState().location || null }),
-      render: function(){ return weatherMechanicsHandoutHtml(); }
     }
   ];
 
@@ -838,7 +796,6 @@ function _refreshHandoutSpec(spec, opts){
 function _folderInstructionsHtml(specs){
   var lunarCount = specs.filter(function(spec){ return spec.subsystem === 'lunar'; }).length;
   var planarCount = specs.filter(function(spec){ return spec.subsystem === 'planar'; }).length;
-  var weatherCount = specs.filter(function(spec){ return spec.subsystem === 'weather'; }).length;
   var eventCount = specs.filter(function(spec){ return spec.subsystem === 'events'; }).length;
   return (
     '<div style="margin-bottom:6px;">I created <b>' + specs.length + '</b> calendar handouts at the Journal root. Roll20 cannot create folders via API, so create these folders manually and drag the matching handouts into them once.</div>' +
@@ -846,7 +803,6 @@ function _folderInstructionsHtml(specs){
       'Calendar/\n' +
       '  Lunar/   \u2014 ' + lunarCount + ' handouts\n' +
       '  Planar/  \u2014 ' + planarCount + ' handouts\n' +
-      '  Weather/ \u2014 ' + weatherCount + ' handouts\n' +
       '  Events/  \u2014 ' + eventCount + ' handouts' +
     '</div>' +
     '<div style="margin-top:6px;opacity:.8;">Unified handouts sort first as <code>0 Unified</code>. Mechanics handouts stay inside each subsystem folder.</div>' +

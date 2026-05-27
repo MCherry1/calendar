@@ -8,7 +8,6 @@ import { _getPlaneData, getPlanesState, resolveEberronPlanarInitialization, reso
 import { button, esc } from './rendering.js';
 import { applyCalendarSystem, applySeasonSet, checkInstall, deepClone, defaults, ensureSettings, getCal, getManualSuppressedSources, getSetupState, setupIsComplete, titleCase } from './state.js';
 import { _displayMonthDayParts, _menuBox, dateLabelFromSerial, nextForDayOnly, nextForMonthDay, sendCurrentDate, setDate } from './ui.js';
-import { _normalizeWeatherLocation, _rememberRecentWeatherLocation, _weatherLocationLabel, getWeatherState, weatherEnsureForecast, weatherLocationWizardHtml } from './weather.js';
 import { getWorld, WORLD_ORDER, WORLDS } from './worlds/index.js';
 
 function _setupDraft(){
@@ -49,12 +48,6 @@ function _seasonSetLabel(key){
   var set = SEASON_SETS[key];
   if (set && set.label) return set.label;
   return key.charAt(0).toUpperCase() + key.slice(1);
-}
-
-function _setupWeatherModeLabel(mode){
-  if (mode === 'mechanics') return 'Narrative + mechanics';
-  if (mode === 'narrative') return 'Narrative only';
-  return 'Off';
 }
 
 function _setupThemeLabel(themeKey){
@@ -458,10 +451,8 @@ function _setupCurrentStep(draft){
   if (draft.colorTheme === undefined) return 'theme';
   if (draft.defaultEventsEnabled === undefined) return 'defaults';
   if (draft.moonsEnabled === undefined) return 'moons';
-  if (!draft.weatherMode) return 'weather';
   var _stepCaps = (getWorld(sysKey) || {}).capabilities;
   if (_stepCaps && _stepCaps.planes && draft.planesEnabled === undefined) return 'planes';
-  if (draft.weatherMode !== 'off' && !draft.weatherLocation && !draft.weatherLocationLater) return 'weather-location';
   var eberronPlanarStep = _setupNextEberronPlanarStep(draft);
   if (eberronPlanarStep) return 'plane-init:' + eberronPlanarStep;
   // World-defined extra steps (e.g. Dragonlance conjunction anchor)
@@ -490,7 +481,6 @@ function _setupSummaryHtml(draft){
   bits.push('<div><b>Theme:</b> ' + esc(_setupThemeLabel(draft.colorTheme)) + '</div>');
   bits.push('<div><b>Built-in default events:</b> ' + esc(draft.defaultEventsEnabled === false ? 'Disabled' : 'Enabled') + '</div>');
   bits.push('<div><b>Lunar tracking:</b> ' + esc(draft.moonsEnabled === false ? 'Off' : 'On') + '</div>');
-  bits.push('<div><b>Weather:</b> ' + esc(_setupWeatherModeLabel(draft.weatherMode)) + '</div>');
   var _sumCaps = (getWorld(sysKey) || {}).capabilities;
   if (_sumCaps && _sumCaps.planes){
     bits.push('<div><b>Planar tracking:</b> ' + esc(draft.planesEnabled === false ? 'Off' : 'On') + '</div>');
@@ -498,9 +488,6 @@ function _setupSummaryHtml(draft){
       bits.push('<div style="margin-top:6px;"><b>Year-one planar initialization:</b></div>');
       bits.push(_setupEberronReviewRows(draft));
     }
-  }
-  if (draft.weatherMode !== 'off'){
-    bits.push('<div><b>Weather location:</b> ' + esc(draft.weatherLocation ? _weatherLocationLabel(draft.weatherLocation) : 'Set later') + '</div>');
   }
   return bits.join('');
 }
@@ -623,34 +610,12 @@ function _setupMoonsStepHtml(){
   );
 }
 
-function _setupWeatherStepHtml(){
-  return _menuBox('Calendar Setup - Step 9: Weather',
-    '<div style="margin-bottom:6px;">Choose how weather should behave.</div>' +
-    _setupPromptButton('Off', 'setup weather off', '') +
-    _setupPromptButton('Narrative only', 'setup weather narrative', '') +
-    _setupPromptButton('Narrative + mechanics', 'setup weather mechanics', '')
-  );
-}
-
 function _setupPlanesStepHtml(){
-  return _menuBox('Calendar Setup - Step 10: Planar Tracking',
+  return _menuBox('Calendar Setup - Step 9: Planar Tracking',
     '<div style="margin-bottom:6px;">Enable planar tracking for this Eberron campaign?</div>' +
     button('Planes On', 'setup planes on') + ' ' +
     button('Planes Off', 'setup planes off')
   );
-}
-
-function _setupWeatherLocationStepHtml(draft){
-  var wizard = draft.weatherWizard || {};
-  var step = 'start';
-  if (wizard.geography) step = 'terrain';
-  else if (wizard.climate) step = 'geography';
-  return weatherLocationWizardHtml(step, wizard, {
-    commandPrefix: 'setup weather',
-    titlePrefix: 'Calendar Setup - Weather Location',
-    laterCommand: 'setup weather later',
-    allowSaveCurrent: false
-  });
 }
 
 function _setupReviewStepHtml(draft){
@@ -698,9 +663,7 @@ function _renderSetupWizard(draft, notice){
   else if (step === 'theme') body = _setupThemeStepHtml();
   else if (step === 'defaults') body = _setupDefaultsStepHtml();
   else if (step === 'moons') body = _setupMoonsStepHtml();
-  else if (step === 'weather') body = _setupWeatherStepHtml();
   else if (step === 'planes') body = _setupPlanesStepHtml();
-  else if (step === 'weather-location') body = _setupWeatherLocationStepHtml(draft);
   else if (step.indexOf('plane-init:') === 0) body = _setupEberronPlanarStepHtml(draft, step.slice(11));
   else if (step.indexOf('extra:') === 0) body = _setupExtraStepHtml(draft, step.slice(6));
   else body = _setupReviewStepHtml(draft);
@@ -777,8 +740,6 @@ function _applySetupDraft(m){
   st.eventsEnabled = true;
   st.moonsEnabled = draft.moonsEnabled !== false;
   st._moonsAutoToggle = false;
-  st.weatherEnabled = draft.weatherMode !== 'off';
-  st.weatherMechanicsEnabled = draft.weatherMode === 'mechanics';
   var _applyCaps = (getWorld(sysKey) || {}).capabilities;
   st.planesEnabled = (_applyCaps && _applyCaps.planes) ? (draft.planesEnabled !== false) : false;
   st._planesAutoToggle = false;
@@ -804,18 +765,8 @@ function _applySetupDraft(m){
 
   setDate((draft.date.month|0) + 1, draft.date.day, draft.date.year, { announce: false });
 
-  delete state[state_name].weather;
   delete state[state_name].moons;
   delete state[state_name].planes;
-
-  if (st.weatherEnabled){
-    var ws = getWeatherState();
-    ws.location = draft.weatherLocation ? deepClone(draft.weatherLocation) : null;
-    if (ws.location){
-      _rememberRecentWeatherLocation(ws, ws.location);
-      weatherEnsureForecast();
-    }
-  }
 
   var planarSummaryHtml = '';
   if (st.planesEnabled && sysKey === 'eberron' && draft.eberronPlanarInit){
@@ -842,70 +793,6 @@ function _applySetupDraft(m){
     ));
   }
   sendCurrentDate(cleanWho(m.who), false, { playerid: m.playerid, dashboard: true, includeButtons: true });
-}
-
-function _handleSetupWeatherStep(m, args){
-  var draft = _setupDraft();
-  var sub = String(args[0] || '').toLowerCase();
-  if (!sub){
-    return _showSetupWizard(m);
-  }
-  if (sub === 'later'){
-    draft.weatherLocationLater = true;
-    delete draft.weatherLocation;
-    delete draft.weatherWizard;
-    return _showSetupWizard(m, 'Weather location will be set later.');
-  }
-  if (sub === 'recent'){
-    var idx = Math.max(1, parseInt(args[1], 10) || 1) - 1;
-    var recent = (getWeatherState().recentLocations || [])[idx];
-    if (!recent){
-      return _showSetupWizard(m, 'That recent location is no longer available.');
-    }
-    draft.weatherLocation = deepClone(recent);
-    delete draft.weatherLocationLater;
-    delete draft.weatherWizard;
-    return _showSetupWizard(m, 'Weather location ready: <b>' + esc(_weatherLocationLabel(recent)) + '</b>.');
-  }
-  if (sub === 'preset'){
-    var presetIdx = Math.max(1, parseInt(args[1], 10) || 1) - 1;
-    var preset = (getWeatherState().savedLocations || [])[presetIdx];
-    if (!preset){
-      return _showSetupWizard(m, 'That saved location is no longer available.');
-    }
-    draft.weatherLocation = deepClone(preset);
-    delete draft.weatherLocationLater;
-    delete draft.weatherWizard;
-    return _showSetupWizard(m, 'Weather location ready: <b>' + esc(_weatherLocationLabel(preset)) + '</b>.');
-  }
-
-  if (!draft.weatherWizard || typeof draft.weatherWizard !== 'object') draft.weatherWizard = {};
-  if (sub === 'climate'){
-    draft.weatherWizard = { climate: String(args[1] || '').toLowerCase() };
-    return _showSetupWizard(m);
-  }
-  if (sub === 'geography'){
-    draft.weatherWizard.geography = String(args[1] || '').toLowerCase();
-    whisperUi(cleanWho(m.who), weatherLocationWizardHtml('terrain', draft.weatherWizard, {
-      commandPrefix: 'setup weather',
-      titlePrefix: 'Calendar Setup - Weather Location',
-      laterCommand: 'setup weather later',
-      allowSaveCurrent: false
-    }));
-    return;
-  }
-  if (sub === 'terrain'){
-    draft.weatherWizard.terrain = String(args[1] || '').toLowerCase();
-    draft.weatherLocation = _normalizeWeatherLocation({
-      climate: draft.weatherWizard.climate,
-      geography: draft.weatherWizard.geography,
-      terrain: draft.weatherWizard.terrain
-    });
-    delete draft.weatherLocationLater;
-    delete draft.weatherWizard;
-    return _showSetupWizard(m, 'Weather location ready: <b>' + esc(_weatherLocationLabel(draft.weatherLocation)) + '</b>.');
-  }
-  return _showSetupWizard(m);
 }
 
 export function notifySetupStatusOnReady(){
@@ -1031,20 +918,6 @@ export function maybeHandleSetupGate(msg, args){
       setup.status = 'in_progress';
       setup.draft.moonsEnabled = String(args[3] || '').toLowerCase() !== 'off';
       return _showSetupWizard(msg), true;
-    }
-    if (action === 'weather'){
-      setup.status = 'in_progress';
-      var weatherArg = String(args[3] || '').toLowerCase();
-      if (weatherArg === 'off' || weatherArg === 'narrative' || weatherArg === 'mechanics'){
-        setup.draft.weatherMode = weatherArg;
-        if (weatherArg === 'off'){
-          delete setup.draft.weatherLocation;
-          delete setup.draft.weatherLocationLater;
-          delete setup.draft.weatherWizard;
-        }
-        return _showSetupWizard(msg), true;
-      }
-      return _handleSetupWeatherStep(msg, args.slice(3)), true;
     }
     if (action === 'planes'){
       setup.status = 'in_progress';

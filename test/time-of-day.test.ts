@@ -2,10 +2,9 @@ import { describe, it } from "node:test";
 import { ok as assert, strictEqual as assertEquals } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
 import { ensureSettings, getCal } from "../src/state.js";
-import { todaySerial, toSerial } from "../src/date-math.js";
+import { toSerial } from "../src/date-math.js";
 import { setDate, stepDays } from "../src/ui.js";
 import { _todayAllHtml, commands } from "../src/today.js";
-import { _forecastRecord, getWeatherState, weatherEnsureForecast } from "../src/weather.js";
 import {
   activateTimeOfDay,
   bucketMidpointTimeFrac,
@@ -20,21 +19,6 @@ import {
 } from "../src/time-of-day.js";
 
 describe("Time of Day", () => {
-  function setupWeatherForCurrentView() {
-    const st = ensureSettings();
-    st.weatherEnabled = true;
-    st.weatherMechanicsEnabled = true;
-    const ws = getWeatherState();
-    ws.location = { name: "Test Town", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate/inland/open" } as any;
-    weatherEnsureForecast();
-    const rec = _forecastRecord(todaySerial());
-    rec.final.temp = -2;
-    rec.final.wind = 4;
-    rec.final.precip = 3;
-    rec.periods.middle_of_night.temp = -3;
-    rec.periods.middle_of_night.wind = 4;
-    rec.periods.middle_of_night.precip = 3;
-  }
 
   it("defaults to inactive with nighttime fallback", () => {
     freshInstall();
@@ -149,17 +133,12 @@ describe("Time of Day", () => {
 
   it("time show whispers the lightweight current-conditions view", () => {
     freshInstall();
-    setupWeatherForCurrentView();
     activateTimeOfDay("middle_of_night");
     (commands.time as any).run({ who: "GM (GM)", playerid: "GM" }, ["!cal", "time", "show"]);
     const log = (globalThis as any)._chatLog;
     const last = log[log.length - 1];
     assert(last && typeof last.msg === "string");
-    assert(last.msg.includes("Current Conditions"));
     assert(last.msg.includes("Current time:"));
-    assert(last.msg.includes("Temperate / Inland / Open"));
-    assert(last.msg.includes("Mechanics:"));
-    assert(last.msg.includes("Source:") || last.msg.includes("Sources:"));
     assert(last.msg.includes("!cal time next"));
     assert(last.msg.includes("!cal show"));
     assert(!last.msg.includes("!cal time show"));
@@ -169,25 +148,19 @@ describe("Time of Day", () => {
 
   it("time send broadcasts the lightweight current-conditions view without controls", () => {
     freshInstall();
-    setupWeatherForCurrentView();
     activateTimeOfDay("middle_of_night");
     (commands.time as any).run({ who: "GM (GM)", playerid: "GM" }, ["!cal", "time", "send"]);
     const log = (globalThis as any)._chatLog;
     const last = log[log.length - 1];
     assert(last && typeof last.msg === "string");
     assert(last.msg.startsWith("/direct "));
-    assert(last.msg.includes("Current Conditions"));
     assert(last.msg.includes("Current time:"));
-    assert(last.msg.includes("Temperate / Inland / Open"));
-    assert(last.msg.includes("Mechanics:"));
-    assert(last.msg.includes("Source:") || last.msg.includes("Sources:"));
     assert(!last.msg.includes("!cal time next"));
     assert(!last.msg.includes("!cal time send"));
   });
 
   it("default dashboard uses the clock-labeled time controls", () => {
     freshInstall();
-    ensureSettings().weatherEnabled = true;
     let html = _todayAllHtml();
     assert(html.includes("🕒 Enable Time of Day"));
 
