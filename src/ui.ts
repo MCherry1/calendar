@@ -1,15 +1,15 @@
 // Sections 13+15+16: Roll20 State Interaction & UI + Themes + GM Buttons
 import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS } from './config.js';
-import { COLOR_THEMES, CONTRAST_MIN_HEADER, LABELS, NAMED_COLORS, SEASON_SETS, STYLES, THEME_ORDER, script_name, state_name } from './constants.js';
+import { COLOR_THEMES, LABELS, NAMED_COLORS, SEASON_SETS, STYLES, THEME_ORDER, script_name, state_name } from './constants.js';
 import { _seasonNames, _sourceAllowedForCalendar, applySeasonSet, deepClone, defaults, ensureSettings, getCal, refreshAndSend, refreshCalendarState, titleCase } from './state.js';
-import { applyBg, popColorIfPresent, resolveColor, sanitizeHexColor } from './color.js';
+import { popColorIfPresent, resolveColor, sanitizeHexColor } from './color.js';
 import { _isLeapMonth, _nextActiveMi, _prevActiveMi, fromSerial, regularMonthIndex, toSerial, todaySerial, weekdayIndex } from './date-math.js';
 import { DaySpec, Parse, monthIndexByName } from './parsing.js';
 import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, eventIndexByKey, markSuppressedIfDefault, occurrencesInRange } from './events.js';
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
-import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, getLongShadowsMoons, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
+import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, getLongShadowsMoons, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
@@ -320,18 +320,6 @@ export function sendCurrentDate(to, gmOnly, opts?){
             '</div>';
         }
 
-        // Eclipse highlights
-        try {
-          var _eclNotes = _eclipseNotableToday(todaySer);
-          if (_eclNotes.length){
-            moonLine += '<div style="' +
-              applyBg((dashboard ? 'font-size:.9em;color:#000;margin-top:3px;display:inline-block;padding:1px 4px;border-radius:3px;' : 'font-size:.82em;opacity:.9;margin-top:2px;display:inline-block;padding:1px 4px;border-radius:3px;'),
-                      '#FFE8A3', CONTRAST_MIN_HEADER) +
-              '">' +
-              _eclNotes.join(' &nbsp;&middot;&nbsp; ') +
-              '</div>';
-          }
-        } catch(e3){ /* eclipse engine not ready */ }
       }
     } catch(e){ /* moon system not ready yet — skip silently */ }
   }
@@ -945,10 +933,9 @@ export function helpRootMenu(m){
   if (stNew.moonsEnabled !== false){
     rowsNew.push(taskCardHtml(
       'Moons',
-      'Check lunar status, visibility, and lore without opening the full rules surface first.',
+      'Check lunar status and lore without opening the full rules surface first.',
       [
         mbP(m,'Moons','moon'),
-        mbP(m,'Sky','moon sky'),
         mbP(m,'Lore','moon lore'),
         promptMoonOn
       ],
