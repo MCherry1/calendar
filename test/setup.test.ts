@@ -2,11 +2,9 @@ import { describe, it } from "node:test";
 import { strictEqual as assertEquals, ok as assert } from "node:assert/strict";
 import { completeSetup, freshInstall } from "./helpers.js";
 import { state_name } from "../src/constants.js";
-import { todaySerial } from "../src/date-math.js";
 import { handleInput } from "../src/boot-register.js";
 import { notifySetupStatusOnReady } from "../src/setup.js";
-import { checkInstall, ensureSettings, getSetupState, resetToDefaults } from "../src/state.js";
-import { getPlanarState, getPlanesState } from "../src/planes.js";
+import { checkInstall, getSetupState, resetToDefaults } from "../src/state.js";
 
 function gmMsg(content: string) {
   return { type: "api", content, who: "GM (GM)", playerid: "GM" } as any;
@@ -30,18 +28,6 @@ function startEberronSetup() {
   handleInput(gmMsg("!cal setup defaults on"));
   handleInput(gmMsg("!cal setup moons on"));
   handleInput(gmMsg("!cal setup planes on"));
-}
-
-function finishDefaultEberronPlanarInit() {
-  handleInput(gmMsg("!cal setup planeinit link roll"));
-  handleInput(gmMsg("!cal setup planeinit climate roll"));
-  handleInput(gmMsg("!cal setup planeinit plane Daanvi roll"));
-  handleInput(gmMsg("!cal setup planeinit plane Dolurrh roll"));
-  handleInput(gmMsg("!cal setup planeinit plane Irian roll"));
-  handleInput(gmMsg("!cal setup planeinit plane Shavarath roll"));
-  handleInput(gmMsg("!cal setup planeinit plane Syrania roll"));
-  handleInput(gmMsg("!cal setup planeinit plane Thelanis roll"));
-  handleInput(gmMsg("!cal setup planeinit mabar roll"));
 }
 
 describe("Setup onboarding", () => {
@@ -124,95 +110,17 @@ describe("Setup onboarding", () => {
   it("applies a default Eberron setup flow and marks the campaign complete", () => {
     freshInstall();
     startEberronSetup();
-    finishDefaultEberronPlanarInit();
     handleInput(gmMsg("!cal setup apply"));
     assertEquals(getSetupState().status, "complete");
     assert((globalThis as any)._chatLog.length > 0);
   });
 
-  it("enters the Eberron planar initialization branch after planes are enabled", () => {
+  it("goes straight to the review step after planes are enabled", () => {
     freshInstall();
     startEberronSetup();
-    assert(lastChat().msg.includes("Planar Initialization"));
-    assert(lastChat().msg.includes("Fernia/Risia Link"));
-    assert(lastChat().msg.includes("Roll for it"));
-  });
-
-  it("changes the climate prompt shape based on the Fernia/Risia link choice", () => {
-    freshInstall();
-    startEberronSetup();
-    handleInput(gmMsg("!cal setup planeinit link linked"));
-    assert(lastChat().msg.includes("Fernia coterminous in year one"));
-    assert(lastChat().msg.includes("Risia coterminous in year one"));
-    assert(!lastChat().msg.includes("Fernia remote in year one"));
-
-    freshInstall();
-    startEberronSetup();
-    handleInput(gmMsg("!cal setup planeinit link independent"));
-    assert(lastChat().msg.includes("Fernia remote in year one"));
-    assert(lastChat().msg.includes("Risia remote in year one"));
-  });
-
-  it("applies explicit Eberron planar setup choices and writes the resolved state plus follow-up commands", () => {
-    freshInstall();
-    startEberronSetup();
-    handleInput(gmMsg("!cal setup planeinit link linked"));
-    handleInput(gmMsg("!cal setup planeinit climate fernia-coterminous"));
-    handleInput(gmMsg("!cal setup planeinit plane Daanvi remote"));
-    handleInput(gmMsg("!cal setup planeinit plane Dolurrh roll"));
-    handleInput(gmMsg("!cal setup planeinit plane Irian neither"));
-    handleInput(gmMsg("!cal setup planeinit plane Shavarath roll"));
-    handleInput(gmMsg("!cal setup planeinit plane Syrania roll"));
-    handleInput(gmMsg("!cal setup planeinit plane Thelanis roll"));
-    handleInput(gmMsg("!cal setup planeinit mabar neither"));
-    handleInput(gmMsg("!cal setup apply"));
-
-    const ps = getPlanesState();
-    assertEquals(ps.ferniaRisiaLinkMode, "linked");
-    assert(ps.seedOverrides.Fernia != null);
-    assert(ps.seedOverrides.Daanvi != null);
-    assert(ps.seedOverrides.Irian != null);
-    assert(ps.seedOverrides.Mabar != null);
-
-    const today = todaySerial();
-    const daanvi = getPlanarState("Daanvi", today, { ignoreGenerated: true } as any);
-    const irian = getPlanarState("Irian", today, { ignoreGenerated: true } as any);
-    assert(daanvi && daanvi.phase === "remote");
-    assertEquals(Math.floor((daanvi.daysIntoPhase || 0) / 336), Math.floor(((daanvi.phaseDuration || 0) / 336) / 2));
-    assert(irian && irian.phase === "neutral");
-    assertEquals(irian.phaseIndex, 3);
-
-    const log = (globalThis as any)._chatLog;
-    const summary = [...log].reverse().find((entry: any) =>
-      String(entry.msg).includes("Planar Initialization Applied")
-    );
-    assert(summary);
-    assert(summary.msg.includes("!cal planes link fernia-risia linked"));
-    assert(summary.msg.includes("!cal planes seed Fernia"));
-    assert(summary.msg.includes("!cal planes seed Daanvi"));
-  });
-
-  it("supports applying setup-style planar seed questions through planes seedinit", () => {
-    freshInstall();
-    completeSetup();
-    ensureSettings().calendarSystem = "eberron";
-    ensureSettings().planesEnabled = true;
-
-    handleInput(gmMsg("!cal planes seedinit linked fernia-coterminous remote neither roll roll roll roll remote"));
-
-    const ps = getPlanesState();
-    assertEquals(ps.ferniaRisiaLinkMode, "linked");
-    assert(ps.seedOverrides.Fernia != null);
-    assert(ps.seedOverrides.Daanvi != null);
-    assert(ps.seedOverrides.Dolurrh != null);
-    assert(ps.seedOverrides.Mabar != null);
-
-    const log = (globalThis as any)._chatLog;
-    const summary = [...log].reverse().find((entry: any) =>
-      String(entry.msg).includes("Planar Seed Procedure Applied")
-    );
-    assert(summary);
-    assert(summary.msg.includes("Fernia/Risia link mode"));
+    const msg = lastChat();
+    assert(msg && msg.msg.includes("Calendar Setup - Review"), "expected to land on the review step after planes toggle");
+    assert(!msg.msg.includes("Planar Initialization"), "wrapper should not run a planar-init wizard");
   });
 
   it("resetcalendar returns the campaign to the onboarding gate", () => {

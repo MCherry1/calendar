@@ -8,7 +8,7 @@ import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWra
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
-import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
+import { _getPlaneData, getPlanarState, getPlanesState } from './planes.js';
 import { getWorld } from './worlds/index.js';
 
 
