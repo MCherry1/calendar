@@ -26,6 +26,8 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+        env:
+          PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
       - name: Type check
         run: npm run typecheck
       - name: Run tests
