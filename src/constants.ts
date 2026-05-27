@@ -1,8 +1,11 @@
 // Section 1: Constants
+//
+// Roll20-side rendering constants and presentation defaults. Anything that's
+// canonical world data (months, intercalaries, moon cycles, holidays) now
+// lives in `@partybuff/calendar-engine` and is consumed via `src/worlds/`.
+
 import { CONFIG_ERA_LABEL } from './config.js';
-import { _isLeapMonth } from './date-math.js';
-import { occurrencesInRange } from './events.js';
-import { commands } from './today.js';
+import { getStructuralArray, WORLD_ORDER, WORLDS } from './worlds/index.js';
 
 
 /* ============================================================================
@@ -17,55 +20,42 @@ export var script_name = 'Party Buff Calendar';
 // any GM whose game has previously persisted calendar state.
 export var state_name = 'CALENDAR';
 
-/* --- Calendar name sets ---------------------------------------------------*/
-// All sets switchable live via the Appearance menu or !cal names / weekdays / seasons / etc.
-// To add a custom set, add an entry to the object and to its ORDER array below it.
+/* --- Season sets ----------------------------------------------------------*/
+// Season sets are Roll20-side because the engine's Season shape doesn't yet
+// model hemisphere-aware name shifts or astronomical transition tables.
+// Built from per-world overlays plus a few generic/global options the wizard
+// surfaces alongside.
 
 export var _SEASONS_EBERRON = [
   "Mid-winter","Late winter","Early spring","Mid-spring","Late spring","Early summer",
   "Mid-summer","Late summer","Early autumn","Mid-autumn","Late autumn","Early winter"
 ];
-// Each entry: { names[12], hemisphereAware?, transitions?, transitionsSouth? }
-// hemisphereAware: if true, hemisphere setting (north/south) flips weather offset and
-//   season names by 6 months (faerun) or uses alternate transitions (gregorian).
-// Eberron and tropical sets are not hemisphere-aware — they are planar or equatorial.
-export var SEASON_SETS = {
-  // Eberron planar seasons — defined by the Draconic Prophecy, not geography.
-  // These names are canon from the Eberron Campaign Setting.
-  eberron: {
-    names: _SEASONS_EBERRON.slice(),
-    hemisphereAware: false
-  },
-  // Faerunian / generic geographic seasons — plain four-season names at month boundaries.
-  // Hemisphere-aware: hemisphere south shifts all names by 6 months.
+
+// Generic geographic + tropical sets always available as wizard options.
+const GLOBAL_SEASON_SETS: Record<string, any> = {
   faerun: {
     label: 'Northern Hemisphere',
     names: ['Winter','Winter','Spring','Spring','Spring',
             'Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'],
     hemisphereAware: true
   },
-  // Gregorian mid-month transitions — season flips on the solstice/equinox day.
-  // Northern transitions are standard astronomical dates.
-  // Southern transitions are the same dates offset by 6 months.
   gregorian: {
     names: ['Winter','Winter','Spring','Spring','Spring',
             'Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'],
     hemisphereAware: true,
     transitions: [
-      { mi:  2, day: 20, season: 'Spring' },   // March 20
-      { mi:  5, day: 21, season: 'Summer' },   // June 21
-      { mi:  8, day: 22, season: 'Autumn' },   // September 22
-      { mi: 11, day: 21, season: 'Winter' }    // December 21
+      { mi:  2, day: 20, season: 'Spring' },
+      { mi:  5, day: 21, season: 'Summer' },
+      { mi:  8, day: 22, season: 'Autumn' },
+      { mi: 11, day: 21, season: 'Winter' }
     ],
     transitionsSouth: [
-      { mi:  2, day: 20, season: 'Autumn' },   // March 20
-      { mi:  5, day: 21, season: 'Winter' },   // June 21
-      { mi:  8, day: 22, season: 'Spring' },   // September 22
-      { mi: 11, day: 21, season: 'Summer' }    // December 21
+      { mi:  2, day: 20, season: 'Autumn' },
+      { mi:  5, day: 21, season: 'Winter' },
+      { mi:  8, day: 22, season: 'Spring' },
+      { mi: 11, day: 21, season: 'Summer' }
     ]
   },
-  // Tropical monsoon — three-phase cycle: cool → hot → rainy, 4 months each.
-  // Not hemisphere-aware: equatorial climates don't have meaningful hemispheres.
   tropical: {
     label: 'Tropical',
     names: [
@@ -74,127 +64,58 @@ export var SEASON_SETS = {
       'Early Rainy Season','Early-Mid Rainy Season','Mid-Late Rainy Season','Late Rainy Season'
     ],
     hemisphereAware: false
-  },
-  greyhawk: {
-    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
-            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
-    hemisphereAware: false
-  },
-  dragonlance: {
-    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
-            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
-    hemisphereAware: false
-  },
-  exandria: {
-    names: ['Winter','Winter','Spring','Spring','Summer',
-            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
-    hemisphereAware: false
-  },
-  mystara: {
-    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
-            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
-    hemisphereAware: false
-  },
-  birthright: {
-    names: ['Winter','Winter','Spring','Spring','Spring','Summer',
-            'Summer','Summer','Autumn','Autumn','Autumn','Winter'],
-    hemisphereAware: false
   }
 };
 
+// Compose: pull each world's per-overlay season set, then layer GLOBAL_SEASON_SETS on top.
+export var SEASON_SETS: Record<string, any> = (function(){
+  const out: Record<string, any> = {};
+  // Eberron has a special planar season set; surface its named list explicitly
+  // so the existing `_SEASONS_EBERRON` re-export stays meaningful.
+  out.eberron = { names: _SEASONS_EBERRON.slice(), hemisphereAware: false };
+  for (const key of WORLD_ORDER){
+    const w = WORLDS[key];
+    if (!w) continue;
+    for (const s of w.seasons){
+      // Skip if a global key would otherwise shadow it (the global versions
+      // are the "canonical" geographic options the wizard offers across worlds).
+      if (GLOBAL_SEASON_SETS[s.key]) continue;
+      out[s.key] = {
+        label: s.key,
+        names: s.names.slice(),
+        hemisphereAware: !!s.hemisphereAware,
+        transitions: s.transitions ? s.transitions.slice() : undefined,
+        transitionsSouth: s.transitionsSouth ? s.transitionsSouth.slice() : undefined,
+      };
+    }
+  }
+  Object.assign(out, GLOBAL_SEASON_SETS);
+  return out;
+}());
+
 /* --- Calendar structure sets ----------------------------------------------*/
-// A structure set defines intercalary (festival/leap) days and their positions.
-// Applying one rebuilds the month array with intercalary slots inserted.
-// Non-intercalary slots receive their names and lengths from the active name/length sets.
-// Each entry in the array is either:
-//   { regularIndex: N }          → placeholder for regular month N (0-based)
-//   { isIntercalary:true, name, days, leapEvery? }  → fixed festival day
-// leapEvery: if set, this slot only exists in years where year % leapEvery === 0.
-export var CALENDAR_STRUCTURE_SETS = {
-  // Harptos calendar (Forgotten Realms / Forgotten Realms Dalereckoning).
-  // 12 regular months × 30 days, 5 fixed festival days, Shieldmeet every 4 years.
-  // Leap years: year % 4 === 0 in Dalereckoning (e.g. 1372 DR, 1376 DR).
-  // Total: 365 days non-leap, 366 days leap.
-  harptos: [
-    { regularIndex: 0 },
-    { isIntercalary:true, name:'Midwinter',       days:1 },
-    { regularIndex: 1 },
-    { regularIndex: 2 },
-    { regularIndex: 3 },
-    { isIntercalary:true, name:'Greengrass',      days:1 },
-    { regularIndex: 4 },
-    { regularIndex: 5 },
-    { regularIndex: 6 },
-    { isIntercalary:true, name:'Midsummer',       days:1 },
-    { isIntercalary:true, name:'Shieldmeet',      days:1, leapEvery:4 },
-    { regularIndex: 7 },
-    { regularIndex: 8 },
-    { regularIndex: 9 },
-    { regularIndex:10 },
-    { isIntercalary:true, name:'Highharvestide',  days:1 },
-    { regularIndex:11 },
-    { isIntercalary:true, name:'Feast of the Moon', days:1 }
-  ],
-  // Gregorian with leap day inserted after February.
-  // The slot uses the full Gregorian rule in _isLeapMonth:
-  // divisible by 4, except centuries unless divisible by 400.
-  // Total: 365 days non-leap, 366 days leap.
-  gregorian: [
-    { regularIndex: 0 },
-    { regularIndex: 1 },
-    { isIntercalary:true, name:'Leap Day', days:1, leapEvery:4 },
-    { regularIndex: 2 },
-    { regularIndex: 3 },
-    { regularIndex: 4 },
-    { regularIndex: 5 },
-    { regularIndex: 6 },
-    { regularIndex: 7 },
-    { regularIndex: 8 },
-    { regularIndex: 9 },
-    { regularIndex:10 },
-    { regularIndex:11 }
-  ],
-  // Greyhawk: 12 regular months + 4 intercalary festival weeks (7 days each).
-  // Total: 364 days = 52 full weeks.
-  greyhawk: [
-    { isIntercalary:true, name:'Needfest', days:7 },
-    { regularIndex: 0 },
-    { regularIndex: 1 },
-    { regularIndex: 2 },
-    { isIntercalary:true, name:'Growfest', days:7 },
-    { regularIndex: 3 },
-    { regularIndex: 4 },
-    { regularIndex: 5 },
-    { isIntercalary:true, name:'Richfest', days:7 },
-    { regularIndex: 6 },
-    { regularIndex: 7 },
-    { regularIndex: 8 },
-    { isIntercalary:true, name:'Brewfest', days:7 },
-    { regularIndex: 9 },
-    { regularIndex:10 },
-    { regularIndex:11 }
-  ],
-  // Birthright: 12 regular months of 32 days + 4 intercalary festival days (1 day each).
-  // Total: 388 days.
-  birthright: [
-    { regularIndex: 0 },
-    { isIntercalary:true, name:'Erntenir',  days:1 },
-    { regularIndex: 1 },
-    { regularIndex: 2 },
-    { regularIndex: 3 },
-    { isIntercalary:true, name:'Haelynir',  days:1 },
-    { regularIndex: 4 },
-    { regularIndex: 5 },
-    { regularIndex: 6 },
-    { isIntercalary:true, name:'Midsummer', days:1 },
-    { regularIndex: 7 },
-    { regularIndex: 8 },
-    { regularIndex: 9 },
-    { isIntercalary:true, name:'Midwinter', days:1 },
-    { regularIndex:10 },
-    { regularIndex:11 }
-  ]
-};
+// Derived from per-world structural data. Each entry is a list of slot
+// templates where regularIndex placeholders sit alongside intercalary
+// (festival/leap) slots. `applyStructureSet` uses these to rebuild
+// `cal.months` after a world switch.
+export var CALENDAR_STRUCTURE_SETS: Record<string, any> = (function(){
+  const out: Record<string, any> = {};
+  for (const key of WORLD_ORDER){
+    const arr = getStructuralArray(key);
+    if (!arr || !arr.length) continue;
+    // Only emit a structure set if this world has any intercalary slots
+    // (worlds without intercalaries don't need the rebuild path).
+    if (!arr.some(function(s){ return s.isIntercalary; })) continue;
+    out[key] = arr.map(function(s){
+      if (s.isIntercalary){
+        return { isIntercalary: true, name: s.name, days: s.days, leapEvery: s.leapEvery || undefined };
+      }
+      return { regularIndex: s.regularIndex };
+    });
+  }
+  return out;
+}());
+
 /* --- Color themes ---------------------------------------------------------*/
 // Switchable live via !cal theme. One hex color per month.
 export var COLOR_THEMES = {
@@ -264,130 +185,39 @@ NAMED_COLORS.charcoal   = NAMED_COLORS.onyx;
 NAMED_COLORS.snowwhite  = NAMED_COLORS.snow;
 
 /* --- Default events -------------------------------------------------------*/
-// Canon Eberron calendar observances, grouped by source.
-// Sources can be enabled/disabled live via !cal source enable/disable <name>.
-// Individual events can be hidden via the Active Events menu.
-// Fields: name, month (1-based or "all"), day (number, "N-M", or ordinal weekday),
-//         color (hex or named color), source (must match the key below).
-export var DEFAULT_EVENTS = {
-  sharn: [
-    { name: "Tain Gala",               month: "all", day: "first far", color: "#F7E7CE" },
-    { name: "Crystalfall",             month: 2,     day: 9,           color: "#D7F3FF" },
-    { name: "Day of Ashes",            month: 5,     day: 3,           color: "#B0BEC5" },
-    { name: "The Race of Eight Winds", month: 7,     day: 23,          color: "#006D3C" }
-  ],
-  khorvaire: [
-    { name: "Day of Mourning",  month: 2,  day: 20, color: "#9E9E9E" },
-    { name: "Galifar's Throne", month: 6,  day: 5,  color: "#D4AF37" },
-    { name: "Thronehold",       month: 11, day: 11, color: "#E80001" }
-  ],
-  "sovereign host": [
-    { name: "Onatar's Flame",    month: 1,  day: 7,  color: "#FF6F00" },
-    { name: "Turrant's Gift",    month: 2,  day: 14, color: "#B8860B" },
-    { name: "Olladra's Feast",   month: 2,  day: 28, color: "#8BC34A" },
-    { name: "Sun's Blessing",    month: 3,  day: 15, color: "#FFC107" },
-    { name: "Aureon's Crown",    month: 5,  day: 26, color: "#283593" },
-    { name: "Brightblade",       month: 6,  day: 12, color: "#B71C1C" },
-    { name: "Bounty's Blessing", month: 7,  day: 14, color: "#388E3C" },
-    { name: "The Hunt",          month: 8,  day: 4,  color: "#1B5E20" },
-    { name: "Boldrei's Feast",   month: 9,  day: 9,  color: "#F57C00" },
-    { name: "Market Day",        month: 11, day: 20, color: "#FFD54F" }
-  ],
-  "dark six": [
-    { name: "Shargon's Bargain", month: 4,  day: 13,      color: "#006064" },
-    { name: "Second Skin",       month: 6,  day: 11,      color: "#809E62" },
-    { name: "Wildnight",         month: 10, day: "18-19", color: "#AD1457" },
-    { name: "Long Shadows",      month: 12, day: "26-28", color: "#0D0D0D" }
-  ],
-  "silver flame": [
-    { name: "Rebirth Eve",           month: 1,     day: 14,        color: "#EAF2FF" },
-    { name: "Bright Souls' Day",     month: 2,     day: 18,        color: "#FFF2C6" },
-    { name: "Tirasday",              month: 3,     day: 5,         color: "#DCEBFF" },
-    { name: "Initiation Day",        month: 4,     day: 11,        color: "#C7E3FF" },
-    { name: "Baker's Night",         month: 5,     day: 6,         color: "#D8B98F" },
-    { name: "Promisetide",           month: 5,     day: 28,        color: "#BDE3FF" },
-    { name: "First Dawn",            month: 6,     day: 21,        color: "#FFD1A6" },
-    { name: "Silvertide",            month: 7,     day: 14,        color: "#F2F7FF" },
-    { name: "Victory Day",           month: 8,     day: 9,         color: "#B3E5FC" },
-    { name: "Fathen's Fall",         month: 8,     day: 25,        color: "#E7ECF5" },
-    { name: "The Ascension",         month: 10,    day: 1,         color: "#E6F0FF" },
-    { name: "Saint Valtros's Day",   month: 10,    day: 25,        color: "#E8ECFF" },
-    { name: "Rampartide",            month: 11,    day: 24,        color: "#D6F5D6" },
-    { name: "Khybersef",             month: 12,    day: 27,        color: "#111827" },
-    { name: "Day of Cleansing Fire", month: "all", day: "all sul", color: "#F2F7FF" }
-  ],
-  stormreach: [
-    { name: "The Burning Titan",  month: 3,  day: 1,      color: "#FF5722" },
-    { name: "Pirate’s Moon",      month: 5,  day: 20,     color: "#0E7490" },
-    { name: "The Annual Games",   month: 6,  day: "1-14", color: "#2E7D32" },
-    { name: "Shacklebreak",       month: 11, day: 1,      color: "#455A64" }
-  ],
-  // Standard astronomical + calendrical season markers for Gregorian campaigns.
-  // Each day carries both the solstice/equinox name and the "First Day of X" label
-  // so GMs can use whichever fits their world’s flavor.
-  // Dates are the standard modern astronomical dates (northern hemisphere).
-  gregorian_seasons: [
-    { name: "First Day of Winter",month: 12, day: 21, color: "#A8DADC" },
-    { name: "Winter Solstice",    month: 12, day: 21, color: "#A8DADC" },
-    { name: "First Day of Spring",month: 3,  day: 20, color: "#A8E6A3" },
-    { name: "Spring Equinox",     month: 3,  day: 20, color: "#A8E6A3" },
-    { name: "First Day of Summer",month: 6,  day: 21, color: "#FFD166" },
-    { name: "Summer Solstice",    month: 6,  day: 21, color: "#FFD166" },
-    { name: "First Day of Autumn",month: 9,  day: 22, color: "#F4A261" },
-    { name: "Autumn Equinox",     month: 9,  day: 22, color: "#F4A261" }
-  ],
-  greyhawk_festivals: [
-    { name: "Needfest begins",  month: 1,  day: 1, color: "#E0C68A", source: "greyhawk" },
-    { name: "Growfest begins",  month: 4,  day: 1, color: "#A8E6A3", source: "greyhawk" },
-    { name: "Richfest begins",  month: 7,  day: 1, color: "#FFD700", source: "greyhawk" },
-    { name: "Midsummer",        month: 7,  day: 4, color: "#FFD700", source: "greyhawk" },
-    { name: "Brewfest begins",  month: 10, day: 1, color: "#D2691E", source: "greyhawk" }
-  ],
-  dragonlance_calendar: [
-    { name: "Yule",           month: 1, day: 1,  color: "#A8DADC", source: "dragonlance" },
-    { name: "Spring Dawning", month: 3, day: 1,  color: "#A8E6A3", source: "dragonlance" },
-    { name: "Midsummer",      month: 6, day: 14, color: "#FFD700", source: "dragonlance" },
-    { name: "Harvest Home",   month: 9, day: 14, color: "#F4A261", source: "dragonlance" }
-  ],
-  exandria_holidays: [
-    { name: "New Dawn",          month: 1,  day: 1,  color: "#FFD700", source: "exandria" },
-    { name: "Hillsgold",         month: 1,  day: 27, color: "#DAA520", source: "exandria" },
-    { name: "Day of Challenging",month: 3,  day: 7,  color: "#CD5C5C", source: "exandria" },
-    { name: "Harvest's Close",   month: 8,  day: 3,  color: "#F4A261", source: "exandria" },
-    { name: "Zenith",            month: 7,  day: 26, color: "#FFD700", source: "exandria" },
-    { name: "The Crystalheart",  month: 11, day: 11, color: "#87CEEB", source: "exandria" }
-  ],
-  mystara_holidays: [
-    { name: "New Year",         month: 1,  day: 1,  color: "#FFD700", source: "mystara" },
-    { name: "Vernal Equinox",   month: 3,  day: 14, color: "#A8E6A3", source: "mystara" },
-    { name: "Summer Solstice",  month: 6,  day: 14, color: "#FFD166", source: "mystara" },
-    { name: "Autumnal Equinox", month: 9,  day: 14, color: "#F4A261", source: "mystara" },
-    { name: "Winter Solstice",  month: 12, day: 14, color: "#A8DADC", source: "mystara" }
-  ],
-  birthright_festivals: [
-    { name: "Erntenir (Harvest Festival)", month: 2,  day: 1, color: "#DAA520", source: "birthright" },
-    { name: "Haelynir (Day of the Sun)",   month: 5,  day: 1, color: "#FFD700", source: "birthright" },
-    { name: "Midsummer",                   month: 8,  day: 1, color: "#FF6347", source: "birthright" },
-    { name: "Midwinter",                   month: 11, day: 1, color: "#87CEEB", source: "birthright" }
-  ]
-};
+// Composed from each world's `eventPacks`. Keyed by source name to preserve
+// the previous flat shape that `state.ts::_flattenSources` expects.
+export var DEFAULT_EVENTS: Record<string, any[]> = (function(){
+  const out: Record<string, any[]> = {};
+  for (const key of WORLD_ORDER){
+    const w = WORLDS[key];
+    if (!w || !w.eventPacks) continue;
+    for (const pack of w.eventPacks){
+      out[pack.key] = pack.events.map(function(e){
+        // Strip the per-event `source` field; the flatten step re-attaches
+        // the pack key as the source. The shape mirrors the legacy data.
+        const { source: _src, ...rest } = e as any;
+        return rest;
+      });
+    }
+  }
+  return out;
+}());
 
-// Optional source-to-calendar scoping for default events.
-// If a source key appears here, its events only load for listed calendar systems.
-export var DEFAULT_EVENT_SOURCE_CALENDARS = {
-  sharn:                 ['eberron'],
-  khorvaire:             ['eberron'],
-  'sovereign host':      ['eberron'],
-  'dark six':            ['eberron'],
-  'silver flame':        ['eberron'],
-  stormreach:            ['eberron'],
-  gregorian_seasons:     ['gregorian'],
-  greyhawk_festivals:    ['greyhawk'],
-  dragonlance_calendar:  ['dragonlance'],
-  exandria_holidays:     ['exandria'],
-  mystara_holidays:      ['mystara'],
-  birthright_festivals:  ['birthright']
-};
+// Source-to-calendar scoping for default events. Mirrors the legacy table,
+// derived from which world owns each pack key.
+export var DEFAULT_EVENT_SOURCE_CALENDARS: Record<string, string[]> = (function(){
+  const out: Record<string, string[]> = {};
+  for (const key of WORLD_ORDER){
+    const w = WORLDS[key];
+    if (!w || !w.eventPacks) continue;
+    for (const pack of w.eventPacks){
+      if (!out[pack.key]) out[pack.key] = [];
+      out[pack.key].push(key);
+    }
+  }
+  return out;
+}());
 
 /* --- Rendering constants --------------------------------------------------*/
 export var RANGE_CAP_YEARS = null; // max years occurrencesInRange scans; null = unlimited
@@ -426,5 +256,3 @@ export var PALETTE = [
   '#D81B60','#EC407A','#6D4C41','#8D6E63',
   '#795548','#5D4037','#607D8B','#78909C'
 ];
-
-
