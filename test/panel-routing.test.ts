@@ -1,12 +1,12 @@
 import { describe, it } from "node:test";
 import { ok as assert, strictEqual as assertEquals, notStrictEqual as assertNotEquals } from "node:assert/strict";
 import { freshInstall, completeSetup } from "./helpers.js";
-import { ensureSettings, getCal } from "../src/state.js";
+import { getCal } from "../src/state.js";
 import { toSerial } from "../src/date-math.js";
 import { handleInput } from "../src/boot-register.js";
 import { eventKey } from "../src/events.js";
 import { getMoonState, handleMoonCommand } from "../src/moon.js";
-import { getPlanesState, handlePlanesCommand } from "../src/planes.js";
+import { handlePlanesCommand } from "../src/planes.js";
 import { getPersistentViewsState } from "../src/persistent-views.js";
 
 function gmMessage(content: string) {
@@ -285,8 +285,8 @@ describe("Moon management routing", () => {
   });
 });
 
-describe("Planes management routing", () => {
-  it("routes today-options planes and planes phases into the compact planes summary", () => {
+describe("Planes routing", () => {
+  it("routes today-options planes into the compact planes summary", () => {
     freshInstall();
     completeSetup();
 
@@ -302,46 +302,16 @@ describe("Planes management routing", () => {
     assert(!log.includes("Planes: <code>!cal planes</code>"));
   });
 
-  it("emits supported planes management actions and toggles generated events", () => {
+  it("exposes only read-only GM controls \u2014 no override, seed, or anchor wizardry", () => {
     freshInstall();
 
     handlePlanesCommand(gmUser(), ["planes"]);
 
-    const msg = String(lastChat().msg);
-    assert(msg.includes("planes manage ?{Action|Toggle Planes On/Off,toggle|Toggle Generated Events,generated|Set Phase Override,set"));
-    assert(msg.includes("Clear Override,clear"));
-    assert(msg.includes("Set Anchor,anchorwizard"));
-    assert(msg.includes("Seed Override,seed"));
-    assert(msg.includes("\uD83D\uDCCB Summary"));
-    assert(!msg.includes("\uD83D\uDCCB List"));
-
-    const before = ensureSettings().offCyclePlanes !== false;
-    handlePlanesCommand(gmUser(), ["planes", "manage", "generated"]);
-    assertEquals(ensureSettings().offCyclePlanes, !before);
-  });
-
-  it("accepts the dropdown All sentinel for clear", () => {
-    freshInstall();
-    const ps = getPlanesState();
-    ps.overrides.Fernia = { phase: "remote", setOn: toSerial(998, 0, 1), note: "GM override" } as any;
-
-    handlePlanesCommand(gmUser(), ["planes", "manage", "clear", "All"]);
-
-    assertEquals(Object.keys(getPlanesState().overrides).length, 0);
-  });
-
-  it("opens a plane-specific anchor wizard that anchors coterminous starts", () => {
-    freshInstall();
-
-    handlePlanesCommand(gmUser(), ["planes", "anchorwizard", "Fernia"]);
-
-    const msg = String(lastChat().msg);
-    assert(msg.includes("Set Anchor - Fernia"));
-    assert(msg.includes("Traditional cycle"));
-    assert(msg.includes("Default coterminous start"));
-    assert(msg.includes("Set First Coterminous Start"));
-    assert(msg.includes("!cal planes anchor Fernia coterminous ?{Fernia cycle: coterminous 28 days every 5 years."));
-    assert(msg.includes("When should the first coterminous phase begin? This defines the cycle for all time."));
+    const log = (globalThis as any)._chatLog.map((entry: any) => String(entry.msg)).join("\n");
+    assert(!log.includes("planes manage"), "no management dropdown should remain");
+    assert(!log.includes("anchorwizard"), "no anchor wizard should remain");
+    assert(!log.includes("seedinit"), "no seed wizard should remain");
+    assert(log.includes("planes toggle"), "subsystem toggle should still be available to the GM");
   });
 
   it("renders plane Additional Ranges against the viewed date and resolves real range output", () => {

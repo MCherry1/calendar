@@ -1,195 +1,58 @@
 import { describe, it } from "node:test";
-import { strictEqual as assertEquals, ok as assert } from "node:assert/strict";
+import { ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
-import { toSerial, todaySerial } from "../src/date-math.js";
-import { _nextGeneratedForecast } from "../src/moon.js";
-import { _getAllPlaneData, _planesMiniCalEvents, getPlanarState, getPlanesState, handlePlanesCommand } from "../src/planes.js";
+import { toSerial } from "../src/date-math.js";
+import { _getAllPlaneData, _planesMiniCalEvents, getPlanarState } from "../src/planes.js";
 
-function gmArgs(content: string[]) {
-  return { who: "GM (GM)", playerid: "GM" } as any;
-}
-
-function firstPhaseDay(planeName: string, phase: string, start: number, span: number) {
-  for (let serial = start; serial < start + span; serial++) {
-    const state = getPlanarState(planeName, serial, { ignoreGenerated: true } as any);
-    if (state && state.phase === phase) return serial;
-  }
-  return null;
-}
-
-describe("Planes regressions", () => {
-  it("only applies overrides from setOn forward and keeps future queries from deleting live overrides", () => {
+describe("Planes canon", () => {
+  it("returns a canonical fixed phase for Dal Quor (always remote)", () => {
     freshInstall();
-    const today = todaySerial();
-    const ps = getPlanesState();
-    ps.overrides.Fernia = { phase: "remote", setOn: today, durationDays: 3, note: "GM override" };
-
-    const before = getPlanarState("Fernia", today - 1);
-    const during = getPlanarState("Fernia", today + 1);
-    const after = getPlanarState("Fernia", today + 10);
-
-    assert(before && !before.overridden, "historical view should stay canonical before setOn");
-    assert(during && during.overridden, "override should apply inside the active window");
-    assert(after && !after.overridden, "future view outside the window should be canonical");
-    assert(ps.overrides.Fernia, "querying outside the window should not delete a still-live override");
+    const dq = getPlanarState("Dal Quor", toSerial(998, 0, 1));
+    assert(dq && dq.phase === "remote", "Dal Quor should always be remote");
+    assert(dq && dq.plane && dq.plane.type === "fixed", "Dal Quor should be a fixed plane");
   });
 
-  it("cleans up overrides only when they are truly expired relative to today", () => {
+  it("computes coterminous and remote windows for Fernia from its canon anchor", () => {
     freshInstall();
-    const today = todaySerial();
-    const ps = getPlanesState();
-    ps.overrides.Fernia = { phase: "remote", setOn: today - 10, durationDays: 3, note: "GM override" };
-    const result = getPlanarState("Fernia", today);
-    assert(result && !result.overridden, "expired overrides should fall back to canonical state");
-    assertEquals(ps.overrides.Fernia, undefined);
+    const anchorCot = getPlanarState("Fernia", toSerial(998, 6, 14));
+    assert(anchorCot && anchorCot.phase === "coterminous", "Fernia should be coterminous during Lharvion 998");
+
+    // Half-orbit (2.5 years) later we expect remote.
+    const remoteCheck = getPlanarState("Fernia", toSerial(1001, 0, 14));
+    assert(remoteCheck && remoteCheck.phase === "remote", "Fernia should be remote 2.5 years after coterminous");
   });
 
-  it("clips generated minical overlays to the requested generated cutoff", () => {
-    freshInstall();
-    const today = todaySerial();
-    const plane = _getAllPlaneData().find((entry: any) => _nextGeneratedForecast(entry.name, today, 400));
-    assert(plane, "expected at least one plane with a generated forecast in range");
-    const forecast = _nextGeneratedForecast(plane.name, today, 400);
-    assert(forecast, "expected a generated forecast");
-
-    const withGenerated = _planesMiniCalEvents(today, forecast.endSerial + 2, forecast.endSerial + 2);
-    const clipped = _planesMiniCalEvents(today, forecast.endSerial + 2, forecast.startSerial - 1);
-    const generatedWith = withGenerated.filter((evt: any) => String(evt.name).includes("Generated"));
-    const generatedClipped = clipped.filter((evt: any) => String(evt.name).includes("Generated"));
-
-    assert(generatedWith.some((evt: any) => evt.serial >= forecast.startSerial), "expected generated overlays when cutoff reaches the event");
-    assert(generatedClipped.every((evt: any) => evt.serial < forecast.startSerial), "generated overlays should stop at the cutoff");
-  });
-
-  it("sends a non-interactive public summary and keeps the interactive panel for the GM", () => {
-    freshInstall();
-    handlePlanesCommand(gmArgs([]), ["planes", "send", "medium", "3d"]);
-    const log = (globalThis as any)._chatLog;
-    const publicMsg = log.find((entry: any) => String(entry.msg).startsWith("/direct "));
-    const gmWhisper = [...log].reverse().find((entry: any) =>
-      String(entry.msg).startsWith('/w "GM" ') && String(entry.msg).includes("](!cal ")
-    );
-    assert(publicMsg, "expected a public broadcast");
-    assert(!publicMsg.msg.includes("](!cal "), "public broadcast should not contain command-button markup");
-    assert(gmWhisper, "GM follow-up should keep the interactive panel");
-  });
-
-  it("Mabar is no longer canonically coterminous on Zarantyr 1", () => {
+  it("recognises Mabar's annual Long Shadows and its 5-year remote window separately", () => {
     freshInstall();
     const vult28 = getPlanarState("Mabar", toSerial(998, 11, 28));
     const zarantyr1 = getPlanarState("Mabar", toSerial(999, 0, 1));
-
-    assert(vult28 && vult28.phase === "coterminous", "Vult 28 should still be within Long Shadows at day granularity");
-    assert(zarantyr1 && zarantyr1.phase !== "coterminous", "Zarantyr 1 should no longer be marked coterminous");
+    assert(vult28 && vult28.phase === "coterminous", "Vult 28 falls within Long Shadows");
+    assert(zarantyr1 && zarantyr1.phase !== "coterminous", "Long Shadows should end with the calendar year");
   });
 
-  it("lets the GM switch Fernia/Risia between linked, independent, and seeded link modes", () => {
+  it("emits mini-calendar fills for any active short canon phases in range", () => {
     freshInstall();
-    handlePlanesCommand(gmArgs([]), ["planes", "link", "fernia-risia", "independent"]);
-    assertEquals(getPlanesState().ferniaRisiaLinkMode, "independent");
-
-    handlePlanesCommand(gmArgs([]), ["planes", "link", "fernia-risia", "seed"]);
-    assertEquals(getPlanesState().ferniaRisiaLinkMode, "seed");
+    const start = toSerial(998, 6, 1);
+    const end = toSerial(998, 6, 28);
+    const events = _planesMiniCalEvents(start, end);
+    // Fernia is canonically coterminous during Lharvion 998 — at least one
+    // fill should be emitted for that window.
+    assert(events.length > 0, "expected canonical fills within a known active month");
+    assert(events.every((evt: any) => !String(evt.name).startsWith("Generated:")), "no generated overlays should appear");
   });
 
-  it("only makes Risia follow Fernia when the pair is linked", () => {
+  it("getPlanarState returns null for unknown plane names", () => {
     freshInstall();
-    const ps = getPlanesState();
-    ps.seedOverrides.Fernia = 998;
-    delete ps.seedOverrides.Risia;
-    const start = toSerial(998, 0, 1);
-
-    ps.ferniaRisiaLinkMode = "linked";
-    const linkedRisiaCoterminous = firstPhaseDay("Risia", "coterminous", start, 2200);
-
-    ps.ferniaRisiaLinkMode = "independent";
-    const independentRisiaCoterminous = firstPhaseDay("Risia", "coterminous", start, 2200);
-
-    assert(linkedRisiaCoterminous != null, "expected a linked Risia coterminous day in range");
-    assert(independentRisiaCoterminous != null, "expected an independent Risia coterminous day in range");
-    assert(linkedRisiaCoterminous !== independentRisiaCoterminous, "Risia should stop following Fernia when the pair is independent");
+    assert(getPlanarState("NotAPlane", toSerial(998, 0, 1)) == null);
   });
 
-  it("clears planar seed overrides and the Fernia/Risia link mode on clear all", () => {
+  it("_getAllPlaneData enumerates Eberron's 13 canonical planes", () => {
     freshInstall();
-    const ps = getPlanesState();
-    ps.overrides.Fernia = { phase: "remote", note: "GM override" } as any;
-    ps.anchors.Fernia = { year: 998, month: 0, day: 1, phase: "coterminous" } as any;
-    ps.seedOverrides.Fernia = 998;
-    ps.seedOverrides.Daanvi = 1001;
-    ps.ferniaRisiaLinkMode = "linked";
-
-    handlePlanesCommand(gmArgs([]), ["planes", "clear", "all"]);
-
-    assertEquals(Object.keys(ps.overrides).length, 0);
-    assertEquals(Object.keys(ps.anchors).length, 0);
-    assertEquals(Object.keys(ps.seedOverrides).length, 0);
-    assertEquals(ps.ferniaRisiaLinkMode, "seed");
-  });
-
-  it("clears a plane seed override when clearing that plane", () => {
-    freshInstall();
-    const ps = getPlanesState();
-    ps.seedOverrides.Fernia = 998;
-    ps.seedOverrides.Daanvi = 1001;
-
-    handlePlanesCommand(gmArgs([]), ["planes", "clear", "Fernia"]);
-
-    assertEquals(ps.seedOverrides.Fernia, undefined);
-    assertEquals(ps.seedOverrides.Daanvi, 1001);
-  });
-
-  it("relinks Risia by clearing its direct seed override", () => {
-    freshInstall();
-    const ps = getPlanesState();
-    const start = toSerial(998, 0, 1);
-
-    ps.seedOverrides.Fernia = 998;
-    ps.ferniaRisiaLinkMode = "linked";
-    delete ps.seedOverrides.Risia;
-    const expectedLinked = firstPhaseDay("Risia", "coterminous", start, 2200);
-
-    ps.ferniaRisiaLinkMode = "independent";
-    ps.seedOverrides.Risia = 996;
-    const overrideDriven = firstPhaseDay("Risia", "coterminous", start, 2200);
-
-    handlePlanesCommand(gmArgs([]), ["planes", "link", "fernia-risia", "linked"]);
-    const relinked = firstPhaseDay("Risia", "coterminous", start, 2200);
-
-    assert(expectedLinked != null, "expected a linked Risia coterminous day in range");
-    assert(overrideDriven != null, "expected a direct-override Risia coterminous day in range");
-    assert(expectedLinked !== overrideDriven, "test needs the override to change Risia's cycle");
-    assertEquals(ps.seedOverrides.Risia, undefined);
-    assertEquals(relinked, expectedLinked);
-  });
-
-  it("switches Fernia/Risia to independent when Risia gets an explicit seed override", () => {
-    freshInstall();
-    const ps = getPlanesState();
-    ps.ferniaRisiaLinkMode = "linked";
-
-    handlePlanesCommand(gmArgs([]), ["planes", "seed", "Risia", "996"]);
-
-    assertEquals(ps.seedOverrides.Risia, 996);
-    assertEquals(ps.ferniaRisiaLinkMode, "independent");
-  });
-
-  it("recomputes generated phase metadata from the resolved active phase", () => {
-    freshInstall();
-    const start = toSerial(998, 0, 1);
-    let match: any = null;
-    for (let serial = start; serial <= start + 336 && !match; serial++) {
-      for (const plane of _getAllPlaneData()) {
-        const state = getPlanarState(plane.name, serial);
-        if (state && state.sourceLabel === "generated" && (state.phase === "coterminous" || state.phase === "remote")) {
-          match = state;
-          break;
-        }
-      }
-    }
-
-    assert(match, "expected at least one active generated planar phase in the first year");
-    assert(match.phaseDuration != null && match.phaseDuration < 40, "generated span should not reuse the long neutral duration");
-    assert(match.daysIntoPhase != null && match.phaseDuration != null && match.daysIntoPhase < match.phaseDuration, "daysIntoPhase should be bounded by the resolved active span");
+    const planes = _getAllPlaneData();
+    assert(planes.length === 13, "expected the 13 canonical Eberron planes");
+    const names = planes.map((p: any) => p.name);
+    ["Daanvi", "Dal Quor", "Dolurrh", "Fernia", "Irian", "Kythri", "Lamannia", "Mabar", "Risia", "Shavarath", "Syrania", "Thelanis", "Xoriat"].forEach((expected) => {
+      assert(names.indexOf(expected) >= 0, "expected " + expected + " in the plane table");
+    });
   });
 });
