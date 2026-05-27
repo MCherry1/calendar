@@ -7,7 +7,6 @@ import { button, esc } from './rendering.js';
 import { _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, currentDateLabel, sendCurrentDate, taskCardHtml } from './ui.js';
 import { isTimeOfDayActive } from './time-of-day.js';
 import { invokeEventSub } from './today.js';
-import { WEATHER_SOURCE_LABELS, _forecastRecord, _playerDayHtml, _weatherRevealForSerial, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _normalizePlaneRevealTier, _planarYearDays, _planesTodaySummaryHtml, getPlanarState, getPlanesState } from './planes.js';
 import { whisper } from './messaging.js';
@@ -41,7 +40,6 @@ export function runEventsShortcut(m, a, sub){
 // Default !cal entrypoint routing:
 // events minical first (if enabled), then other enabled subsystems.
 export function _showDefaultCalView(m){
-  weatherEnsureForecast();
   moonEnsureSequences();
   sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
 }
@@ -65,7 +63,6 @@ export function _playerTodayHtml(playerid){
   var today = todaySerial();
   var cal = getCal();
   var c = cal.current;
-  var mObj = cal.months[c.month] || {};
   var sections = [];
   var promptDate = String(cal.months[c.month].name || '') + ' ' + c.day_of_the_month + ' ' + c.year;
 
@@ -86,8 +83,7 @@ export function _playerTodayHtml(playerid){
     'Date',
     '<b>' + esc(currentDateLabel()) + '</b>' + (isTimeOfDayActive() ? '<div style="margin-top:3px;">' + _timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin:0;') + '</div>' : ''),
     [
-      button('Calendar','show month'),
-      button('Forecast','forecast')
+      button('Calendar','show month')
     ]
   ));
 
@@ -97,32 +93,7 @@ export function _playerTodayHtml(playerid){
       ? 'Today includes <b>' + eventNames.slice(0, 3).map(esc).join(', ') + '</b>' + (eventNames.length > 3 ? ' <span style="opacity:.7;">+' + (eventNames.length - 3) + ' more</span>' : '') + '.'
       : 'No calendar events are scheduled for today.',
     [
-      button('Show Month','show month'),
-      button('Weather','weather')
-    ]
-  ));
-
-  var weatherSummary = 'Weather is currently off.';
-  if (st.weatherEnabled !== false){
-    try {
-      weatherEnsureForecast();
-      var recCard = _forecastRecord(today);
-      if (recCard){
-        var revCard = _weatherRevealForSerial(getWeatherState(), today, getWeatherState().location);
-        weatherSummary = _playerDayHtml(recCard, revCard.tier || 'low', false, WEATHER_SOURCE_LABELS[revCard.source] || null);
-      } else {
-        weatherSummary = 'Conditions are not available right now.';
-      }
-    } catch(e1){
-      weatherSummary = 'Conditions are not available right now.';
-    }
-  }
-  sections.push(taskCardHtml(
-    'Weather',
-    weatherSummary,
-    [
-      button('Detail','weather'),
-      button('Forecast','forecast')
+      button('Show Month','show month')
     ]
   ));
 

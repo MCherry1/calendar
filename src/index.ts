@@ -15,7 +15,6 @@ import './time-of-day.js';
 import './ui.js';
 import './commands.js';
 import './today.js';
-import './weather.js';
 import './boot-register.js';
 import './moon.js';
 import './planes.js';

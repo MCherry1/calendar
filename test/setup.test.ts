@@ -6,7 +6,6 @@ import { todaySerial } from "../src/date-math.js";
 import { handleInput } from "../src/boot-register.js";
 import { notifySetupStatusOnReady } from "../src/setup.js";
 import { checkInstall, ensureSettings, getSetupState, resetToDefaults } from "../src/state.js";
-import { getWeatherState } from "../src/weather.js";
 import { getPlanarState, getPlanesState } from "../src/planes.js";
 
 function gmMsg(content: string) {
@@ -30,6 +29,7 @@ function startEberronSetup() {
   handleInput(gmMsg("!cal setup theme default"));
   handleInput(gmMsg("!cal setup defaults on"));
   handleInput(gmMsg("!cal setup moons on"));
+  handleInput(gmMsg("!cal setup planes on"));
 }
 
 function finishDefaultEberronPlanarInit() {
@@ -121,37 +121,18 @@ describe("Setup onboarding", () => {
     assert(lastChat().msg.includes("Step 3: Current In-Game Date"));
   });
 
-  it("applies a weather-off setup flow and marks the campaign complete", () => {
+  it("applies a default Eberron setup flow and marks the campaign complete", () => {
     freshInstall();
     startEberronSetup();
-    handleInput(gmMsg("!cal setup weather off"));
-    handleInput(gmMsg("!cal setup planes on"));
     finishDefaultEberronPlanarInit();
     handleInput(gmMsg("!cal setup apply"));
     assertEquals(getSetupState().status, "complete");
-    assertEquals(ensureSettings().weatherEnabled, false);
     assert((globalThis as any)._chatLog.length > 0);
-  });
-
-  it("supports the weather-location branch and stores the chosen location", () => {
-    freshInstall();
-    startEberronSetup();
-    handleInput(gmMsg("!cal setup weather narrative"));
-    handleInput(gmMsg("!cal setup planes on"));
-    handleInput(gmMsg("!cal setup weather climate temperate"));
-    handleInput(gmMsg("!cal setup weather geography inland"));
-    handleInput(gmMsg("!cal setup weather terrain open"));
-    finishDefaultEberronPlanarInit();
-    handleInput(gmMsg("!cal setup apply"));
-    assertEquals(getSetupState().status, "complete");
-    assertEquals(getWeatherState().location.sig, "temperate/inland/open");
   });
 
   it("enters the Eberron planar initialization branch after planes are enabled", () => {
     freshInstall();
     startEberronSetup();
-    handleInput(gmMsg("!cal setup weather off"));
-    handleInput(gmMsg("!cal setup planes on"));
     assert(lastChat().msg.includes("Planar Initialization"));
     assert(lastChat().msg.includes("Fernia/Risia Link"));
     assert(lastChat().msg.includes("Roll for it"));
@@ -160,8 +141,6 @@ describe("Setup onboarding", () => {
   it("changes the climate prompt shape based on the Fernia/Risia link choice", () => {
     freshInstall();
     startEberronSetup();
-    handleInput(gmMsg("!cal setup weather off"));
-    handleInput(gmMsg("!cal setup planes on"));
     handleInput(gmMsg("!cal setup planeinit link linked"));
     assert(lastChat().msg.includes("Fernia coterminous in year one"));
     assert(lastChat().msg.includes("Risia coterminous in year one"));
@@ -169,8 +148,6 @@ describe("Setup onboarding", () => {
 
     freshInstall();
     startEberronSetup();
-    handleInput(gmMsg("!cal setup weather off"));
-    handleInput(gmMsg("!cal setup planes on"));
     handleInput(gmMsg("!cal setup planeinit link independent"));
     assert(lastChat().msg.includes("Fernia remote in year one"));
     assert(lastChat().msg.includes("Risia remote in year one"));
@@ -179,8 +156,6 @@ describe("Setup onboarding", () => {
   it("applies explicit Eberron planar setup choices and writes the resolved state plus follow-up commands", () => {
     freshInstall();
     startEberronSetup();
-    handleInput(gmMsg("!cal setup weather off"));
-    handleInput(gmMsg("!cal setup planes on"));
     handleInput(gmMsg("!cal setup planeinit link linked"));
     handleInput(gmMsg("!cal setup planeinit climate fernia-coterminous"));
     handleInput(gmMsg("!cal setup planeinit plane Daanvi remote"));

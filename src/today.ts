@@ -1,5 +1,5 @@
 // Today — Combined detail from all subsystems
-import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS } from './config.js';
+import { CALENDAR_SYSTEMS, CONFIG_DEFAULTS } from './config.js';
 import { COLOR_THEMES, SEASON_SETS, STYLES, script_name, state_name } from './constants.js';
 import { _sourceAllowedForCalendar, applyCalendarSystem, applySeasonSet, defaults, ensureSettings, getAutoSuppressedSources, getCal, refreshAndSend, refreshCalendarState, resetToDefaults, sourceSuppressionState, titleCase } from './state.js';
 import { colorsAPI } from './color.js';
@@ -8,29 +8,14 @@ import { DaySpec, Parse } from './parsing.js';
 import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
 import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _activePlanarWeatherShiftLines, _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, _weatherInfluenceTexts, _weatherViewDays, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
-import { WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, WEATHER_SOURCE_LABELS, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _evaluateExtremeEvents, _forecastRecord, _grantCommonWeatherReveals, _weatherLocationLabel, _weatherPeriodIcon, _weatherPeriodLabel, _weatherPrimaryFog, _weatherPrimaryValues, _weatherRecordForDisplay, _weatherRevealForSerial, getWeatherState, handleWeatherCommand, weatherEnsureForecast } from './weather.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
 
 
 // ── Today — Combined detail from all subsystems ────────────────────────
-export function _todayWeatherIsStable(wxRec){
-  if (!wxRec || !wxRec.periods) return true;
-  var periods = WEATHER_DAY_PERIODS;
-  var base = wxRec.periods[WEATHER_PRIMARY_PERIOD] || wxRec.final;
-  if (!base) return true;
-  for (var i = 0; i < periods.length; i++){
-    var pv = wxRec.periods[periods[i]];
-    if (!pv) continue;
-    if (Math.abs((pv.temp||0) - (base.temp||0)) >= 2) return false;
-    if (Math.abs((pv.wind||0) - (base.wind||0)) >= 2) return false;
-    if (Math.abs((pv.precip||0) - (base.precip||0)) >= 2) return false;
-  }
-  return true;
-}
 
 function _timeOfDayStatusBoxHtml(inner){
   return '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:6px 0;">' + inner + '</div>';
@@ -100,10 +85,8 @@ function _todayEventSummaryHtml(serial){
 }
 
 function _timeOfDayCurrentViewHtml(includeButtons){
-  var st = ensureSettings();
   var today = todaySerial();
   var lines = [];
-  var activeBucket = currentTimeBucket() || WEATHER_PRIMARY_PERIOD;
 
   lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(formalCurrentDateLabel()) + '</div>');
   if (isTimeOfDayActive()){
@@ -111,45 +94,6 @@ function _timeOfDayCurrentViewHtml(includeButtons){
   }
   var eventsHtml = _todayEventSummaryHtml(today);
   if (eventsHtml) lines.push(eventsHtml);
-
-  if (st.weatherEnabled !== false){
-    try {
-      var ws = getWeatherState();
-      if (ws.location){
-        weatherEnsureForecast();
-        _grantCommonWeatherReveals(ws, today);
-        var rec = _weatherRecordForDisplay(_forecastRecord(today));
-        if (rec && rec.final){
-          var loc = rec.location || ws.location || {};
-          var periodVals = (rec.periods && rec.periods[activeBucket]) || rec.final;
-          var fogForPeriod = rec.fog && rec.fog[activeBucket];
-          var cond = _deriveConditions(periodVals, loc, activeBucket, rec.snowAccumulated, fogForPeriod);
-          var narr = _conditionsNarrative(periodVals, cond, activeBucket);
-          var reveal = _weatherRevealForSerial(ws, today, ws.location);
-          var sourceLabel = WEATHER_SOURCE_LABELS[reveal.source] || WEATHER_SOURCE_LABELS.common;
-          var sourceBits = [sourceLabel].concat(_weatherInfluenceTexts(rec) || []);
-
-          lines.push('<div style="font-size:.82em;opacity:.72;margin-top:2px;">📍 ' + esc(_weatherLocationLabel(loc)) + '</div>');
-          lines.push('<div style="font-size:.85em;opacity:.85;margin-top:2px;">' +
-            esc(_weatherPeriodIcon(activeBucket) + ' ' + _weatherPeriodLabel(activeBucket) + ': ' + narr) +
-            '</div>');
-
-          var mechHtml = _conditionsMechHtml(cond);
-          if (mechHtml){
-            lines.push('<div style="font-size:.82em;margin-top:4px;padding:3px 6px;background:rgba(0,0,0,.04);border-radius:3px;">' +
-              '<b>Mechanics:</b>' + mechHtml +
-              '</div>');
-          }
-          if (sourceBits.length){
-            lines.push('<div style="font-size:.76em;opacity:.58;margin-top:3px;">' +
-              '<b>' + (sourceBits.length > 1 ? 'Sources' : 'Source') + ':</b> ' +
-              sourceBits.map(esc).join(' · ') +
-              '</div>');
-          }
-        }
-      }
-    } catch(eWeather){}
-  }
 
   if (isTimeOfDayActive()){
     try {
@@ -195,29 +139,6 @@ export function _todayAllHtml(){
   // Time of Day (if active)
   if (isTimeOfDayActive()){
     lines.push(_timeOfDayStatusHtml('font-size:.85em;opacity:.72;margin:0 0 2px 0;'));
-  }
-
-  // Current Location (if weather active and location set)
-  if (st.weatherEnabled !== false){
-    try {
-      var ws = getWeatherState();
-      if (ws.location){
-        lines.push('<div style="font-size:.82em;opacity:.7;margin:1px 0;">📍 ' + esc(_weatherLocationLabel(ws.location)) + '</div>');
-      }
-    } catch(e0){}
-  }
-
-  // Current Weather
-  if (st.weatherEnabled !== false){
-    try {
-      weatherEnsureForecast();
-      var wxCard = _weatherRecordForDisplay(_forecastRecord(today));
-      if (wxCard && wxCard.final){
-        var wxVals = _weatherPrimaryValues(wxCard) || wxCard.final;
-        var wxCond = _deriveConditions(wxVals, wxCard.location || {}, WEATHER_PRIMARY_PERIOD, wxCard.snowAccumulated, _weatherPrimaryFog(wxCard));
-        lines.push('<div style="font-size:.82em;opacity:.7;margin:1px 0;">☁️ ' + esc(_conditionsNarrative(wxVals, wxCond, WEATHER_PRIMARY_PERIOD)) + '</div>');
-      }
-    } catch(e1){}
   }
 
   // Current Lighting (if time of day is active)
@@ -303,10 +224,10 @@ export function _todayAllHtml(){
   var btns = [];
   btns.push('<div style="margin-top:6px;">');
 
-  // Time of Day: advance if active, enable if weather is active
+  // Time of Day: advance if active, otherwise offer enable.
   if (isTimeOfDayActive()){
     btns.push(button('🕒 ⏩ Advance Time','time next'));
-  } else if (st.weatherEnabled !== false){
+  } else {
     btns.push(button('🕒 Enable Time of Day','time start middle_of_night'));
   }
   btns.push('</div>');
@@ -320,13 +241,13 @@ export function _todayAllHtml(){
   // Subsystems dropdown
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Subsystems', 'today options ?{Subsystem|Events,events|Moons,moon|Weather,weather|Planes,planes}') +
+    button('Subsystems', 'today options ?{Subsystem|Events,events|Moons,moon|Planes,planes}') +
     '</div>');
 
   // Management dropdown (GM only)
   btns.push('<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>');
   btns.push('<div style="margin:3px 0;">' +
-    button('Management', 'today manage ?{Action|Enable/Disable Moons,moon toggle|Enable/Disable Weather,weather toggle|Enable/Disable Planes,planes toggle|Theme,help themes|Calendar System,help calendarsystems|Hemisphere,help hemisphere|Season Set,help seasons|Reset Calendar,help resetconfirm}') +
+    button('Management', 'today manage ?{Action|Enable/Disable Moons,moon toggle|Enable/Disable Planes,planes toggle|Theme,help themes|Calendar System,help calendarsystems|Hemisphere,help hemisphere|Season Set,help seasons|Reset Calendar,help resetconfirm}') +
     '</div>');
 
   return _menuBox('Today — ' + esc(_displayMonthDayParts(c.month, c.day_of_the_month).label),
@@ -617,7 +538,6 @@ export var commands = {
       var choice = (a[3] || '').toLowerCase();
       if (choice === 'events') return invokeEventSub(m, 'panel', []);
       if (choice === 'moon')   return handleMoonCommand(m, ['moon', 'summary']);
-      if (choice === 'weather')return handleWeatherCommand(m, ['weather']);
       if (choice === 'planes') return handlePlanesCommand(m, ['planes', 'summary']);
       if (choice === 'admin' || choice === 'help') return helpRootMenu(m);
       return helpRootMenu(m);
@@ -645,11 +565,6 @@ export var commands = {
       return whisperUi(m.who, res.message);
     }
     whisperUi(m.who, 'Setup is already complete.');
-  },
-
-  // Shortcut: !cal forecast mirrors the weather forecast surface and forwards args.
-  forecast: function(m, a){
-    handleWeatherCommand(m, ['weather','forecast'].concat((a || []).slice(2)));
   },
 
   effects: { gm:true, run:function(m){
@@ -720,11 +635,10 @@ export var commands = {
     var st = ensureSettings();
     function _settingsUsage(){
       return whisperUi(m.who,
-        'Usage: <code>!cal settings (group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|planes|offcycle|buttons) (on|off)</code><br>'+
+        'Usage: <code>!cal settings (group|labels|events|moons|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
-        '<code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code><br>'+
-        '<code>!cal settings verbosity (normal|minimal)</code> &nbsp;·&nbsp; '+
-        '<code>!cal settings weatherdays (1-20)</code>'
+        '<code>!cal settings mode (moon|planes) (calendar|list|both)</code><br>'+
+        '<code>!cal settings verbosity (normal|minimal)</code>'
       );
     }
     if (!key){
@@ -746,40 +660,24 @@ export var commands = {
       refreshAndSend();
       return whisperUi(m.who,'Subsystem detail set to <b>'+esc(titleCase(val))+'</b>.');
     }
-    if (key === 'weatherdays' || key === 'wxdays'){
-      var weatherDays = parseInt(val, 10);
-      if (!/^\d+$/.test(val) || weatherDays < 1 || weatherDays > CONFIG_WEATHER_FORECAST_DAYS){
-        return whisperUi(m.who,'Usage: <code>!cal settings weatherdays (1-'+CONFIG_WEATHER_FORECAST_DAYS+')</code>');
-      }
-      st.weatherForecastViewDays = _weatherViewDays(weatherDays);
-      refreshAndSend();
-      return whisperUi(m.who,'Weather forecast span set to <b>'+st.weatherForecastViewDays+' days</b>.');
-    }
     if (key === 'mode'){
       var sysTok = String(a[3] || '').toLowerCase();
       var modeTok = String(a[4] || '').toLowerCase();
-      if (!/^(moon|lunar|weather|planes|plane|planar)$/.test(sysTok) || !/^(calendar|list|both)$/.test(modeTok)){
-        return whisperUi(m.who,'Usage: <code>!cal settings mode (moon|weather|planes) (calendar|list|both)</code>');
+      if (!/^(moon|lunar|planes|plane|planar)$/.test(sysTok) || !/^(calendar|list|both)$/.test(modeTok)){
+        return whisperUi(m.who,'Usage: <code>!cal settings mode (moon|planes) (calendar|list|both)</code>');
       }
       if (sysTok === 'moon' || sysTok === 'lunar') st.moonDisplayMode = modeTok;
-      if (sysTok === 'weather') st.weatherDisplayMode = 'calendar';
       if (sysTok === 'planes' || sysTok === 'plane' || sysTok === 'planar') st.planesDisplayMode = modeTok;
       refreshAndSend();
-      if (sysTok === 'weather'){
-        return whisperUi(m.who,'Weather display is now <b>Calendar</b>-only.');
-      }
       return whisperUi(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }
-    if (!/^(group|labels|events|moons|weather|weathermechanics|wxmechanics|hazards|weatherhazards|wxhazards|extremehazards|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
+    if (!/^(group|labels|events|moons|planes|offcycle|buttons)$/.test(key) || !/^(on|off)$/.test(val)){
       return _settingsUsage();
     }
     if (key==='group')    st.groupEventsBySource = (val==='on');
     if (key==='labels')   st.showSourceLabels    = (val==='on');
     if (key==='events')   st.eventsEnabled       = (val==='on');
     if (key==='moons'){    st.moonsEnabled  = (val==='on'); st._moonsAutoToggle = false; }
-    if (key==='weather')  st.weatherEnabled      = (val==='on');
-    if (key==='weathermechanics' || key==='wxmechanics') st.weatherMechanicsEnabled = (val==='on');
-    if (key==='hazards' || key==='weatherhazards' || key==='wxhazards' || key==='extremehazards') st.weatherHazardsEnabled = (val==='on');
     if (key==='planes'){  st.planesEnabled = (val==='on'); st._planesAutoToggle = false; }
     if (key==='offcycle') st.offCyclePlanes      = (val==='on');
     if (key==='buttons')  st.autoButtons         = (val==='on');
@@ -1111,18 +1009,7 @@ export var commands = {
   lunar:  function(m, a){ handleMoonCommand(m, ['moon'].concat(a.slice(2))); }, // alias
   moon:    function(m, a){ handleMoonCommand(m, a.slice(1)); },   // mixed: players=view, GM=edit
 
-  // Weather — GM full access, players get today's conditions only
-  weather:  function(m, a){   // mixed: players=today+forecast, GM=full access
-    // a[0]='!cal', a[1]='weather', a[2]=subcommand, a[3+]=params
-    // Pass a slice starting at 'weather' so handler sees args[0]='weather', args[1]=sub
-    handleWeatherCommand(m, a.slice(1));
-  },
-
-  // Weather mechanics quick reference
-  mechanics: function(m){ handleWeatherCommand(m, ['weather','mechanics']); }, // alias
-  mech:      function(m){ handleWeatherCommand(m, ['weather','mechanics']); }, // alias
-
-  // Planar system — parallel to moons/weather
+  // Planar system — parallel to moons
   planar: function(m, a){ handlePlanesCommand(m, ['planes'].concat(a.slice(2))); }, // alias
   planes:  function(m, a){ handlePlanesCommand(m, a.slice(1)); }
 };

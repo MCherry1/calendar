@@ -8,9 +8,8 @@ import { monthIndexByName } from './parsing.js';
 import { compareEvents, eventKey, eventsAPI, getEventColor, getEventsFor, isDefaultEvent, renderAPI } from './events.js';
 import { _ordinal, clamp, esc, formatDateLabel } from './rendering.js';
 import { _displayMonthDayParts, _subsystemIsVerbose, _subsystemVerbosityValue, addEventSmart, currentDateLabel, removeEvent, setDate, stepDays } from './ui.js';
-import { _todayAllHtml, _todayWeatherIsStable } from './today.js';
+import { _todayAllHtml } from './today.js';
 import { notifySetupStatusOnReady } from './setup.js';
-import { WEATHER_CLIMATES, WEATHER_DAY_PERIODS, WEATHER_PRIMARY_PERIOD, _bestTier, _clampWeatherTempBand, _composeFormula, _forecastRecord, _grantCommonWeatherReveals, _locSig, _parseWeatherRevealDateSpec, _parseWeatherRevealDayToken, _recordReveal, _rollTrait, _weatherRecordForDisplay, _weatherRevealBucket, _weatherRevealForSerial, _weatherTempInfo, _weatherTempLabel, getWeatherState, weatherEnsureForecast } from './weather.js';
 import { register } from './boot-register.js';
 import { MOON_SYSTEMS, _diskOverlapFraction, _eberronMoonCore, _eclipseLifecycleText, _eclipseMetricsAt, _eclipseNotableToday, _eclipseTimeBlock, _finalizeEclipseEvent, _moonHashStr, getEclipses, getMoonState, moonEnsureSequences, moonPhaseAt, nighttimeLightCondition, nighttimeLux } from './moon.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
@@ -100,14 +99,6 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
     weekLength:          weekLength,
     colorForMonth:       colorForMonth,
 
-    // weather
-    getWeatherState:     getWeatherState,
-    _composeFormula:     _composeFormula,
-    _rollTrait:          _rollTrait,
-    _clampWeatherTempBand: _clampWeatherTempBand,
-    _weatherTempLabel:   _weatherTempLabel,
-    _weatherTempInfo:    _weatherTempInfo,
-
     // moons
     getMoonState:        getMoonState,
     _moonHashStr:        _moonHashStr,
@@ -124,10 +115,6 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
 
     // today-view helpers
     _todayAllHtml:          _todayAllHtml,
-    _todayWeatherIsStable:  _todayWeatherIsStable,
-    _forecastRecord:        _forecastRecord,
-    weatherEnsureForecast:  weatherEnsureForecast,
-    _weatherRecordForDisplay: _weatherRecordForDisplay,
 
     // eclipse
     _diskOverlapFraction:    _diskOverlapFraction,
@@ -137,16 +124,6 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
     _eclipseLifecycleText:   _eclipseLifecycleText,
     _eclipseNotableToday:    _eclipseNotableToday,
     getEclipses:             getEclipses,
-
-    // weather reveals
-    _bestTier:               _bestTier,
-    _locSig:                 _locSig,
-    _weatherRevealBucket:    _weatherRevealBucket,
-    _recordReveal:           _recordReveal,
-    _weatherRevealForSerial: _weatherRevealForSerial,
-    _grantCommonWeatherReveals: _grantCommonWeatherReveals,
-    _parseWeatherRevealDayToken:  _parseWeatherRevealDayToken,
-    _parseWeatherRevealDateSpec:  _parseWeatherRevealDateSpec,
 
     // harptos
     weekStartSerial:         weekStartSerial,
@@ -158,8 +135,5 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
     state_name:          state_name,
     CONFIG_DEFAULTS:     CONFIG_DEFAULTS,
     SEASON_SETS:         SEASON_SETS,
-    WEATHER_CLIMATES:    WEATHER_CLIMATES,
-    WEATHER_DAY_PERIODS: WEATHER_DAY_PERIODS,
-    WEATHER_PRIMARY_PERIOD: WEATHER_PRIMARY_PERIOD,
   };
 }

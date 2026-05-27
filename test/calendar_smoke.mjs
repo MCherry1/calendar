@@ -197,18 +197,7 @@ function completeSetup(bundle) {
 
   const settings = bundle._test.ensureSettings();
   settings.moonsEnabled = true;
-  settings.weatherEnabled = true;
-  settings.weatherMechanicsEnabled = true;
-  settings.weatherHazardsEnabled = true;
   settings.planesEnabled = true;
-
-  const weatherState = bundle._test.getWeatherState();
-  weatherState.location = {
-    climate: 'temperate',
-    geography: 'inland',
-    terrain: 'open',
-    sig: 'temperate/inland/open'
-  };
 }
 
 installRoll20Shim();
@@ -231,9 +220,6 @@ assertChatIncludes(rootEntries, 'Subsystems', 'Root command should render the ma
 
 const moonEntries = sendApi('!cal moon');
 assertChatIncludes(moonEntries, 'Moon', 'Moon command should render lunar output.');
-
-const weatherEntries = sendApi('!cal weather');
-assertChatIncludes(weatherEntries, 'Weather', 'Weather command should render weather output.');
 
 const planeEntries = sendApi('!cal planes');
 assertChatIncludes(planeEntries, 'Plane', 'Planes command should render planar output.');

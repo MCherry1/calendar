@@ -5,7 +5,6 @@ import { ensureSettings, getCal } from "../src/state.js";
 import { toSerial } from "../src/date-math.js";
 import { handleInput } from "../src/boot-register.js";
 import { eventKey } from "../src/events.js";
-import { getWeatherState, handleWeatherCommand, weatherEnsureForecast } from "../src/weather.js";
 import { getMoonState, handleMoonCommand } from "../src/moon.js";
 import { getPlanesState, handlePlanesCommand } from "../src/planes.js";
 import { getPersistentViewsState } from "../src/persistent-views.js";
@@ -189,79 +188,6 @@ describe("Redesigned panel routing", () => {
     msg = String(lastChat().msg);
     assert(msg.includes("Therendor 998 YK"));
     assert(!msg.includes("Calendar Jump Syntax"));
-  });
-});
-
-describe("Weather management routing", () => {
-  it("routes bare weather and forecast into the new calendar-first weather surfaces", () => {
-    freshInstall();
-    completeSetup();
-    const ws = getWeatherState();
-    ws.location = { name: "Test Town", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate-inland-open" } as any;
-    weatherEnsureForecast();
-
-    handleWeatherCommand(gmUser(), ["weather"]);
-    let msg = String(lastChat().msg);
-    assert(msg.includes('data-weather-view="today-calendar-gm"'));
-    assert(msg.includes('data-weather-tod-grid="1"'));
-    assert(msg.includes("GM Forecast"));
-    assert(msg.includes("Reveal High Custom Dates"));
-    assert(!msg.includes("View: "));
-
-    handleInput(gmMessage("!cal forecast"));
-    msg = String(lastChat().msg);
-    assert(msg.includes('data-weather-view="forecast-calendar-gm"'));
-    assert(msg.includes('data-weather-forecast-grid="1"'));
-    assert(msg.includes("20-Day GM Forecast"));
-    assert(!msg.includes("View: "));
-  });
-
-  it("emits supported weather management actions including the hazards toggle", () => {
-    freshInstall();
-    const ws = getWeatherState();
-    ws.location = { name: "Test Town", climate: "temperate", geography: "inland", terrain: "open", sig: "temperate-inland-open" } as any;
-    weatherEnsureForecast();
-
-    handleWeatherCommand(gmUser(), ["weather"]);
-
-    const msg = String(lastChat().msg);
-    assert(msg.includes("weather manage ?{Action|Regenerate Weather,reset|Toggle Weather On/Off,toggleweather|Toggle Extreme Hazards,togglehazards|Toggle Mechanics,togglemechanics|Erase and Reset System,reseed}"));
-    assert(msg.includes("Weather System Management"));
-    assert(!msg.includes("Lock Specific Day"));
-    assert(!msg.includes("freezes that forecast record"));
-    assert(!msg.includes("Reroll Today,reroll"));
-    assert(!msg.includes("History,history"));
-    assert(!msg.includes("Forecast List"));
-  });
-
-  it("toggles weather from the management dispatcher", () => {
-    freshInstall();
-    const before = ensureSettings().weatherEnabled !== false;
-
-    handleWeatherCommand(gmUser(), ["weather", "manage", "toggleweather"]);
-
-    assertEquals(ensureSettings().weatherEnabled, !before);
-  });
-
-  it("supports hazards on/off via settings and the weather management dispatcher", () => {
-    freshInstall();
-    completeSetup();
-
-    handleInput(gmMessage("!cal settings hazards off"));
-    assertEquals(ensureSettings().weatherHazardsEnabled, false);
-
-    handleWeatherCommand(gmUser(), ["weather", "manage", "togglehazards"]);
-    assertEquals(ensureSettings().weatherHazardsEnabled, true);
-  });
-
-  it("blocks direct extreme-event actions while hazards are disabled", () => {
-    freshInstall();
-    ensureSettings().weatherHazardsEnabled = false;
-
-    handleWeatherCommand(gmUser(), ["weather", "event", "trigger", "flash_flood"]);
-
-    const log = (globalThis as any)._chatLog;
-    assert(log.some((entry: any) => String(entry.msg).includes("Extreme hazards are disabled")));
   });
 });
 

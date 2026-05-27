@@ -1,5 +1,5 @@
 // Sections 13+15+16: Roll20 State Interaction & UI + Themes + GM Buttons
-import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS, CONFIG_WEATHER_FORECAST_DAYS, CONFIG_WEATHER_LABELS } from './config.js';
+import { CALENDAR_SYSTEMS, CALENDAR_SYSTEM_ORDER, CONFIG_DEFAULTS } from './config.js';
 import { COLOR_THEMES, CONTRAST_MIN_HEADER, LABELS, NAMED_COLORS, SEASON_SETS, STYLES, THEME_ORDER, script_name, state_name } from './constants.js';
 import { _seasonNames, _sourceAllowedForCalendar, applySeasonSet, deepClone, defaults, ensureSettings, getCal, refreshAndSend, refreshCalendarState, titleCase } from './state.js';
 import { applyBg, popColorIfPresent, resolveColor, sanitizeHexColor } from './color.js';
@@ -10,9 +10,8 @@ import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
 import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
-import { WEATHER_PRIMARY_PERIOD, _activeManifestZoneEntries, _activeManifestZonesForSerial, _conditionsMechHtml, _conditionsNarrative, _deriveConditions, _forecastRecord, _grantCommonWeatherReveals, _isZarantyrFull, _manifestZoneInfluenceText, _manifestZoneOnDateChange, _manifestZoneStatusLabel, _tempBand, _weatherLocationTransparentLabel, _weatherPrimaryFog, _weatherRecordForDisplay, _weatherTraitBadge, getWeatherState, weatherEnsureForecast } from './weather.js';
-import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, currentLightSnapshot, getLongShadowsMoons, getTidalIndex, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory, tidalLabel } from './moon.js';
-import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getActivePlanarEffects, getPlanarState } from './planes.js';
+import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, currentLightSnapshot, getLongShadowsMoons, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
+import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
 
@@ -215,19 +214,10 @@ export function _shiftSerialByMonth(serial, dir){
   return toSerial(step.y, step.mi, day);
 }
 
-export function _weatherViewDays(n){
-  var days = parseInt(n, 10);
-  if (!isFinite(days)) return CONFIG_DEFAULTS.weatherForecastViewDays;
-  if (days < 1) return 1;
-  if (days > CONFIG_WEATHER_FORECAST_DAYS) return CONFIG_WEATHER_FORECAST_DAYS;
-  return days;
-}
-
 export function _playerButtonsHtml(){
   var out = [];
   var st = ensureSettings();
   out.push('<div>'+button('Previous','show previous month')+' '+button('Next','show next month')+'</div>');
-  if (st.weatherEnabled !== false) out.push('<div>'+button('🌤 Weather','weather')+'</div>');
   if (st.moonsEnabled   !== false) out.push('<div>'+button('🌙 Moons','moon')+'</div>');
   if (st.planesEnabled  !== false) out.push('<div>'+button('🌀 Planes','planes')+'</div>');
   return out.join('');
@@ -290,8 +280,6 @@ export function sendCurrentDate(to, gmOnly, opts?){
   var dashboardEventsLineStyle = dashboard
     ? 'font-size:.94em;color:#000;margin-top:3px;'
     : 'font-size:.82em;opacity:.75;margin-top:2px;';
-  var locationLine = '';
-
   // Events this month (labeled only when events exist)
   var eventsBlock = (function(){
     if (compact || dashboard) return '';
@@ -364,33 +352,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
     } catch(e){ /* moon system not ready yet — skip silently */ }
   }
 
-  // Compact weather line (low tier — what anyone can see looking at the sky)
-  var weatherLine = '';
-  if (ensureSettings().weatherEnabled !== false){
-    try {
-      var _ws = getWeatherState();
-      // Only show weather if a location has been configured
-      if (_ws.location){
-        locationLine = '<div style="' + dashboardShortLineStyle + '">📍 ' + esc(_weatherLocationTransparentLabel(_ws.location)) + '</div>';
-        weatherEnsureForecast();
-        var _wxRec    = _weatherRecordForDisplay(_forecastRecord(todaySer));
-        if (_wxRec && _wxRec.final){
-          var _f  = _wxRec.final;
-          var _tL = CONFIG_WEATHER_LABELS.temp[_f.temp] || _tempBand(_f.temp);
-          var _wxLoc   = _wxRec.location || {};
-          var _wxCond  = _deriveConditions(_f, _wxLoc, WEATHER_PRIMARY_PERIOD, _wxRec.snowAccumulated, _weatherPrimaryFog(_wxRec));
-          var _wxNarr = _conditionsNarrative(_f, _wxCond, WEATHER_PRIMARY_PERIOD);
-          weatherLine = '<div style="' + dashboardShortLineStyle + '">' +
-            '\u2601\uFE0F ' + esc(_wxNarr) +
-            '</div>';
-          // Auto-record low-tier common-knowledge reveal for the short common window.
-          _grantCommonWeatherReveals(_ws, todaySer);
-        }
-      }
-    } catch(e){ /* weather not ready — skip silently */ }
-  }
-
-  // Lighting — only when time of day is active and it's not daytime
+  // Lighting only when time of day is active and it's not daytime
   var lightingLine = '';
   if (isTimeOfDayActive()){
     try {
@@ -439,13 +401,13 @@ export function sendCurrentDate(to, gmOnly, opts?){
 
   var msgCore;
   if (dashboard){
-    msgCore = dashboardTitle + calHtml + dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine;
+    msgCore = dashboardTitle + calHtml + dateLine + seasonLine + timeLine +todayEventsLine + moonLine + lightingLine +planesLine;
   } else if (compact){
     msgCore = '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:4px 0;">' +
-      dateLine + seasonLine + timeLine + locationLine + todayEventsLine + moonLine + weatherLine + lightingLine + planesLine +
+      dateLine + seasonLine + timeLine +todayEventsLine + moonLine + lightingLine +planesLine +
       '</div>';
   } else {
-    msgCore = calHtml + dateLine + seasonLine + timeLine + locationLine + moonLine + weatherLine + lightingLine + planesLine + eventsBlock;
+    msgCore = calHtml + dateLine + seasonLine + timeLine + moonLine + lightingLine + planesLine + eventsBlock;
   }
 
   var controls = '';
@@ -646,9 +608,6 @@ export function stepDays(n, opts?){
   cur.day_of_the_week = (cur.day_of_the_week + ((n % wdlen) + wdlen)) % wdlen;
   cur.year = d.year; cur.month = d.mi; cur.day_of_the_month = d.day;
   if (!opts.preserveTimeOfDay) clearTimeOfDay();
-  // Slide the forecast window forward and lock past days
-  if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
-  _manifestZoneOnDateChange(startSerial, dest);
   if (ensureSettings().moonsEnabled !== false){
     if (n > 0){
       captureMoonHistoryWindow(Math.max(startSerial, dest - (MOON_HISTORY_DAYS - 1)), dest);
@@ -666,7 +625,6 @@ export function setDate(m, d, y, opts?){
   opts = opts || {};
   var cal=getCal(), cur=cal.current, oldDOW=cur.day_of_the_week;
   var oldY=cur.year, oldM=cur.month, oldD=cur.day_of_the_month;
-  var oldSerial = toSerial(oldY, oldM, oldD);
   var mi = clamp(m, 1, cal.months.length) - 1;
   var di = clamp(d, 1, cal.months[mi].days);
   var yi = int(y, cur.year);
@@ -676,9 +634,6 @@ export function setDate(m, d, y, opts?){
   var wdlen = cal.weekdays.length;
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
   if (!opts.preserveTimeOfDay) clearTimeOfDay();
-  // Slide the forecast window forward and lock past days, same as stepDays
-  if (ensureSettings().weatherEnabled !== false && getWeatherState().location) weatherEnsureForecast();
-  _manifestZoneOnDateChange(oldSerial, nextSerial);
   if (ensureSettings().moonsEnabled !== false){
     resetMoonHistory(nextSerial, true);
   }
@@ -861,13 +816,12 @@ export function taskCardHtml(title, summary, actions?, detail?){
 }
 
 export function gmButtonsHtml(){
-  var st = ensureSettings();
   var rows = [];
 
-  // Time of Day: advance if active, enable if weather is active
+  // Time of Day: advance if active, otherwise offer enable.
   if (isTimeOfDayActive()){
     rows.push('<div>'+mb('🕒 ⏩ Advance Time','time next')+'</div>');
-  } else if (st.weatherEnabled !== false){
+  } else {
     rows.push('<div>'+mb('🕒 Enable Time of Day','time start middle_of_night')+'</div>');
   }
 
@@ -878,138 +832,15 @@ export function gmButtonsHtml(){
   rows.push('<div>'+mb('📣 Send To Players','send')+'</div>');
 
   // Subsystems dropdown
-  rows.push('<div>'+mb('Subsystems','today options ?{Subsystem|Events,events|Moons,moon|Weather,weather|Planes,planes|Admin,admin}')+'</div>');
+  rows.push('<div>'+mb('Subsystems','today options ?{Subsystem|Events,events|Moons,moon|Planes,planes|Admin,admin}')+'</div>');
 
   return rows.join('');
-}
-
-export function _activePlanarWeatherShiftLines(serial){
-  var out = [];
-  try {
-    var eff = getActivePlanarEffects(serial);
-    for (var i = 0; i < eff.length; i++){
-      var e = eff[i];
-      if (e.plane === 'Fernia' && e.phase === 'coterminous') out.push('Fernia coterminous: temperature +3');
-      if (e.plane === 'Fernia' && e.phase === 'remote')      out.push('Fernia remote: temperature -2');
-      if (e.plane === 'Risia'  && e.phase === 'coterminous') out.push('Risia coterminous: temperature -3');
-      if (e.plane === 'Risia'  && e.phase === 'remote')      out.push('Risia remote: temperature +2');
-      if (e.plane === 'Syrania'&& e.phase === 'coterminous') out.push('Syrania coterminous: clear and calm (precipitation 0, wind 0)');
-      if (e.plane === 'Syrania'&& e.phase === 'remote')      out.push('Syrania remote: precipitation +1');
-      if (e.plane === 'Mabar'  && e.phase === 'coterminous') out.push('Mabar coterminous: temperature -1');
-      if (e.plane === 'Irian'  && e.phase === 'coterminous') out.push('Irian coterminous: temperature +1');
-      if (e.plane === 'Lamannia'&& e.phase === 'coterminous')out.push('Lamannia coterminous: precipitation +1');
-    }
-  } catch(e2){}
-  return out;
-}
-
-export function _planarWeatherInfluenceText(e){
-  if (!e) return null;
-  if (e.plane === 'Fernia' && e.phase === 'coterminous') return '🔥 Fernia coterminous (+3 temp)';
-  if (e.plane === 'Fernia' && e.phase === 'remote')      return '🔥 Fernia remote (-2 temp)';
-  if (e.plane === 'Risia'  && e.phase === 'coterminous') return '❄️ Risia coterminous (-3 temp)';
-  if (e.plane === 'Risia'  && e.phase === 'remote')      return '❄️ Risia remote (+2 temp)';
-  if (e.plane === 'Syrania'&& e.phase === 'coterminous') return '🌤 Syrania coterminous (clear, calm)';
-  if (e.plane === 'Syrania'&& e.phase === 'remote')      return '🌧 Syrania remote (+1 precip)';
-  if (e.plane === 'Mabar'  && e.phase === 'coterminous') return '🌑 Mabar coterminous (-1 temp)';
-  if (e.plane === 'Irian'  && e.phase === 'coterminous') return '✨ Irian coterminous (+1 temp)';
-  if (e.plane === 'Lamannia'&& e.phase === 'coterminous')return '🌿 Lamannia coterminous (+1 precip)';
-  return null;
-}
-
-export function _weatherInfluenceTexts(rec){
-  var out = [];
-  if (!rec) return out;
-  var zoneEntries = _activeManifestZonesForSerial(rec.serial);
-  for (var zi = 0; zi < zoneEntries.length; zi++){
-    var mzText = _manifestZoneInfluenceText(zoneEntries[zi].def);
-    if (mzText) out.push(mzText);
-  }
-  try {
-    var eff = getActivePlanarEffects(rec.serial);
-    for (var i = 0; i < eff.length; i++){
-      var pText = _planarWeatherInfluenceText(eff[i]);
-      if (pText) out.push(pText);
-    }
-  } catch(e2){}
-  if (_isZarantyrFull(rec.serial)) out.push('🌙 Zarantyr full (lightning boost)');
-  return out;
-}
-
-export function _weatherInfluenceHtml(rec){
-  var lines = _weatherInfluenceTexts(rec);
-  if (!lines.length) return '';
-  return '<div style="font-size:.76em;opacity:.58;font-style:italic;margin-top:3px;">'+
-    lines.map(esc).join(' · ')+
-    '</div>';
 }
 
 export function activeEffectsPanelHtml(){
   var st = ensureSettings();
   var today = todaySerial();
   var sections = [];
-
-  // Weather mechanics (today, current location only)
-  if (st.weatherEnabled !== false){
-    var wx = '';
-    try {
-      var ws = getWeatherState();
-      if (!ws.location){
-        wx = '<div style="opacity:.7;">No weather location set.</div>';
-      } else {
-        weatherEnsureForecast();
-        var rec = _weatherRecordForDisplay(_forecastRecord(today));
-        if (!rec || !rec.final){
-          wx = '<div style="opacity:.7;">No weather generated for today.</div>';
-        } else {
-          var loc = rec.location || ws.location || {};
-          var locLine = esc(titleCase(loc.climate||'')) + ' / ' +
-            esc(titleCase(String(loc.geography||'inland').replace(/_/g,' '))) + ' / ' +
-            esc(titleCase(loc.terrain||'open'));
-          var cond = _deriveConditions(
-            rec.final,
-            loc,
-            WEATHER_PRIMARY_PERIOD,
-            rec.snowAccumulated,
-            _weatherPrimaryFog(rec)
-          );
-          var narr = _conditionsNarrative(rec.final, cond, WEATHER_PRIMARY_PERIOD);
-          wx += '<div style="font-size:.85em;opacity:.75;">'+locLine+'</div>';
-          var manifestStatus = _manifestZoneStatusLabel(_activeManifestZoneEntries());
-          if (manifestStatus !== 'None'){
-            wx += '<div style="font-size:.82em;opacity:.68;margin-top:2px;">Manifest zones: '+esc(manifestStatus)+'</div>';
-          }
-          wx += '<div style="margin:3px 0;">' +
-            _weatherTraitBadge('temp',   rec.final.temp)+'&nbsp;' +
-            _weatherTraitBadge('wind',   rec.final.wind)+'&nbsp;' +
-            _weatherTraitBadge('precip', rec.final.precip) +
-            '</div>';
-          wx += '<div style="font-size:.85em;opacity:.85;">'+esc(narr)+'</div>';
-          wx += _conditionsMechHtml(cond);
-          if (st.weatherMechanicsEnabled === false){
-            wx += '<div style="font-size:.8em;opacity:.6;margin-top:3px;">Mechanical weather effects are disabled.</div>';
-          }
-
-          var shifts = _activePlanarWeatherShiftLines(today);
-          if (shifts.length){
-            wx += '<div style="font-size:.82em;opacity:.85;margin-top:4px;"><b>Planar weather shifts:</b><br>' +
-              shifts.map(esc).join('<br>') + '</div>';
-          }
-
-          var geo = String((loc.geography || 'inland')).toLowerCase();
-          if (geo === 'coastal' || geo === 'island' || geo === 'coastal_bluff'){
-            try {
-              var tidx = getTidalIndex(today);
-              wx += '<div style="font-size:.82em;opacity:.8;margin-top:4px;">🌊 <b>Tides:</b> '+esc(tidalLabel(tidx))+' ('+tidx+'/10)</div>';
-            } catch(e3){}
-          }
-        }
-      }
-    } catch(e4){
-      wx = '<div style="opacity:.7;">Weather data unavailable.</div>';
-    }
-    sections.push(_menuBox('🌤️ Active Weather Effects', wx));
-  }
 
   // Planar mechanics (active coterminous/remote, filtered for non-routine signal)
   if (st.planesEnabled !== false){
@@ -1161,20 +992,6 @@ export function helpRootMenu(m){
     ));
   }
 
-  rowsNew.push(taskCardHtml(
-    'Weather',
-    stNew.weatherEnabled === false ? 'Weather is currently off.' : 'Open current conditions, forecast access, and location management from one place.',
-    [
-      mbP(m,'Weather','weather'),
-      mbP(m,'Forecast','forecast'),
-      isGMNew ? mbP(m,'Set Location','weather location') : '',
-      isGMNew ? mbP(m,'Mechanics','weather mechanics') : ''
-    ],
-    isGMNew
-      ? 'Typed forms: <code>!cal weather</code>, <code>!cal weather location</code>.'
-      : 'Typed forms: <code>!cal weather</code>, <code>!cal forecast</code>.'
-  ));
-
   if (stNew.planesEnabled !== false){
     rowsNew.push(taskCardHtml(
       'Planes',
@@ -1191,7 +1008,6 @@ export function helpRootMenu(m){
   if (isGMNew){
     var moonModeNew = _normalizeDisplayMode(stNew.moonDisplayMode);
     var plModeNew = _normalizeDisplayMode(stNew.planesDisplayMode);
-    var wxDaysNew = _weatherViewDays(stNew.weatherForecastViewDays);
     var verbNew = _subsystemVerbosityValue();
     rowsNew.push(taskCardHtml(
       'GM Admin',
@@ -1204,9 +1020,8 @@ export function helpRootMenu(m){
         mbP(m,'Effects','effects')
       ],
       'Views: Moon ' + _displayModeLabel(moonModeNew) +
-      ' · Weather Calendar' +
       ' · Planes ' + _displayModeLabel(plModeNew) +
-      ' · Forecast ' + wxDaysNew + 'd · Detail ' + (verbNew === 'minimal' ? 'minimal' : 'normal') +
+      ' · Detail ' + (verbNew === 'minimal' ? 'minimal' : 'normal') +
       '. Reset: <code>!cal resetcalendar</code>.'
     ));
   }

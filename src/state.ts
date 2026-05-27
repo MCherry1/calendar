@@ -9,7 +9,7 @@ import { compareEvents, currentDefaultKeySet, defaultKeyFor, mergeInNewDefaultEv
 import { clamp } from './rendering.js';
 import { ensureTimeOfDayState } from './time-of-day.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
-import { _defaultDetailsForKey, _getSeasonLabel, _weatherViewDays, sendCurrentDate } from './ui.js';
+import { _defaultDetailsForKey, _getSeasonLabel, sendCurrentDate } from './ui.js';
 
 
 /* ============================================================================
@@ -74,7 +74,7 @@ function _hasMeaningfulSetupData(root){
     (Array.isArray(root.calendar.events) && root.calendar.events.length)
   )) return true;
   if (root.settings && Object.keys(root.settings).length) return true;
-  if (root.weather || root.moons || root.planes) return true;
+  if (root.moons || root.planes) return true;
   if (root.suppressedDefaults && Object.keys(root.suppressedDefaults).length) return true;
   if (root.suppressedSources && Object.keys(root.suppressedSources).length) return true;
   if (root.manualSuppressedSources && Object.keys(root.manualSuppressedSources).length) return true;
@@ -197,10 +197,8 @@ export function ensureSettings(){
       autoButtons:         CONFIG_DEFAULTS.autoButtons,
       eventsEnabled:       CONFIG_DEFAULTS.eventsEnabled,
       moonDisplayMode:     CONFIG_DEFAULTS.moonDisplayMode,
-      weatherDisplayMode:  CONFIG_DEFAULTS.weatherDisplayMode,
       planesDisplayMode:   CONFIG_DEFAULTS.planesDisplayMode,
       subsystemVerbosity:  CONFIG_DEFAULTS.subsystemVerbosity,
-      weatherForecastViewDays: CONFIG_DEFAULTS.weatherForecastViewDays,
       eventSourcePriority: _defaultEventSourcePriorityForSystem(CONFIG_DEFAULTS.calendarSystem)
     };
   }
@@ -242,9 +240,6 @@ export function ensureSettings(){
   if (s.autoButtons   === undefined) s.autoButtons   = CONFIG_DEFAULTS.autoButtons;
   if (s.eventsEnabled  === undefined) s.eventsEnabled  = CONFIG_DEFAULTS.eventsEnabled;
   if (s.moonsEnabled   === undefined) s.moonsEnabled   = CONFIG_DEFAULTS.moonsEnabled;
-  if (s.weatherEnabled === undefined) s.weatherEnabled = CONFIG_DEFAULTS.weatherEnabled;
-  if (s.weatherMechanicsEnabled === undefined) s.weatherMechanicsEnabled = CONFIG_DEFAULTS.weatherMechanicsEnabled;
-  if (s.weatherHazardsEnabled === undefined) s.weatherHazardsEnabled = CONFIG_DEFAULTS.weatherHazardsEnabled;
   if (s.planesEnabled  === undefined) s.planesEnabled  = CONFIG_DEFAULTS.planesEnabled;
   if (s.offCyclePlanes === undefined) s.offCyclePlanes = CONFIG_DEFAULTS.offCyclePlanes;
 
@@ -268,14 +263,11 @@ export function ensureSettings(){
   }
   if (!/^(calendar|list|both)$/.test(String(s.moonDisplayMode || '').toLowerCase()))
     s.moonDisplayMode = CONFIG_DEFAULTS.moonDisplayMode;
-  if (!/^(calendar|list|both)$/.test(String(s.weatherDisplayMode || '').toLowerCase()))
-    s.weatherDisplayMode = CONFIG_DEFAULTS.weatherDisplayMode;
   if (!/^(calendar|list|both)$/.test(String(s.planesDisplayMode || '').toLowerCase()))
     s.planesDisplayMode = CONFIG_DEFAULTS.planesDisplayMode;
   s.subsystemVerbosity = String(s.subsystemVerbosity || CONFIG_DEFAULTS.subsystemVerbosity).toLowerCase();
   if (s.subsystemVerbosity !== 'minimal' && s.subsystemVerbosity !== 'normal')
     s.subsystemVerbosity = CONFIG_DEFAULTS.subsystemVerbosity;
-  s.weatherForecastViewDays = _weatherViewDays(s.weatherForecastViewDays);
   return s;
 }
 
