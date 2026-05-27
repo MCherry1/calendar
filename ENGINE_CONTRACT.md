@@ -9,8 +9,9 @@ engine can be designed to fit without churn.
 The engine may expose more than what is listed here. This document only
 specifies what the Roll20 wrapper imports.
 
-This is a draft. Open questions are called out inline. Sign-off comes via
-PR review on both sides before v0.1.0 is published.
+This contract is the v0.1.0 target. The seven open questions from the
+initial draft were resolved with the engine author on 2026-05-26 — see
+§8 for the change-log entry. Subsequent revisions ride in their own PRs.
 
 ---
 
@@ -60,6 +61,14 @@ must be present in `worlds.list()` and resolvable via `worlds.get(id)`:
 
 A world id is a stable string. Adding more worlds later is non-breaking.
 
+**Runtime data is canon, not markdown.** The current per-world definitions
+in `mcherry1/calendar/src/worlds/*.ts`, `src/moon.ts`, and `src/planes.ts`
+are the source of truth for concrete numbers (synodic periods, planar
+cycle lengths, anchor dates, holiday calendars). When the engine package
+is authored, harvest those files directly. Any synodic periods, anchor
+years, or cycle lengths listed elsewhere in this doc or in `HISTORY.md`
+are illustrative only and may have rounding drift.
+
 ## 4. Module layout
 
 The wrapper imports from these subpaths. Names are proposed; the engine
@@ -104,31 +113,51 @@ interface World {
 }
 
 interface WorldCalendar {
-  readonly weekdays: readonly string[];      // e.g. ['Sul','Mol','Zol','Wir','Zor','Far','Sar']
-  readonly months: readonly Month[];
-  readonly daysPerYear: number;              // sum of month.days for a non-leap year
+  readonly weekdays: readonly string[];          // e.g. ['Sul','Mol','Zol','Wir','Zor','Far','Sar']
+  readonly months: readonly Month[];             // canonical month list, never includes intercalaries
+  readonly intercalaries: readonly Intercalary[]; // sibling list; empty if none
+  readonly daysPerYear: number;                  // sum of all months + applicable intercalaries for a non-leap year
   readonly weekdayProgression: 'continuous' | 'month_reset' | 'festival_fixed';
 }
 
 interface Month {
-  readonly index: number;          // 0-based position in the year
-  readonly name: string;           // "Zarantyr", "Hammer", etc.
-  readonly days: number;           // calendar days in this month
-  readonly isIntercalary: boolean; // e.g. Shieldmeet, Midwinter
-  readonly leapEvery?: number;     // present only if month exists on leap years (e.g. Shieldmeet every 4)
+  readonly index: number;                     // 0-based position in the canonical month list
+  readonly name: string;                      // canonical, e.g. "Zarantyr", "Hammer"
+  readonly aliases?: readonly string[];       // optional alternates (e.g. Faerûn "Old Calendar" names) — parse() accepts; format() ignores
+  readonly days: number;                      // calendar days in this month
+  readonly leapEvery?: number;                // optional: day-count of this month gains a day on years where year % leapEvery === 0 (e.g. Gregorian February)
 }
 
-interface CalendarDate {
-  readonly year: number;           // signed integer, era is the world's eraLabel
-  readonly monthIndex: number;
-  readonly day: number;            // 1-based
+interface Intercalary {
+  readonly key: string;                       // stable, lowercase, e.g. 'shieldmeet', 'greengrass'
+  readonly label: string;                     // "Shieldmeet", "Greengrass"
+  readonly days: number;                      // calendar days in this intercalary on years where it applies
+  readonly insertAfter: { monthIndex: number }; // intercalary sits between this month and the next
+  readonly leapEvery?: number;                // optional: present only on years where year % leapEvery === 0 (e.g. Shieldmeet every 4)
 }
 
-interface Holiday {
-  readonly key: string;            // stable, lowercase, e.g. 'sun_blessing'
-  readonly label: string;          // "Sun's Blessing"
-  readonly monthIndex: number;     // -1 if floating; see §5.3
-  readonly day: number;            // 1-based; -1 if floating
+// Discriminated union so consumers can't accidentally read monthIndex from an intercalary date.
+type CalendarDate =
+  | { readonly kind: 'month'; readonly year: number; readonly monthIndex: number; readonly day: number }
+  | { readonly kind: 'intercalary'; readonly year: number; readonly intercalaryKey: string; readonly day: number };
+
+// Holidays use the same discriminator pattern: fixed-date holidays know their slot;
+// floating holidays declare a rule that resolves at query time (see §5.2 resolveHoliday).
+type Holiday = FixedHoliday | FloatingHoliday;
+
+interface FixedHoliday {
+  readonly kind: 'fixed';
+  readonly key: string;
+  readonly label: string;
+  readonly anchor: CalendarDate;              // month-or-intercalary date, year ignored
+  readonly description?: string;
+}
+
+interface FloatingHoliday {
+  readonly kind: 'floating';
+  readonly key: string;
+  readonly label: string;
+  readonly rule: unknown;                     // opaque to the wrapper; engine owns the shape, consumers call resolveHoliday()
   readonly description?: string;
 }
 
@@ -145,10 +174,15 @@ const worlds: {
 };
 ```
 
-**Open question:** "floating" holidays (anchored to a moon phase or planar
-event rather than a fixed date) — does the engine resolve these to concrete
-dates at query time, or are they declarative and the consumer resolves them?
-I lean toward declarative + a separate `resolveHoliday(date, world)` call.
+**Notes on the date model:**
+- Canonical month indices stay 1:1 with each world's cultural month list. Tarsakh is always
+  Faerûn's `monthIndex: 3`; Shieldmeet is *not* `monthIndex: 4` — it's an `Intercalary` keyed
+  `'shieldmeet'` that `insertAfter: { monthIndex: 6 }` (Flamerule). This protects external
+  references that name a month by index.
+- A "leap day of an existing month" (Gregorian Feb 29) is `Month.leapEvery: 4` on February;
+  the day count goes from 28 → 29. A "leap intercalary" (Shieldmeet) is a whole
+  `Intercalary` entry with `leapEvery: 4`. Different canon model, different shape.
+- Date arithmetic transitions cleanly across the month/intercalary boundary; see §5.2.
 
 ### 5.2 Date math
 
@@ -170,10 +204,14 @@ const date: {
   diffDays(world: WorldId, from: CalendarDate, to: CalendarDate): number;
 
   // calendar queries
-  weekdayIndex(world: WorldId, date: CalendarDate): number;     // index into world.calendar.weekdays
-  daysInMonth(world: WorldId, year: number, monthIndex: number): number;
-  daysInYear(world: WorldId, year: number): number;             // accounts for leap
+  weekdayIndex(world: WorldId, date: CalendarDate): number;                        // index into world.calendar.weekdays
+  daysInMonth(world: WorldId, year: number, monthIndex: number): number;           // never folds intercalaries in; returns the month's own count for that year
+  daysInIntercalary(world: WorldId, year: number, intercalaryKey: string): number; // returns 0 on years where the intercalary doesn't apply (e.g. Shieldmeet on non-leap years)
+  daysInYear(world: WorldId, year: number): number;                                // sums all months + applicable intercalaries
   isLeapYear(world: WorldId, year: number): boolean;
+
+  // floating-holiday resolution: returns the concrete date for a holiday's rule on a given year, or null if it doesn't fall this year
+  resolveHoliday(world: WorldId, year: number, holidayKey: string): CalendarDate | null;
 
   // parsing / formatting (lenient; engine owns the rules)
   parse(world: WorldId, input: string): CalendarDate | null;
@@ -185,9 +223,12 @@ const date: {
 - `advance`/`retreat` are inverses for non-negative inputs.
 - `diffDays(a, b)` + `advance(a, n)` = `b` when `n = diffDays(a, b)`.
 - `fromSerial(world, toSerial(world, d))` round-trips exactly.
-- Leap days/intercalary days are counted. The engine handles them; the
-  wrapper never special-cases them.
+- `advance` transitions cleanly across intercalary boundaries:
+  Tarsakh-30 + 1 day = Greengrass-1; Greengrass-1 + 1 day = Mirtul-1.
+  The wrapper never special-cases intercalary days.
 - `parse` returns `null` on unparseable input; does not throw.
+- `resolveHoliday` returns `null` for unknown keys, for years where a leap-only
+  holiday doesn't apply, or for rules that don't have a date this year.
 
 ### 5.3 Moons
 
@@ -222,6 +263,7 @@ interface MoonPhase {
   readonly label: MoonPhaseLabel;
   readonly isFull: boolean;        // engine decides threshold per world
   readonly isNew: boolean;         // engine decides threshold per world
+  readonly longShadows: boolean;   // Eberron-only canon: see "Long Shadows note" below. false for all non-Eberron moons.
 }
 
 const moons: {
@@ -245,15 +287,17 @@ const moons: {
 
 **Removed from the Roll20 surface but the engine may still expose for the
 web app:** sky position, altitude, azimuth, hour angle, eclipse detection,
-sun-relative geometry, "long shadows" (Eberron) framing. The wrapper does
-not import these.
+sun-relative geometry. The wrapper does not import these.
 
-**Open question:** the current Roll20 script has a "long shadows" concept
-(an Eberron month-window where the moon framing changes). If we want that
-visible in the Roll20 calendar (as a flag on the phase output), we'd need
-something like `MoonPhase.longShadows?: boolean`. I lean toward dropping
-it from the Roll20 surface entirely — it was tied to sky rendering. Flag
-if you disagree.
+**Long Shadows note:** the Roll20 wrapper *does* surface the Eberron Long
+Shadows gobble effect via `MoonPhase.longShadows`. Long Shadows is a canon
+event anchored at Vult 26–28 (with a tapered window — distance 0: ±3 days,
+distance 1: ±2 days, distance ≥2: ±1 day per the implementation in
+`src/moon.ts`). When the date falls in the window AND the relevant moon
+is in its gobbled-dark state, `longShadows: true`. It's a phase-output
+concern (the moon appears dark when it would otherwise be illuminated),
+not a sky-position one. Deterministic both directions; engine ports
+faithfully from the existing implementation.
 
 ### 5.4 Planes (Eberron only)
 
@@ -314,6 +358,11 @@ const planes: {
   Eberron-only in v0.1.0. If another world later gains planes, we revisit.
 - `activeOn` exists so the Roll20 events view can do
   `events.concat(planes.activeOn(today))` without filtering neutrals client-side.
+- `Plane.effects.coterminous` and `.remote` are literal strings in v0.1.0.
+  If the web app eventually needs template interpolation (world date, NPC
+  names, etc.), shape will evolve to something like
+  `{ template: string; variables: Record<string, unknown> }`. The Roll20
+  wrapper doesn't need that. Not a v0.1.0 blocker.
 
 ### 5.5 Colors
 
@@ -364,27 +413,38 @@ import them and the contract makes no commitments about their shape:
   npm dep. A weekly cron in this repo opens a bump PR when a newer release
   is available (separate work, not part of this contract).
 
-## 8. Open questions
+## 8. Resolved decisions
 
-Collecting things the engine author and I should resolve before v0.1.0:
+All seven open questions from the v0.1.0-draft were resolved with the
+engine author on 2026-05-26. Decisions are now reflected in the schemas
+above; they're listed here as a single change-log entry.
 
-1. **Floating holidays** — declarative + `resolveHoliday()` or
-   engine-resolved at query time? (§5.1)
-2. **"Long shadows" framing** — drop from Roll20 surface, keep on
-   `MoonPhase`, or omit entirely? (§5.3)
-3. **Per-world epoch** — is the `Serial` namespace per-world or global?
-   I've drafted per-world. (§5.2)
-4. **Intercalary days inside `daysInMonth`** — are they counted as part
-   of the surrounding month, or returned by a separate query? (§5.1, §5.2)
-5. **Holiday `monthIndex: -1` / `day: -1`** sentinel for "floating" — or
-   a separate `FloatingHoliday` type? (§5.1)
-6. **Naming overlays** — Faerûn has Old Calendar / Harptos / etc. names
-   for the same months. Does `Month.name` return the canonical, or is
-   there a `Month.aliases?: string[]`? Roll20 needs at least the canonical
-   string; aliases are nice-to-have for `date.parse()`.
-7. **Worlds with no moons in engine output** — Gregorian currently has no
-   moon entry. Is that "moons: []" or absent? I've drafted "moons:
-   readonly Moon[]" (always present, sometimes empty). (§5.1)
+1. **Floating holidays** → declarative + `resolveHoliday(world, year, key)`.
+   Storage is a key + rule descriptor (opaque to the wrapper); engine
+   resolves to a concrete date on demand. (§5.1, §5.2)
+2. **Long Shadows on `MoonPhase`** → kept. `MoonPhase.longShadows: boolean`
+   is always present (false everywhere except Eberron under canon window).
+   The gobble mechanic — tapered window distances ±3 / ±2 / ±1 — ports
+   faithfully from the existing Roll20 implementation. (§5.3)
+3. **`Serial` namespace** → per-world. No cross-world epoch exists in canon.
+   (§5.2)
+4. **Intercalary days** → not interleaved into the canonical month list.
+   `WorldCalendar` gets a sibling `intercalaries: readonly Intercalary[]`,
+   `CalendarDate` becomes a discriminated union with `kind: 'month' |
+   'intercalary'`, `daysInMonth()` never folds intercalaries in, and
+   `daysInIntercalary()` is the companion query. Date arithmetic transitions
+   cleanly across the boundary. (§5.1, §5.2)
+5. **Holiday floating sentinel** → discriminated union `FixedHoliday |
+   FloatingHoliday` with a `kind` discriminator. No `-1` sentinels.
+   Compile-time safety. (§5.1)
+6. **Naming overlays** → canonical `Month.name` + optional
+   `Month.aliases?: readonly string[]`. Wrapper renders canonical; `parse()`
+   accepts aliases. (§5.1)
+7. **Moonless worlds** → always present as `moons: readonly Moon[]` with
+   `[]` when empty. Avoids `world.moons?.length` everywhere. (§5.1)
+
+**Future-but-not-blocking:** `Plane.effects` strings will need templating
+support eventually for web-app interpolation; not in v0.1.0.
 
 ## 9. Reference: what the wrapper does with this
 
@@ -402,5 +462,6 @@ For grounding. None of this affects the contract.
 
 ---
 
-*Status: draft. The engine author should treat the open questions as
-discussion items, not blockers. I'll iterate this doc as we resolve them.*
+*Status: v0.1.0 contract. §8 resolved with the engine author on 2026-05-26.
+Engine is being built against this surface; expected publish window is the
+following day. Subsequent contract revisions ride in their own PRs.*
