@@ -7,58 +7,14 @@ import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial
 import { DaySpec, Parse } from './parsing.js';
 import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
 import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
-import { activateTimeOfDay, bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive, nextTimeBucket, normalizeTimeBucketKey, TIME_OF_DAY_BUCKETS } from './time-of-day.js';
-import { _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, _timeOfDayStatusHtml, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, currentTimeOfDayLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
+import { _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
 import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
-import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, currentLightSnapshot, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt, nighttimeLightHtml } from './moon.js';
+import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
 
 
 // ── Today — Combined detail from all subsystems ────────────────────────
-
-function _timeOfDayStatusBoxHtml(inner){
-  return '<div style="border:1px solid #555;border-radius:4px;padding:6px;margin:6px 0;">' + inner + '</div>';
-}
-
-function _timeOfDayMenuHtml(){
-  var bucket = currentTimeBucket();
-  if (!bucket){
-    var startButtons = [];
-    for (var i = 0; i < TIME_OF_DAY_BUCKETS.length; i++){
-      startButtons.push(button(TIME_OF_DAY_BUCKETS[i].shortLabel, 'time start ' + TIME_OF_DAY_BUCKETS[i].key));
-    }
-    return _menuBox('Time of Day',
-      '<div style="opacity:.8;margin-bottom:5px;">Time of day is inactive for this date.</div>' +
-      '<div style="margin-bottom:4px;"><b>' + esc(formalCurrentDateLabel()) + '</b></div>' +
-      '<div style="font-size:.82em;opacity:.7;margin-bottom:4px;">Choose a starting bucket:</div>' +
-      startButtons.join(' ')
-    );
-  }
-
-  return _timeOfDayStatusBoxHtml(
-    '<div>Current time: ' + esc(bucketLabel(bucket)) + '</div>' +
-    _timeOfDayActionButtonsHtml()
-  );
-}
-
-function _timeOfDayActionButtonsHtml(){
-  return '<div style="margin-top:6px;">' +
-    button('🕒 ⏩ Advance Time', 'time next') + ' ' +
-    button('📅 Show', 'show') +
-  '</div>';
-}
-
-function _sendTimeOfDayStatus(who){
-  var bucket = currentTimeBucket();
-  var label = bucket ? bucketLabel(bucket) : currentTimeOfDayLabel();
-  whisperUi(who,
-    _timeOfDayStatusBoxHtml(
-      '<div>Current time: ' + esc(label) + '</div>' +
-      _timeOfDayActionButtonsHtml()
-    )
-  );
-}
 
 function _todayEventSummaryHtml(serial){
   try {
@@ -84,36 +40,6 @@ function _todayEventSummaryHtml(serial){
   }
 }
 
-function _timeOfDayCurrentViewHtml(includeButtons){
-  var today = todaySerial();
-  var lines = [];
-
-  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(formalCurrentDateLabel()) + '</div>');
-  if (isTimeOfDayActive()){
-    lines.push(_timeOfDayStatusHtml('font-size:.85em;opacity:.72;margin:0 0 2px 0;'));
-  }
-  var eventsHtml = _todayEventSummaryHtml(today);
-  if (eventsHtml) lines.push(eventsHtml);
-
-  if (isTimeOfDayActive()){
-    try {
-      var lightSnap = currentLightSnapshot(today);
-      if (lightSnap && lightSnap.mode !== 'day'){
-        lines.push('<div style="font-size:.82em;opacity:.68;margin-top:3px;">💡 ' +
-          esc(lightSnap.label || 'Unknown') +
-          (lightSnap.note ? ' — ' + esc(lightSnap.note) : '') +
-          '</div>');
-      }
-    } catch(eLight){}
-  }
-
-  if (includeButtons){
-    lines.push(_timeOfDayActionButtonsHtml());
-  }
-
-  return _menuBox('Current Conditions', lines.join(''));
-}
-
 export function _todayAllHtml(){
   var st = ensureSettings();
   var today = todaySerial();
@@ -135,24 +61,6 @@ export function _todayAllHtml(){
   // ── Text Info ──────────────────────────────────────────────────────────
   // Current Date
   lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(formalCurrentDateLabel()) + '</div>');
-
-  // Time of Day (if active)
-  if (isTimeOfDayActive()){
-    lines.push(_timeOfDayStatusHtml('font-size:.85em;opacity:.72;margin:0 0 2px 0;'));
-  }
-
-  // Current Lighting (if time of day is active)
-  if (isTimeOfDayActive()){
-    try {
-      var lightSnap = currentLightSnapshot(today);
-      if (lightSnap){
-        var lightLabel = lightSnap.label || 'Unknown';
-        if (lightSnap.mode !== 'day'){
-          lines.push('<div style="font-size:.82em;opacity:.7;margin:1px 0;">💡 ' + esc(lightLabel) + (lightSnap.note ? ' — ' + esc(lightSnap.note) : '') + '</div>');
-        }
-      }
-    } catch(e2){}
-  }
 
   lines.push(sp);
 
@@ -222,15 +130,6 @@ export function _todayAllHtml(){
 
   // ── Buttons ────────────────────────────────────────────────────────────
   var btns = [];
-  btns.push('<div style="margin-top:6px;">');
-
-  // Time of Day: advance if active, otherwise offer enable.
-  if (isTimeOfDayActive()){
-    btns.push(button('🕒 ⏩ Advance Time','time next'));
-  } else {
-    btns.push(button('🕒 Enable Time of Day','time start middle_of_night'));
-  }
-  btns.push('</div>');
 
   // Date step arrows
   btns.push('<div style="margin:3px 0;">' + button('Back','retreat 1') + ' ' + button('Forward','advance 1') + '</div>');
@@ -569,50 +468,6 @@ export var commands = {
 
   effects: { gm:true, run:function(m){
     whisperUi(m.who, activeEffectsPanelHtml());
-  }},
-
-  time: { gm:true, run:function(m, a){
-    var sub = String(a[2] || '').toLowerCase();
-    var bucketArg = normalizeTimeBucketKey(sub);
-    if (!sub){
-      return whisperUi(m.who, _timeOfDayMenuHtml());
-    }
-    if (sub === 'clear' || sub === 'off' || sub === 'stop' || sub === 'disable'){
-      clearTimeOfDay();
-      return whisperUi(m.who, 'Time of day cleared for this date.');
-    }
-    if (sub === 'show'){
-      if (!currentTimeBucket()) return whisperUi(m.who, _timeOfDayMenuHtml());
-      return whisperUi(m.who, _timeOfDayCurrentViewHtml(true));
-    }
-    if (sub === 'send'){
-      if (!currentTimeBucket()) return whisperUi(m.who, _timeOfDayMenuHtml());
-      return send({ broadcast:true }, _timeOfDayCurrentViewHtml(false));
-    }
-    if (sub === 'next' || sub === 'advance' || sub === 'step'){
-      var current = currentTimeBucket();
-      if (!current){
-        return whisperUi(m.who, _timeOfDayMenuHtml());
-      }
-      if (current === 'nighttime'){
-        stepDays(1, { preserveTimeOfDay:true, announce:false });
-        activateTimeOfDay('middle_of_night');
-      } else {
-        activateTimeOfDay(nextTimeBucket(current));
-      }
-      return _sendTimeOfDayStatus(m.who);
-    }
-    if (sub === 'start' || sub === 'set'){
-      var picked = normalizeTimeBucketKey(a.slice(3).join(' '));
-      if (!picked) return whisperUi(m.who, _timeOfDayMenuHtml());
-      activateTimeOfDay(picked);
-      return _sendTimeOfDayStatus(m.who);
-    }
-    if (bucketArg){
-      activateTimeOfDay(bucketArg);
-      return _sendTimeOfDayStatus(m.who);
-    }
-    whisperUi(m.who, _timeOfDayMenuHtml());
   }},
 
   help: function(m, a){

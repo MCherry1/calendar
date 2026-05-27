@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import { deepStrictEqual as assertDeepEqual, strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
 import { toSerial, todaySerial } from "../src/date-math.js";
-import { solarProfileForSerial } from "../src/time-of-day.js";
 import { setDate, stepDays } from "../src/ui.js";
 import { applyCalendarSystem } from "../src/state.js";
 import {
@@ -286,8 +285,9 @@ describe("Moon System", () => {
     assert(nearestNew, "expected a new-moon event for the claimed moon");
     assert(Math.abs(nearestNew.serial - window.midpointSerial) < 0.000001, "claimed moon should peak at the exact midpoint");
 
-    const sunset = solarProfileForSerial(window.startDaySerial).sunset / 24;
-    const sunrise = solarProfileForSerial(window.endDaySerial).sunrise / 24;
+    // Time-of-day removed; long-shadows window now uses fixed 6am sunrise / 6pm sunset references.
+    const sunset = 18 / 24;
+    const sunrise = 6 / 24;
     const justBeforeStart = window.startDaySerial + sunset - 0.01;
     const justAfterStart = window.startDaySerial + sunset + 0.01;
     const justBeforeEnd = window.endDaySerial + sunrise - 0.01;

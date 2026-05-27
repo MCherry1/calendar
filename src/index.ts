@@ -11,7 +11,6 @@ import './date-math.js';
 import './parsing.js';
 import './events.js';
 import './rendering.js';
-import './time-of-day.js';
 import './ui.js';
 import './commands.js';
 import './today.js';

@@ -9,8 +9,7 @@ import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDispl
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
-import { bucketLabel, clearTimeOfDay, currentTimeBucket, isTimeOfDayActive } from './time-of-day.js';
-import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, currentLightSnapshot, getLongShadowsMoons, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
+import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, getLongShadowsMoons, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
@@ -38,11 +37,6 @@ export function formalCurrentDateLabel(){
   return wd ? (wd + ', ' + base) : base;
 }
 
-export function currentTimeOfDayLabel(){
-  var bucket = currentTimeBucket();
-  return bucket ? bucketLabel(bucket) : '';
-}
-
 function _shouldDeferPersistentHandouts(){
   return typeof globalThis !== 'undefined' && !(globalThis as any).__CALENDAR_TEST_MODE__;
 }
@@ -53,12 +47,6 @@ function _refreshPersistentViewsOnDateChange(){
     batched: _shouldDeferPersistentHandouts(),
     batchDelayMs: 0
   });
-}
-
-export function _timeOfDayStatusHtml(style?){
-  if (!isTimeOfDayActive()) return '';
-  return '<div style="' + (style || 'font-size:.82em;opacity:.72;margin-top:2px;') + '">Current time: ' +
-    esc(currentTimeOfDayLabel()) + '</div>';
 }
 
 export function dateLabelFromSerial(serial){
@@ -255,11 +243,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
   // Date headline: formal date line + season line
   var _seasonLabel = _getSeasonLabel(c.month, c.day_of_the_month);
   var currentDate = formalCurrentDateLabel();
-  var timeLine = _timeOfDayStatusHtml(dashboard
-    ? 'font-size:.94em;color:#000;margin:0 0 5px 0;'
-    : (compact
-      ? 'font-size:.82em;opacity:.72;margin:0 0 3px 0;'
-      : 'font-size:.85em;opacity:.72;margin:0 0 4px 0;'));
+  var timeLine = '';
   var dateLine = compact
     ? '<div style="font-weight:bold;margin:2px 0 1px 0;' + (dashboard ? 'font-size:1.02em;color:#000;' : '') + '">' + esc(currentDate) + '</div>'
     : '<div style="font-weight:bold;margin:3px 0 1px 0;' + (dashboard ? 'font-size:1.06em;color:#000;' : '') + '">' + esc(currentDate) + '</div>';
@@ -352,19 +336,8 @@ export function sendCurrentDate(to, gmOnly, opts?){
     } catch(e){ /* moon system not ready yet — skip silently */ }
   }
 
-  // Lighting only when time of day is active and it's not daytime
+  // Lighting display dropped with time-of-day removal
   var lightingLine = '';
-  if (isTimeOfDayActive()){
-    try {
-      var _lightSnap = currentLightSnapshot(todaySer);
-      if (_lightSnap && _lightSnap.mode !== 'day'){
-        lightingLine = '<div style="' + dashboardShortLineStyle + '">' +
-          '\uD83D\uDCA1 ' + esc(_lightSnap.label || 'Unknown') +
-          (_lightSnap.note ? ' \u2014 ' + esc(_lightSnap.note) : '') +
-          '</div>';
-      }
-    } catch(e){ /* light snapshot not ready */ }
-  }
 
   // Planar highlights — only show planes with notable current state
   var planesLine = '';
@@ -607,7 +580,6 @@ export function stepDays(n, opts?){
   var d = fromSerial(dest);
   cur.day_of_the_week = (cur.day_of_the_week + ((n % wdlen) + wdlen)) % wdlen;
   cur.year = d.year; cur.month = d.mi; cur.day_of_the_month = d.day;
-  if (!opts.preserveTimeOfDay) clearTimeOfDay();
   if (ensureSettings().moonsEnabled !== false){
     if (n > 0){
       captureMoonHistoryWindow(Math.max(startSerial, dest - (MOON_HISTORY_DAYS - 1)), dest);
@@ -633,7 +605,6 @@ export function setDate(m, d, y, opts?){
   cur.month = mi; cur.day_of_the_month = di; cur.year = yi;
   var wdlen = cal.weekdays.length;
   cur.day_of_the_week = (oldDOW + ((delta % wdlen) + wdlen)) % wdlen;
-  if (!opts.preserveTimeOfDay) clearTimeOfDay();
   if (ensureSettings().moonsEnabled !== false){
     resetMoonHistory(nextSerial, true);
   }
@@ -818,13 +789,6 @@ export function taskCardHtml(title, summary, actions?, detail?){
 export function gmButtonsHtml(){
   var rows = [];
 
-  // Time of Day: advance if active, otherwise offer enable.
-  if (isTimeOfDayActive()){
-    rows.push('<div>'+mb('🕒 ⏩ Advance Time','time next')+'</div>');
-  } else {
-    rows.push('<div>'+mb('🕒 Enable Time of Day','time start middle_of_night')+'</div>');
-  }
-
   // Date step arrows
   rows.push('<div>'+mb('Back','retreat 1')+' '+mb('Forward','advance 1')+'</div>');
 
@@ -911,7 +875,7 @@ export function activeEffectsPanelHtml(){
 export function helpStatusSummaryHtml(){
   var st      = ensureSettings();
   var curDate = esc(currentDateLabel());
-  var timeLine = _timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin-top:3px;');
+  var timeLine = '';
 
   // Build system/variant label.
   var sys     = CALENDAR_SYSTEMS[st.calendarSystem] || {};
