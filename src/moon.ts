@@ -1,7 +1,7 @@
 // Section 20: Moon System
 import { CONTRAST_MIN_HEADER, STYLES, state_name } from './constants.js';
 import { defaults, ensureSettings, getCal, titleCase } from './state.js';
-import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
+import { _contrast, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _deliverAdditionalCalendarRange, buildAdditionalRangesCommand } from './events.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
@@ -9,7 +9,6 @@ import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextD
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
-import { buildSkySceneFromResolved, moonAltitudeDeg, moonAzimuthDeg, moonCompass16, moonHourAngleDeg, moonSkyPositionCategory } from './showcase/sky-scene.js';
 import { getWorld } from './worlds/index.js';
 
 
@@ -393,39 +392,6 @@ export function _getMoonSys(sysKeyOverride?){
   return MOON_SYSTEMS[key] || null;
 }
 
-function _moonBodyByName(moonName, sysKeyOverride?){
-  var sys = _getMoonSys(sysKeyOverride);
-  if (!sys || !Array.isArray(sys.moons)) return null;
-  for (var i = 0; i < sys.moons.length; i++){
-    if (sys.moons[i].name === moonName) return sys.moons[i];
-  }
-  return null;
-}
-
-function _moonAngularSizeVsSun(diameter, distance){
-  if (!(diameter > 0) || !(distance > 0)) return null;
-  var angularDeg = 2 * Math.atan((diameter / 2) / distance) * 180 / Math.PI;
-  return angularDeg / _SUN_ANGULAR_DIAM_DEG;
-}
-
-function _moonOrbitalCanon(moonName){
-  var activeMoon = _moonBodyByName(moonName);
-  var canon = MOON_ORBITAL_DATA[moonName] || null;
-  if (!activeMoon) return canon;
-  var dynamicCanon = null;
-  if ((activeMoon.orbitalData && typeof activeMoon.orbitalData === 'object') || (activeMoon.diameter && activeMoon.distance)){
-    dynamicCanon = Object.assign({}, activeMoon.orbitalData || {});
-    if (!isFinite(dynamicCanon.angularSizeVsSun)){
-      dynamicCanon.angularSizeVsSun = _moonAngularSizeVsSun(activeMoon.diameter, activeMoon.distance);
-    }
-    if (!isFinite(dynamicCanon.diameter) && isFinite(activeMoon.diameter)) dynamicCanon.diameter = activeMoon.diameter;
-    if (!isFinite(dynamicCanon.distance) && isFinite(activeMoon.distance)) dynamicCanon.distance = activeMoon.distance;
-    if (!isFinite(dynamicCanon.albedo) && isFinite(activeMoon.albedo)) dynamicCanon.albedo = activeMoon.albedo;
-  }
-  var merged = Object.assign({}, canon || {}, dynamicCanon || {});
-  return Object.keys(merged).length ? merged : null;
-}
-
 function _dragonlanceNightOfTheEyeOverride(){
   var st = ensureSettings();
   if (String(st.calendarSystem || '').toLowerCase() !== 'dragonlance') return null;
@@ -436,10 +402,7 @@ function _dragonlanceNightOfTheEyeOverride(){
   return {
     referenceSerial: Number(override.serial) + timeFrac,
     timeFrac: timeFrac,
-    phaseAngleDeg: 180,
-    skyLongDeg: _normDeg(_sunSkyLong(Number(override.serial)) + 180 - (timeFrac * 360)),
-    overheadAtAnchor: true,
-    observerLatitudeDeg: isFinite(Number(override.observerLatitudeDeg)) ? Number(override.observerLatitudeDeg) : OBSERVER_LATITUDE
+    phaseAngleDeg: 180
   };
 }
 
@@ -458,10 +421,7 @@ function _resolvedMoonFixedAnchor(moon){
   return {
     referenceSerial: toSerial(anchor.referenceDate.year, Math.max(0, (anchor.referenceDate.month || 1) - 1), anchor.referenceDate.day || 1) + (Number(anchor.timeFrac) || 0),
     timeFrac: Number(anchor.timeFrac) || 0,
-    phaseAngleDeg: Number(anchor.phaseAngleDeg == null ? 180 : anchor.phaseAngleDeg),
-    skyLongDeg: isFinite(Number(anchor.skyLongDeg)) ? _normDeg(Number(anchor.skyLongDeg)) : (anchor.overheadAtAnchor ? _normDeg(_sunSkyLong(toSerial(anchor.referenceDate.year, Math.max(0, (anchor.referenceDate.month || 1) - 1), anchor.referenceDate.day || 1)) + 180 - ((Number(anchor.timeFrac) || 0) * 360)) : null),
-    overheadAtAnchor: anchor.overheadAtAnchor === true,
-    observerLatitudeDeg: isFinite(Number(anchor.observerLatitudeDeg)) ? Number(anchor.observerLatitudeDeg) : OBSERVER_LATITUDE
+    phaseAngleDeg: Number(anchor.phaseAngleDeg == null ? 180 : anchor.phaseAngleDeg)
   };
 }
 
@@ -664,14 +624,8 @@ function _cloneMoonMiniCalEvents(events){
     if (evt && evt.splitColor) copy.splitColor = evt.splitColor;
     if (evt && evt.splitIsRemote) copy.splitIsRemote = true;
     if (evt && evt.replaceNumeral) copy.replaceNumeral = evt.replaceNumeral;
-    if (evt && evt.isEclipse) copy.isEclipse = true;
     return copy;
   });
-}
-
-function _isMoonEclipseMiniCalEvent(evt){
-  var name = String(evt && evt.name || '');
-  return !!(evt && evt.isEclipse) || name.indexOf('Eclipses: ') === 0;
 }
 
 function _reindexMoonHistory(history){
@@ -702,15 +656,6 @@ function _storeMoonHistorySnapshot(ms, snapshot){
   if (!snapshot || !isFinite(snapshot.serial)) return null;
   var history = _moonHistoryState();
   var key = String(snapshot.serial|0);
-  var prior = history.bySerial[key];
-  if (prior && prior.modelRevision === snapshot.modelRevision){
-    var preservedEclipses = _cloneMoonMiniCalEvents((prior.miniCalEvents || []).filter(_isMoonEclipseMiniCalEvent));
-    if (preservedEclipses.length){
-      snapshot.miniCalEvents = (snapshot.miniCalEvents || []).filter(function(evt){
-        return !_isMoonEclipseMiniCalEvent(evt);
-      }).concat(preservedEclipses);
-    }
-  }
   history.bySerial[key] = snapshot;
   if (history.minSerial == null || snapshot.serial < history.minSerial) history.minSerial = snapshot.serial|0;
   if (history.maxSerial == null || snapshot.serial > history.maxSerial) history.maxSerial = snapshot.serial|0;
@@ -719,7 +664,6 @@ function _storeMoonHistorySnapshot(ms, snapshot){
 }
 
 function _clearMoonDerivedCaches(){
-  _eclipseDayCache = Object.create(null);
   _longShadowsCache = {};
 }
 
@@ -1747,7 +1691,6 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
   var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
   var today = isFinite(opts.today) ? (opts.today|0) : todaySerial();
   var singleFill = (opts.singleFill !== undefined) ? !!opts.singleFill : _isSingleFillMoon(sys);
-  var includeEclipses = opts.includeEclipses !== false;
   var fullMoons = [];
   var newMoons = [];
 
@@ -1771,11 +1714,6 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
     }
   }
 
-  var eclipseEvents = [];
-  if (isHighTier && includeEclipses){
-    eclipseEvents = _moonMiniCalEclipseEvents(ser, getEclipses(ser), singleFill);
-  }
-
   // Multi-moon systems: dot-only indicators (no cell fill).
   // Single-fill systems: cell fill + emoji numeral replacement on peak days.
   if (!singleFill){
@@ -1795,7 +1733,6 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
         dotOnly: true
       });
     }
-    out = out.concat(eclipseEvents);
   } else {
     if (fullMoons.length){
       out.push({
@@ -1813,7 +1750,6 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
         replaceNumeral: '\uD83C\uDF11'
       });
     }
-    out = out.concat(eclipseEvents);
   }
 
   return out;
@@ -1853,8 +1789,7 @@ export function captureMoonHistoryDay(serial){
     miniCalEvents: _cloneMoonMiniCalEvents(_moonMiniCalDayEvents(ser, 'high', MOON_PREDICTION_LIMITS.highMaxDays, {
       sys: sys,
       today: ser,
-      singleFill: _isSingleFillMoon(sys),
-      includeEclipses: false
+      singleFill: _isSingleFillMoon(sys)
     }))
   };
   return _storeMoonHistorySnapshot(ms, snapshot);
@@ -1879,8 +1814,7 @@ export function captureMoonHistoryWindow(startSerial, endSerial){
       miniCalEvents: _cloneMoonMiniCalEvents(_moonMiniCalDayEvents(ser, 'high', MOON_PREDICTION_LIMITS.highMaxDays, {
         sys: sys,
         today: ser,
-        singleFill: singleFill,
-        includeEclipses: false
+        singleFill: singleFill
       }))
     });
   }
@@ -2168,13 +2102,8 @@ export function moonSummaryHtml(isGM, serialOverride?){
     body += '<div style="font-size:.82em;opacity:.55;">No moons at full or new today.</div>';
   }
 
-  if ((isGM || tier === 'high') && _eclipseNotableToday(today).length){
-    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' + _eclipseNotableToday(today).join('<br>') + '</div>';
-  }
-
   body += '<div style="margin-top:6px;">' +
     button('Full View', 'moon') + ' ' +
-    button('Sky Now', 'moon sky') + ' ' +
     button('Moon Lore', 'moon lore') +
   '</div>';
 
@@ -2226,7 +2155,7 @@ export function moonPanelParts(serialOverride?){
     var calBody = navRow +
       _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
       moonMiniCal +
-      _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New', '<span style="color:#9C27B0;">●</span> Eclipse/Occultation']);
+      _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
     if (verbose){
       calBody += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
     }
@@ -2239,16 +2168,6 @@ export function moonPanelParts(serialOverride?){
       return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
     });
     var listSections = [rows.join('')];
-
-    // Eclipses (GM always sees high tier)
-    var eclipseLines = _eclipseNotableToday(today);
-    if (eclipseLines.length){
-      listSections.push(
-        '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
-          '<b>Eclipses:</b><br>' + eclipseLines.join('<br>') +
-        '</div>'
-      );
-    }
 
     // Ascendant Moons / Dim Moons (Eberron only — planes associated with moons)
     if (ensureSettings().planesEnabled !== false){
@@ -2310,11 +2229,6 @@ export function moonPanelParts(serialOverride?){
 
   // Spacer
   gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
-
-  // Sky button
-  gmControls += '<div style="margin:4px 0;">' +
-    button('🌌 Sky','moon sky') +
-    '</div>';
 
   // Specific Moons dropdown
   gmControls += '<div style="margin:4px 0;">' + moonDropdown + '</div>';
@@ -2455,15 +2369,9 @@ export function moonPlayerPanelHtml(serialOverride?){
   } else {
     body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
   }
-  if (tier === 'high' && _eclipseNotableToday(today).length){
-    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
-      _eclipseNotableToday(today).join('<br>') + '</div>';
-  }
-
   // Lore button
   body += '<div style="margin-top:6px;">' +
     button('📖 Moon Lore', 'moon lore') + ' ' +
-    button('🌌 Sky Now', 'moon sky') + ' ' +
     button('Prompt !cal moon on', 'moon on ?{Date|'+_serialToDateSpec(today)+'}') +
     '</div>';
   var playerHandoutLinks = [
@@ -2525,7 +2433,7 @@ function _moonRangeHtml(spec, isGM){
   }
 
   var body = handoutWrap(calParts.join('')) +
-    _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New', '<span style="color:#9C27B0;">●</span> Eclipse/Occultation']);
+    _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
   var srcLabel = MOON_SOURCE_LABELS[tier] || '';
   if (srcLabel){
     body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
@@ -2659,7 +2567,6 @@ export function moonMechanicsHandoutHtml(){
     '</table>' +
     '<div style="margin-top:8px;font-size:.84em;line-height:1.6;">' +
       '<b>Long Shadows:</b> When Mabar turns coterminous, the nearest new moon to the winter midpoint is claimed and darkened.<br>' +
-      '<b>Eclipses:</b> The script derives solar, lunar, and transiting overlaps from the seeded moon model and reports them in the six time buckets used elsewhere in the calendar UI.<br>' +
       '<b>Phase labels:</b> Handouts use the same illumination-driven phase labels and full/new peak markers as the chat panels.' +
     '</div>';
 
@@ -2714,14 +2621,8 @@ export function moonHandoutHtml(serialOverride?){
   } else {
     body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
   }
-  if (tier === 'high' && _eclipseNotableToday(today).length){
-    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
-      _eclipseNotableToday(today).join('<br>') + '</div>';
-  }
-
   // Keep the auto-refreshed player handout on the player reveal tier across
-  // its rolling window. Rendering the past month at forced high tier makes
-  // every date change pay the expensive eclipse scan path.
+  // its rolling window.
   body += _moonMultiMonthHtml(today, tier, horizon, false, true);
   body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
 
@@ -2747,12 +2648,6 @@ export function moonHandoutGmHtml(){
   body += _moonMultiMonthHtml(today, 'high', 9999, true);
   body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
 
-  var eclNotes = _eclipseNotableToday(today);
-  if (eclNotes.length){
-    body += '<div style="font-size:.82em;margin-top:6px;line-height:1.6;">' +
-      eclNotes.join('<br>') + '</div>';
-  }
-
   return _menuBox('\uD83C\uDF19 GM Moons', body);
 }
 
@@ -2774,38 +2669,6 @@ function _refreshMoonPersistentViews(){
   refreshHandout('moons');
 }
 
-
-// ---------------------------------------------------------------------------
-// 20k) Eclipse engine — seeded orbital positions for moon-moon & moon-sun eclipses
-// ---------------------------------------------------------------------------
-// Each moon gets a sky longitude (0–360°) based on its synodic period, plus
-// a seeded orbital inclination and ascending node. When two moons are within
-// a threshold angular separation AND one is full (bright disk) while the
-// other passes in front, we get a moon-moon eclipse. When a moon is new
-// and near the sun's ecliptic longitude, we get a solar eclipse.
-//
-// This is simplified orbital mechanics — not real 3-body, but produces
-// deterministic, interesting results that reward scholarly investigation.
-
-// Canonical diameters and distances from Keith Baker's Dragonshards article.
-// angularSizeVsSun: 1.0 = same apparent size as Arrah (the sun).
-// albedo: real solar-system analog values. Geometric albedo can exceed 1.0
-//   (Enceladus 1.375, Tethys 1.229) due to backscattering from pure ice.
-//   Dravago/Triton retrograde inclination is handled in illumination calc.
-export var MOON_ORBITAL_DATA = {
-  Zarantyr:  { diameter:_eberronMoonCore('Zarantyr').diameter, distance:_eberronMoonCore('Zarantyr').avgOrbitalDistance,  angularSizeVsSun: 9.08, albedo: 0.12 },
-  Olarune:   { diameter:_eberronMoonCore('Olarune').diameter, distance:_eberronMoonCore('Olarune').avgOrbitalDistance,  angularSizeVsSun: 5.73, albedo: 0.22 },
-  Therendor: { diameter:_eberronMoonCore('Therendor').diameter, distance:_eberronMoonCore('Therendor').avgOrbitalDistance,  angularSizeVsSun: 2.91, albedo: 0.99 },
-  Eyre:      { diameter:_eberronMoonCore('Eyre').diameter, distance:_eberronMoonCore('Eyre').avgOrbitalDistance,  angularSizeVsSun: 2.38, albedo: 0.96 },
-  Dravago:   { diameter:_eberronMoonCore('Dravago').diameter, distance:_eberronMoonCore('Dravago').avgOrbitalDistance,  angularSizeVsSun: 2.66, albedo: 0.76 },
-  Nymm:      { diameter:_eberronMoonCore('Nymm').diameter, distance:_eberronMoonCore('Nymm').avgOrbitalDistance, angularSizeVsSun: 0.98, albedo: 0.43 },
-  Lharvion:  { diameter:_eberronMoonCore('Lharvion').diameter, distance:_eberronMoonCore('Lharvion').avgOrbitalDistance, angularSizeVsSun: 1.11, albedo: 0.30 },
-  Barrakas:  { diameter:_eberronMoonCore('Barrakas').diameter, distance:_eberronMoonCore('Barrakas').avgOrbitalDistance, angularSizeVsSun: 1.07, albedo: 1.375 },
-  Rhaan:     { diameter:_eberronMoonCore('Rhaan').diameter, distance:_eberronMoonCore('Rhaan').avgOrbitalDistance, angularSizeVsSun: 0.49, albedo: 0.32 },
-  Sypheros:  { diameter:_eberronMoonCore('Sypheros').diameter, distance:_eberronMoonCore('Sypheros').avgOrbitalDistance, angularSizeVsSun: 0.62, albedo: 0.071 },
-  Aryth:     { diameter:_eberronMoonCore('Aryth').diameter, distance:_eberronMoonCore('Aryth').avgOrbitalDistance, angularSizeVsSun: 0.69, albedo: 0.275 },
-  Vult:      { diameter:_eberronMoonCore('Vult').diameter, distance:_eberronMoonCore('Vult').avgOrbitalDistance, angularSizeVsSun: 0.74, albedo: 0.23 }
-};
 
 // ---------------------------------------------------------------------------
 // 20g-i-b) Ring of Siberys
@@ -2839,1145 +2702,10 @@ export var RING_OF_SIBERYS = {
   facts: []
 };
 
-// ---------------------------------------------------------------------------
-// 20g-ii) Nighttime Illumination System
-// ---------------------------------------------------------------------------
-// Computes ambient light level in lux from overhead moons, starlight, and
-// the Ring of Siberys. The result maps to D&D mechanical thresholds:
-//
-//   Lux     | Condition        | D&D Equivalent
-//   --------|------------------|-----------------------
-//   >= 1.0  | Bright moonlight | Bright light (no restrictions)
-//   0.25–1.0| Dim moonlight    | Dim light (disadvantage on Perception)
-//   < 0.25  | Darkness         | Darkness (effectively blind w/o darkvision)
-//
-// Reference: Earth's full moon ≈ 0.25 lux at zenith (albedo 0.12,
-// angular diameter 0.5°). Our moons are much larger and closer, so
-// even modest illumination fractions produce significant light.
-//
-// Formula per moon:
-//   lux_moon = lux_reference × (angularArea / moonAngularArea) × (albedo / 0.12) × illum
-// where lux_reference = 0.25 (Earth full moon), moonAngularArea is proportional
-// to angularSizeVsSun² (since area scales as diameter²).
-// Earth's moon angularSizeVsSun ≈ 1.0 and albedo ≈ 0.12.
-//
-// Simplified: lux_moon = 0.25 × angularSize² × (albedo / 0.12) × illum
-//
-// Ambient sources:
-//   Starlight:          ~0.002 lux (clear night, no moon, Earth analog)
-//   Ring of Siberys:    ~0.008 lux (diffuse golden glow from the dragon-shard ring)
-//   Total ambient:      ~0.010 lux (always present on clear nights)
-//   Overcast penalty:   ×0.15 for heavy cloud cover
-
-export var NIGHTLIGHT_AMBIENT_LUX = 0.010;  // starlight + Ring of Siberys
-export var NIGHTLIGHT_OVERCAST_MULT = 0.15;  // heavy cloud cover blocks ~85% of moonlight
-export var NIGHTLIGHT_EARTH_MOON_LUX = 0.25; // reference: full Earth moon at zenith
-export var NIGHTLIGHT_EARTH_ALBEDO = 0.12;
-
-// Fraction of the night a moon is "overhead" — simplified to ~50% for all moons
-// (real value depends on orbital inclination and time, but 50% is a fair average
-// for 12 moons that aren't all on the same schedule).
-export var NIGHTLIGHT_OVERHEAD_FRACTION = 0.50;
-
-export function nighttimeLux(serial, precipStage){
-  var st = ensureSettings();
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons || !sys.moons.length) return { total: NIGHTLIGHT_AMBIENT_LUX, moons: [], ambient: NIGHTLIGHT_AMBIENT_LUX };
-
-  var moonContributions = [];
-  var totalMoonLux = 0;
-
-  for (var i = 0; i < sys.moons.length; i++){
-    var moon = sys.moons[i];
-    var ph = moonPhaseAt(moon.name, serial);
-    if (!ph || ph.illum < 0.01) continue; // too dim to matter
-
-    var orb = _moonOrbitalCanon(moon.name);
-    if (!orb) continue;
-
-    var angSq = orb.angularSizeVsSun * orb.angularSizeVsSun;
-    var alb = orb.albedo || 0.12;
-    var rawLux = NIGHTLIGHT_EARTH_MOON_LUX * angSq * (alb / NIGHTLIGHT_EARTH_ALBEDO) * ph.illum;
-
-    // Apply overhead fraction: not all moons are up all night
-    var effectiveLux = rawLux * NIGHTLIGHT_OVERHEAD_FRACTION;
-
-    // Planar brightness modifier: +25% when associated plane is coterminous
-    // (ascendant), -25% when remote (dim).
-    // Lharvion (Xoriat) is excluded from dim penalty: Xoriat is always remote,
-    // so there is no meaningful baseline vs dim distinction.
-    var planarMod = 1.0;
-    if (moon.plane && st.planesEnabled !== false){
-      try {
-        var _plSt = getPlanarState(moon.plane, serial);
-        if (_plSt && _plSt.phase === 'coterminous') planarMod = 1.25;
-        else if (_plSt && _plSt.phase === 'remote' && moon.name !== 'Lharvion') planarMod = 0.75;
-      } catch(e){ /* planar system not ready */ }
-    }
-    effectiveLux *= planarMod;
-
-    if (effectiveLux >= 0.001){ // only track meaningful contributors
-      moonContributions.push({
-        name: moon.name,
-        illum: ph.illum,
-        lux: effectiveLux,
-        angularSize: orb.angularSizeVsSun,
-        albedo: alb,
-        planarMod: planarMod
-      });
-      totalMoonLux += effectiveLux;
-    }
-  }
-
-  // Cloud cover dims moonlight (but ambient starlight/Siberys also affected)
-  var cloudMult = 1.0;
-  if (typeof precipStage === 'number'){
-    // precip 0=clear, 1=partly cloudy, 2=overcast, 3+=precipitation
-    if (precipStage >= 3) cloudMult = NIGHTLIGHT_OVERCAST_MULT;
-    else if (precipStage === 2) cloudMult = 0.35;
-    else if (precipStage === 1) cloudMult = 0.70;
-  }
-
-  var totalLux = (NIGHTLIGHT_AMBIENT_LUX + totalMoonLux) * cloudMult;
-
-  // Sort moons by contribution descending
-  moonContributions.sort(function(a, b){ return b.lux - a.lux; });
-
-  return {
-    total: Math.round(totalLux * 1000) / 1000,  // 3 decimal places
-    moons: moonContributions,
-    ambient: Math.round(NIGHTLIGHT_AMBIENT_LUX * cloudMult * 1000) / 1000,
-    cloudMult: cloudMult
-  };
-}
-
-// D&D mechanical classification for the lux level.
-export function nighttimeLightCondition(lux){
-  // Eberron thresholds calibrated to D&D mechanics and real photometry.
-  // 1 lux ≈ a candle at 1 meter. D&D candles produce 5 ft of bright light.
-  // So 1 lux is the natural "bright light from moonlight" threshold.
-  //
-  // Shadow: scattered light under canopy/overhang is ~10% of open sky.
-  var shadow = lux * 0.10;
-
-  if (lux >= 1.0) return {
-    condition: 'bright', label: 'Bright Moonlight', emoji: '🌕',
-    note: 'Bright light. No vision restrictions.',
-    shadow: (shadow >= 0.3) ? 'dim' : 'dark',
-    shadowNote: (shadow >= 0.3)
-      ? 'In shadow (trees, overhangs): dim light.'
-      : 'In shadow: darkness. Darkvision or light source needed.'
-  };
-  if (lux >= 0.25) return {
-    condition: 'dim', label: 'Dim Moonlight', emoji: '🌗',
-    note: 'Dim light. Enough to fight by. Disadvantage on Perception.',
-    shadow: 'dark',
-    shadowNote: 'In shadow: darkness. Darkvision or light source needed.'
-  };
-  return {
-    condition: 'darkness', label: 'Darkness', emoji: '🌑',
-    note: 'Darkness. Effectively blind without darkvision.',
-    shadow: 'dark',
-    shadowNote: 'Dark everywhere, open or covered.'
-  };
-}
-
-function _formatSolarHour(hour){
-  var whole = Math.floor(hour);
-  var mins = Math.round((hour - whole) * 60);
-  if (mins >= 60){ whole += 1; mins -= 60; }
-  whole = ((whole % 24) + 24) % 24;
-  var suffix = whole >= 12 ? 'PM' : 'AM';
-  var displayHour = whole % 12;
-  if (displayHour === 0) displayHour = 12;
-  var minLabel = mins ? (':' + (mins < 10 ? '0' : '') + mins) : '';
-  return displayHour + minLabel + ' ' + suffix;
-}
-
-export function currentLightSnapshot(serial, precipStage?){
-  // Time-of-day removed; light snapshot always falls through to nighttime.
-  var result = nighttimeLux(serial, precipStage);
-  var cond = nighttimeLightCondition(result.total);
-  return {
-    mode: 'night',
-    emoji: cond.emoji,
-    label: cond.label,
-    note: cond.note,
-    shadowNote: cond.shadowNote,
-    result: result,
-    cond: cond,
-    solar: null
-  };
-}
-// Build the current lighting HTML block for the Today panel.
-export function nighttimeLightHtml(serial){
-  var snap = currentLightSnapshot(serial);
-  var result = snap.result;
-  var cond = snap.cond;
-
-  var html = '<div style="margin-bottom:4px;">' +
-    '<b>' + cond.emoji + ' ' + esc(cond.label) + '</b>' +
-    ' <span style="opacity:.6;">(' + result.total + ' lux)</span>' +
-    '</div>';
-
-  html += '<div style="font-size:.88em;margin:2px 0;">' + esc(cond.note) + '</div>';
-  html += '<div style="font-size:.85em;opacity:.7;margin:2px 0;">🌲 ' + esc(cond.shadowNote) + '</div>';
-
-  // Top contributing moons
-  if (result.moons.length > 0){
-    var topMoons = result.moons.slice(0, 3);
-    var moonBits = [];
-    for (var i = 0; i < topMoons.length; i++){
-      var m = topMoons[i];
-      moonBits.push(esc(m.name) + ' ' + Math.round(m.illum * 100) + '%');
-    }
-    var moreCount = result.moons.length - 3;
-    html += '<div style="font-size:.82em;opacity:.55;margin-top:3px;">Sources: ' +
-      moonBits.join(', ') +
-      (moreCount > 0 ? (', +' + moreCount + ' more') : '') +
-      '</div>';
-  }
-
-  if (result.cloudMult < 1.0){
-    html += '<div style="font-size:.82em;opacity:.55;">Cloud cover: ×' + result.cloudMult.toFixed(2) + '</div>';
-  }
-
-  return html;
-}
-
-// Movement tuning is intentionally mythic (not strict orbital physics):
-// each moon has a characteristic swing/precession profile matching its lore.
-// inclinationBase: real analog value. distanceSwingPct: ~2x real eccentricity.
-// Ascending nodes and precession rates are lore-driven (not real).
-export var MOON_MOTION_TUNING = {
-  // Luna analog:        ecc 0.0549, inc 5.145°
-  Zarantyr: { inclinationBase:5.145, inclinationAmp:1.5, inclinationPeriodDays:336, ascendingNode:120, nodePrecessionDegPerYear:12, distanceSwingPct:0.11, distancePeriodDays:336, apsisAngle:20,  apsisPrecessionDegPerYear:24 },
-  // Titan analog:       ecc 0.0288, inc 0.33°
-  Olarune:  { inclinationBase:0.33, inclinationAmp:0.15, inclinationPeriodDays:504, ascendingNode: 60, nodePrecessionDegPerYear: 8, distanceSwingPct:0.058, distancePeriodDays:448, apsisAngle:80,  apsisPrecessionDegPerYear:12 },
-  // Dione analog:       ecc 0.0022, inc 0.03°
-  Therendor:{ inclinationBase:0.03, inclinationAmp:0.01, inclinationPeriodDays:336, ascendingNode:210, nodePrecessionDegPerYear:10, distanceSwingPct:0.0044, distancePeriodDays:336, apsisAngle:140, apsisPrecessionDegPerYear:10 },
-  // Mimas analog:       ecc 0.0196, inc 1.53°
-  Eyre:     { inclinationBase:1.53, inclinationAmp:0.2, inclinationPeriodDays:336, ascendingNode: 25, nodePrecessionDegPerYear: 2, distanceSwingPct:0.0392, distancePeriodDays: 84, apsisAngle:10,  apsisPrecessionDegPerYear:120 },
-  // Triton analog:      ecc 0.000016, inc 156.8° (retrograde)
-  Dravago:  { inclinationBase:156.8, inclinationAmp:0.15, inclinationPeriodDays:672, ascendingNode:260, nodePrecessionDegPerYear: 6, distanceSwingPct:0, distancePeriodDays:672, apsisAngle:200, apsisPrecessionDegPerYear:18 },
-  // Ganymede analog:    ecc 0.0013, inc 0.20°
-  Nymm:     { inclinationBase:0.20, inclinationAmp:0.05, inclinationPeriodDays:336, ascendingNode:  0, nodePrecessionDegPerYear:360, distanceSwingPct:0.0026, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:0 },
-  // Hyperion analog:    ecc 0.1230, inc 0.43°
-  Lharvion: { inclinationBase:0.43, inclinationAmp:0.2, inclinationPeriodDays:420, ascendingNode: 40, nodePrecessionDegPerYear:10, distanceSwingPct:0.246, distancePeriodDays:560, apsisAngle:300, apsisPrecessionDegPerYear:80 },
-  // Enceladus analog:   ecc 0.0047, inc 0.02°
-  Barrakas: { inclinationBase:0.02, inclinationAmp:0.01, inclinationPeriodDays:168, ascendingNode:300, nodePrecessionDegPerYear:24, distanceSwingPct:0.0094, distancePeriodDays:224, apsisAngle:260, apsisPrecessionDegPerYear:48 },
-  // Miranda analog:     ecc 0.0013, inc 4.34°
-  Rhaan:    { inclinationBase:4.34, inclinationAmp:0.6, inclinationPeriodDays:441, ascendingNode: 45, nodePrecessionDegPerYear: 6, distanceSwingPct:0.0026, distancePeriodDays:504, apsisAngle: 90, apsisPrecessionDegPerYear:8 },
-  // Phobos analog:      ecc 0.0151, inc 1.08°
-  Sypheros: { inclinationBase:1.08, inclinationAmp:0.2, inclinationPeriodDays:560, ascendingNode:180, nodePrecessionDegPerYear: 4, distanceSwingPct:0.0302, distancePeriodDays:560, apsisAngle:150, apsisPrecessionDegPerYear:5 },
-  // Iapetus analog:     ecc 0.0283, inc 7.57°
-  Aryth:    { inclinationBase:7.57, inclinationAmp:0.4, inclinationPeriodDays:336, ascendingNode: 15, nodePrecessionDegPerYear:14, distanceSwingPct:0.0566, distancePeriodDays:336, apsisAngle:  0, apsisPrecessionDegPerYear:16 },
-  // Oberon analog:      ecc 0.0014, inc 0.07°
-  Vult:     { inclinationBase:0.07, inclinationAmp:0.03, inclinationPeriodDays:1008,ascendingNode:330, nodePrecessionDegPerYear: 2, distanceSwingPct:0.0028, distancePeriodDays:1008,apsisAngle:250, apsisPrecessionDegPerYear:2 }
-};
-
 export function _normDeg(n){
   n = n % 360;
   return (n < 0) ? (n + 360) : n;
 }
-
-export function _moonOrbitalParams(moonName, serial){
-  serial = serial || 0;
-  var activeMoon = _moonBodyByName(moonName);
-  var canon = _moonOrbitalCanon(moonName) || null;
-  var tune  = (activeMoon && activeMoon.motionTuning) || MOON_MOTION_TUNING[moonName] || null;
-
-  if (canon && tune){
-    var ypd = _moonYearDays() || 336;
-    var incPeriod = Math.max(1, tune.inclinationPeriodDays || ypd);
-    var distPeriod = Math.max(1, tune.distancePeriodDays || ypd);
-
-    var inclRaw = (tune.inclinationBase || 0) +
-      (tune.inclinationAmp || 0) * Math.sin((serial * 2 * Math.PI) / incPeriod);
-    var inclNorm = ((inclRaw % 360) + 360) % 360;
-    if (inclNorm > 180) inclNorm = 360 - inclNorm;
-    var retrograde = !!(tune.retrograde || tune.orbitDirection === 'retrograde' || inclNorm > 90);
-    var incl = retrograde ? (180 - inclNorm) : inclNorm;
-
-    var node = _normDeg((tune.ascendingNode || 0) +
-      serial * ((tune.nodePrecessionDegPerYear || 0) / ypd));
-
-    var apsis = _normDeg((tune.apsisAngle || 0) +
-      serial * ((tune.apsisPrecessionDegPerYear || 0) / ypd));
-
-    var eccWave = Math.sin((serial * 2 * Math.PI) / distPeriod);
-    var distFactor = 1 + (tune.distanceSwingPct || 0) * eccWave;
-    var dist = canon.distance * distFactor;
-
-    return {
-      inclination: incl,
-      rawInclination: inclRaw,
-      retrograde: retrograde,
-      ascendingNode: node,
-      apsis: apsis,
-      apparentSize: canon.angularSizeVsSun / Math.max(0.5, distFactor),
-      diameter: canon.diameter,
-      distance: dist
-    };
-  }
-
-  // Fallback for unknown moons: deterministic seeded pseudo-orbit.
-  var h = 0;
-  for (var i = 0; i < moonName.length; i++){
-    h = ((h << 5) - h + moonName.charCodeAt(i)) | 0;
-  }
-  var r = function(){ h = (h * 16807 + 0) % 2147483647; return (h & 0x7fffffff) / 2147483647; };
-  r(); r(); // warm up
-  var out: any = {
-    inclination: 2 + r() * 6,
-    ascendingNode: r() * 360,
-    apparentSize: canon ? canon.angularSizeVsSun : (0.3 + r() * 0.7),
-    diameter: canon ? canon.diameter : 1000,
-    distance: canon ? canon.distance : 100000
-  };
-  out.apsis = r() * 360;
-  return out;
-}
-
-export function _moonDistanceAt(moon, serial){
-  var op = _moonOrbitalParams(moon.name, serial);
-  if (op && isFinite(op.distance)) return op.distance;
-  return moon.distance || 100000;
-}
-
-// Sky longitude of a moon at a given serial day.
-// Based on synodic period: the moon completes one full 360° sky circuit per period.
-// We use the same phase data but convert to angular position.
-export function _moonSkyLong(moon, serial){
-  // Use phase to derive sky longitude: 0° = new (conjunction with sun), 180° = full (opposition)
-  var ph = moonPhaseAt(moon.name, serial);
-  // Illumination goes 0→1→0 over the cycle; we need continuous angle.
-  // Waxing: 0→180°, Waning: 180→360°
-  var angle;
-  if (ph.waxing){
-    angle = ph.illum * 180;       // 0% waxing = 0°, 100% waxing = 180°
-  } else {
-    angle = 180 + (1 - ph.illum) * 180; // 100% waning = 180°, 0% waning = 360°
-  }
-  // Retrograde orbit affects night-to-night drift direction, not instantaneous
-  // sky position. The synodic phase already encodes the correct sun-moon geometry
-  // regardless of orbital direction (planet rotation dominates apparent motion).
-  angle = angle % 360;
-  var fixedAnchor = _resolvedMoonFixedAnchor(moon);
-  if (!fixedAnchor || fixedAnchor.skyLongDeg == null) return angle;
-  var anchorPhaseAngle = _normDeg(Number(fixedAnchor.phaseAngleDeg == null ? 180 : fixedAnchor.phaseAngleDeg));
-  return _normDeg(angle + (fixedAnchor.skyLongDeg - anchorPhaseAngle));
-}
-
-// Sun's ecliptic longitude: advances ~1° per day in a 336-day year
-export function _sunSkyLong(serial){
-  var ypd = _planarYearDays();
-  return ((serial % ypd) / ypd) * 360;
-}
-
-// Ecliptic latitude of a moon based on its orbital inclination and ascending node
-export function _moonEclipticLat(moon, serial){
-  var op = _moonOrbitalParams(moon.name, serial);
-  var skyLong = _moonSkyLong(moon, serial);
-  // Latitude oscillates with inclination as moon orbits
-  var relLong = skyLong - op.ascendingNode;
-  var latitude = op.inclination * Math.sin(relLong * Math.PI / 180);
-  var fixedAnchor = _resolvedMoonFixedAnchor(moon);
-  if (!fixedAnchor || !fixedAnchor.overheadAtAnchor) return latitude;
-  var anchorSkyLong = _moonSkyLong(moon, fixedAnchor.referenceSerial);
-  var anchorRelLong = anchorSkyLong - op.ascendingNode;
-  var anchorLatitude = op.inclination * Math.sin(anchorRelLong * Math.PI / 180);
-  return latitude + (fixedAnchor.observerLatitudeDeg - anchorLatitude);
-}
-
-export function _degSeparation(a, b){
-  var d = Math.abs(a - b);
-  return d > 180 ? 360 - d : d;
-}
-
-// ---------------------------------------------------------------------------
-// 20k-0) Moon visibility — which moons are overhead right now?
-// ---------------------------------------------------------------------------
-// Computes altitude above/below the horizon for each moon at a given serial
-// day and time-of-day fraction (0=midnight, 0.5=noon, 1=midnight again).
-// Uses a consistent observer latitude (Sharn ≈ 30°N equivalent) and the
-// moon's ecliptic longitude + latitude to derive altitude.
-//
-// Simplification: treats ecliptic ≈ celestial equator (axial tilt shifts
-// everything, but for categorization into broad buckets this is fine).
-
-export var OBSERVER_LATITUDE = 37.77; // degrees N — San Francisco latitude
-
-export function _moonHourAngleDeg(moon, serial, timeFrac){
-  var skyLong = _moonSkyLong(moon, serial);
-  var sunLong = _sunSkyLong(serial);
-  var ha = (skyLong - sunLong - 180 + timeFrac * 360) % 360;
-  if (ha < 0) ha += 360;
-  if (ha > 180) ha = ha - 360;
-  return ha;
-}
-
-// Returns altitude in degrees (-90 to +90) for a moon at given time.
-// Negative = below horizon.
-export function _moonAltitude(moon, serial, timeFrac){
-  if (!moon) return -90;
-  return moonAltitudeDeg(OBSERVER_LATITUDE, _moonEclipticLat(moon, serial), _moonHourAngleDeg(moon, serial, timeFrac));
-}
-
-export function _moonAzimuthDeg(moon, serial, timeFrac){
-  if (!moon) return 0;
-  return moonAzimuthDeg(OBSERVER_LATITUDE, _moonEclipticLat(moon, serial), _moonHourAngleDeg(moon, serial, timeFrac));
-}
-
-export function _moonCompass16(azimuthDeg){
-  return moonCompass16(azimuthDeg);
-}
-
-export function _moonAngularDiameterDeg(moon, serial){
-  if (!moon) return 0;
-  var op = _moonOrbitalParams(moon.name, serial);
-  var sizeVsSun = (op && isFinite(op.apparentSize)) ? op.apparentSize : 1;
-  return Math.max(0.01, sizeVsSun * _SUN_ANGULAR_DIAM_DEG);
-}
-
-export function _moonMotionLabel(moon, serial, timeFrac){
-  var step = 1 / 96; // 15 minutes — enough to determine rise vs set direction.
-  var altNow = _moonAltitude(moon, serial, timeFrac);
-  var altSoon = _moonAltitude(moon, serial, (timeFrac + step) % 1);
-  return altSoon >= altNow ? 'Rising' : 'Setting';
-}
-
-export function _moonSkyPositionCategory(altDeg, angularDiameterDeg){
-  return moonSkyPositionCategory(altDeg, angularDiameterDeg);
-}
-
-// Visibility category from altitude.
-export function _moonVisCategory(altDeg){
-  if (altDeg > 60) return 'overhead';
-  if (altDeg > 30) return 'high';
-  if (altDeg > 10) return 'visible';
-  if (altDeg > 0)  return 'horizon';
-  return 'below';
-}
-
-// Labels and icons for visibility categories.
-export var MOON_VIS_LABELS = {
-  overhead: { label:'Overhead',    icon:'⬆', order:0, desc:'High in the sky, directly above.' },
-  high:     { label:'High',        icon:'↗', order:1, desc:'Well above the horizon.' },
-  visible:  { label:'Visible',     icon:'→', order:2, desc:'Above the horizon, in the sky.' },
-  horizon:  { label:'On horizon',  icon:'↘', order:3, desc:'Low on the horizon.' },
-  below:    { label:'Below horizon',icon:'↓', order:4, desc:'Not visible.' }
-};
-
-// Returns an array of { moon, altitude, category, vis } for all moons,
-// sorted by altitude descending. `timeFrac` defaults to 0 (midnight).
-export function _moonVisibilityAll(serial, timeFrac){
-  if (timeFrac == null) timeFrac = 0;  // default midnight
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return [];
-  return buildSkySceneFromResolved({
-    worldId: ensureSettings().calendarSystem,
-    serial: serial,
-    timeFrac: timeFrac,
-    observerLatitude: OBSERVER_LATITUDE,
-    moons: sys.moons,
-    phaseAt: function(moon, sceneSerial){
-      return moonPhaseAt(moon.name, sceneSerial);
-    },
-    skyLongAt: function(moon, sceneSerial){
-      return _moonSkyLong(moon, sceneSerial);
-    },
-    eclipticLatAt: function(moon, sceneSerial){
-      return _moonEclipticLat(moon, sceneSerial);
-    },
-    angularDiameterDegAt: function(moon, sceneSerial){
-      return _moonAngularDiameterDeg(moon, sceneSerial);
-    }
-  }).moons;
-}
-
-// Build HTML panel for "which moons are visible now"
-export function _moonVisibilityHtml(serial, timeFrac, bucket?){
-  var all = _moonVisibilityAll(serial, timeFrac);
-  if (!all.length) return '';
-  var dateLabel = dateLabelFromSerial(serial);
-  var timeLabel = '';
-  var approxHour = Math.round((((timeFrac % 1) + 1) % 1) * 24) % 24;
-  var hour12 = approxHour % 12 || 12;
-  var ampm = approxHour >= 12 ? 'pm' : 'am';
-  var head = '<div data-moon-sky-view="1" style="margin-bottom:6px;">' +
-    '<div style="font-weight:bold;">✨ 🌙 Sky View 🌙 ✨</div>' +
-    '<div style="margin-top:2px;">' + esc(dateLabel) + '</div>' +
-    '<div style="margin-top:2px;">' + esc((timeLabel || 'Nighttime') + ' (~' + hour12 + ampm + ')') + '</div>' +
-    '</div>';
-
-  var sys = _getMoonSys();
-  if (sys && sys.id === 'eberron'){
-    var rows = [];
-    for (var i = 0; i < all.length; i++){
-      var row = all[i];
-      var ph = row.phase || { illum:0, waxing:true };
-      rows.push(
-        '<tr data-moon-sky-row="1">' +
-          '<td style="' + STYLES.td + 'vertical-align:top;">' + esc(_moonPhaseEmoji(ph.illum, ph.waxing) + ' ' + row.moon.name + ' (' + row.pctFull + '% Full)') + '</td>' +
-          '<td style="' + STYLES.td + 'vertical-align:top;">' + esc(_moonSkyLabel(row)) + '</td>' +
-        '</tr>'
-      );
-    }
-    return head +
-      '<table data-moon-sky-table="1" style="' + STYLES.table + '">' +
-      '<tr><th style="' + STYLES.th + '">Moon (% Full)</th><th style="' + STYLES.th + '">Sky Position</th></tr>' +
-      rows.join('') +
-      '</table>';
-  }
-  var lines = [];
-  for (var li = 0; li < all.length; li++){
-    var r = all[li];
-    var rph = r.phase || { illum:0, waxing:true };
-    lines.push('<div data-moon-sky-row="1" style="margin:3px 0;">' +
-      esc(_moonPhaseEmoji(rph.illum, rph.waxing) + ' ' + r.moon.name + ' (' + r.pctFull + '% Full)') +
-      ' is ' + esc(_moonSkySentenceLabel(r)) +
-      '.</div>');
-  }
-  return head + lines.join('');
-}
-
-function _moonSkyLabel(row){
-  return _moonSkyCategoryLabel(row.category) + ', ' + row.direction + ', ' + row.motion;
-}
-
-function _moonSkySentenceLabel(row){
-  return _moonSkyCategoryLabel(row.category).toLowerCase() + ', ' + row.direction + ', ' + row.motion;
-}
-
-function _moonSkyCategoryLabel(category){
-  if (category === 'overhead') return 'Overhead';
-  if (category === 'high') return 'High';
-  if (category === 'mid') return 'Mid';
-  if (category === 'low') return 'Low';
-  if (category === 'horizon') return 'On Horizon';
-  if (category === 'peeking') return 'Peeking Over';
-  return 'Below Horizon';
-}
-
-export function _clamp01(x){
-  return x < 0 ? 0 : (x > 1 ? 1 : x);
-}
-
-// Approximate apparent solar diameter in degrees. Used to normalize angular
-// separations into the same units as apparentSizeVsSun.
-export var _SUN_ANGULAR_DIAM_DEG = 0.53;
-export var _eclipseDayCache = Object.create(null);
-export var ECLIPSE_TICKS_PER_DAY = 96;
-export var ECLIPSE_STAGE_BUCKET_TICKS = 16; // 4-hour buckets
-export var ECLIPSE_STAGE_HOUR_TICKS = 4;    // 1-hour buckets
-export var ECLIPSE_STAGE_COARSE_THRESHOLD = 2.0;
-export var ECLIPSE_STAGE_HOURLY_THRESHOLD = 0.5;
-
-export function _eclipseTimeBlock(frac){
-  var h = ((frac % 1) + 1) % 1 * 24;
-  if (h < 4)  return 'middle_of_night';
-  if (h < 8)  return 'early_morning';
-  if (h < 12) return 'morning';
-  if (h < 16) return 'afternoon';
-  if (h < 20) return 'evening';
-  return 'nighttime';
-}
-
-export function _moonByName(sys, name){
-  var moons = (sys && sys.moons) ? sys.moons : [];
-  for (var i = 0; i < moons.length; i++){
-    if (moons[i].name === name) return moons[i];
-  }
-  return null;
-}
-
-export function _diskOverlapFraction(rFront, rBack, sep){
-  rFront = Math.max(0, rFront || 0);
-  rBack  = Math.max(0, rBack  || 0);
-  sep    = Math.max(0, sep    || 0);
-  if (rFront <= 0 || rBack <= 0) return 0;
-  if (sep >= rFront + rBack) return 0;
-
-  // One disk fully inside the other.
-  if (sep <= Math.abs(rFront - rBack)){
-    var fullyCoveredArea = Math.PI * Math.min(rFront, rBack) * Math.min(rFront, rBack);
-    return _clamp01(fullyCoveredArea / (Math.PI * rBack * rBack));
-  }
-
-  // Partial overlap area of two circles.
-  var _c1 = (sep*sep + rFront*rFront - rBack*rBack) / (2 * sep * rFront);
-  var _c2 = (sep*sep + rBack*rBack  - rFront*rFront) / (2 * sep * rBack);
-  _c1 = Math.max(-1, Math.min(1, _c1));
-  _c2 = Math.max(-1, Math.min(1, _c2));
-  var a1 = Math.acos(_c1);
-  var a2 = Math.acos(_c2);
-  var area = rFront*rFront*a1 + rBack*rBack*a2 -
-    0.5 * Math.sqrt(Math.max(0, (-sep + rFront + rBack) * (sep + rFront - rBack) * (sep - rFront + rBack) * (sep + rFront + rBack)));
-
-  return _clamp01(area / (Math.PI * rBack * rBack));
-}
-
-export function _eclipseMetricsAt(sys, e, t){
-  if (!e) return null;
-
-  if (e.kind === 'solar'){
-    var sm = _moonByName(sys, e.moon);
-    if (!sm) return null;
-    var op = _moonOrbitalParams(sm.name, t);
-    var dLong = _degSeparation(_moonSkyLong(sm, t), _sunSkyLong(t));
-    var dLat  = Math.abs(_moonEclipticLat(sm, t));
-    var sepDeg = Math.sqrt(dLong*dLong + dLat*dLat);
-    var sepSun = sepDeg / _SUN_ANGULAR_DIAM_DEG;
-    var rMoon = (op.apparentSize || 0) / 2;
-    var rSun  = 0.5;
-    return {
-      cover: _diskOverlapFraction(rMoon, rSun, sepSun),
-      occulting: sm.name,
-      occluded: 'Sun',
-      occludingDiameter: op.apparentSize || 0,
-      occludedDiameter: 1.0,
-      skyMoon: sm.name
-    };
-  }
-
-  if (e.kind === 'lunar'){
-    var moonA = _moonByName(sys, e.a);
-    var moonB = _moonByName(sys, e.b);
-    if (!moonA || !moonB) return null;
-
-    var distA = _moonDistanceAt(moonA, t);
-    var distB = _moonDistanceAt(moonB, t);
-    var front = (distA <= distB) ? moonA : moonB;
-    var back  = (front === moonA) ? moonB : moonA;
-    var fop = _moonOrbitalParams(front.name, t);
-    var bop = _moonOrbitalParams(back.name, t);
-    var dLong2 = _degSeparation(_moonSkyLong(front, t), _moonSkyLong(back, t));
-    var dLat2  = Math.abs(_moonEclipticLat(front, t) - _moonEclipticLat(back, t));
-    var sepDeg2 = Math.sqrt(dLong2*dLong2 + dLat2*dLat2);
-    var sepSun2 = sepDeg2 / _SUN_ANGULAR_DIAM_DEG;
-    return {
-      cover: _diskOverlapFraction((fop.apparentSize || 0) / 2, (bop.apparentSize || 0) / 2, sepSun2),
-      occulting: front.name,
-      occluded: back.name,
-      occludingDiameter: fop.apparentSize || 0,
-      occludedDiameter: bop.apparentSize || 0,
-      skyMoon: front.name
-    };
-  }
-
-  return null;
-}
-
-export function _eclipseCandidateDistance(sys, e, t){
-  if (!e) return Infinity;
-
-  if (e.kind === 'solar'){
-    var sm = _moonByName(sys, e.moon);
-    if (!sm) return Infinity;
-    var op = _moonOrbitalParams(sm.name, t);
-    var dLong = _degSeparation(_moonSkyLong(sm, t), _sunSkyLong(t));
-    var dLat  = Math.abs(_moonEclipticLat(sm, t));
-    var sepDeg = Math.sqrt(dLong*dLong + dLat*dLat);
-    var sepSun = sepDeg / _SUN_ANGULAR_DIAM_DEG;
-    return sepSun - (((op.apparentSize || 0) / 2) + 0.5);
-  }
-
-  if (e.kind === 'lunar'){
-    var moonA = _moonByName(sys, e.a);
-    var moonB = _moonByName(sys, e.b);
-    if (!moonA || !moonB) return Infinity;
-    var distA = _moonDistanceAt(moonA, t);
-    var distB = _moonDistanceAt(moonB, t);
-    var front = (distA <= distB) ? moonA : moonB;
-    var back  = (front === moonA) ? moonB : moonA;
-    var fop = _moonOrbitalParams(front.name, t);
-    var bop = _moonOrbitalParams(back.name, t);
-    var dLong2 = _degSeparation(_moonSkyLong(front, t), _moonSkyLong(back, t));
-    var dLat2  = Math.abs(_moonEclipticLat(front, t) - _moonEclipticLat(back, t));
-    var sepDeg2 = Math.sqrt(dLong2*dLong2 + dLat2*dLat2);
-    var sepSun2 = sepDeg2 / _SUN_ANGULAR_DIAM_DEG;
-    return sepSun2 - (((fop.apparentSize || 0) / 2) + ((bop.apparentSize || 0) / 2));
-  }
-
-  return Infinity;
-}
-
-function _eclipseDescriptors(sys){
-  var descriptors = [];
-  var moons = (sys && sys.moons) ? sys.moons : [];
-  for (var i = 0; i < moons.length; i++){
-    descriptors.push({ kind: 'solar', moon: moons[i].name });
-  }
-  for (var a = 0; a < moons.length; a++){
-    for (var b = a + 1; b < moons.length; b++){
-      descriptors.push({ kind: 'lunar', a: moons[a].name, b: moons[b].name });
-    }
-  }
-  return descriptors;
-}
-
-function _eclipseTickToSerial(tick){
-  return tick / ECLIPSE_TICKS_PER_DAY;
-}
-
-function _mergeEclipseTickSpans(spans, minTick, maxTick){
-  var out = [];
-  if (!Array.isArray(spans) || !spans.length) return out;
-  var sorted = spans.map(function(span){
-    return {
-      startTick: Math.max(minTick, parseInt(span.startTick, 10) || 0),
-      endTick: Math.min(maxTick, parseInt(span.endTick, 10) || 0)
-    };
-  }).filter(function(span){
-    return span.endTick > span.startTick;
-  }).sort(function(a, b){
-    return a.startTick - b.startTick;
-  });
-  for (var i = 0; i < sorted.length; i++){
-    var span = sorted[i];
-    if (!out.length || span.startTick > out[out.length - 1].endTick){
-      out.push(span);
-      continue;
-    }
-    if (span.endTick > out[out.length - 1].endTick){
-      out[out.length - 1].endTick = span.endTick;
-    }
-  }
-  return out;
-}
-
-function _expandEclipseTickSpans(spans, expandTicks, minTick, maxTick){
-  expandTicks = Math.max(0, expandTicks|0);
-  return _mergeEclipseTickSpans((spans || []).map(function(span){
-    return {
-      startTick: span.startTick - expandTicks,
-      endTick: span.endTick + expandTicks
-    };
-  }), minTick, maxTick);
-}
-
-function _sampleEclipseCandidateSpans(sys, descriptor, sampleStartTick, sampleEndTick, stepTicks, threshold){
-  var spans = [];
-  for (var bucketStart = sampleStartTick; bucketStart < sampleEndTick; bucketStart += stepTicks){
-    var midpointTick = bucketStart + Math.floor(stepTicks / 2);
-    if (_eclipseCandidateDistance(sys, descriptor, _eclipseTickToSerial(midpointTick)) <= threshold){
-      spans.push({
-        startTick: bucketStart,
-        endTick: Math.min(sampleEndTick, bucketStart + stepTicks)
-      });
-    }
-  }
-  return _mergeEclipseTickSpans(spans, sampleStartTick, sampleEndTick);
-}
-
-function _scanEclipseDescriptorSpans(sys, descriptor, spans, serial, windowStartTick, windowEndTick){
-  var eclipses = [];
-  var seen = Object.create(null);
-  var coveredUntilTick = windowStartTick - 1;
-
-  function _pushFinished(startTick, endTick, peak){
-    var finished = _finalizeEclipseEvent(sys, _eclipseTickToSerial(startTick), _eclipseTickToSerial(endTick), peak);
-    if (!finished || finished.startT >= serial + 1 || finished.endT < serial || seen[finished.id]) return;
-    seen[finished.id] = 1;
-    eclipses.push(finished);
-  }
-
-  for (var si = 0; si < spans.length; si++){
-    var span = spans[si];
-    if (!span || span.endTick <= span.startTick) continue;
-    var scanStartTick = Math.max(windowStartTick, span.startTick, coveredUntilTick + 1);
-    var scanEndTick = Math.min(windowEndTick, span.endTick);
-    if (scanEndTick < scanStartTick) continue;
-    var active = false;
-    var startTick = 0;
-    var endTick = 0;
-    var peak = null;
-
-    for (var tick = scanStartTick; tick <= scanEndTick; tick++){
-      var metrics = _eclipseMetricsAt(sys, descriptor, _eclipseTickToSerial(tick));
-      var cover = metrics ? metrics.cover : 0;
-      if (cover > 0){
-        if (!active){
-          active = true;
-          startTick = tick;
-          peak = { t: _eclipseTickToSerial(tick), metrics: metrics };
-          if (tick === scanStartTick){
-            for (var backTick = tick - 1; backTick >= windowStartTick; backTick--){
-              var backMetrics = _eclipseMetricsAt(sys, descriptor, _eclipseTickToSerial(backTick));
-              var backCover = backMetrics ? backMetrics.cover : 0;
-              if (backCover <= 0){
-                startTick = backTick + 1;
-                break;
-              }
-              startTick = backTick;
-              if (!peak || backCover > (peak.metrics.cover || 0)){
-                peak = { t: _eclipseTickToSerial(backTick), metrics: backMetrics };
-              }
-            }
-          }
-        }
-        endTick = tick;
-        if (!peak || cover > (peak.metrics.cover || 0)){
-          peak = { t: _eclipseTickToSerial(tick), metrics: metrics };
-        }
-      } else if (active){
-        coveredUntilTick = Math.max(coveredUntilTick, endTick);
-        _pushFinished(startTick, endTick, peak);
-        active = false;
-        peak = null;
-      }
-    }
-
-    if (active){
-      for (var fTick = scanEndTick + 1; fTick <= windowEndTick; fTick++){
-        var fMetrics = _eclipseMetricsAt(sys, descriptor, _eclipseTickToSerial(fTick));
-        var fCover = fMetrics ? fMetrics.cover : 0;
-        if (fCover <= 0) break;
-        endTick = fTick;
-        if (!peak || fCover > (peak.metrics.cover || 0)){
-          peak = { t: _eclipseTickToSerial(fTick), metrics: fMetrics };
-        }
-      }
-      coveredUntilTick = Math.max(coveredUntilTick, endTick);
-      _pushFinished(startTick, endTick, peak);
-    }
-  }
-
-  return eclipses;
-}
-
-export function _eclipsePeakSkyLabel(sys, moonName, t){
-  var moon = _moonByName(sys, moonName);
-  if (!moon) return null;
-  var frac = ((t % 1) + 1) % 1;
-  var alt = _moonAltitude(moon, t, frac);
-  var cat = _moonVisCategory(alt);
-  if (cat === 'below') return null;
-  return (MOON_VIS_LABELS[cat] || {}).label || null;
-}
-
-export function _eclipseCacheKey(serial){
-  var st = ensureSettings();
-  var ms = getMoonState();
-  return [
-    st.calendarSystem || '',
-    serial|0,
-    ms.systemSeed || '',
-    JSON.stringify(ms.gmAnchors || {}),
-    ms.modelRevision || 1
-  ].join('|');
-}
-
-export function _finalizeEclipseEvent(sys, startT, endT, peak){
-  if (!peak || !peak.metrics) return null;
-  var cover = _clamp01(peak.metrics.cover || 0);
-  if (cover <= 0) return null;
-
-  var peakSkyLabel = _eclipsePeakSkyLabel(sys, peak.metrics.skyMoon, peak.t);
-  if (!peakSkyLabel) return null;
-
-  var sizeRatio = (peak.metrics.occludingDiameter || 0) / Math.max(0.0001, peak.metrics.occludedDiameter || 0);
-  var typeLabel = (cover > 0.98) ? 'Total Eclipse' : (sizeRatio > 0.75 ? 'Partial Eclipse' : 'Transit');
-
-  return {
-    id: [peak.metrics.occulting, peak.metrics.occluded, Math.round(peak.t * 96)].join('|'),
-    occulting: peak.metrics.occulting,
-    occluded: peak.metrics.occluded,
-    typeLabel: typeLabel,
-    startT: startT,
-    peakT: peak.t,
-    endT: endT,
-    startDay: Math.floor(startT),
-    peakDay: Math.floor(peak.t),
-    endDay: Math.floor(endT),
-    startBucket: _eclipseTimeBlock(startT),
-    peakBucket: _eclipseTimeBlock(peak.t),
-    endBucket: _eclipseTimeBlock(endT),
-    peakCoverage: cover,
-    peakCoveragePct: Math.max(1, Math.round(cover * 100)),
-    sizeRatio: sizeRatio,
-    sizePct: Math.max(1, Math.round(sizeRatio * 100)),
-    peakSkyLabel: peakSkyLabel
-  };
-}
-
-export function _eclipseTimingClause(kind, event, serial){
-  var bucketLabel = 'unknown';
-  var day = event[kind + 'Day'];
-  if (kind === 'start'){
-    if (day < serial) return 'Began yesterday in the ' + bucketLabel;
-    if (day > serial) return 'Beginning tomorrow in the ' + bucketLabel;
-    return 'Beginning in the ' + bucketLabel;
-  }
-  if (kind === 'peak'){
-    if (day < serial) return 'Peaked yesterday in the ' + bucketLabel + ' while ' + event.peakSkyLabel;
-    if (day > serial) return 'Peaking tomorrow in the ' + bucketLabel + ' while ' + event.peakSkyLabel;
-    return 'Peaking in the ' + bucketLabel + ' while ' + event.peakSkyLabel;
-  }
-  if (day < serial) return 'Ended yesterday in the ' + bucketLabel;
-  if (day > serial) return 'Ending tomorrow in the ' + bucketLabel;
-  return (event.startDay < serial ? 'Ending this ' : 'Ending in the ') + bucketLabel;
-}
-
-export function _eclipseLifecycleText(event, serial){
-  return [
-    _eclipseTimingClause('start', event, serial),
-    _eclipseTimingClause('peak', event, serial),
-    _eclipseTimingClause('end', event, serial)
-  ].join(', ') + '.';
-}
-
-export function _eclipseSentenceType(typeLabel){
-  return (typeLabel === 'Transit') ? 'Transit' : typeLabel.replace(' Eclipse', ' eclipse');
-}
-
-export function _eclipseRelativeSizeText(sizeRatio, occluded){
-  var ratio = Math.max(0, parseFloat(String(sizeRatio || 0)) || 0);
-  var target = String(occluded || '');
-  if (ratio >= 2){
-    return Math.max(2, Math.floor(ratio)) + 'x as wide as ' + target;
-  }
-  return Math.max(1, Math.round(ratio * 100)) + '% as wide as ' + target;
-}
-
-function _eclipseMiniCalLabel(event){
-  return _eclipseSentenceType(event.typeLabel) + ' of ' + event.occluded + ' by ' + event.occulting +
-    ', covering ' + event.peakCoveragePct + '% of ' + event.occluded + '. ' +
-    event.occulting + ' appears ' + _eclipseRelativeSizeText(event.sizeRatio, event.occluded) + '.';
-}
-
-function _moonMiniCalEclipseEvents(serial, eclipses, singleFill){
-  if (!Array.isArray(eclipses) || !eclipses.length) return [];
-  var evt: any = {
-    serial: serial|0,
-    name: 'Eclipses: ' + eclipses.map(_eclipseMiniCalLabel).join(', '),
-    color: '#9575CD',
-    isEclipse: true
-  };
-  if (!singleFill) evt.dotOnly = true;
-  return [evt];
-}
-
-function _mergeKnownMoonHistoryEclipses(serial, eclipses){
-  var ms = getMoonState();
-  var history = _moonHistoryState();
-  var key = String(serial|0);
-  var day = history.bySerial[key];
-  if (!day || day.modelRevision !== ms.modelRevision) return;
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons || !sys.moons.length) return;
-  var baseEvents = Array.isArray(day.miniCalEvents) ? day.miniCalEvents.filter(function(evt){
-    return !_isMoonEclipseMiniCalEvent(evt);
-  }) : [];
-  day.miniCalEvents = _cloneMoonMiniCalEvents(baseEvents.concat(
-    _moonMiniCalEclipseEvents(serial, eclipses, _isSingleFillMoon(sys))
-  ));
-  history.bySerial[key] = day;
-  ms.recentHistory = _reindexMoonHistory(history);
-}
-
-// Eclipse engine reference: brute-force exact overlap scan across the full
-// 3-day window surrounding the requested serial.
-export function _getEclipsesBruteforce(serial){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false) return [];
-
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return [];
-
-  serial = serial|0;
-  moonEnsureSequences(serial, 3);
-
-  var eclipses = [];
-  var descriptors = _eclipseDescriptors(sys);
-  var windowStartTick = (serial - 1) * ECLIPSE_TICKS_PER_DAY;
-  var windowEndTick = (serial + 2) * ECLIPSE_TICKS_PER_DAY;
-  var fullWindow = [{ startTick: windowStartTick, endTick: windowEndTick }];
-
-  for (var di = 0; di < descriptors.length; di++){
-    eclipses = eclipses.concat(_scanEclipseDescriptorSpans(
-      sys,
-      descriptors[di],
-      fullWindow,
-      serial,
-      windowStartTick,
-      windowEndTick
-    ));
-  }
-
-  eclipses.sort(function(x, y){ return x.peakT - y.peakT; });
-  return eclipses;
-}
-
-export function _getEclipsesStaged(serial){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false) return [];
-
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return [];
-
-  serial = serial|0;
-  moonEnsureSequences(serial, 3);
-
-  var eclipses = [];
-  var descriptors = _eclipseDescriptors(sys);
-  var windowStartTick = (serial - 1) * ECLIPSE_TICKS_PER_DAY;
-  var windowEndTick = (serial + 2) * ECLIPSE_TICKS_PER_DAY;
-
-  for (var di = 0; di < descriptors.length; di++){
-    var descriptor = descriptors[di];
-    var coarseSpans = _sampleEclipseCandidateSpans(
-      sys,
-      descriptor,
-      windowStartTick,
-      windowEndTick,
-      ECLIPSE_STAGE_BUCKET_TICKS,
-      ECLIPSE_STAGE_COARSE_THRESHOLD
-    );
-    if (!coarseSpans.length) continue;
-    coarseSpans = _expandEclipseTickSpans(
-      coarseSpans,
-      ECLIPSE_STAGE_BUCKET_TICKS,
-      windowStartTick,
-      windowEndTick
-    );
-
-    var hourlySpans = [];
-    for (var ci = 0; ci < coarseSpans.length; ci++){
-      hourlySpans = hourlySpans.concat(_sampleEclipseCandidateSpans(
-        sys,
-        descriptor,
-        coarseSpans[ci].startTick,
-        coarseSpans[ci].endTick,
-        ECLIPSE_STAGE_HOUR_TICKS,
-        ECLIPSE_STAGE_HOURLY_THRESHOLD
-      ));
-    }
-    if (!hourlySpans.length) continue;
-    hourlySpans = _expandEclipseTickSpans(
-      hourlySpans,
-      ECLIPSE_STAGE_HOUR_TICKS,
-      windowStartTick,
-      windowEndTick
-    );
-
-    eclipses = eclipses.concat(_scanEclipseDescriptorSpans(
-      sys,
-      descriptor,
-      hourlySpans,
-      serial,
-      windowStartTick,
-      windowEndTick
-    ));
-  }
-
-  eclipses.sort(function(x, y){ return x.peakT - y.peakT; });
-  return eclipses;
-}
-
-// Eclipse engine: staged candidate narrowing plus exact overlap refinement.
-export function getEclipses(serial){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false) return [];
-
-  // Roll20-only short-circuit: the per-day eclipse scan was the dominant
-  // cost in the Roll20 API sandbox (noticeable lag on `!cal` and date
-  // advance). __ROLL20__ is a compile-time constant injected by the
-  // Roll20 build (see build.mjs); undefined in tests, the web build,
-  // and any other consumer, so the engine runs unchanged everywhere else.
-  if (typeof __ROLL20__ !== 'undefined' && __ROLL20__) {
-    return [];
-  }
-
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return [];
-
-  serial = serial|0;
-  moonEnsureSequences(serial, 3);
-
-  var cacheKey = _eclipseCacheKey(serial);
-  if (_eclipseDayCache[cacheKey]){
-    _mergeKnownMoonHistoryEclipses(serial, _eclipseDayCache[cacheKey]);
-    return _eclipseDayCache[cacheKey];
-  }
-
-  var eclipses = _getEclipsesStaged(serial);
-  _eclipseDayCache[cacheKey] = eclipses;
-  _cullCacheIfLarge(_eclipseDayCache, 180);
-  _mergeKnownMoonHistoryEclipses(serial, eclipses);
-  return eclipses;
-}
-
-export function _eclipseNotableToday(serial){
-  var ecl = getEclipses(serial);
-  var notes = [];
-  for (var i = 0; i < ecl.length; i++){
-    var ev = ecl[i];
-    notes.push(
-      '\uD83C\uDF18 <b>' + esc(_eclipseSentenceType(ev.typeLabel)) + '</b> of ' +
-      esc(ev.occluded) + ' by ' + esc(ev.occulting) +
-      ', covering ' + ev.peakCoveragePct + '% of ' + esc(ev.occluded) + '. ' +
-      esc(ev.occulting) + ' appears ' + esc(_eclipseRelativeSizeText(ev.sizeRatio, ev.occluded)) + '. ' +
-      esc(_eclipseLifecycleText(ev, serial))
-    );
-  }
-  return notes;
-}
-
-
-// ---------------------------------------------------------------------------
-// 20l) Tidal influence — Zarantyr only
-// ---------------------------------------------------------------------------
-// By campaign design, only Zarantyr's magical mass influences tides.
-// Returns 0–10 scale: 0=neap, 10=extreme spring tide.
-
-export function getTidalIndex(serial){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false) return 5; // neutral
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return 5;
-  moonEnsureSequences();
-
-  var moon = null;
-  for (var i = 0; i < sys.moons.length; i++){
-    if (String(sys.moons[i].name || '').toLowerCase() === 'zarantyr'){
-      moon = sys.moons[i];
-      break;
-    }
-  }
-  if (!moon) return 5;
-
-  // Phase alignment: strongest at full/new, weakest at quarter.
-  var ph = moonPhaseAt(moon.name, serial);
-  var alignment = Math.abs(Math.cos(ph.illum * Math.PI));
-  var phaseScale = 0.2 + 0.8 * alignment;
-
-  // Distance swing from movement tuning modulates tidal strength.
-  var baseDist = moon.distance || 100000;
-  var distNow = _moonDistanceAt(moon, serial);
-  var distBoost = Math.pow(baseDist / Math.max(1, distNow), 3);
-  var raw = phaseScale * distBoost;
-
-  // Map expected range to 0..10 with clamping.
-  var tune = MOON_MOTION_TUNING[moon.name] || {};
-  var swing = Math.max(0, tune.distanceSwingPct || 0);
-  var minRaw = 0.2 * Math.pow(1 / (1 + swing), 3);
-  var maxRaw = 1.0 * Math.pow(1 / Math.max(0.01, (1 - swing)), 3);
-  var scaled = (raw - minRaw) / Math.max(0.0001, (maxRaw - minRaw));
-  return Math.max(0, Math.min(10, Math.round(scaled * 10)));
-}
-
-// Human-readable tidal description
-export function tidalLabel(index){
-  if (index <= 1) return 'Dead calm (neap)';
-  if (index <= 3) return 'Low tides';
-  if (index <= 5) return 'Normal tides';
-  if (index <= 7) return 'High tides';
-  if (index <= 8) return 'Spring tides';
-  return 'Extreme tides \u2014 coastal flooding risk';
-}
-
 
 // ---------------------------------------------------------------------------
 // 20m) Long Shadows — Mabar pulls the nearest moon(s) into darkness
@@ -4710,22 +3438,6 @@ export function handleMoonCommand(m, args){
     return whisper(m.who, loreHtml);
   }
 
-  // !cal moon sky [time] — available to everyone, shows which moons are visible
-  // time: active bucket when set, otherwise nighttime; explicit aliases like
-  // midnight/dawn/noon/dusk still normalize into the six canonical buckets.
-  if (sub === 'sky' || sub === 'visible' || sub === 'up'){
-    moonEnsureSequences();
-    var today = todaySerial();
-    // Time-of-day removed; sky view uses a fixed midnight reference.
-    var timeFrac = 0;
-    var visHtml = _moonVisibilityHtml(today, timeFrac);
-    if (!visHtml) visHtml = '<div style="opacity:.6;">No visibility data available.</div>';
-    return whisper(m.who, _menuBox(
-      '🌙 Sky View',
-      visHtml
-    ));
-  }
-
   // Player self-query mode (read-only, knowledge-limited).
   if (!playerIsGM(m.playerid)){
     if (sub === 'on' || sub === 'date'){
@@ -4953,8 +3665,7 @@ export function handleMoonCommand(m, args){
     var msEye = getMoonState();
     msEye.systemAnchors.dragonlanceNightOfTheEye = {
       serial: eyeSerial,
-      timeFrac: 0,
-      observerLatitudeDeg: OBSERVER_LATITUDE
+      timeFrac: 0
     };
     ['Solinari', 'Lunitari', 'Nuitari'].forEach(function(name){
       msEye.gmAnchors[name] = (msEye.gmAnchors[name] || []).filter(function(anchor){
@@ -4970,7 +3681,7 @@ export function handleMoonCommand(m, args){
     return whisper(
       m.who,
       'Night of the Eye anchored to <b>' + esc(String(eyePref.day)) + ' ' + esc(eyeMonthName) + ' ' + esc(String(eyePref.year)) + '</b> at midnight.<br>' +
-      '<span style="opacity:.6;font-size:.85em;">Solinari, Lunitari, and Nuitari will align overhead on that date.</span>'
+      '<span style="opacity:.6;font-size:.85em;">Solinari, Lunitari, and Nuitari align full on that date.</span>'
     );
   }
 

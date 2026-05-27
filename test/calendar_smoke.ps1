@@ -40,13 +40,9 @@ Assert-Match "label:\s*_ordinal\(day\) \+ ['""] of ['""] \+ String\(m\.name \|\|
 Assert-Match "if \(st\.calendarSystem === ['""]faerunian['""] && !mobj\.isIntercalary\)\s*\{\s*return \(\(\(parseInt\(d, 10\) \|\| 1\) - 1\) % wdlen \+ wdlen\) % wdlen;" 'Harptos weekday math should restart each tenday.'
 Assert-Match "_renderHarptosFestivalStrip\(y, mi, mobj, dimActive, extraEventsFn, includeCalendarEvents, ['""]full['""]\)" 'Harptos intercalary days should render with the festival strip helper.'
 
-Assert-Match "var typeLabel = .*['""]Total Eclipse['""] : .*['""]Partial Eclipse['""] : ['""]Transit['""];" 'Eclipse classification thresholds should match the task requirements.'
-Assert-Match "return \[\s*_eclipseTimingClause\(['""]start['""], event, serial\),\s*_eclipseTimingClause\(['""]peak['""], event, serial\),\s*_eclipseTimingClause\(['""]end['""], event, serial\)" 'Eclipse lifecycle text should include start, peak, and end timing.'
-Assert-Match "var dt = 1 / 96;" 'Eclipse sampling should use 15-minute increments.'
-Assert-Count 'function getEclipses\(' 1 'There should be exactly one active getEclipses implementation.'
-Assert-Count 'function _eclipseNotableToday\(' 1 'There should be exactly one active _eclipseNotableToday implementation.'
-Assert-Count '(?m)^function _getEclipsesLegacy\(' 0 'Legacy eclipse detector should no longer be active code.'
-Assert-Count '(?m)^function _eclipseNotableTodayLegacy\(' 0 'Legacy eclipse notable-text formatter should no longer be active code.'
+Assert-NotMatch '\bgetEclipses\b' 'Eclipse engine should be excised from calendar.js.'
+Assert-NotMatch '\b_moonVisibilityHtml\b' 'Sky-position renderer should be excised from calendar.js.'
+Assert-NotMatch '\bnighttimeLightHtml\b' 'Nighttime lighting renderer should be excised from calendar.js.'
 
 Assert-Match "Shorter off-cycle shifts are tied to Aryth full/new moons through the moontied generator\." 'Dolurrh notes should describe the implemented Aryth-linked generator.'
 Assert-Match "!cal moon send \(low\|medium\|high\) \[1w\|1m\|3m\|6m\|10m\|Nd\|Nw\]" 'Moon help text should advertise the supported week/day range tokens.'

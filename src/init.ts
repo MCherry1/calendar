@@ -11,7 +11,7 @@ import { _displayMonthDayParts, _subsystemIsVerbose, _subsystemVerbosityValue, a
 import { _todayAllHtml } from './today.js';
 import { notifySetupStatusOnReady } from './setup.js';
 import { register } from './boot-register.js';
-import { MOON_SYSTEMS, _diskOverlapFraction, _eberronMoonCore, _eclipseLifecycleText, _eclipseMetricsAt, _eclipseNotableToday, _eclipseTimeBlock, _finalizeEclipseEvent, _moonHashStr, getEclipses, getMoonState, moonEnsureSequences, moonPhaseAt, nighttimeLightCondition, nighttimeLux } from './moon.js';
+import { MOON_SYSTEMS, _moonHashStr, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { refreshAllPersistentViews } from './persistent-views.js';
 
 
@@ -105,9 +105,6 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
     moonPhaseAt:         moonPhaseAt,
     moonEnsureSequences: moonEnsureSequences,
     MOON_SYSTEMS:        MOON_SYSTEMS,
-    _eberronMoonCore:    _eberronMoonCore,
-    nighttimeLux:        nighttimeLux,
-    nighttimeLightCondition: nighttimeLightCondition,
 
     // verbosity
     _subsystemIsVerbose:    _subsystemIsVerbose,
@@ -115,15 +112,6 @@ if (typeof globalThis !== 'undefined' && (globalThis as any).__CALENDAR_TEST_MOD
 
     // today-view helpers
     _todayAllHtml:          _todayAllHtml,
-
-    // eclipse
-    _diskOverlapFraction:    _diskOverlapFraction,
-    _eclipseTimeBlock:       _eclipseTimeBlock,
-    _eclipseMetricsAt:       _eclipseMetricsAt,
-    _finalizeEclipseEvent:   _finalizeEclipseEvent,
-    _eclipseLifecycleText:   _eclipseLifecycleText,
-    _eclipseNotableToday:    _eclipseNotableToday,
-    getEclipses:             getEclipses,
 
     // harptos
     weekStartSerial:         weekStartSerial,
