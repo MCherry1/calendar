@@ -683,7 +683,7 @@ function _setupWaitingHtml(){
 
 function _setupWelcomeHtml(){
   return _menuBox('Calendar Setup',
-    '<div style="margin-bottom:6px;">Welcome to Calendar! It looks like this is the first time Calendar has been used in this game. Would you like to initialize it?</div>' +
+    '<div style="margin-bottom:6px;">Welcome to Party Buff\'s Calendar! It looks like this is the first time the calendar has been used in this game. Would you like to initialize it?</div>' +
     button('Yes', 'setup start') + ' ' + button('No', 'setup dismiss')
   );
 }

@@ -11,7 +11,10 @@ import { commands } from './today.js';
  * not exposed in menus. See README.md for guidance on each value.
  * ==========================================================================*/
 
-export var script_name = 'Calendar';
+// User-visible "speaker" name in Roll20 chat. Brand-facing.
+export var script_name = 'Party Buff Calendar';
+// Roll20 state key. DO NOT rename — would orphan existing saved data for
+// any GM whose game has previously persisted calendar state.
 export var state_name = 'CALENDAR';
 
 /* --- Calendar name sets ---------------------------------------------------*/

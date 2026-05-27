@@ -70,7 +70,7 @@ describe("Setup onboarding", () => {
     notifySetupStatusOnReady();
     const msg = lastChat();
     assert(msg);
-    assert(msg.msg.includes("Welcome to Calendar! It looks like this is the first time Calendar has been used in this game. Would you like to initialize it?"));
+    assert(msg.msg.includes("Welcome to Party Buff's Calendar! It looks like this is the first time the calendar has been used in this game. Would you like to initialize it?"));
     assertEquals(msg.opts.noarchive, true);
   });
 
