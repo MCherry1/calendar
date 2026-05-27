@@ -5,11 +5,9 @@ import { _contrast, _cullCacheIfLarge, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _deliverAdditionalCalendarRange, buildAdditionalRangesCommand } from './events.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
-import { bucketLabel, bucketMidpointTimeFrac, daylightStatusForSerial, effectiveTimeBucket, isTimeOfDayActive, normalizeTimeBucketKey, solarProfileForSerial } from './time-of-day.js';
 import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
 import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
-import { bucketLabel as _eclipseBucketLabel } from './time-of-day.js';
 import { _getPlaneData, _planarYearDays, getActivePlanarEffects, getPlanarState, getPlanesState } from './planes.js';
 import { buildSkySceneFromResolved, moonAltitudeDeg, moonAzimuthDeg, moonCompass16, moonHourAngleDeg, moonSkyPositionCategory } from './showcase/sky-scene.js';
 import { getWorld } from './worlds/index.js';
@@ -867,9 +865,8 @@ export function _serialDayMidpoint(serial){
 }
 
 export function _solarTransitionSerial(serial, transition){
-  var solar = solarProfileForSerial(serial);
-  if (!solar) return Math.floor(serial);
-  var hour = (transition === 'sunset') ? solar.sunset : solar.sunrise;
+  // Time-of-day removed; use a default 6am / 6pm split for long-shadows window math.
+  var hour = (transition === 'sunset') ? 18 : 6;
   return Math.floor(serial) + (hour / 24);
 }
 
@@ -2998,18 +2995,7 @@ function _formatSolarHour(hour){
 }
 
 export function currentLightSnapshot(serial, precipStage?){
-  var daylight = daylightStatusForSerial(serial);
-  if (isTimeOfDayActive() && daylight.daylit){
-    return {
-      mode: 'day',
-      emoji: '',
-      label: 'Daylight',
-      note: 'Natural daylight. No vision restrictions.',
-      bucketLabel: daylight.bucketLabel,
-      solar: daylight.solar
-    };
-  }
-
+  // Time-of-day removed; light snapshot always falls through to nighttime.
   var result = nighttimeLux(serial, precipStage);
   var cond = nighttimeLightCondition(result.total);
   return {
@@ -3020,23 +3006,12 @@ export function currentLightSnapshot(serial, precipStage?){
     shadowNote: cond.shadowNote,
     result: result,
     cond: cond,
-    solar: daylight.solar
+    solar: null
   };
 }
 // Build the current lighting HTML block for the Today panel.
 export function nighttimeLightHtml(serial){
   var snap = currentLightSnapshot(serial);
-  if (snap.mode === 'day'){
-    return '<div style="margin-bottom:4px;">' +
-      '<b>' + (snap.emoji ? esc(snap.emoji) + ' ' : '') + esc(snap.label) + '</b>' +
-      '</div>' +
-      '<div style="font-size:.88em;margin:2px 0;">' + esc(snap.note) + '</div>' +
-      '<div style="font-size:.82em;opacity:.55;margin-top:3px;">' +
-      'Sunrise ~' + esc(_formatSolarHour(snap.solar.sunrise)) +
-      ' • Sunset ~' + esc(_formatSolarHour(snap.solar.sunset)) +
-      '</div>';
-  }
-
   var result = snap.result;
   var cond = snap.cond;
 
@@ -3326,7 +3301,7 @@ export function _moonVisibilityHtml(serial, timeFrac, bucket?){
   var all = _moonVisibilityAll(serial, timeFrac);
   if (!all.length) return '';
   var dateLabel = dateLabelFromSerial(serial);
-  var timeLabel = bucketLabel(bucket || '');
+  var timeLabel = '';
   var approxHour = Math.round((((timeFrac % 1) + 1) % 1) * 24) % 24;
   var hour12 = approxHour % 12 || 12;
   var ampm = approxHour >= 12 ? 'pm' : 'am';
@@ -3728,7 +3703,7 @@ export function _finalizeEclipseEvent(sys, startT, endT, peak){
 }
 
 export function _eclipseTimingClause(kind, event, serial){
-  var bucketLabel = _eclipseBucketLabel(event[kind + 'Bucket']) || 'unknown';
+  var bucketLabel = 'unknown';
   var day = event[kind + 'Day'];
   if (kind === 'start'){
     if (day < serial) return 'Began yesterday in the ' + bucketLabel;
@@ -4741,22 +4716,13 @@ export function handleMoonCommand(m, args){
   if (sub === 'sky' || sub === 'visible' || sub === 'up'){
     moonEnsureSequences();
     var today = todaySerial();
-    var bucket = normalizeTimeBucketKey(args.slice(2).join(' ')) || effectiveTimeBucket('nighttime');
-    var timeFrac = bucketMidpointTimeFrac(bucket);
-    var visHtml = _moonVisibilityHtml(today, timeFrac, bucket);
+    // Time-of-day removed; sky view uses a fixed midnight reference.
+    var timeFrac = 0;
+    var visHtml = _moonVisibilityHtml(today, timeFrac);
     if (!visHtml) visHtml = '<div style="opacity:.6;">No visibility data available.</div>';
-    var timeButtons = [
-      button('Early','moon sky early_morning'),
-      button('Morning','moon sky morning'),
-      button('Afternoon','moon sky afternoon'),
-      button('Evening','moon sky evening'),
-      button('Night','moon sky nighttime'),
-      button('Middle','moon sky middle_of_night')
-    ].join(' ');
     return whisper(m.who, _menuBox(
       '🌙 Sky View',
-      visHtml +
-      '<div style="margin-top:6px;font-size:.82em;">' + timeButtons + '</div>'
+      visHtml
     ));
   }
 

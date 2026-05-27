@@ -4,8 +4,7 @@ import { ensureSettings, getCal } from './state.js';
 import { todaySerial } from './date-math.js';
 import { eventDisplayName, occurrencesInRange } from './events.js';
 import { button, esc } from './rendering.js';
-import { _displayMonthDayParts, _menuBox, _timeOfDayStatusHtml, currentDateLabel, sendCurrentDate, taskCardHtml } from './ui.js';
-import { isTimeOfDayActive } from './time-of-day.js';
+import { _displayMonthDayParts, _menuBox, currentDateLabel, sendCurrentDate, taskCardHtml } from './ui.js';
 import { invokeEventSub } from './today.js';
 import { MOON_SYSTEMS, _eclipseNotableToday, _getMoonSys, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _normalizePlaneRevealTier, _planarYearDays, _planesTodaySummaryHtml, getPlanarState, getPlanesState } from './planes.js';
@@ -81,7 +80,7 @@ export function _playerTodayHtml(playerid){
 
   sections.push(taskCardHtml(
     'Date',
-    '<b>' + esc(currentDateLabel()) + '</b>' + (isTimeOfDayActive() ? '<div style="margin-top:3px;">' + _timeOfDayStatusHtml('font-size:.82em;opacity:.72;margin:0;') + '</div>' : ''),
+    '<b>' + esc(currentDateLabel()) + '</b>',
     [
       button('Calendar','show month')
     ]
