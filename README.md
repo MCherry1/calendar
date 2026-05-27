@@ -94,7 +94,7 @@ This repo also has a separate release workflow for permanent downloads.
 - CI artifacts are for normal day-to-day builds
 - GitHub Releases are for stable versioned builds you may want to keep and come back to later
 
-When you push a version tag like `v3.0.1`, GitHub Actions will:
+When you push a version tag like `v0.9.0`, GitHub Actions will:
 
 1. Typecheck, test, and build the project again
 2. Create a GitHub Release for that tag if one does not exist yet
@@ -105,11 +105,19 @@ That means you do not need to commit `calendar.js` to git just to have a durable
 Typical release flow:
 
 ```bash
-git tag v3.0.1
-git push origin v3.0.1
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 Then open the repo's **Releases** page, download the attached `calendar.js`, and paste it into Roll20.
+
+The permalink for the latest release is:
+
+```
+https://github.com/MCherry1/calendar/releases/latest/download/calendar.js
+```
+
+This URL always serves the most recently published release's `calendar.js`, so GMs can bookmark it and re-download whenever a new version is tagged.
 
 [Return to Table of Contents](#table-of-contents)
 
