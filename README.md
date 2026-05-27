@@ -1,4 +1,4 @@
-# Calendar — Roll20 API Script
+# Party Buff's Roll20 Calendar
 
 A Roll20 API script for managing a fantasy campaign calendar with:
 - graphical mini-calendar displayed in chat, with toggleable subsystems:
@@ -7,6 +7,8 @@ A Roll20 API script for managing a fantasy campaign calendar with:
 	- planar movements (Eberron setting)
 
 **Supports:** Eberron, Forgotten Realms, Greyhawk, Dragonlance, Exandria, Mystara, Birthright, Earth (Gregorian)
+
+This script is the in-game companion to the [Party Buff](https://github.com/partybuff) calendar app — the web app handles the wide-canvas planning surface (rich weather, time-of-day, theming, custom events) while Roll20 is the at-the-table view. Future versions will let the two link so dates and events sync between them automatically.
 
 ---
 
