@@ -2137,7 +2137,6 @@ export function moonPanelParts(serialOverride?){
     return [_menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>')];
   }
 
-  var verbose = _subsystemIsVerbose();
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
   var navRow = '<div style="margin:3px 0 6px 0;">'+
@@ -2147,29 +2146,14 @@ export function moonPanelParts(serialOverride?){
 
   var parts = [];
 
-  // Calendar grid — always shown
-  {
-    var mr = _monthRangeFromSerial(today);
-    var moonMiniEvents = _moonMiniCalEvents(mr.start, mr.end, 'high');
-    var moonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', mr.start, mr.end, moonMiniEvents);
-    var calBody = navRow +
-      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
-      moonMiniCal +
-      _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
-    if (verbose){
-      calBody += '<div style="font-size:.78em;opacity:.6;margin:0 0 6px 0;">New/full phases are marked in moon colors. Hover days for details.</div>';
-    }
-    parts.push(_menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), calBody));
-  }
-
-  // Part 2: Moon list rows — always appended below calendar
+  // Text list: nav + today summary + moon rows + ascendant/dim
   {
     var rows = sys.moons.map(function(moon){
       return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
     });
     var listSections = [rows.join('')];
 
-    // Ascendant Moons / Dim Moons (Eberron only — planes associated with moons)
+    // Ascendant Moons / Dim Moons (Eberron only)
     if (ensureSettings().planesEnabled !== false){
       var ascendantMoons = [];
       var dimMoons = [];
@@ -2196,199 +2180,83 @@ export function moonPanelParts(serialOverride?){
       }
     }
 
-    parts.push(_menuBox('\uD83C\uDF19 Moon Overview', listSections.join('')));
+    var calBody = navRow +
+      _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
+      listSections.join('');
+    parts.push(_menuBox('🌙 Moons — ' + esc(dateLabel), calBody));
   }
 
-  // Part 3: GM controls (always separate message to stay within size limits)
-  var tierLabel = titleCase(_normalizeMoonRevealTier(ms.revealTier || 'medium'));
+  // GM controls (separate message to stay within Roll20 size limits)
+  {
+    var seedLine = '';
+    if (sys.moons && sys.moons.length){
+      var activeSeed = (ms.systemSeed != null && String(ms.systemSeed).trim() !== '')
+        ? String(ms.systemSeed)
+        : 'default';
+      seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:5px;">'+
+        'Seed: <code>'+esc(activeSeed)+'</code>'+
+      '</div>';
+    }
 
-  var seedLine = '';
-  if (sys.moons && sys.moons.length){
-    var activeSeed = (ms.systemSeed != null && String(ms.systemSeed).trim() !== '')
-      ? String(ms.systemSeed)
-      : 'default';
-    seedLine = '<div style="font-size:.78em;opacity:.5;margin-top:5px;">'+
-      'Seed: <code>'+esc(activeSeed)+'</code>'+
-    '</div>';
+    // Phase shifts (set full/new) are web-app-only; Roll20 only exposes toggle + reseed.
+    var manageChoices = 'Toggle Moons On/Off,toggle|Reseed Moons,reseed';
+    if (String(st.calendarSystem || '').toLowerCase() === 'dragonlance'){
+      manageChoices += '|Set Night of the Eye,eye ?\\{Date dd or mm dd or mm dd yyyy\\}|Reset Night of the Eye,eye reset';
+    }
+    var gmControls = '<div style="margin:4px 0;">' +
+      button('Management','moon manage ?{Action|' + manageChoices + '}') +
+      '</div>';
+    gmControls += '<div style="margin:4px 0;">' +
+      button('📌 Lore','moon lore') +
+      '</div>';
+    gmControls += seedLine +
+      '<div style="margin-top:7px;">' + button('⬅️ Back','show') + '</div>';
+    parts.push(_menuBox('🌙 GM Controls', gmControls));
   }
-
-  var sendBtns = MOON_REVEAL_PRESETS.map(function(p){
-    return button(p.label + ' (' + p.dc + ')', 'moon send medium ' + p.days + 'd');
-  }).join(' ');
-  var highSendBtns = MOON_REVEAL_PRESETS.map(function(p){
-    return button(p.label, 'moon send high ' + p.days + 'd');
-  }).join(' ');
-
-  var moonQueryOpts = sys.moons.map(function(moon){ return moon.name; }).join('|');
-  var moonDropdown = button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + moonQueryOpts + '}');
-
-  // Send to Players
-  var gmControls = '<div style="margin:4px 0;">' +
-    button('Send to Players','moon send medium ?{Horizon|1m|3m|6m|10m}') +
-    '</div>';
-
-  // Spacer
-  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
-
-  // Specific Moons dropdown
-  gmControls += '<div style="margin:4px 0;">' + moonDropdown + '</div>';
-
-  // Spacer
-  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
-
-  // Medium Forecast buttons (1/3/6/10 month)
-  gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">Medium Forecast:</div>' +
-    '<div style="margin-bottom:4px;">' +
-    button('1 month','moon send medium 1m')+' '+
-    button('3 months','moon send medium 3m')+' '+
-    button('6 months','moon send medium 6m')+' '+
-    button('10 months','moon send medium 10m')+
-    '</div>';
-
-  // High Forecast buttons (1/3/6/10 month)
-  gmControls += '<div style="font-size:.85em;opacity:.8;margin-bottom:2px;">High Forecast:</div>' +
-    '<div style="margin-bottom:4px;">' +
-    button('1 month','moon send high 1m')+' '+
-    button('3 months','moon send high 3m')+' '+
-    button('6 months','moon send high 6m')+' '+
-    button('10 months','moon send high 10m')+
-    '</div>';
-
-  // Spacer
-  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
-
-  // Additional Ranges
-  gmControls += '<div style="margin:4px 0;">' +
-    button('Additional Ranges', buildAdditionalRangesCommand('moon ranges', today)) +
-    '</div>';
-
-  // Spacer
-  gmControls += '<div style="border-top:1px solid rgba(0,0,0,.08);margin:6px 0 4px 0;"></div>';
-
-  // Management dropdown
-  var manageChoices = 'Toggle Moons On/Off,toggle|Reseed Moons,reseed|Set New,setnew ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}|Set Full,setfull ?\\{Moon|' + moonQueryOpts + '\\} ?\\{Date dd or mm dd or mm dd yyyy\\}';
-  if (String(st.calendarSystem || '').toLowerCase() === 'dragonlance'){
-    manageChoices += '|Set Night of the Eye,eye ?\\{Date dd or mm dd or mm dd yyyy\\}|Reset Night of the Eye,eye reset';
-  }
-  manageChoices += '|Bind Moon Page,page bind ?\\{Moon Phase page name|Moon Phase\\}|Refresh Moon Page,page refresh|Show Moon Page,page show';
-  gmControls += '<div style="margin:4px 0;">' +
-    button('Management','moon manage ?{Action|' + manageChoices + '}') +
-    '</div>';
-
-  // Utility buttons
-  gmControls += '<div style="margin:4px 0;">'+
-    button('📖 Lore','moon lore')+
-    '</div>';
-  var gmHandoutLinks = [
-    handoutButton('Open Lunar Handout', 'lunar'),
-    handoutButton('Lunar Mechanics', 'lunar:mechanics')
-  ].filter(Boolean).join(' ');
-  if (gmHandoutLinks){
-    gmControls += '<div style="margin:4px 0;">' + gmHandoutLinks + '</div>';
-  }
-
-  gmControls += '<div style="font-size:.75em;opacity:.45;margin-top:3px;">'+
-    'Player tier: '+esc(tierLabel)+
-    '</div>'+
-    seedLine+
-    '<div style="margin-top:7px;">'+ button('\u2B05\uFE0F Back','show') +'</div>';
-
-  parts.push(_menuBox('\uD83C\uDF19 GM Controls', gmControls));
 
   return parts;
 }
 
-// Player panel -- calendar grid is the primary view, minimal list
+// Player panel -- same text list as GM, no knowledge tiers in Roll20
 export function moonPlayerPanelHtml(serialOverride?){
   var st = ensureSettings();
   if (st.moonsEnabled === false){
-    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
+    return _menuBox('🌙 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
   }
 
-  var ms  = getMoonState();
   var cal = getCal();
   var cur = cal.current;
-  var tier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
-  var horizon = parseInt(ms.revealHorizonDays, 10) || 7;
   var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
-  moonEnsureSequences(today, horizon + 30);
+  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
   var dateLabel = dateLabelFromSerial(today);
 
   var sys = _getMoonSys();
   if (!sys){
-    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
+    return _menuBox('🌙 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
   }
 
-  // Calendar grid — always shown
-  var pmr = _monthRangeFromSerial(today);
-  var pMoonMiniEvents = _moonMiniCalEvents(pmr.start, pmr.end, tier, horizon);
-  var pMoonMiniCal = _renderSyntheticMiniCal('Lunar Calendar', pmr.start, pmr.end, pMoonMiniEvents);
-
-  // Navigation (within known horizon)
   var prevSer = _shiftSerialByMonth(today, -1);
   var nextSer = _shiftSerialByMonth(today, 1);
-  var knownStart = todaySerial();
-  var knownEnd = knownStart + horizon;
-  function _navBtn(serial, label){
-    if (serial < knownStart || serial > knownEnd){
-      return '<span style="opacity:.35;">'+esc(label)+'</span>';
-    }
-    return button(label, 'moon on '+_serialToDateSpec(serial));
-  }
   var navRow = '<div style="margin:3px 0 6px 0;">'+
-    _navBtn(prevSer, 'Show Previous')+' '+
-    _navBtn(nextSer, 'Show Next')+
+    button('Show Previous','moon on '+_serialToDateSpec(prevSer))+' '+
+    button('Show Next','moon on '+_serialToDateSpec(nextSer))+
     '</div>';
 
-  // Today summary + notable moons only (not all 12)
-  var body = navRow;
-  body += _moonTodaySummaryHtml(today, tier, horizon);
-  body += pMoonMiniCal;
-  body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
-
-  // Compact notable list: only moons at full, new, or ascending right now
-  // Each line includes the moon's title so players know what they're reading
-  var notableLines = [];
-  sys.moons.forEach(function(moon){
-    var peakType = _moonPeakPhaseDay(moon.name, today);
-    if (peakType === 'full'){
-      var _sp = _moonPhaseSpan(moon.name, today);
-      var _spStr = (_sp && _sp.totalDays > 1) ? ' Day ' + _sp.dayNum + '/' + _sp.totalDays : '';
-      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> Full' + esc(_spStr));
-    } else if (peakType === 'new'){
-      var ph = moonPhaseAt(moon.name, today);
-      var _sp2 = _moonPhaseSpan(moon.name, today);
-      var _spStr2 = (_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : '';
-      var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
-      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> New' + esc(_spStr2) + tag);
-    }
+  var rows = sys.moons.map(function(moon){
+    return _moonRowHtml(moon, today, 'high', MOON_PREDICTION_LIMITS.highMaxDays);
   });
-  if (notableLines.length){
-    body += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
-      notableLines.join('<br>') + '</div>';
-  } else {
-    body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
-  }
-  // Lore button
+
+  var body = navRow +
+    _moonTodaySummaryHtml(today, 'high', MOON_PREDICTION_LIMITS.highMaxDays) +
+    rows.join('');
+
   body += '<div style="margin-top:6px;">' +
-    button('📖 Moon Lore', 'moon lore') + ' ' +
-    button('Prompt !cal moon on', 'moon on ?{Date|'+_serialToDateSpec(today)+'}') +
+    button('📌 Moon Lore', 'moon lore') +
     '</div>';
-  var playerHandoutLinks = [
-    handoutButton('Open Lunar Handout', 'lunar'),
-    handoutButton('Lunar Mechanics', 'lunar:mechanics')
-  ].filter(Boolean).join(' ');
-  if (playerHandoutLinks){
-    body += '<div style="margin-top:6px;">' + playerHandoutLinks + '</div>';
-  }
 
-  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
-  if (srcLabel){
-    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
-  }
-
-  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
+  return _menuBox('🌙 Moons — ' + esc(dateLabel), body);
 }
+
 
 // Build multi-month moon mini-cal grid for handouts.
 function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal, useRecentHistory?){
@@ -3392,16 +3260,7 @@ export function handleMoonCommand(m, args){
     return whisper(m.who, moonSummaryHtml(playerIsGM(m.playerid)));
   }
 
-  if (sub === 'ranges'){
-    return _deliverAdditionalCalendarRange({
-      who: m.who,
-      args: args.slice(2),
-      dest: 'whisper',
-      render: function(spec){ return _moonRangeHtml(spec, playerIsGM(m.playerid)); }
-    });
-  }
-
-  // Anyone can view — players see their tier, GM sees exact
+  // Anyone can view — Roll20 shows the same info to GM and players.
   if (!sub || sub === 'show'){
     moonEnsureSequences();
     if (playerIsGM(m.playerid)){
@@ -3438,70 +3297,25 @@ export function handleMoonCommand(m, args){
     return whisper(m.who, loreHtml);
   }
 
-  // Player self-query mode (read-only, knowledge-limited).
+  // !cal moon on <dateSpec> — inspect moon states on a specific day (GM + players)
+  if (sub === 'on' || sub === 'date'){
+    var dateToksOn = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
+    var prefOn = parseDatePrefixForAdd(dateToksOn);
+    if (!prefOn){
+      return whisper(m.who, 'Usage: <code>!cal moon on &lt;dateSpec&gt;</code> (example: <code>!cal moon on Rhaan 14 998</code>)');
+    }
+    var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
+    moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
+    if (playerIsGM(m.playerid)){
+      return whisperParts(m.who, moonPanelParts(serialOn));
+    }
+    return whisper(m.who, moonPlayerPanelHtml(serialOn));
+  }
+
+  // Beyond this point, GM-only management. Players fall through to usage help.
   if (!playerIsGM(m.playerid)){
-    if (sub === 'on' || sub === 'date'){
-      var pDateToks = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
-      var pPref = parseDatePrefixForAdd(pDateToks);
-      if (!pPref){
-        return whisper(m.who, 'Usage: <code>!cal moon on &lt;dateSpec&gt;</code>');
-      }
-      var pSerial = toSerial(pPref.year, pPref.mHuman - 1, pPref.day);
-      var pToday = todaySerial();
-      var pHorizon = parseInt(getMoonState().revealHorizonDays, 10) || 7;
-      if (pSerial < pToday || pSerial > (pToday + pHorizon)){
-        return whisper(m.who, 'That date is beyond your lunar knowledge.');
-      }
-      moonEnsureSequences(pSerial, pHorizon + 30);
-      return whisper(m.who, moonPlayerPanelHtml(pSerial));
-    }
-    if (sub === 'view' || sub === 'cal'){
-      var pViewName = String(args[2] || '').trim();
-      var pViewSys = _getMoonSys();
-      var pTier = _normalizeMoonRevealTier(getMoonState().revealTier || 'medium');
-      var pHorizonView = parseInt(getMoonState().revealHorizonDays, 10) || 7;
-      if (!pViewName){
-        var pViewBtns = pViewSys.moons.map(function(moon){
-          return button(moon.name, 'moon view ' + moon.name);
-        });
-        return whisper(m.who, _menuBox('🌙 Moon Calendar',
-          '<div style="margin-bottom:4px;">Select a moon:</div>' +
-          pViewBtns.join(' ')
-        ));
-      }
-      var pViewMoon = _moonParseMoonName(pViewName, pViewSys);
-      if (!pViewMoon) return whisper(m.who, 'Unknown moon: <b>'+esc(pViewName)+'</b>.');
-      var pViewSerial = todaySerial();
-      if (args[3]){
-        var pViewDateToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
-        var pViewPref = parseDatePrefixForAdd(pViewDateToks);
-        if (pViewPref) pViewSerial = toSerial(pViewPref.year, pViewPref.mHuman - 1, pViewPref.day);
-      }
-      var pKnownStart = todaySerial();
-      var pKnownEnd = pKnownStart + pHorizonView;
-      if (pViewSerial < pKnownStart || pViewSerial > pKnownEnd){
-        return whisper(m.who, 'That date is beyond your lunar knowledge.');
-      }
-      moonEnsureSequences(pViewSerial, pHorizonView + 30);
-      var pCalBody = _singleMoonPlayerMiniCalHtml(pViewMoon, pViewSerial, pTier, pHorizonView);
-      var pPrevS = _shiftSerialByMonth(pViewSerial, -1);
-      var pNextS = _shiftSerialByMonth(pViewSerial, 1);
-      function _pViewNav(serial, label){
-        if (serial < pKnownStart || serial > pKnownEnd){
-          return '<span style="opacity:.35;">'+esc(label)+'</span>';
-        }
-        return button(label, 'moon view ' + pViewMoon + ' ' + _serialToDateSpec(serial));
-      }
-      var pViewNav = '<div style="margin:4px 0;">'+
-        _pViewNav(pPrevS, 'Show Previous')+' '+
-        _pViewNav(pNextS, 'Show Next')+
-        '</div>';
-      return whisper(m.who, _menuBox('🌙 '+esc(pViewMoon),
-        pViewNav + pCalBody
-      ));
-    }
     return whisper(m.who,
-      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon view &lt;name&gt;</code>'
+      'Moon: <code>!cal moon</code> &nbsp;·&nbsp; <code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; <code>!cal moon lore [name]</code>'
     );
   }
 
@@ -3520,26 +3334,6 @@ export function handleMoonCommand(m, args){
     return whisperParts(m.who, moonPanelParts());
   }
 
-  if (sub === 'page'){
-    var pageAction = String(args[2] || '').toLowerCase();
-    if (!pageAction || pageAction === 'bind'){
-      var pageName = args.slice(3).join(' ').trim() || 'Moon Phase';
-      var bindRes = bindMoonPageByName(pageName);
-      if (!bindRes.ok) return whisper(m.who, bindRes.message);
-      refreshMoonPage({ autoBind: true });
-      return whisper(m.who, bindRes.message);
-    }
-    if (pageAction === 'refresh'){
-      var refreshRes = refreshMoonPage({ autoBind: true });
-      return whisper(m.who, refreshRes.message);
-    }
-    if (pageAction === 'show'){
-      var showRes = showMoonPage();
-      return whisper(m.who, showRes.message);
-    }
-    return whisper(m.who, 'Usage: <code>!cal moon page bind &lt;page name&gt;</code> · <code>!cal moon page refresh</code> · <code>!cal moon page show</code>');
-  }
-
   if (sub === 'reseed'){
     var msReseed = getMoonState();
     var prevSeed = (msReseed.systemSeed != null && String(msReseed.systemSeed).trim() !== '')
@@ -3552,87 +3346,6 @@ export function handleMoonCommand(m, args){
     _refreshMoonPersistentViews();
     whisper(m.who, 'Moon sequences reseeded to <b>'+esc(nextSeed)+'</b>.');
     return whisperParts(m.who, moonPanelParts());
-  }
-
-  if (sub === 'setnew') sub = 'new';
-  if (sub === 'setfull') sub = 'full';
-
-  // !cal moon send <low|medium|high> [1w|1m|3m|6m|10m|Nd|Nw]
-  if (sub === 'send'){
-    var tierRaw = String(args[2] || '').toLowerCase();
-    if (!tierRaw)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
-    var tierArg = MOON_REVEAL_TIERS[tierRaw] ? tierRaw : null;
-    if (!tierArg)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
-    var reqHorizon = _parseMoonRevealRange(args[3], tierArg);
-    if (!reqHorizon)
-      return whisper(m.who, 'Usage: <code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code>');
-
-    moonEnsureSequences(todaySerial(), reqHorizon + 30);
-    var ms0  = getMoonState();
-    var cal0 = getCal();
-    var cur0 = cal0.current;
-    var today0 = toSerial(cur0.year, cur0.month, cur0.day_of_the_month);
-
-    // Upgrade reveal tier (never downgrade)
-    var curRank = MOON_REVEAL_TIERS[_normalizeMoonRevealTier(ms0.revealTier)] || 0;
-    var newRank = MOON_REVEAL_TIERS[tierArg] || 0;
-    if (newRank > curRank) ms0.revealTier = _normalizeMoonRevealTier(tierArg);
-    // Use the effective tier (may be higher than requested)
-    var effectiveTier = _normalizeMoonRevealTier(ms0.revealTier);
-    if (newRank > curRank){
-      ms0.revealHorizonDays = reqHorizon;
-    } else if (newRank === curRank){
-      ms0.revealHorizonDays = Math.max(parseInt(ms0.revealHorizonDays,10)||7, reqHorizon);
-    }
-    var effectiveHorizon = parseInt(ms0.revealHorizonDays, 10) || reqHorizon;
-
-    var sys0 = _getMoonSys();
-    if (!sys0) return whisper(m.who, 'No moon data for this calendar system.');
-
-    var rows0 = sys0.moons.map(function(moon){
-      return _moonRowHtml(moon, today0, effectiveTier, effectiveHorizon);
-    });
-
-    var srcLabel0 = MOON_SOURCE_LABELS[effectiveTier] || '';
-    var srcLine0  = srcLabel0
-      ? '<div style="font-size:.75em;opacity:.4;font-style:italic;margin-top:5px;">'+esc(srcLabel0)+'</div>'
-      : '';
-
-    sendToAll(_menuBox(
-      '\uD83C\uDF19 Lunar Forecast \u2014 ' + esc(currentDateLabel()),
-      rows0.join('') + srcLine0 +
-      '<div style="font-size:.75em;opacity:.4;margin-top:3px;">Forecast horizon: '+esc(_rangeLabel(effectiveHorizon))+'</div>'
-    ));
-
-    _refreshMoonPersistentViews();
-    warnGM('Sent '+titleCase(effectiveTier)+' lunar forecast to players ('+_rangeLabel(effectiveHorizon)+').');
-    return whisperParts(m.who, moonPanelParts());
-  }
-
-  // !cal moon on <dateSpec>  — inspect moon states on a specific day
-  if (sub === 'on' || sub === 'date'){
-    var dateToksOn = args.slice(2).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
-    var prefOn = parseDatePrefixForAdd(dateToksOn);
-    if (!prefOn){
-      return whisper(m.who, 'Usage: <code>!cal moon on &lt;dateSpec&gt;</code> (example: <code>!cal moon on Rhaan 14 998</code>)');
-    }
-    var serialOn = toSerial(prefOn.year, prefOn.mHuman - 1, prefOn.day);
-    moonEnsureSequences(serialOn, MOON_PREDICTION_LIMITS.highMaxDays);
-    return whisperParts(m.who, moonPanelParts(serialOn));
-  }
-
-  // !cal moon seed <word>
-  if (sub === 'seed'){
-    var word = String(args[2] || '').trim();
-    if (!word) return whisper(m.who, 'Usage: <code>!cal moon seed &lt;word&gt;</code>');
-    var ms = getMoonState();
-    ms.systemSeed = word;
-    invalidateMoonModel(false);
-    moonEnsureSequences();
-    _refreshMoonPersistentViews();
-    return whisper(m.who, 'System moon seed set to <b>'+esc(word)+'</b>. Sequences regenerated.');
   }
 
   // !cal moon eye <dateSpec>
@@ -3685,83 +3398,6 @@ export function handleMoonCommand(m, args){
     );
   }
 
-  // !cal moon full <MoonName> <dateSpec>
-  // !cal moon new  <MoonName> <dateSpec>
-  // dateSpec uses the same smart rules as !cal add:
-  //   14            -> next occurrence of day 14 in any month
-  //   Rhaan 14      -> next occurrence of Rhaan 14 (this or next year)
-  //   Rhaan 14 999  -> exact date: Rhaan 14, year 999
-  if (sub === 'full' || sub === 'new'){
-    var moonNameRaw = String(args[2] || '').trim();
-    if (!moonNameRaw)
-      return whisper(m.who,
-        'Usage: <code>!cal moon (full|new) &lt;MoonName&gt; &lt;dateSpec&gt;</code> '+
-        '— dateSpec: <code>14</code> or <code>Rhaan 14</code> or <code>Rhaan 14 999</code>'
-      );
-
-    var sys2  = _getMoonSys();
-    var mName = _moonParseMoonName(moonNameRaw, sys2);
-    if (!mName) return whisper(m.who, 'Unknown moon: <b>'+esc(moonNameRaw)+'</b>');
-
-    // Hand remaining tokens to the shared smart-date parser
-    var dateToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
-    var pref = parseDatePrefixForAdd(dateToks);
-    if (!pref)
-      return whisper(m.who,
-        'Could not parse date. Try: <code>!cal moon '+sub+' '+esc(mName)+' Rhaan 14</code>'
-      );
-
-    var cal2 = getCal();
-    var targetSerial = toSerial(pref.year, pref.mHuman - 1, pref.day);
-    var ms2 = getMoonState();
-    if (!ms2.gmAnchors[mName]) ms2.gmAnchors[mName] = [];
-    ms2.gmAnchors[mName].push({ serial: targetSerial, type: sub });
-    invalidateMoonModel(false);
-    moonEnsureSequences();
-    _refreshMoonPersistentViews();
-
-    var monthName = _displayMonthDayParts(pref.mHuman - 1, pref.day).monthName;
-    return whisper(m.who,
-      '<b>'+esc(mName)+'</b> will be <b>'+sub+'</b> on '+
-      esc(String(pref.day))+' '+esc(monthName)+' '+esc(String(pref.year))+'.<br>'+
-      '<span style="opacity:.6;font-size:.85em;">Sequence regenerated.</span>'
-    );
-  }
-
-  // !cal moon view <MoonName> [dateSpec]  — single-moon mini-calendar
-  if (sub === 'view' || sub === 'cal'){
-    var viewNameRaw = String(args[2] || '').trim();
-    var viewSys = _getMoonSys();
-    if (!viewNameRaw){
-      // Show dropdown picker for moon selection
-      var viewQueryOpts = viewSys.moons.map(function(moon){ return moon.name; }).join('|');
-      return whisper(m.who, _menuBox('🌙 Moon Calendar',
-        '<div style="margin-bottom:4px;">'+button('🌙 Show Specific Moon', 'moon view ?{Select Moon|' + viewQueryOpts + '}')+'</div>'
-      ));
-    }
-    var viewMoonName = _moonParseMoonName(viewNameRaw, viewSys);
-    if (!viewMoonName) return whisper(m.who, 'Unknown moon: <b>'+esc(viewNameRaw)+'</b>. Try <code>!cal moon view</code> for a list.');
-    // Optional date spec for navigating months
-    var viewSerial = todaySerial();
-    if (args[3]){
-      var viewDateToks = args.slice(3).map(function(t){ return String(t||'').trim(); }).filter(Boolean);
-      var viewPref = parseDatePrefixForAdd(viewDateToks);
-      if (viewPref) viewSerial = toSerial(viewPref.year, viewPref.mHuman - 1, viewPref.day);
-    }
-    moonEnsureSequences(viewSerial, 60);
-    var calBody = _singleMoonMiniCalHtml(viewMoonName, viewSerial);
-    var prevS = _shiftSerialByMonth(viewSerial, -1);
-    var nextS = _shiftSerialByMonth(viewSerial, 1);
-    var viewNav = '<div style="margin:4px 0;">'+
-      button('Show Previous','moon view '+viewMoonName+' '+_serialToDateSpec(prevS))+' '+
-      button('Show Next','moon view '+viewMoonName+' '+_serialToDateSpec(nextS))+
-      '</div>';
-    return whisper(m.who, _menuBox('🌙 '+esc(viewMoonName),
-      viewNav + calBody +
-      '<div style="margin-top:6px;">'+button('📖 Lore','moon lore '+viewMoonName)+'</div>'
-    ));
-  }
-
   // !cal moon reset [<MoonName>]  — remove GM phase overrides
   if (sub === 'reset'){
     var clearName = String(args[2] || '').trim();
@@ -3788,16 +3424,13 @@ export function handleMoonCommand(m, args){
   }
 
   whisper(m.who,
-    'Moon: <code>!cal moon</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon view &lt;name&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon send (low|medium|high) [1w|1m|3m|6m|10m|Nd|Nw]</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon page bind &lt;page name&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon page refresh</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon page show</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon seed &lt;word&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon eye &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon (full|new) &lt;name&gt; &lt;dateSpec&gt;</code> &nbsp;·&nbsp; '+
-    '<code>!cal moon reset [&lt;name&gt;]</code>'
+    'Moon: <code>!cal moon</code> &nbsp;·&nbsp; ' +
+    '<code>!cal moon on &lt;dateSpec&gt;</code> &nbsp;·&nbsp; ' +
+    '<code>!cal moon lore [name]</code> &nbsp;·&nbsp; ' +
+    '<code>!cal moon reseed</code> &nbsp;·&nbsp; ' +
+    '<code>!cal moon reset [name]</code>' +
+    (String(st.calendarSystem || '').toLowerCase() === 'dragonlance'
+      ? ' &nbsp;·&nbsp; <code>!cal moon eye &lt;dateSpec&gt;</code>'
+      : '')
   );
 }
