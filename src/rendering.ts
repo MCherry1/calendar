@@ -166,27 +166,25 @@ export function makeDayCtx(y, mi, d, dimActive, extraEventsFn, includeCalendarEv
     if (Array.isArray(add)) extraEvents = add;
   }
   var events = sortEventsByPriority((baseEvents || []).concat(extraEvents || []));
-  // Build tooltip: group by type (New/Full/Eclipse) with line breaks, or fallback to comma join
+  // Build tooltip: group by type (New/Full) with line breaks, or fallback to comma join
   var label = '';
   if (events.length){
     var names = events.map(eventDisplayName).filter(Boolean);
-    var grouped = { 'New': [], 'Full': [], 'Eclipse': [], other: [] };
+    var grouped = { 'New': [], 'Full': [], other: [] };
     for (var ei = 0; ei < names.length; ei++){
       var en = names[ei];
       if (/^New:/.test(en)) grouped['New'].push(en.replace(/^New:\s*/, ''));
       else if (/^Full:/.test(en)) grouped['Full'].push(en.replace(/^Full:\s*/, ''));
-      else if (/eclipse|occultation/i.test(en)) grouped['Eclipse'].push(en);
       else grouped.other.push(en);
     }
     var parts = [];
     if (grouped['New'].length) parts.push('New: ' + grouped['New'].join(', '));
     if (grouped['Full'].length) parts.push('Full: ' + grouped['Full'].join(', '));
-    if (grouped['Eclipse'].length) parts.push('Eclipse: ' + grouped['Eclipse'].join(', '));
     if (grouped.other.length) parts.push(grouped.other.join(', '));
     label = parts.length > 1 ? parts.join(' · ') : (parts[0] || names.join(', '));
-    // Cap tooltip length — with 12 moons plus eclipse descriptions per cell,
-    // the full calendar grid's HTML can blow past Roll20's message size limit
-    // and take down the Full View entirely.
+    // Cap tooltip length — with 12 moons plus descriptions per cell, the full
+    // calendar grid's HTML can blow past Roll20's message size limit and take
+    // down the Full View entirely.
     if (label.length > 200) label = label.slice(0, 197) + '...';
   }
   return {

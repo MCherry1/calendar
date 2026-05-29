@@ -12,7 +12,6 @@ import { _todayAllHtml } from './today.js';
 import { notifySetupStatusOnReady } from './setup.js';
 import { register } from './boot-register.js';
 import { MOON_SYSTEMS, _moonHashStr, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
-import { refreshAllPersistentViews } from './persistent-views.js';
 
 
 /* ============================================================================
@@ -27,7 +26,6 @@ on("ready", function(){
   var stReady = ensureSettings();
   var sysReady = CALENDAR_SYSTEMS[stReady.calendarSystem] || {};
   var sysLabelReady = String(sysReady.label || 'Calendar');
-  refreshAllPersistentViews({ autoBind: true });
   log(sysLabelReady + ' Running, current date: ' + currentDate);
   notifySetupStatusOnReady();
 });

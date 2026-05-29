@@ -6,7 +6,6 @@ import { fromSerial, toSerial, todaySerial } from './date-math.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
 import { _displayMonthDayParts, _legendLine, _menuBox, _serialToDateSpec, _shiftSerialByMonth, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
 import { send, whisper, whisperParts } from './commands.js';
-import { refreshHandout, refreshMoonPage } from './persistent-views.js';
 import { _getPlaneData, getPlanarState, getPlanesState } from './planes.js';
 import { getWorld } from './worlds/index.js';
 
@@ -582,9 +581,7 @@ export function getMoonState(){
       bySerial: {},
       minSerial: null,
       maxSerial: null
-    },
-    revealTier: 'medium',  // 'low' | 'medium' | 'high'
-    revealHorizonDays: 7    // player-known horizon window
+    }
   };
   var ms = root.moons;
   if (!ms.gmAnchors) ms.gmAnchors = {};
@@ -601,11 +598,6 @@ export function getMoonState(){
   }
   ms.recentHistory.minSerial = isFinite(ms.recentHistory.minSerial) ? (ms.recentHistory.minSerial|0) : null;
   ms.recentHistory.maxSerial = isFinite(ms.recentHistory.maxSerial) ? (ms.recentHistory.maxSerial|0) : null;
-  if (!ms.revealTier) ms.revealTier = 'medium';
-  ms.revealTier = String(ms.revealTier || '').toLowerCase();
-  if (!MOON_REVEAL_TIERS[ms.revealTier]) ms.revealTier = 'medium';
-  ms.revealHorizonDays = parseInt(ms.revealHorizonDays, 10);
-  if (!isFinite(ms.revealHorizonDays) || ms.revealHorizonDays < 7) ms.revealHorizonDays = 7;
   return ms;
 }
 
@@ -663,7 +655,6 @@ function _storeMoonHistorySnapshot(ms, snapshot){
 }
 
 function _clearMoonDerivedCaches(){
-  _longShadowsCache = {};
 }
 
 export function getMoonHistoryDay(serial){
@@ -756,12 +747,6 @@ export function _moonYearDays(){
 
 export function _serialDayMidpoint(serial){
   return Math.floor(serial) + 0.5;
-}
-
-export function _solarTransitionSerial(serial, transition){
-  // Time-of-day removed; use a default 6am / 6pm split for long-shadows window math.
-  var hour = (transition === 'sunset') ? 18 : 6;
-  return Math.floor(serial) + (hour / 24);
 }
 
 export function _edgeDayMidpointSerial(startSerial, endSerial, referenceSerial){
@@ -1170,8 +1155,6 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
   // the closest edge-day noon of that window.
   _applyAssociatedPlanePhaseShifts(sys.moons, ms, genFrom, needThru);
 
-  // Clear Long Shadows cache since moon data has changed
-  _longShadowsCache = {};
   ms.generatedFrom = genFrom;
   ms.generatedThru = needThru;
 }
@@ -1180,8 +1163,6 @@ export function moonEnsureSequences(focusSerial?, horizonExtraDays?){
 // 20h) Phase interpolation & display helpers
 // ---------------------------------------------------------------------------
 
-// Raw phase computation — no Long Shadows override. Used internally to
-// avoid recursion when computing which moons Long Shadows claims.
 export function _moonPhaseAtRaw(moonName, serial){
   var seq = (getMoonState().sequences[moonName]) || [];
   if (!seq.length) return { illum:0.5, waxing:true };
@@ -1204,151 +1185,8 @@ export function _moonPhaseAtRaw(moonName, serial){
   return { illum: illum, waxing: waxing };
 }
 
-// Cache for Long Shadows claimed moons (one entry per year)
-export var _longShadowsCache = {};
-
-export function _longShadowsWindow(year){
-  var startDay = toSerial(year, 11, 26);
-  var endDay   = toSerial(year, 11, 28);
-  var start    = _solarTransitionSerial(startDay, 'sunset');
-  var end      = _solarTransitionSerial(endDay, 'sunrise');
-  return {
-    startSerial: start,
-    endSerial: end,
-    midpointSerial: (start + end) / 2,
-    midpointDaySerial: _serialDayMidpoint(toSerial(year, 11, 27)),
-    startDaySerial: startDay,
-    endDaySerial: endDay
-  };
-}
-
-// Compute which moons Long Shadows claims for a given year.
-//
-// Long Shadows is canonically both "the new moon closest to the winter
-// solstice" AND "Vult 26-28." This system ensures there IS a real new
-// moon during the window by smoothing the nearest new moon event into
-// position across prior cycles. The event is genuinely moved in the
-// sequence — not a display override.
-//
-// Tapered gobble zone for secondary moons:
-//   1. Find the nearest new moon to the exact midpoint of Long Shadows.
-//   2. That closest moon is always claimed and smoothed to that midpoint.
-//   3. Based on the closest moon's natural distance from that midpoint:
-//      - Distance 0: gobble radius = ±3 days
-//      - Distance 1: gobble radius = ±2 days
-//      - Distance ≥2: gobble radius = ±1 day
-//   4. Secondary moons within the gobble radius are also claimed (but
-//      not further smoothed — they just get the display override).
-
-export function _longShadowsClaimedMoons(year){
-  if (_longShadowsCache[year]) return _longShadowsCache[year];
-
-  var st = ensureSettings();
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons){ _longShadowsCache[year] = []; return []; }
-  moonEnsureSequences();
-
-  var window = _longShadowsWindow(year);
-  var midpoint = window.midpointSerial;
-
-  // For each moon, find its nearest new-type event to the exact midpoint.
-  var candidates = [];
-  for (var i = 0; i < sys.moons.length; i++){
-    var moon = sys.moons[i];
-    var seq = (getMoonState().sequences[moon.name]) || [];
-    if (!seq.length) continue;
-
-    for (var j = 0; j < seq.length; j++){
-      if (seq[j].type !== 'new') continue;
-      if (seq[j].gmForced) continue;
-      var dist = seq[j].serial - midpoint;
-      if (Math.abs(dist) <= 20){
-        candidates.push({ name: moon.name, seqIdx: j, newSerial: seq[j].serial, signedDist: dist, absDist: Math.abs(dist) });
-      }
-    }
-  }
-
-  if (!candidates.length){ _longShadowsCache[year] = []; return []; }
-
-  // Sort by absolute distance to the exact midpoint of Long Shadows.
-  candidates.sort(function(a, b){ return a.absDist - b.absDist; });
-
-  // The closest moon is always claimed — smooth its new moon to the midpoint.
-  var primary = candidates[0];
-  var claimed = [primary.name];
-
-  // Smooth the primary moon's new event to the midpoint of Long Shadows.
-  var primarySeq = getMoonState().sequences[primary.name];
-  if (primarySeq && primary.seqIdx < primarySeq.length){
-    _smoothToTarget(primarySeq, primary.seqIdx, midpoint, 7);
-    primarySeq[primary.seqIdx].longShadowsClaimed = true;
-    primarySeq.sort(function(a, b){ return a.serial - b.serial; });
-  }
-
-  var closestAbsDist = primary.absDist;
-
-  // Determine gobble radius for secondary moons
-  var gobbleRadius;
-  if (closestAbsDist <= 0) gobbleRadius = 3;
-  else if (closestAbsDist <= 1) gobbleRadius = 2;
-  else gobbleRadius = 1;
-
-  // Secondary moons within gobble radius are also claimed AND smoothed.
-  for (var k = 1; k < candidates.length; k++){
-    var c = candidates[k];
-    var alreadyClaimed = false;
-    for (var ac = 0; ac < claimed.length; ac++){
-      if (claimed[ac] === c.name){ alreadyClaimed = true; break; }
-    }
-    if (alreadyClaimed) continue;
-    if (c.absDist <= gobbleRadius){
-      claimed.push(c.name);
-      // Smooth this secondary moon's new event to the midpoint too.
-      var secSeq = getMoonState().sequences[c.name];
-      if (secSeq && c.seqIdx < secSeq.length){
-        _smoothToTarget(secSeq, c.seqIdx, midpoint, 5);
-        secSeq[c.seqIdx].longShadowsClaimed = true;
-        secSeq.sort(function(a, b){ return a.serial - b.serial; });
-      }
-    }
-  }
-
-  _longShadowsCache[year] = claimed;
-  return claimed;
-}
-
-// Check if a moon is in the Long Shadows window and claimed by Mabar
-export function _isLongShadowsOverride(moonName, serial){
-  var wholeDay = Math.floor(serial);
-  var cal = fromSerial(wholeDay);
-  if (cal.mi !== 11) return false; // not Vult
-  if (cal.day < 26 || cal.day > 28) return false;
-
-  var window = _longShadowsWindow(cal.year);
-  if (serial < window.startSerial || serial >= window.endSerial) return false;
-
-  // Check that Mabar is actually coterminous (respects GM overrides and anchors)
-  try {
-    var mabarState = getPlanarState('Mabar', wholeDay);
-    if (!mabarState || mabarState.phase !== 'coterminous') return false;
-  } catch(e){ return false; }
-
-  var claimed = _longShadowsClaimedMoons(cal.year);
-  for (var i = 0; i < claimed.length; i++){
-    if (claimed[i] === moonName) return true;
-  }
-  return false;
-}
-
-// Public moonPhaseAt — applies Long Shadows override when active
+// Public moonPhaseAt — illumination + waxing from the smoothed sequence.
 export function moonPhaseAt(moonName, serial): any {
-  // Long Shadows safety net: smoothing moves the new moon to the exact
-  // midpoint of the event window, so interpolation should naturally give
-  // ~0.0 illumination.
-  // This override ensures exactly 0.0 and sets the longShadows flag for display.
-  if (_isLongShadowsOverride(moonName, serial)){
-    return { illum: 0.0, waxing: false, longShadows: true };
-  }
   return _moonPhaseAtRaw(moonName, serial);
 }
 
@@ -1461,43 +1299,21 @@ export function _moonNextEvent(moonName, serial, type){
 }
 
 // ---------------------------------------------------------------------------
-// 20i) Moon reveal tiers & forecast helpers
+// 20i) Moon forecast helpers
 // ---------------------------------------------------------------------------
 
-// Moon reveal tiers -- unified with weather and planes.
-// low: common knowledge, medium: skilled forecast, high: expert forecast.
-export var MOON_REVEAL_TIERS = { low:1, medium:2, high:3 };
-
-export function _normalizeMoonRevealTier(tier){
-  var t = String(tier || '').toLowerCase();
-  if (MOON_REVEAL_TIERS[t]) return t;
-  return 'medium';
-}
-
-// Source labels for player-facing attribution.
-export var MOON_SOURCE_LABELS = {
-  low:      'Common Knowledge',
-  medium:   'Skilled Forecast',
-  high:     'Expert Forecast'
-};
-
-// Format a "next event" string based on reveal tier.
-export function _moonNextEventStr(moon, today, type, tier, horizonDays){
-  tier = _normalizeMoonRevealTier(tier);
+// Format a "next event" string. Players and the GM see the same forecast.
+export function _moonNextEventStr(moon, today, type, _tier, horizonDays){
   var exact = _moonNextEvent(moon.name, today, type);
   if (exact === null) return null;
   var d = Math.ceil(exact - today);
   if (d <= 0) return null;
 
   var label = (type === 'full') ? 'Full' : 'New';
-  var cap = (tier === 'high') ? MOON_PREDICTION_LIMITS.highMaxDays
-    : (tier === 'medium') ? MOON_PREDICTION_LIMITS.mediumMaxDays
-    : MOON_PREDICTION_LIMITS.lowDays;
+  var cap = MOON_PREDICTION_LIMITS.highMaxDays;
   var horizon = parseInt(horizonDays, 10);
   if (!isFinite(horizon) || horizon < 1){
-    if (tier === 'low') horizon = MOON_PREDICTION_LIMITS.lowDays;
-    else if (tier === 'medium') horizon = 28;
-    else horizon = 84;
+    horizon = 84;
   }
   horizon = Math.min(cap, horizon);
   function inDays(n){
@@ -1507,37 +1323,19 @@ export function _moonNextEventStr(moon, today, type, tier, horizonDays){
     return label + ': beyond prediction';
   }
 
-  // Low: only surfaces very near events and keeps the wording approximate.
-  if (tier === 'low'){
-    return label + ' in about ' + d + ' day' + (d === 1 ? '' : 's');
-  }
-
-  // Medium and high both report the exact day inside the revealed horizon.
-  if (tier === 'medium'){
-    return label + ' ' + inDays(d);
-  }
-
-  // High: full exact knowledge within the horizon
   return label + ' ' + inDays(d);
 }
 
-// Render a single moon row at a given reveal tier.
-export function _moonRowHtml(moon, today, tier, horizonDays){
-  tier = _normalizeMoonRevealTier(tier);
+// Render a single moon row. Players and the GM see the same content.
+export function _moonRowHtml(moon, today, _tier, horizonDays){
   var ph       = moonPhaseAt(moon.name, today);
   var label    = _moonPhaseLabel(ph.illum, ph.waxing);
   var emoji    = _moonPhaseEmoji(ph.illum, ph.waxing);
   var pct      = Math.round(ph.illum * 100);
 
-  // Long Shadows annotation
-  var longShadowsTag = '';
-  if (ph.longShadows){
-    longShadowsTag = ' <span style="color:#9C27B0;font-size:.75em;" title="Mabar pulls this moon into darkness">\uD83C\uDF11 Long Shadows</span>';
-  }
-
   // Find next event to display
-  var nextFull = _moonNextEventStr(moon, today, 'full', tier, horizonDays);
-  var nextNew  = _moonNextEventStr(moon, today, 'new', tier, horizonDays);
+  var nextFull = _moonNextEventStr(moon, today, 'full', 'high', horizonDays);
+  var nextNew  = _moonNextEventStr(moon, today, 'new', 'high', horizonDays);
   var nextStr  = '';
 
   // Pick the closer event
@@ -1566,9 +1364,9 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
       if (_plSt && _plSt.phase === 'coterminous')
         planarTag = ' <span style="' +
           applyBg('font-size:.75em;padding:0 3px;border-radius:3px;', '#FFE8A3', CONTRAST_MIN_HEADER) +
-          '" title="'+esc(moon.plane)+' coterminous">\u2728 ascendant</span>';
+          '" title="'+esc(moon.plane)+' coterminous">✨ ascendant</span>';
       else if (_plSt && _plSt.phase === 'remote' && moon.name !== 'Lharvion')
-        planarTag = ' <span style="opacity:.4;font-size:.75em;" title="'+esc(moon.plane)+' remote">\u25CC dim</span>';
+        planarTag = ' <span style="opacity:.4;font-size:.75em;" title="'+esc(moon.plane)+' remote">◌ dim</span>';
     } catch(e){ /* planar system not ready */ }
   }
   // Also ascendant during its associated month
@@ -1578,38 +1376,33 @@ export function _moonRowHtml(moon, today, tier, horizonDays){
       if (_curCal && (_curCal.month + 1) === moon.associatedMonth)
         monthTag = ' <span style="' +
           applyBg('font-size:.75em;padding:0 3px;border-radius:3px;', '#FFE8A3', CONTRAST_MIN_HEADER) +
-          '">\u2728 ascendant</span>';
+          '">✨ ascendant</span>';
     } catch(e){}
   }
   // Combine: show both if both apply (dim plane + ascendant month)
   ascendTag = planarTag + (monthTag && monthTag !== planarTag ? monthTag : (!planarTag ? monthTag : ''));
 
-  // Lower reveal tiers: phase + next event.
-  // High reveal tier: phase + illumination + secondary event.
-  var infoParts = [emoji + ' ' + esc(label)];
-  if (tier === 'high') infoParts[0] += ' (' + pct + '%)';
+  // Phase + illumination + next/secondary event.
+  var infoParts = [emoji + ' ' + esc(label) + ' (' + pct + '%)'];
 
   var result = '<div style="margin:3px 0;line-height:1.4;">'+
     dot+
     '<b style="min-width:82px;display:inline-block;'+nameStyle+'">'+esc(moon.name)+'</b>'+
     '<span style="opacity:.9;">'+infoParts.join('')+'</span>'+
-    ascendTag+
-    longShadowsTag;
+    ascendTag;
 
   if (nextStr){
     result += '<span style="opacity:.45;font-size:.82em;margin-left:8px;">'+esc(nextStr)+'</span>';
   }
 
-  // High tier: show the secondary event too.
-  if (tier === 'high'){
-    var secStr = '';
-    if (dFull !== null && (dNew === null || dFull <= dNew))
-      secStr = nextNew || '';
-    else
-      secStr = nextFull || '';
-    if (secStr){
-      result += '<span style="opacity:.35;font-size:.78em;margin-left:6px;">'+esc(secStr)+'</span>';
-    }
+  // Show the secondary event too.
+  var secStr = '';
+  if (dFull !== null && (dNew === null || dFull <= dNew))
+    secStr = nextNew || '';
+  else
+    secStr = nextFull || '';
+  if (secStr){
+    result += '<span style="opacity:.35;font-size:.78em;margin-left:6px;">'+esc(secStr)+'</span>';
   }
 
   result += '</div>';
@@ -1632,35 +1425,27 @@ export function _isSingleFillMoon(sys){
   return fillCount <= 1;
 }
 
-function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
+function _moonMiniCalDayEvents(serial, _tier, _baseHorizonDays?, opts?){
   opts = opts || {};
   var sys = opts.sys || _getMoonSys();
   var out = [];
   if (!sys || !sys.moons || !sys.moons.length) return out;
   var ser = serial|0;
-  var isHighTier = _normalizeMoonRevealTier(tier) === 'high';
-  var today = isFinite(opts.today) ? (opts.today|0) : todaySerial();
   var singleFill = (opts.singleFill !== undefined) ? !!opts.singleFill : _isSingleFillMoon(sys);
   var fullMoons = [];
   var newMoons = [];
 
   for (var i = 0; i < sys.moons.length; i++){
     var moon = sys.moons[i];
-    // For player display: suppress events past the reveal horizon
-    if (!isHighTier && isFinite(baseHorizonDays) && ser > today){
-      if ((ser - today) > baseHorizonDays) continue;
-    }
     var peakType = _moonPeakPhaseDay(moon.name, ser);
     if (peakType === 'full'){
       var span = _moonPhaseSpan(moon.name, ser);
       var spanTag = (span && span.totalDays > 1) ? ' Day ' + span.dayNum + '/' + span.totalDays : '';
       fullMoons.push(moon.name + spanTag);
     } else if (peakType === 'new'){
-      var ph = moonPhaseAt(moon.name, ser);
-      var lsTag = (ph && ph.longShadows) ? ' (Long Shadows)' : '';
       var span2 = _moonPhaseSpan(moon.name, ser);
       var spanTag2 = (span2 && span2.totalDays > 1) ? ' Day ' + span2.dayNum + '/' + span2.totalDays : '';
-      newMoons.push(moon.name + spanTag2 + lsTag);
+      newMoons.push(moon.name + spanTag2);
     }
   }
 
@@ -1702,26 +1487,6 @@ function _moonMiniCalDayEvents(serial, tier, baseHorizonDays?, opts?){
     }
   }
 
-  return out;
-}
-
-export function _moonMiniCalEvents(startSerial, endSerial, tier, baseHorizonDays?){
-  var sys = _getMoonSys();
-  var out = [];
-  if (!sys || !sys.moons || !sys.moons.length) return out;
-  var start = startSerial|0;
-  var end = endSerial|0;
-  if (end < start){ var tmp = start; start = end; end = tmp; }
-  var today = todaySerial();
-  var singleFill = _isSingleFillMoon(sys);
-
-  for (var ser = start; ser <= end; ser++){
-    out = out.concat(_moonMiniCalDayEvents(ser, tier, baseHorizonDays, {
-      sys: sys,
-      today: today,
-      singleFill: singleFill
-    }));
-  }
   return out;
 }
 
@@ -1810,32 +1575,6 @@ export function invalidateMoonModel(seedToday?){
   return resetMoonHistory(todaySerial(), seedToday);
 }
 
-function _moonMiniCalEventsWithRecentHistory(startSerial, endSerial, tier, baseHorizonDays?){
-  var sys = _getMoonSys();
-  var out = [];
-  if (!sys || !sys.moons || !sys.moons.length) return out;
-  var start = startSerial|0;
-  var end = endSerial|0;
-  if (end < start){ var tmp = start; start = end; end = tmp; }
-  var today = todaySerial();
-  var singleFill = _isSingleFillMoon(sys);
-  moonEnsureSequences(Math.max(today, end), Math.max(parseInt(baseHorizonDays, 10) || 0, 30));
-
-  for (var ser = start; ser <= end; ser++){
-    var cached = (ser < today) ? getMoonHistoryDay(ser) : null;
-    if (cached && Array.isArray(cached.miniCalEvents)){
-      out = out.concat(_cloneMoonMiniCalEvents(cached.miniCalEvents));
-      continue;
-    }
-    out = out.concat(_moonMiniCalDayEvents(ser, tier, baseHorizonDays, {
-      sys: sys,
-      today: today,
-      singleFill: singleFill
-    }));
-  }
-  return out;
-}
-
 // ---------------------------------------------------------------------------
 // Single-moon mini-calendar — shows one moon's phases across a month.
 // Cells are color-filled with the phase emoji; no dots needed.
@@ -1895,58 +1634,13 @@ export function _singleMoonMiniCalHtml(moonName, serial){
   return preHeader + calHtml;
 }
 
-function _singleMoonPlayerMiniCalHtml(moonName, serial, tier, horizonDays){
-  tier = _normalizeMoonRevealTier(tier);
-  if (tier === 'high'){
-    return _singleMoonMiniCalHtml(moonName, serial);
-  }
-
-  var st = ensureSettings();
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons) return '';
-  var moonDef = null;
-  for (var i = 0; i < sys.moons.length; i++){
-    if (sys.moons[i].name === moonName){ moonDef = sys.moons[i]; break; }
-  }
-  if (!moonDef) return '';
-
-  var mr = _monthRangeFromSerial(serial);
-  var knownEnd = todaySerial() + (parseInt(horizonDays, 10) || 0);
-  var events = [];
-  for (var ser = mr.start; ser <= mr.end; ser++){
-    if (ser < todaySerial() || ser > knownEnd) continue;
-    var peakType = _moonPeakPhaseDay(moonName, ser);
-    if (peakType === 'full'){
-      var span = _moonPhaseSpan(moonName, ser);
-      var spanTag = (span && span.totalDays > 1) ? ' Day ' + span.dayNum + '/' + span.totalDays : '';
-      events.push({ serial: ser, name: '🌕 ' + moonName + ' Full' + spanTag, color: '#FFD700' });
-    } else if (peakType === 'new'){
-      var span2 = _moonPhaseSpan(moonName, ser);
-      var spanTag2 = (span2 && span2.totalDays > 1) ? ' Day ' + span2.dayNum + '/' + span2.totalDays : '';
-      events.push({ serial: ser, name: '🌑 ' + moonName + ' New' + spanTag2, color: '#222222' });
-    }
-  }
-  var calHtml = _renderSyntheticMiniCal(moonDef.title || moonName, mr.start, mr.end, events);
-  var moonColor = moonDef.color || '#888';
-  var preHeader = '<div style="background:'+moonColor+';color:'+
-    (_contrast(moonColor, '#FFFFFF') > 3 ? '#FFFFFF' : '#000000')+
-    ';text-align:center;font-weight:bold;padding:3px 6px;font-size:.9em;border-radius:4px 4px 0 0;margin-bottom:-1px;">'+
-    esc(moonName)+' — '+esc(moonDef.title || '')+
-    '</div>';
-  return preHeader + calHtml +
-    '<div style="font-size:.78em;opacity:.6;margin-top:4px;">Player single-moon view marks only revealed full/new peaks.</div>';
-}
-
-export function _moonTodaySummaryHtml(today, tier, horizonDays){
+export function _moonTodaySummaryHtml(today, _tier, horizonDays){
   var st = ensureSettings();
   var sys = _getMoonSys();
   if (!sys || !sys.moons || !sys.moons.length) return '';
-  tier = _normalizeMoonRevealTier(tier);
   var horizon = parseInt(horizonDays, 10);
   if (!isFinite(horizon) || horizon < 1){
-    if (tier === 'low') horizon = MOON_PREDICTION_LIMITS.lowDays;
-    else if (tier === 'medium') horizon = 28;
-    else horizon = 84;
+    horizon = 84;
   }
   var horizonEnd = today + horizon;
 
@@ -1965,16 +1659,16 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
     }
     if (_pt === 'new'){
       var _sp2 = _moonPhaseSpan(moon.name, today);
-      newNow.push(moon.name + ((_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : '') + (ph.longShadows ? ' (Long Shadows)' : ''));
+      newNow.push(moon.name + ((_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : ''));
     }
 
     var fSer = _moonNextEvent(moon.name, today, 'full');
     var nSer = _moonNextEvent(moon.name, today, 'new');
     if (fSer != null && fSer > today && fSer <= horizonEnd && (!best || fSer < best.serial)){
-      best = { serial:fSer, moon:moon.name, type:'full', str:_moonNextEventStr(moon, today, 'full', tier, horizon) };
+      best = { serial:fSer, moon:moon.name, type:'full', str:_moonNextEventStr(moon, today, 'full', 'high', horizon) };
     }
     if (nSer != null && nSer > today && nSer <= horizonEnd && (!best || nSer < best.serial)){
-      best = { serial:nSer, moon:moon.name, type:'new', str:_moonNextEventStr(moon, today, 'new', tier, horizon) };
+      best = { serial:nSer, moon:moon.name, type:'new', str:_moonNextEventStr(moon, today, 'new', 'high', horizon) };
     }
   }
 
@@ -1983,8 +1677,6 @@ export function _moonTodaySummaryHtml(today, tier, horizonDays){
   if (newNow.length) bits.push('🌑 New Moons: ' + newNow.join(', '));
   if (best){
     bits.push('Next: ' + (best.str || (best.moon + ' ' + titleCase(best.type))));
-  } else if (tier !== 'high') {
-    bits.push('Next: beyond prediction');
   }
   if (!bits.length) return '';
   return '<div style="font-size:.8em;opacity:.72;margin:2px 0 6px 0;">'+esc(bits.join(' · '))+'</div>';
@@ -2005,11 +1697,7 @@ function _moonCompactStatusLines(today){
       continue;
     }
     if (peakType === 'new'){
-      lines.push(
-        (ph.longShadows
-          ? emoji + ' <b>' + esc(moon.name) + '</b> goes dark' + esc(_moonPhaseSpanSuffix(moon.name, today)) + ' (Long Shadows)'
-          : emoji + ' <b>' + esc(moon.name) + '</b> is New' + esc(_moonPhaseSpanSuffix(moon.name, today)))
-      );
+      lines.push(emoji + ' <b>' + esc(moon.name) + '</b> is New' + esc(_moonPhaseSpanSuffix(moon.name, today)));
       continue;
     }
     var nextEntry = _moonNextThresholdEntry(moon.name, today, 2);
@@ -2034,13 +1722,8 @@ export function moonSummaryHtml(isGM, serialOverride?){
     );
   }
 
-  var ms = getMoonState();
   var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
-  var tier = isGM ? 'high' : _normalizeMoonRevealTier(ms.revealTier || 'medium');
-  var horizon = isGM
-    ? MOON_PREDICTION_LIMITS.highMaxDays
-    : (parseInt(ms.revealHorizonDays, 10) || MOON_PREDICTION_LIMITS.lowDays);
-  moonEnsureSequences(today, Math.max(horizon + 30, MOON_PREDICTION_LIMITS.lowDays + 30));
+  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
 
   // Date already appears in the _menuBox title below; skip repeating it in the body.
   var body = '';
@@ -2061,10 +1744,10 @@ export function moonSummaryHtml(isGM, serialOverride?){
 }
 
 // ---------------------------------------------------------------------------
-// 20j) Moon panel HTML -- tiered
+// 20j) Moon panel HTML
 // ---------------------------------------------------------------------------
 
-// GM panel -- always shows high-detail data
+// GM panel. Players see the same content (no knowledge tiers in Roll20).
 // Returns an array of HTML parts to send as separate messages (avoids Roll20 size limits).
 export function moonPanelParts(serialOverride?){
   var st = ensureSettings();
@@ -2208,267 +1891,6 @@ export function moonPlayerPanelHtml(serialOverride?){
 }
 
 
-// Build multi-month moon mini-cal grid for handouts.
-function _moonMultiMonthHtml(today, tier, horizon, pastFullReveal, useRecentHistory?){
-  var cal = getCal();
-  var totalMonths = cal.months.filter(function(m){ return !m.leapEvery; }).length;
-  var followCount = Math.max(0, totalMonths - 2);
-  var months = rollingMonthWindow(today, 1, followCount);
-
-  var calParts = [];
-  for (var k = 0; k < months.length; k++){
-    var wm = months[k];
-    var isPastMonth = wm.end < today;
-    var useTier = (pastFullReveal && isPastMonth) ? 'high' : tier;
-    var useHorizon = (pastFullReveal && isPastMonth) ? 9999 : horizon;
-    var events = useRecentHistory
-      ? _moonMiniCalEventsWithRecentHistory(wm.start, wm.end, useTier, useHorizon)
-      : _moonMiniCalEvents(wm.start, wm.end, useTier, useHorizon);
-    var miniCal = _renderSyntheticMiniCal(null, wm.start, wm.end, events);
-    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
-  }
-  return handoutWrap(calParts.join(''));
-}
-
-function _moonRangeHtml(spec, isGM){
-  var ms = getMoonState();
-  var tier = isGM ? 'high' : _normalizeMoonRevealTier(ms.revealTier || 'medium');
-  var horizon = isGM
-    ? MOON_PREDICTION_LIMITS.highMaxDays
-    : (parseInt(ms.revealHorizonDays, 10) || MOON_PREDICTION_LIMITS.lowDays);
-  moonEnsureSequences(spec.start, Math.max(horizon + 30, (spec.end - spec.start + 30)));
-
-  var calParts = [];
-  var months = spec.months || [];
-  for (var i = 0; i < months.length; i++){
-    var wm = months[i];
-    var month = getCal().months[wm.mi] || {};
-    var start = toSerial(wm.y, wm.mi, 1);
-    var end = toSerial(wm.y, wm.mi, month.days|0);
-    var events = _moonMiniCalEvents(start, end, tier, horizon);
-    var miniCal = _renderSyntheticMiniCal(null, start, end, events);
-    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
-  }
-
-  var body = handoutWrap(calParts.join('')) +
-    _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
-  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
-  if (srcLabel){
-    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
-  }
-
-  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(spec.title || 'Range'), body);
-}
-
-function _moonHandoutNextEventLine(moonName, serial, type){
-  var next = _moonNextEvent(moonName, serial, type);
-  if (!isFinite(next)) return 'Unknown';
-  var daySerial = Math.round(next);
-  var days = Math.max(0, daySerial - (serial|0));
-  return dateLabelFromSerial(daySerial) + ' (' + days + 'd)';
-}
-
-export function moonIndividualHandoutHtml(moonName, serialOverride?){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false){
-    return _menuBox('\uD83C\uDF19 ' + esc(moonName), '<div style="opacity:.7;">Moon system is not active.</div>');
-  }
-
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons || !sys.moons.length){
-    return _menuBox('\uD83C\uDF19 ' + esc(moonName), '<div style="opacity:.7;">No moon data for this calendar system.</div>');
-  }
-
-  var moonDef = null;
-  for (var i = 0; i < sys.moons.length; i++){
-    if (sys.moons[i].name === moonName){
-      moonDef = sys.moons[i];
-      break;
-    }
-  }
-  if (!moonDef){
-    return _menuBox('\uD83C\uDF19 ' + esc(moonName), '<div style="opacity:.7;">Unknown moon.</div>');
-  }
-
-  var today = isFinite(serialOverride) ? (serialOverride|0) : todaySerial();
-  moonEnsureSequences(today, MOON_PREDICTION_LIMITS.highMaxDays);
-  var ph = moonPhaseAt(moonName, today);
-  var phaseLabel = ph ? _moonPhaseLabel(ph.illum, ph.waxing) : 'Unknown';
-  var illumPct = ph ? Math.round(ph.illum * 100) : 0;
-  var monthName = moonDef.associatedMonth
-    ? (((getCal().months[moonDef.associatedMonth - 1] || {}).name) || String(moonDef.associatedMonth))
-    : 'None';
-  var lore = MOON_LORE[moonName];
-  var moonColor = moonDef.color || '#888888';
-  var headerTextColor = (_contrast(moonColor, '#FFFFFF') > 3) ? '#FFFFFF' : '#000000';
-
-  var totalMonths = getCal().months.filter(function(m){ return !m.leapEvery; }).length;
-  var followCount = Math.max(0, totalMonths - 2);
-  var months = rollingMonthWindow(today, 1, followCount);
-  var calParts = [];
-  for (var k = 0; k < months.length; k++){
-    var wm = months[k];
-    var events = _singleMoonMiniCalEvents(moonName, wm.start, wm.end);
-    var miniCal = _renderSyntheticMiniCal(null, wm.start, wm.end, events);
-    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;overflow:visible;">' + miniCal + '</div>');
-  }
-
-  var body = '' +
-    '<div style="background:'+moonColor+';color:'+headerTextColor+';text-align:center;font-weight:bold;padding:4px 8px;border-radius:4px;">' +
-      esc(moonDef.name) + ' \u2014 ' + esc(moonDef.title || '') +
-    '</div>' +
-    '<div style="font-weight:bold;margin:6px 0 4px 0;">' + esc(dateLabelFromSerial(today)) + '</div>' +
-    '<div style="font-size:.84em;line-height:1.6;margin-bottom:6px;">' +
-      '<b>Current phase:</b> ' + esc(phaseLabel) + ' (' + illumPct + '%)<br>' +
-      '<b>Next full:</b> ' + esc(_moonHandoutNextEventLine(moonName, today, 'full')) + '<br>' +
-      '<b>Next new:</b> ' + esc(_moonHandoutNextEventLine(moonName, today, 'new')) + '<br>' +
-      '<b>Synodic period:</b> ' + esc(_moonLorePeriodLabel(moonDef.synodicPeriod)) + '<br>' +
-      '<b>Apparent size:</b> ' + esc(_moonLoreSizeLabel(moonDef)) + '<br>' +
-      '<b>Associated plane:</b> ' + esc(moonDef.plane || 'None') + '<br>' +
-      '<b>Associated month:</b> ' + esc(monthName) +
-      (moonDef.dragonmark ? '<br><b>Dragonmark:</b> ' + esc(moonDef.dragonmark) : '') +
-    '</div>';
-
-  if (lore && lore.blurb){
-    body += '<div style="font-size:.82em;opacity:.82;line-height:1.55;margin-bottom:8px;">' + esc(lore.blurb) + '</div>';
-  }
-
-  body += handoutWrap(calParts.join(''));
-  body += _legendLine(['Gold = full', 'Black = new', 'Grey = phase illumination']);
-
-  return _menuBox('\uD83C\uDF19 ' + esc(moonDef.name) + ' \u2014 ' + esc(dateLabelFromSerial(today)), body);
-}
-
-export function moonMechanicsHandoutHtml(){
-  var sys = _getMoonSys();
-  if (!sys || !sys.moons || !sys.moons.length){
-    return _menuBox('\uD83C\uDF19 Lunar Mechanics', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
-  }
-
-  var cal = getCal();
-  var rows = [];
-  for (var i = 0; i < sys.moons.length; i++){
-    var moon = sys.moons[i];
-    var assocMonth = moon.associatedMonth
-      ? (((cal.months[moon.associatedMonth - 1] || {}).name) || String(moon.associatedMonth))
-      : '\u2014';
-    var dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+esc(moon.color || '#999')+';border:1px solid rgba(0,0,0,.28);"></span>';
-    rows.push(
-      '<tr>' +
-        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">' + dot + ' <b>' + esc(moon.name) + '</b><br><span style="opacity:.65;">' + esc(moon.title || '') + '</span></td>' +
-        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(_moonLorePeriodLabel(moon.synodicPeriod)) + '</td>' +
-        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(String(moon.diameter || '\u2014')) + '</td>' +
-        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(moon.plane || '\u2014') + '</td>' +
-        '<td style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;text-align:center;">' + esc(assocMonth) + '</td>' +
-      '</tr>'
-    );
-  }
-
-  var blurbs = [];
-  for (var j = 0; j < sys.moons.length; j++){
-    var lore = MOON_LORE[sys.moons[j].name];
-    if (!lore || !lore.blurb) continue;
-    blurbs.push('<div style="margin:6px 0;"><b>' + esc(sys.moons[j].name) + ':</b> ' + esc(lore.blurb) + '</div>');
-  }
-
-  var body = '' +
-    '<div style="margin-bottom:6px;">This reference handout summarizes the lunar model for <b>' + esc(ensureSettings().calendarSystem || 'this calendar') + '</b>.</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:.84em;">' +
-      '<tr>' +
-        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Moon</th>' +
-        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Period</th>' +
-        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Diameter (mi)</th>' +
-        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Plane</th>' +
-        '<th style="border:1px solid rgba(0,0,0,.12);padding:4px 6px;">Month</th>' +
-      '</tr>' +
-      rows.join('') +
-    '</table>' +
-    '<div style="margin-top:8px;font-size:.84em;line-height:1.6;">' +
-      '<b>Long Shadows:</b> When Mabar turns coterminous, the nearest new moon to the winter midpoint is claimed and darkened.<br>' +
-      '<b>Phase labels:</b> Handouts use the same illumination-driven phase labels and full/new peak markers as the chat panels.' +
-    '</div>';
-
-  if (blurbs.length){
-    body += '<div style="margin-top:10px;font-size:.82em;line-height:1.55;">' + blurbs.join('') + '</div>';
-  }
-
-  return _menuBox('\uD83C\uDF19 Lunar Mechanics', body);
-}
-
-export function moonHandoutHtml(serialOverride?){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false){
-    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">Moon system is not active.</div>');
-  }
-
-  var ms  = getMoonState();
-  var cal = getCal();
-  var cur = cal.current;
-  var tier = _normalizeMoonRevealTier(ms.revealTier || 'medium');
-  var horizon = parseInt(ms.revealHorizonDays, 10) || 7;
-  var today = isFinite(serialOverride) ? (serialOverride|0) : toSerial(cur.year, cur.month, cur.day_of_the_month);
-  moonEnsureSequences(today, horizon + 30);
-  var dateLabel = dateLabelFromSerial(today);
-
-  var sys = _getMoonSys();
-  if (!sys){
-    return _menuBox('\uD83C\uDF19 Moons', '<div style="opacity:.7;">No moon data for this calendar system.</div>');
-  }
-
-  // Notable moons (individual list; no separate "Full Moons:" summary line).
-  var body = '';
-
-  var notableLines = [];
-  sys.moons.forEach(function(moon){
-    var peakType = _moonPeakPhaseDay(moon.name, today);
-    if (peakType === 'full'){
-      var _sp = _moonPhaseSpan(moon.name, today);
-      var _spStr = (_sp && _sp.totalDays > 1) ? ' Day ' + _sp.dayNum + '/' + _sp.totalDays : '';
-      notableLines.push('🌕 <b>' + esc(moon.name) + '</b> Full' + esc(_spStr));
-    } else if (peakType === 'new'){
-      var ph = moonPhaseAt(moon.name, today);
-      var _sp2 = _moonPhaseSpan(moon.name, today);
-      var _spStr2 = (_sp2 && _sp2.totalDays > 1) ? ' Day ' + _sp2.dayNum + '/' + _sp2.totalDays : '';
-      var tag = (ph && ph.longShadows) ? ' — <span style="color:#9C27B0;">Long Shadows</span>' : '';
-      notableLines.push('🌑 <b>' + esc(moon.name) + '</b> New' + esc(_spStr2) + tag);
-    }
-  });
-  if (notableLines.length){
-    body += '<div style="font-size:.85em;margin-top:6px;line-height:1.6;">' +
-      notableLines.join('<br>') + '</div>';
-  } else {
-    body += '<div style="font-size:.82em;opacity:.5;margin-top:6px;">No moons at full or new today.</div>';
-  }
-  // Keep the auto-refreshed player handout on the player reveal tier across
-  // its rolling window.
-  body += _moonMultiMonthHtml(today, tier, horizon, false, true);
-  body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
-
-  var srcLabel = MOON_SOURCE_LABELS[tier] || '';
-  if (srcLabel){
-    body += '<div style="font-size:.72em;opacity:.35;font-style:italic;margin-top:5px;">'+esc(srcLabel)+'</div>';
-  }
-
-  return _menuBox('\uD83C\uDF19 Moons \u2014 ' + esc(dateLabel), body);
-}
-
-// GM handout: full-reveal multi-month moon calendars
-export function moonHandoutGmHtml(){
-  var st = ensureSettings();
-  if (st.moonsEnabled === false) return '';
-  var sys = _getMoonSys();
-  if (!sys) return '';
-  var today = todaySerial();
-  moonEnsureSequences(today, 400);
-
-  var body = '<div style="font-weight:bold;margin-bottom:6px;">GM Moon Reference — Full Reveal</div>';
-  body += _moonTodaySummaryHtml(today, 'high', 9999);
-  body += _moonMultiMonthHtml(today, 'high', 9999, true);
-  body += _legendLine(['<span style="color:#FFD700;">●</span> Full', '<span style="color:#222;">●</span> New']);
-
-  return _menuBox('\uD83C\uDF19 GM Moons', body);
-}
-
 // ---------------------------------------------------------------------------
 // 20j) Moon command handler  (!cal moon ...)
 // ---------------------------------------------------------------------------
@@ -2481,12 +1903,6 @@ export function _moonParseMoonName(str, sys){
   }
   return null;
 }
-
-function _refreshMoonPersistentViews(){
-  refreshMoonPage({ autoBind: true });
-  refreshHandout('moons');
-}
-
 
 // ---------------------------------------------------------------------------
 // 20g-i-b) Ring of Siberys
@@ -2524,28 +1940,6 @@ export function _normDeg(n){
   n = n % 360;
   return (n < 0) ? (n + 360) : n;
 }
-
-// ---------------------------------------------------------------------------
-// 20m) Long Shadows — Mabar pulls the nearest moon(s) into darkness
-// ---------------------------------------------------------------------------
-// During Long Shadows, Mabar's coterminous period forces the nearest moon(s)
-// to new phase. Uses a tapered gobble zone: the closer the nearest new moon
-// is to the window midpoint, the wider the search for additional moons to claim.
-// See _longShadowsClaimedMoons() for the full algorithm.
-//
-// Core logic lives above moonPhaseAt since it reads sequences directly
-// (using _moonPhaseAtRaw would cause recursion with moonPhaseAt).
-
-export function getLongShadowsMoons(year){
-  // Public API: returns array of { name, distToNew } for claimed moons
-  var claimed = _longShadowsClaimedMoons(year);
-  var results = [];
-  for (var i = 0; i < claimed.length; i++){
-    results.push({ name: claimed[i] });
-  }
-  return results;
-}
-
 
 // ---------------------------------------------------------------------------
 // 20n) Spontaneous planar episodes — seeded rare coterminous/remote flickers
@@ -3280,7 +2674,6 @@ export function handleMoonCommand(m, args){
   if (sub === 'toggle'){
     st.moonsEnabled = (st.moonsEnabled === false);
     st._moonsAutoToggle = false;
-    _refreshMoonPersistentViews();
     return whisperParts(m.who, moonPanelParts());
   }
 
@@ -3293,7 +2686,6 @@ export function handleMoonCommand(m, args){
     msReseed.systemSeed = nextSeed;
     invalidateMoonModel(false);
     moonEnsureSequences();
-    _refreshMoonPersistentViews();
     whisper(m.who, 'Moon sequences reseeded to <b>'+esc(nextSeed)+'</b>.');
     return whisperParts(m.who, moonPanelParts());
   }
@@ -3314,7 +2706,6 @@ export function handleMoonCommand(m, args){
       });
       invalidateMoonModel(false);
       moonEnsureSequences();
-      _refreshMoonPersistentViews();
       return whisper(m.who, 'Night of the Eye override reset. Dragonlance has returned to the default anchor.');
     }
 
@@ -3338,7 +2729,6 @@ export function handleMoonCommand(m, args){
     });
     invalidateMoonModel(false);
     moonEnsureSequences();
-    _refreshMoonPersistentViews();
 
     var eyeMonthName = _displayMonthDayParts(eyePref.mHuman - 1, eyePref.day).monthName;
     return whisper(
@@ -3361,14 +2751,12 @@ export function handleMoonCommand(m, args){
       }
       invalidateMoonModel(false);
       moonEnsureSequences();
-      _refreshMoonPersistentViews();
       return whisper(m.who, 'Phase overrides reset for <b>'+esc(mName3)+'</b>.');
     } else {
       ms3.gmAnchors = {};
       delete ms3.systemAnchors.dragonlanceNightOfTheEye;
       invalidateMoonModel(false);
       moonEnsureSequences();
-      _refreshMoonPersistentViews();
       return whisper(m.who, 'All moon phase overrides reset.');
     }
   }

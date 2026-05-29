@@ -8,8 +8,7 @@ import { DaySpec, Parse, monthIndexByName } from './parsing.js';
 import { _addConcreteEvent, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, eventIndexByKey, markSuppressedIfDefault, occurrencesInRange } from './events.js';
 import { _decKey, _eventSeriesKey, _ordinal, button, clamp, esc, formatDateLabel, int, mbP, monthEventsHtml, navP, swatchHtml } from './rendering.js';
 import { send, sendToAll, sendToGM, sendUiToGM, warnGM, whisper, whisperUi } from './commands.js';
-import { refreshAllPersistentViews } from './persistent-views.js';
-import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, getLongShadowsMoons, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
+import { MOON_HISTORY_DAYS, MOON_SYSTEMS, _getMoonSys, _moonNextThresholdEntry, _moonPeakPhaseDay, _moonPhaseEmoji, _moonPhaseSpanSuffix, captureMoonHistoryWindow, moonEnsureSequences, moonPhaseAt, pruneMoonHistory, resetMoonHistory } from './moon.js';
 import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _isGeneratedNote, _planarNotableToday, _planarYearDays, getPlanarState } from './planes.js';
 import { dateFormatFor } from './worlds/index.js';
 
@@ -35,18 +34,6 @@ export function formalCurrentDateLabel(){
   var wd = cal.weekdays[cur.day_of_the_week];
   var base = formatDateLabel(cur.year, cur.month, cur.day_of_the_month, true);
   return wd ? (wd + ', ' + base) : base;
-}
-
-function _shouldDeferPersistentHandouts(){
-  return typeof globalThis !== 'undefined' && !(globalThis as any).__CALENDAR_TEST_MODE__;
-}
-
-function _refreshPersistentViewsOnDateChange(){
-  refreshAllPersistentViews({
-    autoBind: true,
-    batched: _shouldDeferPersistentHandouts(),
-    batchDelayMs: 0
-  });
 }
 
 export function dateLabelFromSerial(serial){
@@ -295,10 +282,7 @@ export function sendCurrentDate(to, gmOnly, opts?){
             return;
           }
           if (_peakType === 'new'){
-            var newLabel = ph.longShadows
-              ? emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' goes dark' + esc(_moonPhaseSpanSuffix(moon.name, todaySer)) + ' (Long Shadows)'
-              : emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is New' + esc(_moonPhaseSpanSuffix(moon.name, todaySer));
-            _notable.push(newLabel);
+            _notable.push(emoji + ' <b>' + esc(moon.name) + '</b>' + titleTag + ' is New' + esc(_moonPhaseSpanSuffix(moon.name, todaySer)));
             _thisNotable = true;
             return;
           }
@@ -576,7 +560,6 @@ export function stepDays(n, opts?){
       pruneMoonHistory(dest);
     }
   }
-  _refreshPersistentViewsOnDateChange();
   if (opts.announce === false) return;
   sendCurrentDate(null, true, { dashboard:true, includeButtons:true });
 }
@@ -596,7 +579,6 @@ export function setDate(m, d, y, opts?){
   if (ensureSettings().moonsEnabled !== false){
     resetMoonHistory(nextSerial, true);
   }
-  _refreshPersistentViewsOnDateChange();
   if (opts.announce === false) return;
   sendCurrentDate(null, true);
 }
@@ -633,7 +615,6 @@ export function removeEvent(query){
     var removed = events.splice(idx, 1)[0];
     markSuppressedIfDefault(removed);
     refreshCalendarState(true);
-    refreshAllPersistentViews({ autoBind: true });
     var rName = eventDisplayName(removed) || removed.name || '(unnamed event)';
     sendChat(script_name, '/w gm ' + _eventActionSummary('Hidden Event', [rName]), null, { noarchive: true });
     return;
@@ -656,7 +637,6 @@ export function removeEvent(query){
       return;
     }
     refreshCalendarState(true);
-    refreshAllPersistentViews({ autoBind: true });
     sendChat(script_name, '/w gm ' + _eventActionSummary('Hidden Event', removedNames), null, { noarchive: true });
     return;
   }
@@ -831,20 +811,6 @@ export function activeEffectsPanelHtml(){
       } else {
         pl = rows.join('');
       }
-
-      // Long Shadows spotlight
-      try {
-        var mabar = getPlanarState('Mabar', today);
-        if (mabar && mabar.phase === 'coterminous'){
-          var cc = getCal().current;
-          var ls = getLongShadowsMoons(cc.year);
-          if (ls.length){
-            var names = [];
-            for (var li = 0; li < ls.length; li++) names.push(ls[li].name);
-            pl += '<div style="font-size:.82em;margin-top:4px;padding:4px;background:rgba(60,0,80,.15);border-radius:3px;border:1px solid rgba(100,50,120,.3);">🌑 <b>Long Shadows:</b> '+esc(names.join(', '))+' dark tonight.</div>';
-          }
-        }
-      } catch(e5){}
     } catch(e6){
       pl = '<div style="opacity:.7;">Planar data unavailable.</div>';
     }
