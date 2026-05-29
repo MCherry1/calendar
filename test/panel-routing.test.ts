@@ -208,80 +208,23 @@ describe("Moon management routing", () => {
     assert(!log.includes("Moon Overview"));
   });
 
-  it("emits real moon management actions with moon-name input and reseeds successfully", () => {
+  it("emits the simplified moon management dropdown and reseeds successfully", () => {
     freshInstall();
 
     handleMoonCommand(gmUser(), ["moon"]);
 
     let msg = String(lastChat().msg);
     assert(msg.includes("moon manage ?{Action|Toggle Moons On/Off,toggle|Reseed Moons,reseed"));
-    assert(msg.includes("Set New,setnew"));
-    assert(msg.includes("Set Full,setfull"));
-    assert(msg.includes("Bind Moon Page,page bind"));
-    assert(msg.includes("Refresh Moon Page,page refresh"));
-    assert(msg.includes("Show Moon Page,page show"));
+    assert(!msg.includes("Set New,setnew"));
+    assert(!msg.includes("Set Full,setfull"));
+    assert(!msg.includes("Bind Moon Page,page bind"));
+    assert(!msg.includes("Show Moon Page,page show"));
     assert(!msg.includes("moon phases"));
 
     const beforeSeed = getMoonState().systemSeed;
     handleMoonCommand(gmUser(), ["moon", "manage", "reseed"]);
     assert(getMoonState().systemSeed);
     assertNotEquals(getMoonState().systemSeed, beforeSeed);
-  });
-
-  it("routes manage setnew into the real moon anchoring flow", () => {
-    freshInstall();
-
-    handleMoonCommand(gmUser(), ["moon", "manage", "setnew", "Zarantyr", "Rhaan", "14", "998"]);
-
-    const anchors = getMoonState().gmAnchors.Zarantyr || [];
-    assert(anchors.some((entry: any) => entry.type === "new"));
-  });
-
-  it("routes moon page bind/show commands through the moon handler", () => {
-    freshInstall();
-    const page = (globalThis as any).createObj("page", { name: "Moon Phase", width: 25, height: 25 });
-
-    handleMoonCommand(gmUser(), ["moon", "page", "bind", "Moon", "Phase"]);
-    assertEquals(getPersistentViewsState().moonPage.pageId, page.id);
-
-    handleMoonCommand(gmUser(), ["moon", "page", "show"]);
-    assertEquals((globalThis as any).Campaign().get("playerpageid"), page.id);
-  });
-
-  it("renders moon Additional Ranges against the viewed date and resolves real range output", () => {
-    freshInstall();
-    completeSetup();
-
-    const serial = toSerial(998, 1, 12);
-    handleMoonCommand(gmUser(), ["moon", "on", "Olarune", "12", "998"]);
-
-    let msg = String(lastChat().msg);
-    assert(msg.includes("Full Calendar Year &#40;998&#41;,year 998"));
-    assert(msg.includes("Rolling 12 Months,rolling " + serial));
-    assert(msg.includes("Upcoming Month,?\\{Upcoming Month&#124;Therendor 998 YK&#44;month Therendor 998"));
-    assert(msg.includes("Zarantyr 999 YK&#44;month Zarantyr 999"));
-    assert(!msg.includes("Olarune 998 YK&#44;month Olarune 998"));
-    assert(msg.includes("Specific Month,specific ?\\{Month&#124;Therendor 998\\}"));
-
-    handleMoonCommand(gmUser(), ["moon", "ranges", "year", "998"]);
-    msg = String(lastChat().msg);
-    assert(msg.includes("Full Calendar Year (998)"));
-    assert(!msg.includes("Moon: <code>!cal moon"));
-
-    handleMoonCommand(gmUser(), ["moon", "ranges", "rolling", String(serial)]);
-    msg = String(lastChat().msg);
-    assert(msg.includes("Rolling 12 Months"));
-    assert(!msg.includes("Moon: <code>!cal moon"));
-
-    handleMoonCommand(gmUser(), ["moon", "ranges", "month", "Zarantyr", "999"]);
-    msg = String(lastChat().msg);
-    assert(msg.includes("Zarantyr 999 YK"));
-    assert(!msg.includes("Moon: <code>!cal moon"));
-
-    handleMoonCommand(gmUser(), ["moon", "ranges", "specific", "Therendor", "998"]);
-    msg = String(lastChat().msg);
-    assert(msg.includes("Therendor 998 YK"));
-    assert(!msg.includes("Moon: <code>!cal moon"));
   });
 });
 

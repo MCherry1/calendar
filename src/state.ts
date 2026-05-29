@@ -195,7 +195,6 @@ export function ensureSettings(){
       uiDensity:           CONFIG_DEFAULTS.uiDensity,
       autoButtons:         CONFIG_DEFAULTS.autoButtons,
       eventsEnabled:       CONFIG_DEFAULTS.eventsEnabled,
-      moonDisplayMode:     CONFIG_DEFAULTS.moonDisplayMode,
       planesDisplayMode:   CONFIG_DEFAULTS.planesDisplayMode,
       subsystemVerbosity:  CONFIG_DEFAULTS.subsystemVerbosity,
       eventSourcePriority: _defaultEventSourcePriorityForSystem(CONFIG_DEFAULTS.calendarSystem)
@@ -260,8 +259,6 @@ export function ensureSettings(){
       s._moonsAutoToggle = true;
     }
   }
-  if (!/^(calendar|list|both)$/.test(String(s.moonDisplayMode || '').toLowerCase()))
-    s.moonDisplayMode = CONFIG_DEFAULTS.moonDisplayMode;
   if (!/^(calendar|list|both)$/.test(String(s.planesDisplayMode || '').toLowerCase()))
     s.planesDisplayMode = CONFIG_DEFAULTS.planesDisplayMode;
   s.subsystemVerbosity = String(s.subsystemVerbosity || CONFIG_DEFAULTS.subsystemVerbosity).toLowerCase();

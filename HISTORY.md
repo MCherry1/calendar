@@ -58,7 +58,7 @@ mentions. For the current target, read `CLAUDE.md` and `DESIGN.md`.
 13. **Web app.** Promoted the showcase into a real Vite + React +
     Tailwind app with a Workers AI weather narrator, deployed to
     Cloudflare Workers. Moved into a separate monorepo
-    (`mcherry1/party-buff`).
+    (`partybuff/party-buff`).
 14. **Refocus.** Concluded that the Roll20 sandbox was the wrong host
     for everything past "what's on the calendar today." Cut weather,
     sky, eclipses, forecast-lens, generated planar events, time-of-day,

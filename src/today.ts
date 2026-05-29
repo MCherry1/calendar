@@ -492,7 +492,7 @@ export var commands = {
       return whisperUi(m.who,
         'Usage: <code>!cal settings (group|labels|events|moons|planes|offcycle|buttons) (on|off)</code><br>'+
         '<code>!cal settings density (compact|normal)</code> &nbsp;·&nbsp; '+
-        '<code>!cal settings mode (moon|planes) (calendar|list|both)</code><br>'+
+        '<code>!cal settings mode planes (calendar|list|both)</code><br>'+
         '<code>!cal settings verbosity (normal|minimal)</code>'
       );
     }
@@ -518,11 +518,10 @@ export var commands = {
     if (key === 'mode'){
       var sysTok = String(a[3] || '').toLowerCase();
       var modeTok = String(a[4] || '').toLowerCase();
-      if (!/^(moon|lunar|planes|plane|planar)$/.test(sysTok) || !/^(calendar|list|both)$/.test(modeTok)){
-        return whisperUi(m.who,'Usage: <code>!cal settings mode (moon|planes) (calendar|list|both)</code>');
+      if (!/^(planes|plane|planar)$/.test(sysTok) || !/^(calendar|list|both)$/.test(modeTok)){
+        return whisperUi(m.who,'Usage: <code>!cal settings mode planes (calendar|list|both)</code>');
       }
-      if (sysTok === 'moon' || sysTok === 'lunar') st.moonDisplayMode = modeTok;
-      if (sysTok === 'planes' || sysTok === 'plane' || sysTok === 'planar') st.planesDisplayMode = modeTok;
+      st.planesDisplayMode = modeTok;
       refreshAndSend();
       return whisperUi(m.who,'Display mode updated: <b>'+esc(titleCase(sysTok))+'</b> → <b>'+esc(titleCase(modeTok))+'</b>.');
     }

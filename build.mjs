@@ -23,7 +23,7 @@ await build({
   banner: {
     js: [
       '// Calendar',
-      '// By Matthew Cherry (github.com/mcherry1/calendar)',
+      '// By Matthew Cherry (github.com/partybuff/calendar)',
       '// Roll20 API script',
       '// Call `!cal` to start.',
       '//',

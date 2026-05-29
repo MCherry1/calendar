@@ -957,7 +957,6 @@ export function helpRootMenu(m){
   }
 
   if (isGMNew){
-    var moonModeNew = _normalizeDisplayMode(stNew.moonDisplayMode);
     var plModeNew = _normalizeDisplayMode(stNew.planesDisplayMode);
     var verbNew = _subsystemVerbosityValue();
     rowsNew.push(taskCardHtml(
@@ -970,8 +969,7 @@ export function helpRootMenu(m){
         navP(m,'Seasons','seasons'),
         mbP(m,'Effects','effects')
       ],
-      'Views: Moon ' + _displayModeLabel(moonModeNew) +
-      ' · Planes ' + _displayModeLabel(plModeNew) +
+      'Views: Planes ' + _displayModeLabel(plModeNew) +
       ' · Detail ' + (verbNew === 'minimal' ? 'minimal' : 'normal') +
       '. Reset: <code>!cal resetcalendar</code>.'
     ));

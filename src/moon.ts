@@ -3,11 +3,10 @@ import { CONTRAST_MIN_HEADER, STYLES, state_name } from './constants.js';
 import { defaults, ensureSettings, getCal, titleCase } from './state.js';
 import { _contrast, applyBg } from './color.js';
 import { fromSerial, toSerial, todaySerial } from './date-math.js';
-import { _deliverAdditionalCalendarRange, buildAdditionalRangesCommand } from './events.js';
 import { _monthRangeFromSerial, _renderSyntheticMiniCal, button, esc, handoutWrap, rollingMonthWindow } from './rendering.js';
-import { _displayModeLabel, _displayMonthDayParts, _legendLine, _menuBox, _nextDisplayMode, _normalizeDisplayMode, _serialToDateSpec, _shiftSerialByMonth, _subsystemIsVerbose, currentDateLabel, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
-import { send, sendToAll, warnGM, whisper, whisperParts } from './commands.js';
-import { bindMoonPageByName, handoutButton, refreshHandout, refreshMoonPage, showMoonPage } from './persistent-views.js';
+import { _displayMonthDayParts, _legendLine, _menuBox, _serialToDateSpec, _shiftSerialByMonth, dateLabelFromSerial, formalDateLabelFromSerial, parseDatePrefixForAdd } from './ui.js';
+import { send, whisper, whisperParts } from './commands.js';
+import { refreshHandout, refreshMoonPage } from './persistent-views.js';
 import { _getPlaneData, getPlanarState, getPlanesState } from './planes.js';
 import { getWorld } from './worlds/index.js';
 
@@ -735,55 +734,6 @@ export var MOON_PREDICTION_LIMITS = {
 };
 
 export var MOON_HISTORY_DAYS = 60;
-
-// Preset reveal buttons: 1m, 3m, 6m, 10m (in 28-day months, inclusive of today)
-// Each maps to days. DC hints for the GM.
-export var MOON_REVEAL_PRESETS = [
-  { label:'1m',  days:28,  dc:'DC 10' },
-  { label:'3m',  days:84,  dc:'DC 15' },
-  { label:'6m',  days:168, dc:'DC 20' },
-  { label:'10m', days:280, dc:'DC 25' }
-];
-
-// Named range options for CLI input
-export var MOON_REVEAL_RANGE_OPTIONS = {
-  '1w': 7, '2w': 14, '4w': 28, '1m': 28,
-  '3m': 84, '6m': 168, '10m': 280
-};
-
-export function _parseMoonRevealRange(token, tier){
-  tier = _normalizeMoonRevealTier(tier);
-  var maxAllowed = (tier === 'high') ? MOON_PREDICTION_LIMITS.highMaxDays
-    : (tier === 'medium') ? MOON_PREDICTION_LIMITS.mediumMaxDays
-    : MOON_PREDICTION_LIMITS.lowDays;
-  var t = String(token || '').toLowerCase().trim();
-
-  // Default if no token given
-  if (!t){
-    if (tier === 'low')    return MOON_PREDICTION_LIMITS.lowDays;
-    if (tier === 'medium') return 28;  // 1 month default
-    return 84;                          // high default: 3 months
-  }
-
-  // Named range options
-  if (MOON_REVEAL_RANGE_OPTIONS[t]) return Math.min(maxAllowed, MOON_REVEAL_RANGE_OPTIONS[t]);
-
-  // Day suffix: "28d" or "56d"
-  var dayMatch = t.match(/^(\d+)d$/);
-  if (dayMatch) return Math.min(maxAllowed, parseInt(dayMatch[1], 10));
-
-  // Week suffix: "4w"
-  var weekMatch = t.match(/^(\d+)w$/);
-  if (weekMatch) return Math.min(maxAllowed, parseInt(weekMatch[1], 10) * 7);
-
-  // Plain number = days
-  if (/^\d+$/.test(t)){
-    var n = parseInt(t, 10);
-    if (isFinite(n) && n >= 1) return Math.min(maxAllowed, n);
-  }
-
-  return null;
-}
 
 export function _rangeLabel(days){
   days = parseInt(days, 10) || 0;
