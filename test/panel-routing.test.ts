@@ -7,7 +7,6 @@ import { handleInput } from "../src/boot-register.js";
 import { eventKey } from "../src/events.js";
 import { getMoonState, handleMoonCommand } from "../src/moon.js";
 import { handlePlanesCommand } from "../src/planes.js";
-import { getPersistentViewsState } from "../src/persistent-views.js";
 
 function gmMessage(content: string) {
   return {

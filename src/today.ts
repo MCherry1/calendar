@@ -6,10 +6,9 @@ import { colorsAPI } from './color.js';
 import { _invalidateSerialCache, _isLeapMonth, fromSerial, toSerial, todaySerial } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { _deliverAdditionalCalendarRange, _deliverTopLevelCalendarRange, buildAdditionalRangesCommand, buildCalendarsHtmlForSpec, defaultKeyFor, eventDisplayName, mergeInNewDefaultEvents, occurrencesInRange } from './events.js';
-import { button, clamp, esc, handoutWrap, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, renderMonthTable, restoreDefaultEvents, rollingMonthWindow, suppressedDefaultsListHtml } from './rendering.js';
+import { button, clamp, esc, listAllEventsTableHtml, _monthRangeFromSerial, removeListHtml, removeMatchesListHtml, restoreDefaultEvents, suppressedDefaultsListHtml } from './rendering.js';
 import { _displayMonthDayParts, _menuBox, _serialToDateSpec, _shiftSerialByMonth, activeEffectsPanelHtml, addEventSmart, addMonthlySmart, addYearlySmart, calendarSystemListHtml, currentDateLabel, formalCurrentDateLabel, helpCalendarSystemMenu, helpEventColorsMenu, helpRootMenu, helpSeasonsMenu, helpThemesMenu, nextForDayOnly, removeEvent, seasonSetListHtml, sendCurrentDate, setDate, stepDays, taskCardHtml, themeListHtml } from './ui.js';
 import { _normalizePackedWords, _playerTodayHtml, _showDefaultCalView, runEventsShortcut, send, whisper, whisperUi } from './commands.js';
-import { dismissPersistentFolderInstructions, refreshAllPersistentViews } from './persistent-views.js';
 import { MOON_SYSTEMS, _getMoonSys, _isFullMoonIllum, _isNewMoonIllum, _moonPhaseEmoji, _moonPhaseLabel, handleMoonCommand, invalidateMoonModel, moonEnsureSequences, moonPhaseAt } from './moon.js';
 import { _planarNotableToday, getPlanarState, _getAllPlaneData, handlePlanesCommand } from './planes.js';
 
@@ -334,74 +333,10 @@ function _eventsPanelHtml(serialArg){
     calHtml + lines.join('') + btns.join(''));
 }
 
-export function eventsHandoutHtml(serialArg?){
-  var cal = getCal();
-  var c = cal.current;
-  var today = todaySerial();
-  if (!cal.months || !cal.months.length){
-    return _menuBox('Events', '<div style="opacity:.7;">No event calendar is available.</div>');
-  }
-
-  // Rolling 12-month window: previous month, current month, N-2 following
-  var totalMonths = cal.months.filter(function(m){ return !m.leapEvery; }).length;
-  var followCount = Math.max(0, totalMonths - 2);
-  var window = rollingMonthWindow(today, 1, followCount);
-
-  var calParts = [];
-  for (var k = 0; k < window.length; k++){
-    var wm = window[k];
-    calParts.push('<div style="display:inline-block;vertical-align:top;margin:4px;">' +
-      renderMonthTable({ year: wm.y, mi: wm.mi, mode: 'full', dimPast: true }) +
-      '</div>');
-  }
-  var calHtml = handoutWrap(calParts.join(''));
-
-  var lines = [];
-  lines.push('<div style="font-weight:bold;margin:3px 0;">' + esc(currentDateLabel()) + '</div>');
-  try {
-    var occ = occurrencesInRange(today, today);
-    if (occ.length){
-      var seen = {};
-      var evList = [];
-      for (var i = 0; i < occ.length; i++){
-        var nm = eventDisplayName(occ[i].e);
-        var key = String(nm || '').toLowerCase();
-        if (!seen[key]){ seen[key] = 1; evList.push(nm); }
-      }
-      if (evList.length){
-        lines.push('<div style="font-size:.85em;opacity:.8;margin:6px 0 3px 0;"><b>Today\'s events</b></div>');
-        lines.push('<ul style="margin:4px 0;padding-left:18px;">');
-        for (var j = 0; j < evList.length; j++){
-          lines.push('<li style="font-size:.85em;">' + esc(evList[j]) + '</li>');
-        }
-        lines.push('</ul>');
-      }
-    }
-  } catch(e0){}
-
-  return _menuBox('Events — ' + esc(currentDateLabel()), lines.join('') + calHtml);
-}
-
 function _eventsRangeHtml(spec){
   var rangeSpec = Object.assign({}, spec, { includeAdjacentStrips: false });
   return _menuBox('Events — ' + esc(spec.title || 'Range'),
     buildCalendarsHtmlForSpec(rangeSpec));
-}
-
-export function eventsMechanicsHandoutHtml(){
-  return _menuBox('Events Mechanics',
-    '<div style="margin-bottom:6px;">Reference handout for the live event list, management workflows, and source-priority behavior.</div>' +
-    '<div style="font-size:.84em;line-height:1.6;margin-bottom:8px;">' +
-      '<b>Adding events:</b> Single, monthly, and yearly events all resolve into the live event table shown below.<br>' +
-      '<b>Hiding events:</b> Default events can be hidden and later shown again; hiding a custom event removes it because custom events are not kept in a hidden list.<br>' +
-      '<b>Source priority:</b> Default canon, generated content, and manual additions are tracked separately so hide/show flows stay deterministic.' +
-    '</div>' +
-    listAllEventsTableHtml() +
-    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:8px 0 6px 0;"></div>' +
-    removeListHtml() +
-    '<div style="border-top:1px solid rgba(0,0,0,.08);margin:8px 0 6px 0;"></div>' +
-    suppressedDefaultsListHtml()
-  );
 }
 
 export var commands = {
@@ -457,12 +392,7 @@ export var commands = {
   // FIX: top-level !cal list now works
   list: function(m){ whisper(m.who, listAllEventsTableHtml()); },
 
-  setup: function(m, a){
-    var action = String(a[2] || '').toLowerCase();
-    if (action === 'dismiss' || action === 'later'){
-      var res = dismissPersistentFolderInstructions();
-      return whisperUi(m.who, res.message);
-    }
+  setup: function(m){
     whisperUi(m.who, 'Setup is already complete.');
   },
 
@@ -826,7 +756,6 @@ export var commands = {
         return !sourceKeySet[defaultKeyFor(e.month, norm, e.name)];
       });
       refreshCalendarState(true);
-      refreshAllPersistentViews({ autoBind: true });
       sendChat(script_name, '/w gm Hidden "'+esc(name)+'" source events in the shared hide/show list.', null, { noarchive: true });
     }
 
@@ -841,7 +770,6 @@ export var commands = {
       });
       mergeInNewDefaultEvents(getCal());
       refreshCalendarState(true);
-      refreshAllPersistentViews({ autoBind: true });
       if (autoSuppressedSources[key]){
         sendChat(script_name, '/w gm Source "'+esc(name)+'" was shown again where allowed, but the current calendar still auto-suppresses that source.', null, { noarchive: true });
       } else {
@@ -857,7 +785,7 @@ export var commands = {
     whisper(m.who, 'Usage: <code>!cal source [list|up|down|disable|enable] [&lt;name&gt;]</code>');
   }},
 
-  resetcalendar: { gm:true, run:function(){ resetToDefaults(); refreshAllPersistentViews({ autoBind: true }); } },
+  resetcalendar: { gm:true, run:function(){ resetToDefaults(); } },
 
   // Moon system
   lunar:  function(m, a){ handleMoonCommand(m, ['moon'].concat(a.slice(2))); }, // alias

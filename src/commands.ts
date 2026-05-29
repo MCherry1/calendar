@@ -6,8 +6,8 @@ import { eventDisplayName, occurrencesInRange } from './events.js';
 import { button, esc } from './rendering.js';
 import { _displayMonthDayParts, _menuBox, currentDateLabel, sendCurrentDate, taskCardHtml } from './ui.js';
 import { invokeEventSub } from './today.js';
-import { MOON_SYSTEMS, _getMoonSys, _moonPeakPhaseDay, _moonTodaySummaryHtml, _normalizeMoonRevealTier, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
-import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _normalizePlaneRevealTier, _planarYearDays, _planesTodaySummaryHtml, getPlanarState, getPlanesState } from './planes.js';
+import { MOON_SYSTEMS, _getMoonSys, _moonPeakPhaseDay, _moonTodaySummaryHtml, getMoonState, moonEnsureSequences, moonPhaseAt } from './moon.js';
+import { PLANE_PHASE_EMOJI, PLANE_PHASE_LABELS, _getAllPlaneData, _planesTodaySummaryHtml, getPlanarState } from './planes.js';
 import { whisper } from './messaging.js';
 export { send, sendToAll, sendToGM, sendUi, sendUiToAll, sendUiToGM, whisper, whisperParts, whisperUi, warnGM, warnGMUi, cleanWho } from './messaging.js';
 
@@ -124,10 +124,7 @@ export function _playerTodayHtml(playerid){
   var planeSummary = 'Planar tracking is currently off.';
   if (st.planesEnabled !== false){
     try {
-      var psCard = getPlanesState();
-      var planeTierCard = _normalizePlaneRevealTier(psCard.revealTier || 'medium');
-      var planeHorizonCard = parseInt(psCard.revealHorizonDays, 10) || _planarYearDays();
-      planeSummary = _planesTodaySummaryHtml(today, false, planeTierCard, planeHorizonCard);
+      planeSummary = _planesTodaySummaryHtml(today, false);
     } catch(e3){
       planeSummary = 'Planar data is not available right now.';
     }

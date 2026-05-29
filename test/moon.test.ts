@@ -1,6 +1,7 @@
-// Tests for moon phase math, anti-phase coupling, Long Shadows, and moon
-// history cache. Eclipse, sky-position, and nighttime-lighting tests were
-// removed when those subsystems were excised from the Roll20 wrapper.
+// Tests for moon phase math, anti-phase coupling, and the moon history
+// cache. Eclipse, sky-position, nighttime-lighting, knowledge-tier, and
+// Long Shadows sky-framing tests were removed when those subsystems were
+// excised from the Roll20 wrapper.
 import { describe, it } from "node:test";
 import { strictEqual as assertEquals, notStrictEqual as assertNotEquals, ok as assert } from "node:assert/strict";
 import { freshInstall } from "./helpers.js";
@@ -12,12 +13,11 @@ import {
   MOON_SYSTEMS, _moonHashStr, _eberronMoonCore,
   moonEnsureSequences, moonPhaseAt, _applyAntiPhaseCoupling,
   getMoonState, handleMoonCommand,
-  moonHandoutHtml, moonPlayerPanelHtml, invalidateMoonModel,
+  invalidateMoonModel,
   FESTIVAL_SOFT_ANCHORS, MOON_TARGET_FULL_DAYS_PER_28,
   _applyAssociatedPlanePhaseShifts, _applyFestivalNudges,
   _collectPlanarPhaseWindows, _dN, _edgeDayMidpointSerial,
-  _isLongShadowsOverride, _longShadowsWindow, _moonPeakPhaseDay,
-  getLongShadowsMoons, captureMoonHistoryWindow
+  _moonPeakPhaseDay, captureMoonHistoryWindow
 } from "../src/moon.js";
 
 // ============================================================================
@@ -169,42 +169,6 @@ describe("Moon System", () => {
     assert(Math.abs(ms.sequences.Olarune[0].serial - expected) < 0.000001);
   });
 
-  it("Long Shadows runs from sunset on Vult 26 to sunrise on Vult 28 and centers gobbled moons on noon of Vult 27", () => {
-    freshInstall();
-    const year = 998;
-    const focus = toSerial(year, 11, 27);
-    moonEnsureSequences(focus, 400);
-
-    const claimed = getLongShadowsMoons(year).map((moon: any) => moon.name);
-    assert(claimed.length > 0, "expected at least one claimed moon");
-
-    const window = _longShadowsWindow(year);
-    const sampleMoon = claimed[0];
-    const seq = getMoonState().sequences[sampleMoon];
-    const nearestNew = seq
-      .filter((evt: any) => evt.type === "new")
-      .reduce((best: any, evt: any) => {
-        if (!best) return evt;
-        return Math.abs(evt.serial - window.midpointSerial) < Math.abs(best.serial - window.midpointSerial) ? evt : best;
-      }, null);
-
-    assert(nearestNew, "expected a new-moon event for the claimed moon");
-    assert(Math.abs(nearestNew.serial - window.midpointSerial) < 0.000001, "claimed moon should peak at the exact midpoint");
-
-    // Time-of-day removed; long-shadows window uses fixed 6am sunrise / 6pm sunset references.
-    const sunset = 18 / 24;
-    const sunrise = 6 / 24;
-    const justBeforeStart = window.startDaySerial + sunset - 0.01;
-    const justAfterStart = window.startDaySerial + sunset + 0.01;
-    const justBeforeEnd = window.endDaySerial + sunrise - 0.01;
-    const justAfterEnd = window.endDaySerial + sunrise + 0.01;
-
-    assert(!_isLongShadowsOverride(sampleMoon, justBeforeStart), "Long Shadows should not start before sunset");
-    assert(_isLongShadowsOverride(sampleMoon, justAfterStart), "Long Shadows should start immediately after sunset");
-    assert(_isLongShadowsOverride(sampleMoon, justBeforeEnd), "Long Shadows should persist until sunrise on Vult 28");
-    assert(!_isLongShadowsOverride(sampleMoon, justAfterEnd), "Long Shadows should end immediately after sunrise on Vult 28");
-  });
-
   it("Eberron averages 19 full-moon days per 28-day month", () => {
     freshInstall();
     const startYear = 1000;
@@ -251,27 +215,6 @@ describe("Moon history cache", () => {
     const resetKeys = Object.keys(getMoonState().recentHistory.bySerial).map(Number);
     assertEquals(resetKeys.length, 1);
     assertEquals(resetKeys[0], todaySerial());
-  });
-
-  it("uses cached exact past data only in the player moon handout", () => {
-    freshInstall();
-
-    const ms = getMoonState();
-    const yesterday = todaySerial() - 1;
-    ms.revealTier = "medium";
-    ms.revealHorizonDays = 7;
-    ms.recentHistory.bySerial[String(yesterday)] = {
-      serial: yesterday,
-      modelRevision: ms.modelRevision,
-      miniCalEvents: [
-        { serial: yesterday, name: "History Marker", color: "#123456", dotOnly: true }
-      ]
-    };
-    ms.recentHistory.minSerial = yesterday;
-    ms.recentHistory.maxSerial = yesterday;
-
-    assert(moonHandoutHtml().includes("History Marker"), "moon handout should use cached exact past history");
-    assert(!moonPlayerPanelHtml().includes("History Marker"), "live player moon panel should ignore cached history");
   });
 
   it("captures phase history without backfilling sky-derived events", () => {

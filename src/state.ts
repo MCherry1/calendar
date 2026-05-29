@@ -7,7 +7,6 @@ import { _invalidateSerialCache } from './date-math.js';
 import { DaySpec, Parse } from './parsing.js';
 import { compareEvents, currentDefaultKeySet, defaultKeyFor, mergeInNewDefaultEvents } from './events.js';
 import { clamp } from './rendering.js';
-import { refreshAllPersistentViews } from './persistent-views.js';
 import { _defaultDetailsForKey, _getSeasonLabel, sendCurrentDate } from './ui.js';
 
 
@@ -689,13 +688,9 @@ export function refreshCalendarState(silent){
 export function refreshAndSend(){
   refreshCalendarState(true);
   sendCurrentDate(null, true);
-  refreshAllPersistentViews({ autoBind: true });
 }
 
 export function resetToDefaults(){
-  var preservedPersistent = state[state_name] && state[state_name].persistentViews
-    ? deepClone(state[state_name].persistentViews)
-    : null;
   delete state[state_name];
   state[state_name] = {
     setup: {
@@ -703,8 +698,5 @@ export function resetToDefaults(){
       draft: {}
     }
   };
-  if (preservedPersistent){
-    state[state_name].persistentViews = preservedPersistent;
-  }
   sendChat(script_name, '/w gm Calendar state wiped. Use <code>!cal</code> to begin setup.', null, { noarchive: true });
 }
