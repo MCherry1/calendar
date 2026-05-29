@@ -122,13 +122,6 @@ export function _normalizeDisplayMode(mode){
   return 'both';
 }
 
-export function _nextDisplayMode(mode){
-  var m = _normalizeDisplayMode(mode);
-  if (m === 'both') return 'calendar';
-  if (m === 'calendar') return 'list';
-  return 'both';
-}
-
 export function _displayModeLabel(mode){
   var m = _normalizeDisplayMode(mode);
   if (m === 'calendar') return 'Calendar';
@@ -899,10 +892,9 @@ export function helpRootMenu(m){
   if (stNew.moonsEnabled !== false){
     rowsNew.push(taskCardHtml(
       'Moons',
-      'Check lunar status and lore without opening the full rules surface first.',
+      'Check lunar status without opening the full rules surface first.',
       [
         mbP(m,'Moons','moon'),
-        mbP(m,'Lore','moon lore'),
         promptMoonOn
       ],
       'Typed forms: <code>!cal moon</code>, <code>!cal moon on &lt;dateSpec&gt;</code>.'
