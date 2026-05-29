@@ -94,15 +94,18 @@ This repo also has a separate release workflow for permanent downloads.
 - CI artifacts are for normal day-to-day builds
 - GitHub Releases are for stable versioned builds you may want to keep and come back to later
 
-When you push a version tag like `v0.9.0`, GitHub Actions will:
+A release happens automatically whenever the `version` in `package.json`
+changes on `main`: GitHub Actions typechecks, tests, builds, and publishes
+`calendar.js` to a GitHub Release for that version. You can also trigger a
+release by pushing a `v*` tag manually. Either way, GitHub Actions will:
 
 1. Typecheck, test, and build the project again
-2. Create a GitHub Release for that tag if one does not exist yet
+2. Create a GitHub Release for that version if one does not exist yet
 3. Attach the built `calendar.js` file to that release as a downloadable asset
 
 That means you do not need to commit `calendar.js` to git just to have a durable Roll20 upload file.
 
-Typical release flow:
+Manual release flow (if you want to cut a specific version by hand):
 
 ```bash
 git tag v0.9.0
@@ -118,6 +121,33 @@ https://github.com/partybuff/calendar/releases/latest/download/calendar.js
 ```
 
 This URL always serves the most recently published release's `calendar.js`, so GMs can bookmark it and re-download whenever a new version is tagged.
+
+### Automatic engine updates
+
+The wrapper depends on `@partybuff/calendar-engine`, published from the
+`partybuff/party-buff` monorepo. You never bump that dependency by hand:
+
+- In the monorepo, bumping the engine's `package.json` version and merging
+  to `main` auto-publishes it to GitHub Packages.
+- Here, a daily workflow (`check-engine-updates.yml`) notices the newer
+  engine, regenerates `package-lock.json`, runs the full check, bumps this
+  package's patch version, and opens a PR. Merging that PR cuts a new
+  `calendar.js` release (above). The only manual step left in the whole
+  chain is pasting the new `calendar.js` into Roll20 — Roll20 has no deploy
+  API, so that part is unavoidable.
+
+One-time repo settings to make this fully hands-off (Settings → Actions →
+General → Workflow permissions):
+
+- Enable **"Allow GitHub Actions to create and approve pull requests"** so
+  the bump PR can be opened.
+- For zero-click merges, add an `AUTOMATION_PAT` secret (a fine-scoped PAT
+  with `contents` + `pull_requests` write) and enable **"Allow auto-merge"**
+  with a required `CI` check. Without the PAT the bump PR still appears;
+  you just click merge.
+
+The `PACKAGES_TOKEN` secret (already used by CI) must stay set — it
+authenticates installs of the private engine package.
 
 [Return to Table of Contents](#table-of-contents)
 

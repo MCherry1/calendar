@@ -1,0 +1,85 @@
+name: Check calendar-engine updates
+
+# Daily check for a newer @partybuff/calendar-engine release on GitHub
+# Packages. When the published version is ahead of our lockfile, open a PR
+# that bumps the dependency and our own patch version (merging that PR cuts
+# a fresh calendar.js release via release.yml). This is the ONLY place the
+# engine dependency gets bumped — nobody edits package.json by hand.
+on:
+  schedule:
+    - cron: '23 8 * * *'   # daily, 08:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Compare published vs locked engine version
+        id: ver
+        env:
+          PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+        run: |
+          LATEST=$(npm view @partybuff/calendar-engine version)
+          LOCKED=$(node -p "require('./package-lock.json').packages['node_modules/@partybuff/calendar-engine'].version")
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "locked=$LOCKED" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" = "$LOCKED" ]; then
+            echo "up to date ($LOCKED)"
+            echo "behind=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "behind: locked=$LOCKED latest=$LATEST"
+            echo "behind=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open bump PR
+        if: steps.ver.outputs.behind == 'true'
+        env:
+          PACKAGES_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+          # A PAT lets the PR's CI run and auto-merge work; falls back to the
+          # default token (PR is created, but you may need to merge by hand).
+          GH_TOKEN: ${{ secrets.AUTOMATION_PAT || secrets.GITHUB_TOKEN }}
+          LATEST: ${{ steps.ver.outputs.latest }}
+          LOCKED: ${{ steps.ver.outputs.locked }}
+        run: |
+          set -euo pipefail
+          BRANCH="auto/engine-bump-$LATEST"
+          # Don't reopen a PR we already raised for this version.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "branch $BRANCH already exists; nothing to do"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+          npm pkg set "dependencies.@partybuff/calendar-engine=^$LATEST"
+          npm version patch --no-git-tag-version
+          npm install   # regenerates package-lock.json against the new engine
+
+          # Validate before proposing the change so a reviewer (or auto-merge)
+          # is acting on a known-good bump.
+          npm run typecheck
+          npm test
+          npm run build
+          node ./test/calendar_smoke.mjs
+
+          git add package.json package-lock.json
+          git commit -m "chore: bump @partybuff/calendar-engine to ^$LATEST"
+          git push -u origin "$BRANCH"
+
+          gh pr create --base main --head "$BRANCH" \
+            --title "Bump calendar-engine to $LATEST" \
+            --body "Automated dependency bump: \`@partybuff/calendar-engine\` published \`$LATEST\` (was \`$LOCKED\`). The lockfile was regenerated and typecheck, tests, build, and the smoke check all passed in the bump job. Merging this cuts a new \`calendar.js\` release."
+
+          gh pr merge "$BRANCH" --auto --squash \
+            || echo "Auto-merge unavailable (enable 'Allow auto-merge' + a required check, or merge manually)."
