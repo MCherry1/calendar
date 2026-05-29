@@ -105,14 +105,6 @@ export function setupIsComplete(){
   return ensureSetupState().status === 'complete';
 }
 
-export function setupIsInProgress(){
-  return ensureSetupState().status === 'in_progress';
-}
-
-export function setupRequiresOnboarding(){
-  return ensureSetupState().status !== 'complete';
-}
-
 export function getManualSuppressedSources(){
   var root = _setupRoot();
   if (!root.manualSuppressedSources || typeof root.manualSuppressedSources !== 'object'){

@@ -43,20 +43,6 @@ export function _showDefaultCalView(m){
   sendCurrentDate(m.who, false, { playerid:m.playerid, dashboard:true, includeButtons:true });
 }
 
-export function _playerPlanarActiveTodayLines(today, viewTier, genHorizon){
-  var planes = _getAllPlaneData();
-  var notes = [];
-  var ignoreGenerated = (viewTier === 'low' || genHorizon <= 0);
-  for (var i = 0; i < planes.length; i++){
-    if (planes[i].type === 'fixed') continue;
-    var ps = getPlanarState(planes[i].name, today, ignoreGenerated ? { ignoreGenerated:true } : null);
-    if (!ps) continue;
-    if (ps.phase !== 'coterminous' && ps.phase !== 'remote') continue;
-    notes.push((PLANE_PHASE_EMOJI[ps.phase] || '⚪') + ' <b>' + esc(ps.plane.name) + '</b> ' + esc(PLANE_PHASE_LABELS[ps.phase] || ps.phase));
-  }
-  return notes;
-}
-
 export function _playerTodayHtml(playerid){
   var st = ensureSettings();
   var today = todaySerial();

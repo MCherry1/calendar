@@ -608,30 +608,6 @@ export function eventLineHtml(y, mi, d, name, includeYear, isToday, color){
   return '<div'+sty+'>'+ sw + ' ' + dateLbl + ': ' + esc(name) + '</div>';
 }
 
-
-
-/* ============================================================================
- * 11) SHOW/SEND
- * ==========================================================================*/
-
-export function deliverRange(opts){
-  opts = opts || {};
-  var args = opts.args || [];
-
-  var spec = parseUnifiedRange(_tokenizeRangeArgs(args));
-  var calHtml = buildCalendarsHtmlForSpec(spec);
-  var html = calHtml;
-
-  if (opts.mode !== 'cal'){
-    var ext = stripRangeExtensionDynamic(spec) || spec;
-    var forceYear = (Math.floor(ext.start/daysPerYear()) !== Math.floor(ext.end/daysPerYear()));
-    var listHtml = eventsListHTMLForRange(spec.title, ext.start, ext.end, forceYear);
-    html = calHtml + '<div style="height:8px"></div>' + listHtml;
-  }
-
-  return (opts.dest === 'broadcast') ? sendToAll(html) : whisper(opts.who, html);
-}
-
 // ---------------------------------------------------------------------------
 // Synthetic minical helpers (for subsystem overlays)
 // ---------------------------------------------------------------------------
@@ -757,10 +733,6 @@ export function rollingMonthWindow(serial, prevCount, nextCount){
   }
 
   return result;
-}
-
-export function _stripHtmlTags(s){
-  return String(s || '').replace(/<[^>]*>/g, '').trim();
 }
 
 // Wraps handout body HTML in a responsive flex container for multi-month grids.
