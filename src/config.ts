@@ -54,7 +54,6 @@ export var CONFIG_DEFAULTS: Record<string, any> = {
   moonsEnabled:      true,
   planesEnabled:     true,
   offCyclePlanes:    true,
-  moonDisplayMode:   'calendar',
   planesDisplayMode: 'calendar',
   subsystemVerbosity:'normal',
   uiDensity:         'normal',

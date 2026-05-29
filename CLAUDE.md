@@ -4,7 +4,7 @@ Top-level orientation for an agent opening this repo cold. Read this first.
 
 ## What this repo is
 
-`mcherry1/calendar` — a Roll20 API script that displays a fantasy
+`partybuff/calendar` — a Roll20 API script that displays a fantasy
 campaign calendar in the Roll20 chat window. Single uploadable artifact:
 `calendar.js`. The GM pastes it into Roll20's API Scripts editor;
 players type `!cal` to see the calendar.
@@ -17,7 +17,7 @@ The repo previously contained large subsystems for weather, sky
 simulation, forecast-lens knowledge tiers, planar mechanics, eclipses,
 time-of-day, and handout rendering. **All of that is being cut.** The
 Roll20 sandbox is too constrained to host it cleanly. Those features
-moved (or are moving) into the sibling web app at `mcherry1/party-buff`.
+moved (or are moving) into the sibling web app at `partybuff/party-buff`.
 
 This repo is being refocused to a **thin Roll20 wrapper around
 `@partybuff/calendar-engine`**, a pure-TypeScript engine published from
@@ -56,7 +56,7 @@ below, treat it as legacy and confirm with the user before extending it.
   Markdown files under `Handouts/` are reference notes only, not code.
 - Roll20 pages with embedded "live" rendering.
 - The standalone web app, the showcase site, and any Cloudflare Workers
-  deployment. Those live in `mcherry1/party-buff`.
+  deployment. Those live in `partybuff/party-buff`.
 
 If a request lands in the "out of scope" list, push back. The user
 explicitly chose to cut these.
@@ -64,11 +64,11 @@ explicitly chose to cut these.
 ## Architecture (target)
 
 ```
-mcherry1/party-buff (monorepo)
+partybuff/party-buff (monorepo)
   └── packages/calendar-engine        pure TypeScript, no Roll20 deps
         published as @partybuff/calendar-engine on GitHub Packages
 
-mcherry1/calendar (this repo)
+partybuff/calendar (this repo)
   ├── src/                            Roll20 wrapper
   │   ├── index.ts                    entry point
   │   ├── state.ts                    state.PartyBuffCalendar persistence

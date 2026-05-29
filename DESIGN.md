@@ -1,6 +1,6 @@
 # DESIGN.md (draft)
 
-Forward-looking design for `mcherry1/calendar`. Audience: an agent
+Forward-looking design for `partybuff/calendar`. Audience: an agent
 implementing changes in this repo. For project orientation read
 `CLAUDE.md` first. For the engine API this repo consumes read
 `ENGINE_CONTRACT.md`. User-facing behavior is in `README.md`.
@@ -51,7 +51,7 @@ These are explicitly cut. Do not re-add without a written reversal.
 - Roll20 handouts as a render surface. Handout creation is disabled.
 - Roll20 pages with "live" embedded rendering.
 - Standalone web app, showcase site, Cloudflare Workers deployment.
-  These live in `mcherry1/party-buff`.
+  These live in `partybuff/party-buff`.
 - Macros, dice rolls, ambient narration, AI generation.
 
 ---
@@ -59,11 +59,11 @@ These are explicitly cut. Do not re-add without a written reversal.
 ## 2. Architecture
 
 ```
-mcherry1/party-buff (sibling monorepo)
+partybuff/party-buff (sibling monorepo)
   └── packages/calendar-engine          pure TypeScript, no host deps
         published as @partybuff/calendar-engine on GitHub Packages
 
-mcherry1/calendar (this repo, the wrapper)
+partybuff/calendar (this repo, the wrapper)
   ├── src/                              Roll20 wrapper
   │   ├── index.ts                      boot
   │   ├── state.ts                      state.PartyBuffCalendar

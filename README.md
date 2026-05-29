@@ -114,7 +114,7 @@ Then open the repo's **Releases** page, download the attached `calendar.js`, and
 The permalink for the latest release is:
 
 ```
-https://github.com/MCherry1/calendar/releases/latest/download/calendar.js
+https://github.com/partybuff/calendar/releases/latest/download/calendar.js
 ```
 
 This URL always serves the most recently published release's `calendar.js`, so GMs can bookmark it and re-download whenever a new version is tagged.

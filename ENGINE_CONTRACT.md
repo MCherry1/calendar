@@ -1,7 +1,7 @@
 # Engine Consumer Contract
 
-This repo (`mcherry1/calendar`, the Roll20 API script) will consume
-`@partybuff/calendar-engine` (published from `mcherry1/party-buff`). This
+This repo (`partybuff/calendar`, the Roll20 API script) will consume
+`@partybuff/calendar-engine` (published from `partybuff/party-buff`). This
 document is the contract: it describes the API surface the Roll20 wrapper
 needs from the engine. It is written for the engine author so that the
 engine can be designed to fit without churn.
@@ -62,7 +62,7 @@ must be present in `worlds.list()` and resolvable via `worlds.get(id)`:
 A world id is a stable string. Adding more worlds later is non-breaking.
 
 **Runtime data is canon, not markdown.** The current per-world definitions
-in `mcherry1/calendar/src/worlds/*.ts`, `src/moon.ts`, and `src/planes.ts`
+in `partybuff/calendar/src/worlds/*.ts`, `src/moon.ts`, and `src/planes.ts`
 are the source of truth for concrete numbers (synodic periods, planar
 cycle lengths, anchor dates, holiday calendars). When the engine package
 is authored, harvest those files directly. Any synodic periods, anchor
